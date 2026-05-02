@@ -1,0 +1,461 @@
+@extends('layouts.app')
+
+@section('title', 'Payments')
+@section('content_class', 'pb-0')
+
+@section('content')
+    @include('partials.alerts')
+
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
+        <div>
+            <h4 class="mb-1">Payments<span class="badge badge-soft-primary ms-2">{{ $payments->total() }}</span></h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Payments</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="gap-2 d-flex align-items-center flex-wrap">
+            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvas_add">
+                <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Payment
+            </a>
+        </div>
+    </div>
+
+    <div class="gap-2 d-flex align-items-center flex-wrap">
+        <form action="{{ route('payments.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap w-100">
+            <div class="input-icon input-icon-start position-relative">
+                <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+            </div>
+            <select name="status" class="form-select">
+                <option value="">All Status</option>
+                @foreach (['pending' => 'Pending', 'paid' => 'Paid', 'overdue' => 'Overdue', 'partial' => 'Partial'] as $value => $label)
+                    <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <select name="quotation_number" class="form-select">
+                <option value="">Quotation Number</option>
+                @foreach ($quotations as $quotation)
+                    <option value="{{ $quotation->quotation_number }}"
+                        @selected(request('quotation_number') == $quotation->quotation_number)>
+                        {{ $quotation->quotation_number }}
+                    </option>
+                @endforeach
+            </select>
+            <button class="btn btn-outline-light shadow" type="submit">Filter</button>
+        </form>
+    </div>
+
+
+    <div class="card-body">
+        <div class="table-responsive table-nowrap custom-table">
+            <table class="table table-nowrap">
+                <thead class="table-light">
+                    <tr>
+                        <th>Quotation Number</th>
+                        <th>Client</th>
+                        <th>Project</th>
+                        <th>Stage</th>
+                        <th>Amount</th>
+                        <th>Due Date</th>
+                        <th>Payment Method</th>
+                        {{-- <th>Transaction ID</th> --}}
+                        <th>Status</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($payments as $payment)
+                        <tr>
+                            <td>{{ $payment->quotation?->quotation_number ?? '-' }}</td>
+                            <td>{{ $payment->client?->name ?? '-' }}</td>
+                            <td>{{ $payment->project?->name ?? '-' }}</td>
+                            <td>{{ $payment->stage->name ?? '-' }}</td>
+                            <td>₹{{ number_format($payment->amount, 2) }}</td>
+                            <td>{{ optional($payment->due_date)->format('d M Y') ?? '-' }}</td>
+                            <td>{{ ucfirst($payment->method) }}</td>
+                            {{-- <td>{{ $payment->transaction_id ?: '-' }}</td> --}}
+                            <td>
+                                <span
+                                    class="badge {{ $payment->status === 'paid' ? 'bg-success' : ($payment->status === 'overdue' ? 'bg-danger' : 'bg-warning') }}">
+                                    {{ ucfirst($payment->status) }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <x-action-dropdown :editRoute="in_array($payment->status, ['pending', 'partial', 'overdue']) ? '#' : null" :editAttributes="in_array($payment->status, ['pending', 'partial', 'overdue']) ? ['data-bs-toggle' => 'modal', 'data-bs-target' => '#edit_payment_' . $payment->id] : []"
+                                    :deleteRoute="route('payments.destroy', $payment)" deleteTitle="Delete Payment"
+                                    :deleteMessage="'Are you sure you want to delete payment for quotation \'' . ($payment->quotation?->quotation_number ?? $payment->id) . '\'?'">
+                                    <a class="dropdown-item" href="{{ route('payments.show', $payment) }}">
+                                        <i class="ti ti-eye me-1 text-info"></i> Show
+                                    </a>
+                                </x-action-dropdown>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">No payments found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">{{ $payments->links() }}</div>
+    </div>
+    </div>
+
+    {{-- <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-0 rounded-0">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Expenses</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive custom-table">
+                        <table class="table table-nowrap">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Project</th>
+                                    <th>Employee</th>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($expenses as $expense)
+                                <tr>
+                                    <td>{{ $expense->title }}</td>
+                                    <td>{{ $expense->project?->name ?? '-' }}</td>
+                                    <td>{{ $expense->employee?->name ?? '-' }}</td>
+                                    <td>{{ optional($expense->expense_date)->format('d M Y') ?? '-' }}</td>
+                                    <td>${{ number_format($expense->amount, 2) }}</td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">No expenses recorded yet.</td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> --}}
+
+    <!-- Add Payment Offcanvas -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">Add Payment</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form action="{{ route('payments.store') }}" method="POST" class="row g-3">
+                @csrf
+                <div class="col-12">
+                    <label class="form-label">Client <span class="text-danger">*</span></label>
+                    <select id="client_id" name="client_id" class="form-select" required>
+                        <option value="">Select Client</option>
+                        @foreach ($clients as $client)
+                            <option value="{{ $client->id }}">
+                                {{ $client->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Quotation <span class="text-danger">*</span></label>
+                    <select id="quotation_id" name="quotation_id" class="form-select" required>
+                        <option value="">Select Quotation</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Project Name</label>
+                    <input type="text" id="project_name" class="form-control" readonly placeholder="Select a client first">
+                    <input type="hidden" name="project_id" id="project_id">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Total Amount</label>
+                    <input type="number" id="total_amount" class="form-control" readonly>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select name="status" id="status" class="form-select" required>
+                        <option value="">Select Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="partial">Partial</option>
+                        <option value="paid">Paid</option>
+                        <option value="overdue">Overdue</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Stage <span class="text-danger">*</span></label>
+                    <select name="stage_id" class="form-select" required>
+                        <option value="">Select Stage</option>
+                        @foreach ($stages as $stage)
+                            <option value="{{ $stage->id }}">
+                                {{ $stage->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Amount <span class="text-danger">*</span> (<= Remaining)</label>
+                            <input type="number" step="0.01" id="amount" name="amount" class="form-control" min="0" required
+                                readonly>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                    <select name="method" class="form-select" required>
+                        <option value="">Select</option>
+                        <option value="cash">Cash</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" name="due_date" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Paid At</label>
+                    <input type="datetime-local" name="paid_at" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Transaction ID</label>
+                    <input type="text" name="transaction_id" class="form-control">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Notes</label>
+                    <textarea name="notes" class="form-control" rows="4"></textarea>
+                </div>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @foreach ($payments as $payment)
+        <div class="modal fade" id="edit_payment_{{ $payment->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Payment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form action="{{ route('payments.update', $payment) }}" method="POST" class="row g-3">
+                            @csrf
+                            @method('PUT')
+                            <div class="col-12">
+                                <label class="form-label">Client <span class="text-danger">*</span></label>
+                                <select id="edit_client_id_{{ $payment->id }}" name="client_id" class="form-select" required>
+                                    <option value="">Select Client</option>
+                                    @foreach ($clients as $client)
+                                        <option value="{{ $client->id }}" @selected($client->id === $payment->client_id)>
+                                            {{ $client->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Quotation <span class="text-danger">*</span></label>
+                                <select id="edit_quotation_id_{{ $payment->id }}" name="quotation_id" class="form-select"
+                                    data-selected="{{ $payment->quotation_id }}" required>
+                                    <option value="{{ $payment->quotation_id }}"
+                                        data-remaining="{{ $payment->quotation?->total_amount ?? $payment->quotation?->amount ?? 0 }}"
+                                        selected>
+                                        {{ $payment->quotation?->quotation_number ?? 'Selected Quotation' }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Project Name</label>
+                                <input type="text" id="edit_project_name_{{ $payment->id }}" class="form-control" readonly
+                                    value="{{ $payment->project?->name ?? '' }}">
+                                <input type="hidden" name="project_id" id="edit_project_id_{{ $payment->id }}"
+                                    value="{{ $payment->project_id }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Total Amount</label>
+                                <input type="number" id="edit_total_amount_{{ $payment->id }}" class="form-control" readonly>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Stage <span class="text-danger">*</span></label>
+                                <select name="stage_id" class="form-select" required>
+                                    <option value="">Select Stage</option>
+                                    @foreach ($stages as $stage)
+                                        <option value="{{ $stage->id }}" @selected($stage->id == $payment->stage_id)>
+                                            {{ $stage->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Amount</label>
+                                <input type="number" step="0.01" name="amount" class="form-control"
+                                    value="{{ $payment->amount }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Payment Method</label>
+                                <select name="method" class="form-select" required>
+                                    <option value="">Select</option>
+                                    <option value="cash" {{ $payment->method == 'cash' ? 'selected' : '' }}>Cash</option>
+                                    <option value="bank_transfer" {{ $payment->method == 'bank_transfer' ? 'selected' : '' }}>Bank
+                                        Transfer</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Due Date</label>
+                                <input type="date" name="due_date" class="form-control"
+                                    value="{{ optional($payment->due_date)->format('Y-m-d') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Paid At</label>
+                                <input type="datetime-local" name="paid_at" class="form-control"
+                                    value="{{ optional($payment->payment_date)->format('Y-m-d\TH:i') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Transaction ID</label>
+                                <input type="text" name="transaction_id" class="form-control"
+                                    value="{{ $payment->transaction_id }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Status</label>
+                                <select name="status" class="form-select">
+                                    @foreach (['pending', 'paid', 'overdue', 'partial'] as $status)
+                                        <option value="{{ $status }}" @selected($status === $payment->status)>{{ ucfirst($status) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notes</label>
+                                <textarea name="notes" class="form-control" rows="4">{{ $payment->notes }}</textarea>
+                            </div>
+                            <div class="col-12 d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Update Payment</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
+@endsection
+
+@push('scripts')
+    <script>
+        $(document).ready(function () {
+            function applyAmountRules(statusSelector, amountSelector, totalSelector) {
+                var status = $(statusSelector).val();
+                var total = parseFloat($(totalSelector).val() || 0);
+                var $amount = $(amountSelector);
+
+                if (status === 'paid') {
+                    $amount.val(total > 0 ? total : '').prop('readonly', true);
+                    return;
+                }
+
+                if (status === 'pending' || status === 'partial') {
+                    $amount.prop('readonly', false);
+                    return;
+                }
+
+                $amount.val('').prop('readonly', true);
+            }
+
+            function loadProject(clientId, projectNameSelector, projectIdSelector) {
+                $(projectNameSelector).val('').attr('placeholder', 'Select a client first');
+                $(projectIdSelector).val('');
+
+                if (!clientId) {
+                    return;
+                }
+
+                var pUrl = "{{ route('payments.project-by-client', ':id') }}".replace(':id', clientId);
+                $.get(pUrl, function (data) {
+                    if (data.project) {
+                        $(projectNameSelector).val(data.project.name);
+                        $(projectIdSelector).val(data.project.id);
+                    } else {
+                        $(projectNameSelector).val('').attr('placeholder', 'No project found for this client');
+                        $(projectIdSelector).val('');
+                    }
+                }).fail(function () {
+                    $(projectNameSelector).val('').attr('placeholder', 'Error loading project');
+                    $(projectIdSelector).val('');
+                });
+            }
+
+            function loadQuotations(clientId, quotationSelector, selectedQuotationId) {
+                var $quotation = $(quotationSelector);
+                $quotation.empty().append('<option value="">Loading...</option>').prop('disabled', true);
+
+                if (!clientId) {
+                    $quotation.empty().append('<option value="">Select Quotation</option>').prop('disabled', false);
+                    return;
+                }
+
+                var qUrl = "{{ route('payments.quotations-by-client', ':id') }}".replace(':id', clientId);
+                $.get(qUrl, function (data) {
+                    $quotation.empty().append('<option value="">Select Quotation</option>');
+
+                    data.forEach(function (q) {
+                        var selected = selectedQuotationId && String(selectedQuotationId) === String(q.id) ? 'selected' : '';
+                        var fullyPaidText = q.is_fully_paid ? ' (Fully Paid)' : '';
+                        $quotation.append(
+                            `<option value="${q.id}" data-remaining="${q.remaining_amount}" ${selected}>${q.number} - Remaining: Rs ${parseFloat(q.remaining_amount).toLocaleString()}${fullyPaidText}</option>`
+                        );
+                    });
+
+                    $quotation.prop('disabled', false).trigger('change');
+                }).fail(function () {
+                    $quotation.empty().append('<option value="">Error loading quotations</option>').prop('disabled', false);
+                });
+            }
+
+            $('#client_id').on('change', function () {
+                var clientId = $(this).val();
+                $('#total_amount').val('');
+                $('#status').val('');
+                $('#amount').val('').prop('readonly', true);
+                loadQuotations(clientId, '#quotation_id', null);
+                loadProject(clientId, '#project_name', '#project_id');
+            });
+
+            @foreach ($payments as $payment)
+                $('#edit_payment_{{ $payment->id }}').on('shown.bs.modal', function () {
+                    var clientId = $('#edit_client_id_{{ $payment->id }}').val();
+                    var selectedQuotationId = $('#edit_quotation_id_{{ $payment->id }}').data('selected');
+                    loadQuotations(clientId, '#edit_quotation_id_{{ $payment->id }}', selectedQuotationId);
+                    loadProject(clientId, '#edit_project_name_{{ $payment->id }}', '#edit_project_id_{{ $payment->id }}');
+                });
+
+                $('#edit_client_id_{{ $payment->id }}').on('change', function () {
+                    var clientId = $(this).val();
+                    loadQuotations(clientId, '#edit_quotation_id_{{ $payment->id }}', null);
+                    loadProject(clientId, '#edit_project_name_{{ $payment->id }}', '#edit_project_id_{{ $payment->id }}');
+                });
+            @endforeach
+
+            $(document).on('change', '#quotation_id, [id^=edit_quotation_id_]', function () {
+                var remaining = $(this).find(':selected').data('remaining') || 0;
+                var totalFieldId = $(this).attr('id').replace('quotation_id', 'total_amount');
+                $('#' + totalFieldId).val(remaining);
+                if ($(this).attr('id') === 'quotation_id') {
+                    applyAmountRules('#status', '#amount', '#total_amount');
+                }
+            });
+
+            $('#status').on('change', function () {
+                applyAmountRules('#status', '#amount', '#total_amount');
+            });
+        });
+    </script>
+@endpush

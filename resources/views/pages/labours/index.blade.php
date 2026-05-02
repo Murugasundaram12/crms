@@ -1,0 +1,107 @@
+@extends('layouts.app')
+
+@section('title', 'Labours')
+
+@section('content')
+    @include('partials.alerts')
+
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
+        <div>
+            <h4 class="mb-1">Labours<span class="badge badge-soft-primary ms-2">{{ $labours->total() }}</span></h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Labours</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <form action="{{ route('labours.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="input-icon input-icon-start position-relative">
+                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                    <input type="text" name="q" class="form-control" placeholder="Search labours"
+                        value="{{ request('q') }}">
+                </div>
+                <select name="labour_role_id" class="form-select">
+                    <option value="">All Roles</option>
+                    @foreach ($labourRoles as $labourRole)
+                        <option value="{{ $labourRole->id }}" @selected((string) request('labour_role_id') === (string) $labourRole->id)>
+                            {{ $labourRole->name }}
+                        </option>
+                    @endforeach
+                </select>
+                <select name="gender" class="form-select">
+                    <option value="">All Genders</option>
+                    <option value="male" @selected(request('gender') === 'male')>Male</option>
+                    <option value="female" @selected(request('gender') === 'female')>Female</option>
+                    <option value="other" @selected(request('gender') === 'other')>Other</option>
+                </select>
+                <button type="submit" class="btn btn-outline-light shadow">Filter</button>
+            </form>
+            @can('labours-create')
+                <a href="{{ route('labours.create') }}" class="btn btn-primary">
+                    <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Labour
+                </a>
+            @endcan
+        </div>
+    </div>
+
+    <div class="card border-0 rounded-0">
+        <div class="card-body">
+            <div class="table-responsive custom-table">
+                <table class="table table-nowrap">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Job Title</th>
+                            <th>Phone Number</th>
+                            <th>Role</th>
+                            <th>Gender</th>
+                            <th>Salary</th>
+                            <th>Photo</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($labours as $labour)
+                            <tr>
+                                <td>{{ $labour->name }}</td>
+                                <td>{{ $labour->job_title ?: '-' }}</td>
+                                <td>{{ $labour->phone_number }}</td>
+                                <td>{{ $labour->labourRole?->name ?: '-' }}</td>
+                                <td>{{ ucfirst($labour->gender) }}</td>
+                                <td>₹{{ number_format((float) $labour->salary, 2) }}</td>
+                                <td>
+                                    @if ($labour->government_photo)
+                                        <a href="{{ asset('storage/' . $labour->government_photo) }}" target="_blank"
+                                            class="btn btn-sm btn-outline-light">View</a>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td class="text-end">
+                                    <x-action-dropdown
+                                        :editRoute="route('labours.edit', $labour->id)"
+                                        editPermission="labours-edit"
+                                        :deleteRoute="route('labours.delete', $labour->id)"
+                                        deleteTitle="Delete Labour"
+                                        :deleteMessage="'Are you sure you want to delete labour \'' . $labour->name . '\'?'"
+                                        deletePermission="labours-delete"
+                                    />
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No labour records found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                {{ $labours->links() }}
+            </div>
+        </div>
+    </div>
+@endsection

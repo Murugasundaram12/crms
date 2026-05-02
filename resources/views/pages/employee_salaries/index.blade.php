@@ -1,0 +1,86 @@
+@extends('layouts.app')
+
+@section('title', 'Employee Salaries')
+
+@section('content')
+    @include('partials.alerts')
+
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
+        <div>
+            <h4 class="mb-1">Employee Salaries<span class="badge badge-soft-primary ms-2">{{ $employeeSalaries->total() }}</span></h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Employee Salaries</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <form action="{{ route('employee-salaries.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="input-icon input-icon-start position-relative">
+                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                    <input type="text" name="q" class="form-control" placeholder="Search salaries"
+                        value="{{ request('q') }}">
+                </div>
+                <select name="salary_type" class="form-select">
+                    <option value="">All Salary Types</option>
+                    <option value="daily" @selected(request('salary_type') === 'daily')>Daily</option>
+                    <option value="weekly" @selected(request('salary_type') === 'weekly')>Weekly</option>
+                    <option value="monthly" @selected(request('salary_type') === 'monthly')>Monthly</option>
+                </select>
+                <button type="submit" class="btn btn-outline-light shadow">Filter</button>
+            </form>
+            @can('employees-salary-create')
+                <a href="{{ route('employee-salaries.create') }}" class="btn btn-primary">
+                    <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Salary
+                </a>
+            @endcan
+        </div>
+    </div>
+
+    <div class="card border-0 rounded-0">
+        <div class="card-body">
+            <div class="table-responsive custom-table">
+                <table class="table table-nowrap">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Salary</th>
+                            <th>Salary Type</th>
+                            <th>Created At</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($employeeSalaries as $employeeSalary)
+                            <tr>
+                                <td>{{ $employeeSalary->name }}</td>
+                                <td>₹{{ number_format((float) $employeeSalary->salary, 2) }}</td>
+                                <td>{{ ucfirst($employeeSalary->salary_type) }}</td>
+                                <td>{{ $employeeSalary->created_at?->format('d M Y') ?: '-' }}</td>
+                                <td class="text-end">
+                                    <x-action-dropdown
+                                        :editRoute="route('employee-salaries.edit', $employeeSalary)"
+                                        editPermission="employees-salary-edit"
+                                        :deleteRoute="route('employee-salaries.destroy', $employeeSalary)"
+                                        deleteTitle="Delete Employee Salary"
+                                        :deleteMessage="'Are you sure you want to delete salary \'' . $employeeSalary->name . '\'?'"
+                                        deletePermission="employees-salary-delete"
+                                    />
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">No employee salaries found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                {{ $employeeSalaries->links() }}
+            </div>
+        </div>
+    </div>
+@endsection

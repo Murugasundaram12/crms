@@ -1,0 +1,96 @@
+@extends('layouts.app')
+
+@section('title', 'Permissions Management')
+
+@section('content')
+    <!-- Page Header -->
+    <div class="mb-4">
+        <h4 class="mb-1">Permissions Management</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0 p-0">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Permissions</li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="card-title mb-0">Permissions List</h5>
+                    <a href="{{ route('permissions.create') }}" class="btn btn-primary">Add Permission</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive custom-table">
+                        <table class="table table-nowrap datatable" id="permissions-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Key</th>
+                                    <th>Created</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($permissions as $permission)
+                                    <tr>
+                                        <td>{{ $permission->id }}</td>
+                                        <td>{{ $permission->name }}</td>
+                                        <td><code>{{ $permission->key }}</code></td>
+                                        <td>{{ $permission->created_at->format('d M Y') }}</td>
+                                        <td class="text-end">
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-icon dropdown-toggle" data-bs-toggle="dropdown">
+                                                    <i class="ti ti-dots-vertical"></i>
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-end">
+                                                    <a href="{{ route('permissions.edit', $permission) }}"
+                                                        class="dropdown-item">
+                                                        <i class="ti ti-edit text-primary me-1"></i>Edit
+                                                    </a>
+                                                    <button type="button" class="dropdown-item text-danger crm-delete-trigger"
+                                                        data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
+                                                        data-delete-action="{{ route('permissions.destroy', $permission) }}"
+                                                        data-delete-title="Delete Permission"
+                                                        data-delete-message="Are you sure you want to delete permission '{{ $permission->name }}'?">
+                                                        <i class="ti ti-trash me-1"></i>Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">
+                                            No permissions found. <a href="{{ route('permissions.create') }}">Create one</a>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
+    <script src="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}"></script>
+    <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
+    <script>
+        $(document).ready(function () {
+            $('#permissions-table').DataTable({
+                pageLength: 10,
+                responsive: true,
+                columnDefs: [
+                    { orderable: false, targets: 4 }
+                ]
+            });
+
+        });
+    </script>
+@endpush
