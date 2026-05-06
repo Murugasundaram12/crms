@@ -26,8 +26,6 @@ class Project extends Model
         'progress',
         'start_date',
         'end_date',
-        'budget',
-        'spent',
         'location',
     ];
 
@@ -35,8 +33,6 @@ class Project extends Model
         'progress' => 'integer',
         'start_date' => 'date',
         'end_date' => 'date',
-        'budget' => 'decimal:2',
-        'spent' => 'decimal:2',
     ];
 
     public function client(): BelongsTo

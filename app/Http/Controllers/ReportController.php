@@ -10,21 +10,21 @@ class ReportController extends Controller
 {
     public function __construct(
         private readonly ReportService $reportService
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
-        // Build the project list used in the reports page.
-        $projectQuery = Project::with('client');
-        $this->applyProjectSearchFilter($projectQuery, $request);
+        $type = $request->get('type', 'site');
+        $filters = $request->only(['date_from', 'date_to', 'project_id', 'client_id']);
 
-        $projects = $projectQuery->latest()->paginate(10)->withQueryString();
+        $data = match ($type) {
+            'site' => $this->reportService->siteReport($filters),
+            'office' => $this->reportService->officeReport($filters),
+            'total' => $this->reportService->totalReport($filters),
+            default => $this->reportService->siteReport($filters),
+        };
 
-        // Load the summary metrics shown above the table.
-        $summary = $this->reportService->projectSummary();
-
-        return view('pages.projects.reports', compact('projects', 'summary'));
+        return view('pages.reports.index', array_merge($data, ['type' => $type, 'filters' => $filters]));
     }
 
     private function applyProjectSearchFilter($projectQuery, Request $request): void

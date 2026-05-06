@@ -182,9 +182,7 @@ class ProjectController extends Controller
             'progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
-            'budget' => ['nullable', 'numeric', 'min:0'],
-            'spent' => ['nullable', 'numeric', 'min:0'],
-            'location' => ['nullable', 'string', 'max:255'],
+            'location' => ['nullable', 'url', 'max:500'],
         ]);
     }
 }

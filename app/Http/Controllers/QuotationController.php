@@ -160,6 +160,20 @@ class QuotationController extends Controller
         return redirect()->route('quotations.list')->with('success', 'Quotation deleted successfully.');
     }
 
+    public function getQuotationsByProject($projectId)
+    {
+        try {
+            $quotations = Quotation::where('project_id', $projectId)
+                ->select('id', 'quotation_number', 'amount as total_amount')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            return response()->json($quotations);
+        } catch (\Exception $e) {
+            \Log::error('getQuotationsByProject error: ' . $e->getMessage());
+            return response()->json(['error' => 'Server error'], 500);
+        }
+    }
+
     /**
      * Download PDF
      */

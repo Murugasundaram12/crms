@@ -14,8 +14,10 @@ class Expense extends Model
         'project_id',
         'employee_id',
         'title',
+        'type',
         'category',
         'amount',
+        'status',
         'expense_date',
         'notes',
     ];

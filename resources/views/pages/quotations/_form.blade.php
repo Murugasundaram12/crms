@@ -4,7 +4,7 @@
     $selectedProjectId = old('project_id', $quotation->project_id ?? '');
     $initialGroups = old('items');
 
-    if (! $initialGroups) {
+    if (!$initialGroups) {
         $initialGroups = $groupedItems ?? [
             [
                 'main_title' => old('main_title', ''),
@@ -68,7 +68,8 @@
                             class="form-select @error('client_id') is-invalid @enderror" required>
                             <option value="">Select Client</option>
                             @foreach($clients as $client)
-                                <option value="{{ $client->id }}" @selected($selectedClientId == $client->id)>{{ $client->name }}</option>
+                                <option value="{{ $client->id }}" @selected($selectedClientId == $client->id)>
+                                    {{ $client->name }}</option>
                             @endforeach
                         </select>
                         @error('client_id')
@@ -84,6 +85,16 @@
                             <option value="">Select Project</option>
                         </select>
                         @error('project_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Quotation</label>
+                        <select id="quotation-select" name="quotation_id"
+                            class="form-select @error('quotation_id') is-invalid @enderror">
+                            <option value="">Select Quotation</option>
+                        </select>
+                        @error('quotation_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
@@ -123,7 +134,8 @@
                         <label class="form-label">Client Name <span class="text-danger">*</span></label>
                         <input type="text" id="quotation-client-name" name="client_name"
                             class="form-control @error('client_name') is-invalid @enderror"
-                            value="{{ old('client_name', $quotation->client_name ?? optional($currentClient)->name) }}" required>
+                            value="{{ old('client_name', $quotation->client_name ?? optional($currentClient)->name) }}"
+                            required>
                         @error('client_name')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -179,7 +191,8 @@
 
                     <div class="col-12">
                         <label class="form-label">Proposal Content</label>
-                        <textarea name="proposal_content" class="form-control @error('proposal_content') is-invalid @enderror"
+                        <textarea name="proposal_content"
+                            class="form-control @error('proposal_content') is-invalid @enderror"
                             rows="4">{{ old('proposal_content', $quotation->proposal_content ?? '') }}</textarea>
                         @error('proposal_content')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -235,7 +248,8 @@
 
                 <div class="d-flex justify-content-end gap-2 mt-4 flex-wrap">
                     <a href="{{ route('quotations.list') }}" class="btn btn-light">Cancel</a>
-                    <button type="submit" class="btn btn-primary">{{ $isEdit ? 'Update Quotation' : 'Create Quotation' }}</button>
+                    <button type="submit"
+                        class="btn btn-primary">{{ $isEdit ? 'Update Quotation' : 'Create Quotation' }}</button>
                 </div>
             </div>
         </div>
@@ -327,80 +341,89 @@
                 : [{ main_title: '', rows: [createRow()] }];
 
             const buildRowHtml = (groupIndex, rowIndex, row) => `
-                <div class="quotation-item-row" data-row-index="${rowIndex}">
-                    <div class="d-flex align-items-center justify-content-between gap-2 mb-3 flex-wrap">
-                        <h6 class="mb-0">Sub Title ${rowIndex + 1}</h6>
-                        <button type="button" class="btn btn-outline-danger btn-sm remove-row" data-group-index="${groupIndex}" data-row-index="${rowIndex}">
-                            <i class="ti ti-trash me-1"></i>Remove Sub Title
-                        </button>
+                    <div class="quotation-item-row" data-row-index="${rowIndex}">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-3 flex-wrap">
+                            <h6 class="mb-0">Sub Title ${rowIndex + 1}</h6>
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-row" data-group-index="${groupIndex}" data-row-index="${rowIndex}">
+                                <i class="ti ti-trash me-1"></i>Remove Sub Title
+                            </button>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Description / Sub Title <span class="text-danger">*</span></label>
+                                <textarea name="items[${groupIndex}][rows][${rowIndex}][description]" class="form-control" rows="2" required>${row.description}</textarea>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Nos</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][nos]" class="form-control calc-input" value="${row.nos}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Length (L)</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][length]" class="form-control calc-input" value="${row.length}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Breadth (B)</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][breadth]" class="form-control calc-input" value="${row.breadth}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Depth (D)</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][depth]" class="form-control calc-input" value="${row.depth}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Quantity</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][quantity]" class="form-control quantity-input" value="${row.quantity}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Unit</label>
+                                <select name="items[${groupIndex}][rows][${rowIndex}][unit]" class="form-control">
+                                    <option value="">Select Unit</option>
+                                    <option value="sft" ${row.unit === 'sft' ? 'selected' : ''}>sft (Square Feet)</option>
+                                    <option value="cft" ${row.unit === 'cft' ? 'selected' : ''}>cft (Cubic Feet)</option>
+                                    <option value="nos" ${row.unit === 'nos' ? 'selected' : ''}>nos (Numbers)</option>
+                                    <option value="m.sq" ${row.unit === 'm.sq' ? 'selected' : ''}>m.sq (Square Meter)</option>
+                                    <option value="m" ${row.unit === 'm' ? 'selected' : ''}>m (Meter)</option>
+                                    <option value="ft" ${row.unit === 'ft' ? 'selected' : ''}>ft (Feet)</option>
+                                    <option value="pcs" ${row.unit === 'pcs' ? 'selected' : ''}>pcs (Pieces)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Price</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][price]" class="form-control price-input" value="${row.price}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Amount</label>
+                                <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][amount]" class="form-control amount-input" value="${row.amount}" readonly required>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label">Description / Sub Title <span class="text-danger">*</span></label>
-                            <textarea name="items[${groupIndex}][rows][${rowIndex}][description]" class="form-control" rows="2" required>${row.description}</textarea>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Nos</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][nos]" class="form-control calc-input" value="${row.nos}">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Length (L)</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][length]" class="form-control calc-input" value="${row.length}">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Breadth (B)</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][breadth]" class="form-control calc-input" value="${row.breadth}">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Depth (D)</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][depth]" class="form-control calc-input" value="${row.depth}">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Quantity</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][quantity]" class="form-control quantity-input" value="${row.quantity}" required>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Unit</label>
-                            <input type="text" name="items[${groupIndex}][rows][${rowIndex}][unit]" class="form-control" value="${row.unit}" placeholder="Cum / Sqm">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Price</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][price]" class="form-control price-input" value="${row.price}" required>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Amount</label>
-                            <input type="number" step="0.01" min="0" name="items[${groupIndex}][rows][${rowIndex}][amount]" class="form-control amount-input" value="${row.amount}" readonly required>
-                        </div>
-                    </div>
-                </div>
-            `;
+                `;
 
             const buildGroupHtml = (group, groupIndex) => `
-                <div class="quotation-group-card" data-group-index="${groupIndex}">
-                    <div class="quotation-group-header">
-                        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                            <div class="flex-grow-1">
-                                <label class="form-label">Main Title <span class="text-danger">*</span></label>
-                                <div class="input-group">
-                                    <span class="input-group-text">${groupIndex + 1}</span>
-                                    <input type="text" name="items[${groupIndex}][main_title]" class="form-control" value="${group.main_title}" required>
+                    <div class="quotation-group-card" data-group-index="${groupIndex}">
+                        <div class="quotation-group-header">
+                            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                                <div class="flex-grow-1">
+                                    <label class="form-label">Main Title <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">${groupIndex + 1}</span>
+                                        <input type="text" name="items[${groupIndex}][main_title]" class="form-control" value="${group.main_title}" required>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm add-row" data-group-index="${groupIndex}">
+                                        <i class="ti ti-plus me-1"></i>Sub Title
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-group" data-group-index="${groupIndex}">
+                                        <i class="ti ti-trash me-1"></i>Main Title
+                                    </button>
                                 </div>
                             </div>
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-primary btn-sm add-row" data-group-index="${groupIndex}">
-                                    <i class="ti ti-plus me-1"></i>Sub Title
-                                </button>
-                                <button type="button" class="btn btn-outline-danger btn-sm remove-group" data-group-index="${groupIndex}">
-                                    <i class="ti ti-trash me-1"></i>Main Title
-                                </button>
-                            </div>
+                        </div>
+                        <div class="quotation-group-body">
+                            ${group.rows.map((row, rowIndex) => buildRowHtml(groupIndex, rowIndex, row)).join('')}
                         </div>
                     </div>
-                    <div class="quotation-group-body">
-                        ${group.rows.map((row, rowIndex) => buildRowHtml(groupIndex, rowIndex, row)).join('')}
-                    </div>
-                </div>
-            `;
+                `;
 
             const render = () => {
                 groupContainer.innerHTML = groupsState.map((group, groupIndex) => buildGroupHtml(group, groupIndex)).join('');
@@ -492,6 +515,30 @@
 
                 projectSelect.innerHTML = placeholder + options.join('');
             };
+
+            const quotationSelect = document.getElementById('quotation-select');
+            const updateQuotationOptions = (quotations, selectedValue = '') => {
+                const placeholder = '<option value="">Select Quotation</option>';
+                const options = quotations.map((q) => {
+                    const selected = `${q.id}` === `${selectedValue}` ? 'selected' : '';
+                    return `<option value="${q.id}" ${selected}>${q.quotation_number} - ₹${parseFloat(q.amount || 0).toLocaleString()}</option>`;
+                });
+                quotationSelect.innerHTML = placeholder + options.join('');
+            };
+
+            projectSelect.addEventListener('change', () => {
+                const projectId = projectSelect.value;
+                if (projectId) {
+                    fetch(`{{ route('quotations.by-project', ':project') }}`.replace(':project', projectId), {
+                        headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json'}
+                    })
+                    .then(response => response.json())
+                    .then(data => updateQuotationOptions(data || []))
+                    .catch(() => updateQuotationOptions([]));
+                } else {
+                    updateQuotationOptions([]);
+                }
+            });
 
             const loadClientDetails = async (clientId, preserveProject = false) => {
                 if (!clientId) {

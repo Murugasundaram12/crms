@@ -108,6 +108,11 @@
                                         class="ti ti-file-dollar"></i><span>Quotations</span></a></li>
                         @endif
 
+                        @if($currentUser && $currentUser->hasPermission('expenses-list'))
+                            <li><a href="{{ route('expenses.index') }}"><i
+                                        class="ti ti-receipt-2"></i><span>Expenses</span></a></li>
+                        @endif
+
                         @if($currentUser && $currentUser->hasPermission('roles-list'))
                                     <li>
                                     <li class="sidebar-submenu"><a href="{{ route('roles.index') }}"><i

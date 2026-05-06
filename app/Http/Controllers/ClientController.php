@@ -106,12 +106,12 @@ class ClientController extends Controller
                 'max:255',
                 Rule::unique('clients', 'email')->ignore($client?->id),
             ],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['required', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:100'],
             'state' => ['nullable', 'string', 'max:100'],
             'country' => ['nullable', 'string', 'max:100'],
-            'status' => ['required', Rule::in(['active', 'inactive'])],
+            'status' => ['required', Rule::in(['enquiry', 'active', 'inactive'])],
             'notes' => ['nullable', 'string'],
         ]);
     }

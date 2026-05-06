@@ -31,7 +31,7 @@ class StoreQuotationRequest extends FormRequest
             'client_id' => 'required|exists:clients,id',
             'project_id' => [
                 'nullable',
-                Rule::exists('projects', 'id')->where(fn ($query) => $query->where('client_id', $this->input('client_id'))),
+                Rule::exists('projects', 'id')->where(fn($query) => $query->where('client_id', $this->input('client_id'))),
             ],
             'validity_days' => 'nullable|integer|min:1|max:365',
             'start_date' => 'nullable|date',
@@ -40,7 +40,7 @@ class StoreQuotationRequest extends FormRequest
             'items' => 'required|array|min:1',
             'items.*.main_title' => 'required|string|max:255',
             'items.*.rows' => 'required|array|min:1',
-            'items.*.rows.*.description' => 'required|string|max:1000',
+            'items.*.rows.*.description' => 'nullable|string|max:1000',
             'items.*.rows.*.nos' => 'nullable|numeric|min:0',
             'items.*.rows.*.length' => 'nullable|numeric|min:0',
             'items.*.rows.*.breadth' => 'nullable|numeric|min:0',

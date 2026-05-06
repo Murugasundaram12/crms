@@ -24,6 +24,7 @@
                 </div>
                 <select name="status" class="form-select">
                     <option value="">All Status</option>
+                    <option value="enquiry" @selected(request('status') === 'enquiry')>Enquiry</option>
                     <option value="active" @selected(request('status') === 'active')>Active</option>
                     <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
                 </select>
@@ -65,13 +66,13 @@
                                             Edit</a>
                                     @endcan
                                     @can('clients-delete')
-                                    <button type="button" class="dropdown-item crm-delete-trigger" data-bs-toggle="modal"
-                                        data-bs-target="#crmDeleteModal"
-                                        data-delete-action="{{ route('clients.destroy', $client) }}"
-                                        data-delete-title="Delete Client"
-                                        data-delete-message="Are you sure you want to delete client '{{ $client->name }}'?">
-                                        <i class="ti ti-trash"></i> Delete
-                                    </button>
+                                        <button type="button" class="dropdown-item crm-delete-trigger" data-bs-toggle="modal"
+                                            data-bs-target="#crmDeleteModal"
+                                            data-delete-action="{{ route('clients.destroy', $client) }}"
+                                            data-delete-title="Delete Client"
+                                            data-delete-message="Are you sure you want to delete client '{{ $client->name }}'?">
+                                            <i class="ti ti-trash"></i> Delete
+                                        </button>
                                     @endcan
                                 </div>
                             </div>
@@ -147,6 +148,7 @@
                 <div class="col-md-4"><label class="form-label">Country</label><input type="text" name="country"
                         value="india" class="form-control"></div>
                 <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
+<option value="enquiry">Enquiry</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select></div>
@@ -189,6 +191,7 @@
                                     class="form-control" value="{{ $client->country }}"></div>
                             <div class="col-12"><label class="form-label">Status</label><select name="status"
                                     class="form-select">
+<option value="enquiry" @selected($client->status === 'enquiry')>Enquiry</option>
                                     <option value="active" @selected($client->status === 'active')>Active</option>
                                     <option value="inactive" @selected($client->status === 'inactive')>Inactive</option>
                                 </select></div>

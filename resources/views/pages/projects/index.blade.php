@@ -19,7 +19,8 @@
             <form action="{{ route('projects.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <div class="input-icon input-icon-start position-relative">
                     <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search projects" value="{{ request('q') }}">
+                    <input type="text" name="q" class="form-control" placeholder="Search projects"
+                        value="{{ request('q') }}">
                 </div>
                 <select name="status" class="form-select">
                     <option value="">All Status</option>
@@ -30,7 +31,8 @@
                 <button class="btn btn-outline-light shadow" type="submit">Filter</button>
             </form>
             @can('projects-create')
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add New Project</a>
+                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add New Project</a>
             @endcan
         </div>
     </div>
@@ -42,10 +44,12 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center">
-                                <span class="badge badge-tag badge-soft-{{ $project->priority === 'high' ? 'danger text-danger' : ($project->priority === 'medium' ? 'warning text-warning' : 'success text-success') }} me-2 border-0">
+                                <span
+                                    class="badge badge-tag badge-soft-{{ $project->priority === 'high' ? 'danger text-danger' : ($project->priority === 'medium' ? 'warning text-warning' : 'success text-success') }} me-2 border-0">
                                     <i class="ti ti-square-rounded-filled fs-8 me-1"></i>{{ ucfirst($project->priority) }}
                                 </span>
-                                <span class="badge {{ $project->status === 'completed' ? 'bg-success' : ($project->status === 'active' ? 'bg-info' : 'bg-secondary') }}">{{ ucfirst(str_replace('_', ' ', $project->status)) }}</span>
+                                <span
+                                    class="badge {{ $project->status === 'completed' ? 'bg-success' : ($project->status === 'active' ? 'bg-info' : 'bg-secondary') }}">{{ ucfirst(str_replace('_', ' ', $project->status)) }}</span>
                             </div>
                             <span class="avatar avatar-xs fs-16">
                                 <i class="ti ti-star-filled text-warning"></i>
@@ -53,41 +57,54 @@
                         </div>
                         <div class="d-flex align-items-center justify-content-between bg-light rounded p-2 mb-3">
                             <div class="d-flex align-items-center">
-                                <a href="{{ route('projects.show', $project) }}" class="avatar border rounded-circle bg-white flex-shrink-0 me-2">
-                                    <img src="{{ asset('assets/img/icons/company-icon-0' . (($loop->iteration % 5) + 1) . '.svg') }}" class="w-auto h-auto" alt="img">
+                                <a href="{{ route('projects.show', $project) }}"
+                                    class="avatar border rounded-circle bg-white flex-shrink-0 me-2">
+                                    <img src="{{ asset('assets/img/icons/company-icon-0' . (($loop->iteration % 5) + 1) . '.svg') }}"
+                                        class="w-auto h-auto" alt="img">
                                 </a>
                                 <div>
-                                    <h5 class="fw-medium fs-14"><a href="{{ route('projects.show', $project) }}">{{ $project->name }}</a></h5>
+                                    <h5 class="fw-medium fs-14"><a
+                                            href="{{ route('projects.show', $project) }}">{{ $project->name }}</a></h5>
                                     <p class="fs-13 mb-0">{{ $project->type }}</p>
                                 </div>
                             </div>
                             <div class="dropdown table-action">
-                                <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow" data-bs-toggle="dropdown" aria-expanded="false">
+                                <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
                                     <i class="ti ti-dots-vertical"></i>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-right">
                                     @can('projects-edit')
-                                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edit_project_{{ $project->id }}"><i class="ti ti-edit text-blue"></i> Edit</a>
+                                        <a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                            data-bs-target="#edit_project_{{ $project->id }}"><i class="ti ti-edit text-blue"></i>
+                                            Edit</a>
                                     @endcan
-                                    <a class="dropdown-item" href="{{ route('projects.show', $project) }}"><i class="ti ti-eye text-blue"></i> View Details</a>
+                                    <a class="dropdown-item" href="{{ route('projects.show', $project) }}"><i
+                                            class="ti ti-eye text-blue"></i> View Details</a>
                                     @can('projects-delete')
-                                    <button type="button" class="dropdown-item crm-delete-trigger"
-                                        data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
-                                        data-delete-action="{{ route('projects.destroy', $project) }}"
-                                        data-delete-title="Delete Project"
-                                        data-delete-message="Are you sure you want to delete project '{{ $project->name }}'?">
-                                        <i class="ti ti-trash"></i> Delete
-                                    </button>
+                                        <button type="button" class="dropdown-item crm-delete-trigger" data-bs-toggle="modal"
+                                            data-bs-target="#crmDeleteModal"
+                                            data-delete-action="{{ route('projects.destroy', $project) }}"
+                                            data-delete-title="Delete Project"
+                                            data-delete-message="Are you sure you want to delete project '{{ $project->name }}'?">
+                                            <i class="ti ti-trash"></i> Delete
+                                        </button>
                                     @endcan
                                 </div>
                             </div>
                         </div>
                         <div class="d-block">
-                            <p class="mb-3">{{ \Illuminate\Support\Str::limit($project->description ?: 'Construction project for site execution, coordination, and delivery.', 95) }}</p>
+                            <p class="mb-3">
+                                {{ \Illuminate\Support\Str::limit($project->description ?: 'Construction project for site execution, coordination, and delivery.', 95) }}
+                            </p>
                             <div class="mb-3">
-                                <p class="d-flex align-items-center mb-2"><i class="ti ti-forbid-2 me-2"></i>Project ID : {{ $project->project_code }}</p>
-                                <p class="d-flex align-items-center mb-2"><i class="ti ti-report-money me-2"></i>Value : ₹{{ number_format($project->budget, 2) }}</p>
-                                <p class="d-flex align-items-center mb-2"><i class="ti ti-calendar-exclamation me-2"></i>Due Date : {{ optional($project->end_date)->format('d M Y') ?? '-' }}</p>
+                                <p class="d-flex align-items-center mb-2"><i class="ti ti-forbid-2 me-2"></i>Project ID :
+                                    {{ $project->project_code }}</p>
+                                <p class="d-flex align-items-center mb-2"><i class="ti ti-map-pin me-2"></i>Location:
+                                    @if($project->location)<a href="{{ $project->location }}" target="_blank" rel="noopener"
+                                    class="text-primary">View Site</a>@else - @endif</p>
+                                <p class="d-flex align-items-center mb-2"><i class="ti ti-calendar-exclamation me-2"></i>Due
+                                    Date : {{ optional($project->end_date)->format('d M Y') ?? '-' }}</p>
                             </div>
                             <div class="d-flex align-items-center justify-content-between mb-3">
                                 <div>
@@ -95,16 +112,20 @@
                                 </div>
                                 <div class="d-flex align-items-center">
                                     <span class="avatar avatar-sm p-1 border flex-shrink-0 rounded-circle">
-                                        <img src="{{ asset('assets/img/icons/company-icon-0' . (($loop->iteration % 5) + 1) . '.svg') }}" alt="img">
+                                        <img src="{{ asset('assets/img/icons/company-icon-0' . (($loop->iteration % 5) + 1) . '.svg') }}"
+                                            alt="img">
                                     </span>
                                 </div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center pt-3 border-top">
-                            <span class="badge badge-sm bg-soft-info text-info"><i class="ti ti-clock-stop me-2"></i>Progress : {{ $project->progress }}%</span>
+                            <span class="badge badge-sm bg-soft-info text-info"><i class="ti ti-clock-stop me-2"></i>Progress :
+                                {{ $project->progress }}%</span>
                             <div class="d-flex align-items-center">
-                                <span class="d-inline-flex align-items-center me-2"><i class="ti ti-user me-1"></i>{{ $project->manager?->name ?? 'Unassigned' }}</span>
-                                <span class="d-inline-flex align-items-center"><i class="ti ti-subtask me-1"></i>{{ $project->tasks_count }}</span>
+                                <span class="d-inline-flex align-items-center me-2"><i
+                                        class="ti ti-user me-1"></i>{{ $project->manager?->name ?? 'Unassigned' }}</span>
+                                <span class="d-inline-flex align-items-center"><i
+                                        class="ti ti-subtask me-1"></i>{{ $project->tasks_count }}</span>
                             </div>
                         </div>
                     </div>
@@ -116,7 +137,8 @@
                     <div class="card-body text-center py-5">
                         <h5 class="mb-2">No projects created yet</h5>
                         <p class="text-muted mb-3">Start by creating your first construction project.</p>
-                        <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#offcanvas_add">Add New Project</a>
+                        <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                            data-bs-target="#offcanvas_add">Add New Project</a>
                     </div>
                 </div>
             </div>
@@ -137,7 +159,8 @@
                 @csrf
                 <div class="col-12">
                     <label class="form-label">Project Code</label>
-                    <input type="text" name="project_code" class="form-control" value="{{ old('project_code', 'PRJ-' . now()->format('His')) }}" required>
+                    <input type="text" name="project_code" class="form-control"
+                        value="{{ old('project_code', 'PRJ-' . now()->format('His')) }}" required>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Project Name</label>
@@ -185,7 +208,8 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Progress %</label>
-                    <input type="number" min="0" max="100" name="progress" class="form-control" value="{{ old('progress', 0) }}">
+                    <input type="number" min="0" max="100" name="progress" class="form-control"
+                        value="{{ old('progress', 0) }}">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Start Date</label>
@@ -195,17 +219,9 @@
                     <label class="form-label">End Date</label>
                     <input type="date" name="end_date" class="form-control" value="{{ old('end_date') }}">
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Budget</label>
-                    <input type="number" step="0.01" min="0" name="budget" class="form-control" value="{{ old('budget', 0) }}">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Spent</label>
-                    <input type="number" step="0.01" min="0" name="spent" class="form-control" value="{{ old('spent', 0) }}">
-                </div>
                 <div class="col-12">
-                    <label class="form-label">Location</label>
-                    <input type="text" name="location" class="form-control" value="{{ old('location') }}">
+                    <label class="form-label">Location (URL)</label>
+                    <input type="url" name="location" class="form-control" value="{{ old('location') }}" placeholder="https://maps.google.com/...">
                 </div>
                 <div class="col-12">
                     <label class="form-label">Description</label>
@@ -233,7 +249,8 @@
                             @method('PUT')
                             <div class="col-md-6">
                                 <label class="form-label">Project Code</label>
-                                <input type="text" name="project_code" class="form-control" value="{{ $project->project_code }}" required>
+                                <input type="text" name="project_code" class="form-control" value="{{ $project->project_code }}"
+                                    required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Project Name</label>
@@ -243,7 +260,8 @@
                                 <label class="form-label">Client</label>
                                 <select name="client_id" class="form-select" required>
                                     @foreach ($clients as $client)
-                                        <option value="{{ $client->id }}" @selected($client->id === $project->client_id)>{{ $client->name }}</option>
+                                        <option value="{{ $client->id }}" @selected($client->id === $project->client_id)>
+                                            {{ $client->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -252,7 +270,8 @@
                                 <select name="manager_id" class="form-select">
                                     <option value="">Select</option>
                                     @foreach ($employees as $employee)
-                                        <option value="{{ $employee->id }}" @selected($employee->id === $project->manager_id)>{{ $employee->name }}</option>
+                                        <option value="{{ $employee->id }}" @selected($employee->id === $project->manager_id)>
+                                            {{ $employee->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -264,7 +283,8 @@
                                 <label class="form-label">Priority</label>
                                 <select name="priority" class="form-select">
                                     @foreach (['low', 'medium', 'high'] as $priority)
-                                        <option value="{{ $priority }}" @selected($project->priority === $priority)>{{ ucfirst($priority) }}</option>
+                                        <option value="{{ $priority }}" @selected($project->priority === $priority)>
+                                            {{ ucfirst($priority) }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -272,29 +292,25 @@
                                 <label class="form-label">Status</label>
                                 <select name="status" class="form-select">
                                     @foreach (['planning', 'active', 'on_hold', 'completed', 'cancelled'] as $status)
-                                        <option value="{{ $status }}" @selected($project->status === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
+                                        <option value="{{ $status }}" @selected($project->status === $status)>
+                                            {{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                                     @endforeach
                                 </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Progress %</label>
-                                <input type="number" min="0" max="100" name="progress" class="form-control" value="{{ $project->progress }}">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Budget</label>
-                                <input type="number" step="0.01" min="0" name="budget" class="form-control" value="{{ $project->budget }}">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Spent</label>
-                                <input type="number" step="0.01" min="0" name="spent" class="form-control" value="{{ $project->spent }}">
+                                <input type="number" min="0" max="100" name="progress" class="form-control"
+                                    value="{{ $project->progress }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Start Date</label>
-                                <input type="date" name="start_date" class="form-control" value="{{ optional($project->start_date)->format('Y-m-d') }}">
+                                <input type="date" name="start_date" class="form-control"
+                                    value="{{ optional($project->start_date)->format('Y-m-d') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">End Date</label>
-                                <input type="date" name="end_date" class="form-control" value="{{ optional($project->end_date)->format('Y-m-d') }}">
+                                <input type="date" name="end_date" class="form-control"
+                                    value="{{ optional($project->end_date)->format('Y-m-d') }}">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Location</label>
@@ -302,7 +318,8 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Description</label>
-                                <textarea name="description" class="form-control" rows="4">{{ $project->description }}</textarea>
+                                <textarea name="description" class="form-control"
+                                    rows="4">{{ $project->description }}</textarea>
                             </div>
                             <div class="col-12 d-flex justify-content-end gap-2">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
