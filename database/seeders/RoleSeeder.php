@@ -23,7 +23,11 @@ class RoleSeeder extends Seeder
             'projects-create',
             'projects-edit',
             'projects-delete',
+            'leave-requests-list',
+            'leave-requests-edit',
+            'leave-requests-delete',
             'employees-list',
+
             'employees-create',
             'employees-edit',
             'employees-delete',
@@ -65,7 +69,7 @@ class RoleSeeder extends Seeder
             }
 
             $permissionIds = collect($permissionKeys)
-                ->map(fn (string $key) => $allPermissions->get($key)?->id)
+                ->map(fn(string $key) => $allPermissions->get($key)?->id)
                 ->filter()
                 ->values();
 

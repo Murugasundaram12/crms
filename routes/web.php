@@ -243,7 +243,23 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    Route::prefix('leave-requests')->name('leaveRequests.')->group(function () {
+        Route::middleware('permission:leave-requests-list')->group(function () {
+            Route::get('/', [\App\Http\Controllers\LeaveRequestController::class, 'index'])->name('index');
+            Route::get('/{leaveRequest}', [\App\Http\Controllers\LeaveRequestController::class, 'show'])->name('show');
+        });
+
+        Route::middleware('permission:leave-requests-edit')->group(function () {
+            Route::post('/{leaveRequest}/action', [\App\Http\Controllers\LeaveRequestController::class, 'approveOrReject'])->name('action');
+        });
+
+        Route::middleware('permission:leave-requests-delete')->group(function () {
+            Route::delete('/{leaveRequest}', [\App\Http\Controllers\LeaveRequestController::class, 'destroy'])->name('destroy');
+        });
+    });
+
     Route::prefix('permissions')->name('permissions.')->group(function () {
+
         Route::middleware('permission:permissions-list')->group(function () {
             Route::get('/', [PermissionController::class, 'index'])->name('index');
         });

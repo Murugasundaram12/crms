@@ -120,10 +120,27 @@
                             </li>
                         @endif
 
+
+                @if($currentUser)
+                @php($canLeaveRequests = $currentUser->hasPermission('leave-requests-list') || $currentUser->hasPermission('leave-requests-edit') || $currentUser->hasPermission('leave-requests-delete'))
+                @if($canLeaveRequests)
+                    <li class="sidebar-submenu">
+                        <a href="{{ route('leaveRequests.index') }}" class="sidebar-link">
+                            <i class="ti ti-message-star"></i>
+                            <span>Leave Requests</span>
+                        </a>
+                    </li>
+                @endif
+                @endif
+
+
+
                 @if($currentUser && $currentUser->hasPermission('permissions-list'))
+
                     <li><a href="{{ route('permissions.index') }}"><i
                                 class="ti ti-shield-check"></i><span>Permissions</span></a></li>
                 @endif
+
             </ul>
             </li>
             </ul>
