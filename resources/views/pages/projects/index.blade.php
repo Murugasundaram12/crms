@@ -176,7 +176,7 @@
                     </select>
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Manager</label>
+                    <label class="form-label">Employee</label>
                     <select name="manager_id" class="form-select">
                         <option value="">Select</option>
                         @foreach ($employees as $employee)

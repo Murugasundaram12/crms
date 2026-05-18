@@ -74,11 +74,11 @@
                             </div>
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <p class="mb-0">Deal Value</p>
-                                <p class="mb-0 text-dark">${{ number_format($project->budget, 2) }}</p>
+                                <p class="mb-0 text-dark">₹{{ number_format($project->budget, 2) }}</p>
                             </div>
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <p class="mb-0">Spent</p>
-                                <p class="mb-0 text-dark">${{ number_format($project->spent, 2) }}</p>
+                                <p class="mb-0 text-dark">₹{{ number_format($project->spent, 2) }}</p>
                             </div>
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <p class="mb-0">Project Type</p>
@@ -259,7 +259,7 @@
                                                         class="btn btn-sm btn-outline-light">{{ ucfirst($payment->status) }}</span>
                                                 </div>
                                             </div>
-                                            <p class="mb-0">Amount: ${{ number_format($payment->amount, 2) }} | Method:
+                                            <p class="mb-0">Amount: ₹{{ number_format($payment->amount, 2) }} | Method:
                                                 {{ $payment->payment_method }} | Due
                                                 {{ optional($payment->due_date)->format('d M Y') ?? '-' }}
                                             </p>
@@ -293,7 +293,7 @@
                                                 <div class="col-md-4 text-md-end">
                                                     <div class="mb-3 d-inline-flex align-items-center">
                                                         <span
-                                                            class="badge badge-purple-light me-1">${{ number_format($expense->amount, 2) }}</span>
+                                                            class="badge badge-purple-light me-1">₹{{ number_format($expense->amount, 2) }}</span>
                                                         <span
                                                             class="badge bg-success me-1">{{ optional($expense->expense_date)->format('d M Y') }}</span>
                                                     </div>
@@ -329,7 +329,7 @@
                                         @forelse($latestQuotation->items as $item)
                                             <div class="d-flex justify-content-between mb-1">
                                                 <span>{{ $item->description }}</span>
-                                                <span>${{ number_format($item->amount, 2) }}</span>
+                                                <span>₹{{ number_format($item->amount, 2) }}</span>
                                             </div>
                                         @empty
                                             <p class="text-muted">No items in this quotation.</p>
@@ -337,7 +337,7 @@
                                         <div class="border-top pt-2 mt-2">
                                             <div class="d-flex justify-content-between fw-bold">
                                                 <span>Quotation Total:</span>
-                                                <span>${{ number_format($latestQuotation->total_amount, 2) }}</span>
+                                                <span>₹{{ number_format($latestQuotation->total_amount, 2) }}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -352,7 +352,7 @@
                                         <div class="row text-center">
                                             <div class="col-4">
                                                 <div class="fw-semibold text-primary fs-20">
-                                                    ${{ number_format($project->final_bill, 2) }}</div>
+                                                    ₹{{ number_format($project->final_bill, 2) }}</div>
                                                 <small class="text-muted">Final Bill</small>
                                             </div>
                                         </div>
@@ -380,7 +380,7 @@
                                                 <div>
                                                     <h6 class="fw-medium mb-1">{{ $stage->stage_name }}</h6>
                                                     <p class="mb-1">{{ $stage->percentage }}% -
-                                                        ${{ number_format($stage->amount ?? 0, 2) }}</p>
+                                                        ₹{{ number_format($stage->amount ?? 0, 2) }}</p>
                                                 </div>
                                                 <span class="badge bg-{{ $stage->status === 'paid' ? 'success' : 'warning' }}">
                                                     {{ ucfirst($stage->status) }}
@@ -413,7 +413,7 @@
                                                 <div>
                                                     <h6 class="fw-medium mb-1">{{ ucfirst($variation->type) }}</h6>
                                                     <p class="mb-1">{{ Str::limit($variation->description, 80) }}</p>
-                                                    <p class="mb-0">${{ number_format($variation->amount, 2) }} |
+                                                    <p class="mb-0">₹{{ number_format($variation->amount, 2) }} |
                                                         {{ $variation->date->format('d M Y') }}
                                                     </p>
                                                 </div>
@@ -433,59 +433,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="modal fade" id="edit_project_detail" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Edit Project</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form action="{{ route('projects.update', $project) }}" method="POST" class="row g-3">
-                            @csrf
-                            @method('PUT')
-                            <input type="hidden" name="client_id" value="{{ $project->client_id }}">
-                            <div class="col-md-6">
-                                <label class="form-label">Project Code</label>
-                                <input type="text" name="project_code" class="form-control" value="{{ $project->project_code }}"
-                                    required>
-                            </div>
-                            <!-- Modal form continues unchanged -->
-                            <div class="col-12 d-flex justify-content-end gap-2">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Update Project</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endsection
-
-    @push('styles')
-        <link rel="stylesheet" href="{{ asset('assets/plugins/daterangepicker/daterangepicker.css') }}">
-        <link rel="stylesheet" href="{{ asset('assets/plugins/choices.js/public/assets/styles/choices.min.css') }}">
-        <link rel="stylesheet" href="{{ asset('assets/plugins/select2/css/select2.min.css') }}">
-    @endpush
-
-    @push('scripts')
-        <script src="{{ asset('assets/js/moment.min.js') }}"></script>
-        <script src="{{ asset('assets/plugins/daterangepicker/daterangepicker.js') }}">
-        </script>
-        <script src="{{ asset('assets/plugins/select2/js/select2.min.js') }}">
-        </script>
-        <script src="{{ asset('assets/plugins/choices.js/public/assets/scripts/choices.min.js') }}">
-        </script>
-        <script>
-            $('#refresh-bill').click(function (e) {
-                e.preventDefault();
-                $.get($(this).attr('href'), function (data) {
-                    $('.final-bill-amount').text('$' + data.final_bill.toLocaleString());
-                });
-            });
-        </script>
-    @endpush
 
     <div class="modal fade" id="edit_project_detail" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">

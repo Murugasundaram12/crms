@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attendance;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\Task;
@@ -16,15 +17,23 @@ class DashboardController extends Controller
 
     public function index()
     {
+        $user = auth()->user();
+        $today = now()->toDateString();
+
         // Load the summary cards shown at the top of the dashboard.
         $summary = $this->dashboardService->summary();
+        $todayAttendance = Attendance::query()
+            ->where('user_id', $user->id)
+            ->whereDate('attendance_date', $today)
+            ->latest('check_in_at')
+            ->first();
 
         // Load recent records for the dashboard widgets.
         $recentProjects = $this->getRecentProjects();
         $recentTasks = $this->getRecentTasks();
         $recentPayments = $this->getRecentPayments();
 
-        return view('pages.dashboard.index', compact('summary', 'recentProjects', 'recentTasks', 'recentPayments'));
+        return view('pages.dashboard.index', compact('summary', 'recentProjects', 'recentTasks', 'recentPayments', 'todayAttendance'));
     }
 
     private function getRecentProjects()

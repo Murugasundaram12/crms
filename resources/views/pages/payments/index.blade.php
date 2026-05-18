@@ -167,15 +167,16 @@
                     </select>
                 </div>
                 <div class="col-12">
+                    <label class="form-label">Project <span class="text-danger">*</span></label>
+                    <select id="project_id" name="project_id" class="form-select" required>
+                        <option value="">Select Project</option>
+                    </select>
+                </div>
+                <div class="col-12">
                     <label class="form-label">Quotation <span class="text-danger">*</span></label>
                     <select id="quotation_id" name="quotation_id" class="form-select" required>
                         <option value="">Select Quotation</option>
                     </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Project Name</label>
-                    <input type="text" id="project_name" class="form-control" readonly placeholder="Select a client first">
-                    <input type="hidden" name="project_id" id="project_id">
                 </div>
                 <div class="col-12">
                     <label class="form-label">Total Amount</label>
@@ -263,6 +264,15 @@
                                 </select>
                             </div>
                             <div class="col-12">
+                                <label class="form-label">Project <span class="text-danger">*</span></label>
+                                <select id="edit_project_id_{{ $payment->id }}" name="project_id" class="form-select"
+                                    data-selected="{{ $payment->project_id }}" required>
+                                    <option value="{{ $payment->project_id }}" selected>
+                                        {{ $payment->project?->name ?? 'Selected Project' }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label">Quotation <span class="text-danger">*</span></label>
                                 <select id="edit_quotation_id_{{ $payment->id }}" name="quotation_id" class="form-select"
                                     data-selected="{{ $payment->quotation_id }}" required>
@@ -272,13 +282,6 @@
                                         {{ $payment->quotation?->quotation_number ?? 'Selected Quotation' }}
                                     </option>
                                 </select>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Project Name</label>
-                                <input type="text" id="edit_project_name_{{ $payment->id }}" class="form-control" readonly
-                                    value="{{ $payment->project?->name ?? '' }}">
-                                <input type="hidden" name="project_id" id="edit_project_id_{{ $payment->id }}"
-                                    value="{{ $payment->project_id }}">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Total Amount</label>
@@ -370,39 +373,38 @@
                 $amount.val('').prop('readonly', true);
             }
 
-            function loadProject(clientId, projectNameSelector, projectIdSelector) {
-                $(projectNameSelector).val('').attr('placeholder', 'Select a client first');
-                $(projectIdSelector).val('');
+            function loadProjects(clientId, projectSelector, selectedProjectId) {
+                var $project = $(projectSelector);
+                $project.empty().append('<option value="">Loading...</option>').prop('disabled', true);
 
                 if (!clientId) {
+                    $project.empty().append('<option value="">Select Project</option>').prop('disabled', false);
                     return;
                 }
 
-                var pUrl = "{{ route('payments.project-by-client', ':id') }}".replace(':id', clientId);
+                var pUrl = "{{ route('payments.projects-by-client', ':id') }}".replace(':id', clientId);
                 $.get(pUrl, function (data) {
-                    if (data.project) {
-                        $(projectNameSelector).val(data.project.name);
-                        $(projectIdSelector).val(data.project.id);
-                    } else {
-                        $(projectNameSelector).val('').attr('placeholder', 'No project found for this client');
-                        $(projectIdSelector).val('');
-                    }
+                    $project.empty().append('<option value="">Select Project</option>');
+                    data.forEach(function (project) {
+                        var selected = selectedProjectId && String(selectedProjectId) === String(project.id) ? 'selected' : '';
+                        $project.append(`<option value="${project.id}" ${selected}>${project.name}</option>`);
+                    });
+                    $project.prop('disabled', false).trigger('change');
                 }).fail(function () {
-                    $(projectNameSelector).val('').attr('placeholder', 'Error loading project');
-                    $(projectIdSelector).val('');
+                    $project.empty().append('<option value="">Error loading projects</option>').prop('disabled', false);
                 });
             }
 
-            function loadQuotations(clientId, quotationSelector, selectedQuotationId) {
+            function loadQuotations(projectId, quotationSelector, selectedQuotationId) {
                 var $quotation = $(quotationSelector);
                 $quotation.empty().append('<option value="">Loading...</option>').prop('disabled', true);
 
-                if (!clientId) {
+                if (!projectId) {
                     $quotation.empty().append('<option value="">Select Quotation</option>').prop('disabled', false);
                     return;
                 }
 
-                var qUrl = "{{ route('payments.quotations-by-client', ':id') }}".replace(':id', clientId);
+                var qUrl = "{{ route('payments.quotations-by-project', ':id') }}".replace(':id', projectId);
                 $.get(qUrl, function (data) {
                     $quotation.empty().append('<option value="">Select Quotation</option>');
 
@@ -425,22 +427,37 @@
                 $('#total_amount').val('');
                 $('#status').val('');
                 $('#amount').val('').prop('readonly', true);
-                loadQuotations(clientId, '#quotation_id', null);
-                loadProject(clientId, '#project_name', '#project_id');
+                $('#quotation_id').empty().append('<option value="">Select Quotation</option>');
+                loadProjects(clientId, '#project_id', null);
+            });
+
+            $('#project_id').on('change', function () {
+                var projectId = $(this).val();
+                $('#total_amount').val('');
+                $('#amount').val('').prop('readonly', true);
+                loadQuotations(projectId, '#quotation_id', null);
             });
 
             @foreach ($payments as $payment)
                 $('#edit_payment_{{ $payment->id }}').on('shown.bs.modal', function () {
                     var clientId = $('#edit_client_id_{{ $payment->id }}').val();
+                    var selectedProjectId = $('#edit_project_id_{{ $payment->id }}').data('selected');
                     var selectedQuotationId = $('#edit_quotation_id_{{ $payment->id }}').data('selected');
-                    loadQuotations(clientId, '#edit_quotation_id_{{ $payment->id }}', selectedQuotationId);
-                    loadProject(clientId, '#edit_project_name_{{ $payment->id }}', '#edit_project_id_{{ $payment->id }}');
+                    loadProjects(clientId, '#edit_project_id_{{ $payment->id }}', selectedProjectId);
+                    if (selectedProjectId) {
+                        loadQuotations(selectedProjectId, '#edit_quotation_id_{{ $payment->id }}', selectedQuotationId);
+                    }
                 });
 
                 $('#edit_client_id_{{ $payment->id }}').on('change', function () {
                     var clientId = $(this).val();
-                    loadQuotations(clientId, '#edit_quotation_id_{{ $payment->id }}', null);
-                    loadProject(clientId, '#edit_project_name_{{ $payment->id }}', '#edit_project_id_{{ $payment->id }}');
+                    loadProjects(clientId, '#edit_project_id_{{ $payment->id }}', null);
+                    $('#edit_quotation_id_{{ $payment->id }}').empty().append('<option value="">Select Quotation</option>');
+                });
+
+                $('#edit_project_id_{{ $payment->id }}').on('change', function () {
+                    var projectId = $(this).val();
+                    loadQuotations(projectId, '#edit_quotation_id_{{ $payment->id }}', null);
                 });
             @endforeach
 

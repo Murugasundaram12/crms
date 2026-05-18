@@ -11,7 +11,7 @@
 
         body {
             font-family: DejaVu Sans, sans-serif;
-            font-size: 13px;
+            font-size: 11px;
             color: #000;
         }
 
@@ -42,7 +42,7 @@
 
         .date {
             text-align: right;
-            font-size: 30px;
+            font-size: 16px;
             font-weight: 700;
             margin-top: 2px;
         }
@@ -53,33 +53,33 @@
         }
 
         .logo-wrap img {
-            max-width: 300px;
-            max-height: 86px;
+            max-width: 180px;
+            max-height: 54px;
         }
 
         .to-block {
-            margin: 8px 0 12px;
+            margin: 6px 0 8px;
             line-height: 1.35;
         }
 
         .title {
             text-align: center;
-            font-size: 40px;
+            font-size: 24px;
             font-weight: 700;
             text-decoration: underline;
-            margin: 8px 0 10px;
+            margin: 6px 0 8px;
         }
 
         table.items {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 8px;
+            margin-top: 6px;
         }
 
         table.items th,
         table.items td {
             border: 1px solid #222;
-            padding: 4px 6px;
+            padding: 2px 4px;
         }
 
         table.items th {
@@ -101,9 +101,9 @@
 
         .blue-line {
             width: 100%;
-            margin: 12px 0 6px;
+            margin: 8px 0 6px;
             color: #0068bf;
-            font-size: 12px;
+            font-size: 10px;
         }
 
         .blue-line td {
@@ -114,11 +114,33 @@
         .terms-title {
             color: #0068bf;
             font-weight: 700;
-            margin: 8px 0 4px;
+            margin: 6px 0 3px;
         }
 
         .terms {
             line-height: 1.4;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .cont-head {
+            width: 100%;
+            margin-bottom: 6px;
+        }
+
+        .cont-head td {
+            vertical-align: top;
+        }
+
+        .cont-logo {
+            text-align: right;
+        }
+
+        .cont-logo img {
+            max-width: 170px;
+            max-height: 50px;
         }
 
         .footer {
@@ -165,6 +187,8 @@
             }
             return $out;
         };
+        $termsFirst = collect($pdfTerms)->take(4)->values();
+        $termsRest = collect($pdfTerms)->slice(4)->values();
     @endphp
 
     <table class="top">
@@ -228,13 +252,13 @@
                         <td class="c">{{ number_format((float) ($row['quantity'] ?? 0), 2) }}</td>
                         <td class="c">{{ $row['unit'] ?: '-' }}</td>
                         <td class="r">{{ number_format((float) ($row['price'] ?? 0), 2) }}</td>
-                        <td class="r bold">Rs {{ number_format((float) ($row['amount'] ?? 0), 2) }}</td>
+                        <td class="r bold">&#8377; {{ number_format((float) ($row['amount'] ?? 0), 2) }}</td>
                     </tr>
                 @endforeach
             @endforeach
             <tr>
                 <td colspan="9" class="c bold">Total* (excluding GST)</td>
-                <td class="r bold">Rs {{ number_format($grandTotal, 2) }}</td>
+                <td class="r bold">&#8377; {{ number_format($grandTotal, 2) }}</td>
             </tr>
         </tbody>
     </table>
@@ -258,7 +282,7 @@
     <div class="terms-title">Terms and Conditions:</div>
     <div class="terms">
         @php $i = 1; @endphp
-        @foreach($pdfTerms as $term)
+        @foreach($termsFirst as $term)
             <div><strong>{{ $i++ }}.</strong> {!! nl2br(e($term)) !!}</div>
         @endforeach
     </div>
@@ -274,6 +298,40 @@
             <td class="right">Q no: {{ $quotation->quotation_number ?? ('#' . $quotation->id) }}.</td>
         </tr>
     </table>
+
+    @if($termsRest->isNotEmpty())
+        <div class="page-break"></div>
+
+        <table class="cont-head">
+            <tr>
+                <td style="width:70%"></td>
+                <td style="width:30%" class="cont-logo">
+                    @if($hasLogo)
+                        <img src="{{ $logoPath }}" alt="Housefix Logo">
+                    @endif
+                </td>
+            </tr>
+        </table>
+
+        <div class="terms">
+            @foreach($termsRest as $term)
+                <div><strong>{{ $i++ }}.</strong> {!! nl2br(e($term)) !!}</div>
+            @endforeach
+        </div>
+
+        <table class="footer">
+            <tr>
+                <td>
+                    <strong>Office:</strong> 20 A, Nerhu Street,Sathyomoorthy Nagar,<br>
+                    Madurai - 625010.<br>
+                    <strong>Contact us:</strong> +91-452 796 9211.
+                </td>
+                <td class="mid">www.housefix360.com</td>
+                <td class="right">Q no: {{ $quotation->quotation_number ?? ('#' . $quotation->id) }}.</td>
+            </tr>
+        </table>
+    @endif
 </body>
 
 </html>
+

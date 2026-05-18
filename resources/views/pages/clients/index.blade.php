@@ -111,8 +111,10 @@
                     <div class="card-body text-center py-5">
                         <h5 class="mb-2">No clients added yet</h5>
                         <p class="text-muted mb-3">Create your first client to start managing projects.</p>
-                        <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                            data-bs-target="#offcanvas_add">Add Clients</a>
+                        @can('clients-create')
+                            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvas_add">Add Clients</a>
+                        @endcan
                     </div>
                 </div>
             </div>
@@ -123,43 +125,45 @@
         {{ $clients->links() }}
     </div>
 
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
-        <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">Add Client</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body">
-            <form action="{{ route('clients.store') }}" method="POST" class="row g-3">
-                @csrf
-                <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
-                        class="form-control" required></div>
-                <div class="col-12"><label class="form-label">Company</label><input type="text" name="company_name"
-                        class="form-control"></div>
-                <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
-                        class="form-control"></div>
-                <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                        class="form-control"></div>
-                <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
-                        class="form-control"></div>
-                <div class="col-md-4"><label class="form-label">City</label><input type="text" name="city"
-                        class="form-control"></div>
-                <div class="col-md-4"><label class="form-label">State</label><input type="text" name="state"
-                        class="form-control"></div>
-                <div class="col-md-4"><label class="form-label">Country</label><input type="text" name="country"
-                        value="india" class="form-control"></div>
-                <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
+    @can('clients-create')
+        <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
+            <div class="offcanvas-header border-bottom">
+                <h5 class="offcanvas-title">Add Client</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body">
+                <form action="{{ route('clients.store') }}" method="POST" class="row g-3">
+                    @csrf
+                    <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
+                            class="form-control" required></div>
+                    <div class="col-12"><label class="form-label">Company</label><input type="text" name="company_name"
+                            class="form-control"></div>
+                    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
+                            class="form-control"></div>
+                    <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
+                            class="form-control"></div>
+                    <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
+                            class="form-control"></div>
+                    <div class="col-md-4"><label class="form-label">City</label><input type="text" name="city"
+                            class="form-control"></div>
+                    <div class="col-md-4"><label class="form-label">State</label><input type="text" name="state"
+                            class="form-control"></div>
+                    <div class="col-md-4"><label class="form-label">Country</label><input type="text" name="country"
+                            value="india" class="form-control"></div>
+                    <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
 <option value="enquiry">Enquiry</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select></div>
-                <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" class="form-control"
-                        rows="4"></textarea></div>
-                <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                        data-bs-dismiss="offcanvas">Cancel</button><button type="submit" class="btn btn-primary">Save
-                        Client</button></div>
-            </form>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select></div>
+                    <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" class="form-control"
+                            rows="4"></textarea></div>
+                    <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
+                            data-bs-dismiss="offcanvas">Cancel</button><button type="submit" class="btn btn-primary">Save
+                            Client</button></div>
+                </form>
+            </div>
         </div>
-    </div>
+    @endcan
 
     @foreach ($clients as $client)
         <div class="modal fade" id="edit_client_{{ $client->id }}" tabindex="-1" aria-hidden="true">

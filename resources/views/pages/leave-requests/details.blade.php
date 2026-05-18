@@ -94,7 +94,7 @@
                         </div>
                     </div>
 
-                    @if($leaveRequest->status === 'pending')
+                    @if($leaveRequest->status === 'pending' && auth()->user()?->hasPermission('leave-requests-edit'))
                         <hr>
                         <h5 class="mb-3">Approve / Reject</h5>
                         <form method="POST" action="{{ route('leaveRequests.action', $leaveRequest) }}">
@@ -116,7 +116,7 @@
                                 <button type="submit" class="btn btn-primary">Submit</button>
                             </div>
                         </form>
-                    @else
+                    @elseif($leaveRequest->status !== 'pending')
                         <div class="alert alert-info mt-3">This leave request has already been processed.</div>
                     @endif
                 </div>

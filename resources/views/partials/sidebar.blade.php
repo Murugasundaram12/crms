@@ -1,5 +1,8 @@
 <div class="sidebar" id="sidebar">
     @php($currentUser = auth()->user())
+    @php($isReportsRoute = request()->routeIs('reports.index'))
+    @php($reportType = request()->string('type')->toString())
+    @php($reportType = in_array($reportType, ['site', 'office', 'total'], true) ? $reportType : 'site')
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -78,6 +81,10 @@
                             @endif
                         @endif
 
+                        @if($currentUser && $currentUser->hasPermission('attendance-list'))
+                            <li><a href="{{ route('attendance.index') }}"><i class="ti ti-clock"></i><span>Attendance</span></a></li>
+                        @endif
+
                         @if($currentUser && $currentUser->hasPermission('labour-roles-list'))
                             <li><a href="{{ route('labour_roles.index') }}"><i class="ti ti-briefcase"></i><span>Labour
                                         Roles</span></a></li>
@@ -98,10 +105,15 @@
                                         Categories</span></a></li>
                         @endif
 
-                        @if($currentUser && $currentUser->hasPermission('categories-list'))
+                        @if(false)
                             <li><a href="{{ route('categories.index') }}"><i
                                         class="ti ti-list-details"></i><span>Categories</span></a></li>
                         @endif
+
+
+
+
+
 
                         @if($currentUser && $currentUser->hasPermission('quotations-list'))
                             <li><a href="{{ route('quotations.list') }}"><i
@@ -111,6 +123,17 @@
                         @if($currentUser && $currentUser->hasPermission('expenses-list'))
                             <li><a href="{{ route('expenses.index') }}"><i
                                         class="ti ti-receipt-2"></i><span>Expenses</span></a></li>
+                        @endif
+
+                        @if($currentUser && ($currentUser->hasPermission('reports-list') || $currentUser->hasPermission('expense-reports-list')))
+                            <li class="submenu {{ $isReportsRoute ? 'active' : '' }}">
+                                <a href="javascript:void(0);" class="{{ $isReportsRoute ? 'subdrop active' : '' }}"><i class="ti ti-report-analytics"></i><span>Reports</span><span class="menu-arrow"></span></a>
+                                <ul style="{{ $isReportsRoute ? 'display: block;' : 'display: none;' }}">
+                                    <li><a class="{{ $isReportsRoute && $reportType === 'site' ? 'active' : '' }}" href="{{ route('reports.index', ['type' => 'site']) }}">Site Report</a></li>
+                                    <li><a class="{{ $isReportsRoute && $reportType === 'office' ? 'active' : '' }}" href="{{ route('reports.index', ['type' => 'office']) }}">Office Report</a></li>
+                                    <li><a class="{{ $isReportsRoute && $reportType === 'total' ? 'active' : '' }}" href="{{ route('reports.index', ['type' => 'total']) }}">Total Report</a></li>
+                                </ul>
+                            </li>
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('roles-list'))

@@ -42,6 +42,11 @@
     <script src="{{ asset('assets/plugins/simplebar/simplebar.min.js') }}"></script>
     <script src="{{ asset('assets/js/script.js') }}"></script>
     <script src="{{ asset('assets/js/laravel-active-menu.js') }}"></script>
+    @auth
+    <script>
+        window.crmPermissionContext = @json($permissionUiContext ?? ['userPermissions' => [], 'permissionRoutes' => []]);
+    </script>
+    @endauth
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const deleteModalElement = document.getElementById('crmDeleteModal');
@@ -97,6 +102,90 @@
                     deleteForm.submit();
                 });
             }
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const context = window.crmPermissionContext;
+            if (!context || !Array.isArray(context.userPermissions) || !Array.isArray(context.permissionRoutes)) {
+                return;
+            }
+
+            const allowed = new Set(context.userPermissions);
+
+            const rules = context.permissionRoutes.map(function (route) {
+                const escaped = (route.uri || '')
+                    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    .replace(/\\\{[^}]+\\\}/g, '[^/]+');
+
+                return {
+                    regex: new RegExp('^' + escaped + '$'),
+                    methods: Array.isArray(route.methods) ? route.methods.map(function (m) { return String(m).toUpperCase(); }) : ['GET'],
+                    permission: route.permission
+                };
+            });
+
+            function normalizePath(urlValue) {
+                try {
+                    const parsed = new URL(urlValue, window.location.origin);
+                    return parsed.pathname.replace(/^\/+|\/+$/g, '');
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function requiredPermission(path, method) {
+                const upperMethod = String(method || 'GET').toUpperCase();
+                for (const rule of rules) {
+                    if (rule.methods.includes(upperMethod) && rule.regex.test(path)) {
+                        return rule.permission;
+                    }
+                }
+                return null;
+            }
+
+            function hideElement(el) {
+                el.style.display = 'none';
+                el.setAttribute('aria-hidden', 'true');
+                if ('disabled' in el) {
+                    el.disabled = true;
+                }
+            }
+
+            document.querySelectorAll('a[href]').forEach(function (anchor) {
+                const href = anchor.getAttribute('href') || '';
+                if (href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+                    return;
+                }
+
+                const path = normalizePath(href);
+                if (path === null) {
+                    return;
+                }
+
+                const permission = requiredPermission(path, 'GET');
+                if (permission && !allowed.has(permission)) {
+                    hideElement(anchor);
+                }
+            });
+
+            document.querySelectorAll('form[action]').forEach(function (form) {
+                const action = form.getAttribute('action') || '';
+                const path = normalizePath(action);
+                if (path === null) {
+                    return;
+                }
+
+                let method = (form.getAttribute('method') || 'GET').toUpperCase();
+                const spoof = form.querySelector('input[name="_method"]');
+                if (spoof && spoof.value) {
+                    method = spoof.value.toUpperCase();
+                }
+
+                const permission = requiredPermission(path, method);
+                if (permission && !allowed.has(permission)) {
+                    hideElement(form);
+                }
+            });
         });
     </script>
 

@@ -59,7 +59,76 @@ class PaymentController extends Controller
     }
 
     /**
-     * API: Get quotations for a client
+     * API: Get projects for a client.
+     */
+    public function getProjectsByClient($clientId)
+    {
+        $clientId = (int) $clientId;
+
+        if ($clientId <= 0) {
+            return response()->json(['error' => 'Invalid client ID'], 422);
+        }
+
+        try {
+            $projects = Project::where('client_id', $clientId)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+            return response()->json($projects);
+        } catch (\Exception $e) {
+            \Log::error('getProjectsByClient error: ' . $e->getMessage());
+            return response()->json(['error' => 'Server error'], 500);
+        }
+    }
+
+    /**
+     * API: Get quotations for a project.
+     */
+    public function getQuotationsByProject($projectId)
+    {
+        $projectId = (int) $projectId;
+
+        if ($projectId <= 0) {
+            return response()->json(['error' => 'Invalid project ID'], 422);
+        }
+
+        try {
+            $quotations = Quotation::where('project_id', $projectId)
+                ->select('id', 'quotation_number as number', 'amount')
+                ->orderBy('id', 'desc')
+                ->get();
+
+            $quotationIds = $quotations->pluck('id');
+
+            $paidSums = Payment::whereIn('quotation_id', $quotationIds)
+                ->whereIn('status', self::BALANCE_AFFECTING_STATUSES)
+                ->selectRaw('quotation_id, COALESCE(SUM(amount), 0) as paid_total')
+                ->groupBy('quotation_id')
+                ->pluck('paid_total', 'quotation_id');
+
+            $payload = $quotations->map(function ($quotation) use ($paidSums) {
+                $quotationTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
+                $paidTotal = (float) ($paidSums[$quotation->id] ?? 0);
+                $remainingAmount = max($quotationTotal - $paidTotal, 0);
+
+                return [
+                    'id' => $quotation->id,
+                    'number' => $quotation->number,
+                    'total_amount' => $remainingAmount,
+                    'remaining_amount' => $remainingAmount,
+                    'is_fully_paid' => $remainingAmount <= 0,
+                ];
+            });
+
+            return response()->json($payload);
+        } catch (\Exception $e) {
+            \Log::error('getQuotationsByProject error: ' . $e->getMessage());
+            return response()->json(['error' => 'Server error'], 500);
+        }
+    }
+
+    /**
+     * API: Get quotations for a client (legacy endpoint).
      */
     public function getQuotationsByClient($clientId)
     {
@@ -122,33 +191,6 @@ class PaymentController extends Controller
             'remaining_amount' => $remainingAmount,
             'is_fully_paid' => $remainingAmount <= 0,
         ]);
-    }
-
-    /**
-     * API: Get project by client_id (latest project to avoid multiple)
-     */
-    public function getProjectByClient($clientId)
-    {
-        $clientId = (int) $clientId;
-
-        if ($clientId <= 0) {
-            return response()->json(['error' => 'Invalid client ID'], 422);
-        }
-
-        try {
-            $project = Project::where('client_id', $clientId)
-                ->latest('id')
-                ->first(['id', 'name']);
-
-            if (!$project) {
-                return response()->json(['project' => null]);
-            }
-
-            return response()->json(['project' => $project]);
-        } catch (\Exception $e) {
-            \Log::error('getProjectByClient error: ' . $e->getMessage());
-            return response()->json(['error' => 'Server error'], 500);
-        }
     }
 
     public function store(Request $request)
@@ -264,7 +306,7 @@ class PaymentController extends Controller
             'client_id' => ['required', 'exists:clients,id'],
             'quotation_id' => ['required', 'exists:quotations,id'],
             'stage_id' => ['required', 'exists:payment_stages,id'],
-            'project_id' => ['nullable', 'exists:projects,id'],
+            'project_id' => ['required', 'exists:projects,id'],
 
             'transaction_id' => [
                 'nullable',
@@ -286,6 +328,22 @@ class PaymentController extends Controller
 
         // Custom validation: amount <= remaining quotation amount
         $quotation = \App\Models\Quotation::findOrFail($validated['quotation_id']);
+        $project = Project::findOrFail($validated['project_id']);
+        if ((int) $project->client_id !== (int) $validated['client_id']) {
+            throw ValidationException::withMessages([
+                'project_id' => 'Selected project does not belong to the selected client.',
+            ]);
+        }
+        if ((int) $quotation->client_id !== (int) $validated['client_id']) {
+            throw ValidationException::withMessages([
+                'quotation_id' => 'Selected quotation does not belong to the selected client.',
+            ]);
+        }
+        if ((int) $quotation->project_id !== (int) $validated['project_id']) {
+            throw ValidationException::withMessages([
+                'quotation_id' => 'Selected quotation does not belong to the selected project.',
+            ]);
+        }
         $quotationTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
 
         $paidQuery = Payment::where('quotation_id', $validated['quotation_id'])

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\LabourRoleController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\Reports\ExpenseReportController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
@@ -37,6 +39,14 @@ Route::prefix('server-commands')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::prefix('attendance')->name('attendance.')->group(function () {
+        Route::get('/', [AttendanceController::class, 'index'])
+            ->middleware('permission:attendance-list')
+            ->name('index');
+        Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
+        Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
+    });
+
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
@@ -45,8 +55,14 @@ Route::middleware('auth')->group(function () {
 
     Route::redirect('/index', '/dashboard');
 
-    Route::prefix('reports')->name('reports.')->middleware('permission:reports-list')->group(function () {
+    Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
+    });
+
+    Route::prefix('expense-reports')->name('expenseReports.')->group(function () {
+        Route::get('/', [ExpenseReportController::class, 'index'])
+            ->middleware('permission:expense-reports-list')
+            ->name('index');
     });
 
     Route::prefix('projects')->name('projects.')->group(function () {
@@ -73,6 +89,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/by-project/{project}', [\App\Http\Controllers\QuotationController::class, 'getQuotationsByProject'])->name('by-project');
         Route::middleware('permission:quotations-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\QuotationController::class, 'list'])->name('list');
+            Route::get('/{quotation}', [\App\Http\Controllers\QuotationController::class, 'show'])
+                ->whereNumber('quotation')
+                ->name('show');
         });
         Route::middleware('permission:quotations-create')->group(function () {
             Route::get('/create', [\App\Http\Controllers\QuotationController::class, 'create'])->name('create');
@@ -105,10 +124,32 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    Route::prefix('expense-transactions')->name('expense-transactions.')->group(function () {
+        Route::middleware('permission:expenses-list')->group(function () {
+            Route::get('/', [\App\Http\Controllers\ExpenseTransactionController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:expenses-create')->group(function () {
+            Route::get('/create', [\App\Http\Controllers\ExpenseTransactionController::class, 'create'])->name('create');
+            Route::post('/store', [\App\Http\Controllers\ExpenseTransactionController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:expenses-edit')->group(function () {
+            Route::get('/{expenseTransaction}/edit', [\App\Http\Controllers\ExpenseTransactionController::class, 'edit'])->name('edit');
+            Route::put('/{expenseTransaction}/update', [\App\Http\Controllers\ExpenseTransactionController::class, 'update'])->name('update');
+        });
+        Route::middleware('permission:expenses-delete')->group(function () {
+            Route::delete('/{expenseTransaction}', [\App\Http\Controllers\ExpenseTransactionController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    // keep existing legacy expenses module untouched
+
     Route::prefix('expenses')->name('expenses.')->group(function () {
         Route::middleware('permission:expenses-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\ExpenseController::class, 'index'])->name('index');
         });
+
+        // New dedicated modules are under /expense-transactions, /labour-expense-transactions, /vendor-expense-transactions
+
         Route::middleware('permission:expenses-create')->group(function () {
             Route::post('/', [\App\Http\Controllers\ExpenseController::class, 'store'])->name('store');
         });
@@ -188,9 +229,10 @@ Route::middleware('auth')->group(function () {
         Route::middleware('permission:payments-delete')->group(function () {
             Route::delete('/{payment}', [PaymentController::class, 'destroy'])->name('destroy');
         });
+        Route::get('/projects-by-client/{client}', [PaymentController::class, 'getProjectsByClient'])->name('projects-by-client');
+        Route::get('/quotations-by-project/{project}', [PaymentController::class, 'getQuotationsByProject'])->name('quotations-by-project');
         Route::get('/quotations-by-client/{client}', [PaymentController::class, 'getQuotationsByClient'])->name('quotations-by-client');
         Route::get('/quotation-total/{id}', [PaymentController::class, 'quotationTotal'])->name('quotation-total');
-        Route::get('/project-by-client/{client}', [PaymentController::class, 'getProjectByClient'])->name('project-by-client');
     });
 
     Route::prefix('payment-stages')->name('payment-stages.')->group(function () {
@@ -244,9 +286,16 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('leave-requests')->name('leaveRequests.')->group(function () {
+        Route::middleware('permission:leave-requests-create')->group(function () {
+            Route::get('/create', [\App\Http\Controllers\LeaveRequestController::class, 'create'])->name('create');
+            Route::post('/store', [\App\Http\Controllers\LeaveRequestController::class, 'store'])->name('store');
+        });
+
         Route::middleware('permission:leave-requests-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\LeaveRequestController::class, 'index'])->name('index');
-            Route::get('/{leaveRequest}', [\App\Http\Controllers\LeaveRequestController::class, 'show'])->name('show');
+            Route::get('/{leaveRequest}', [\App\Http\Controllers\LeaveRequestController::class, 'show'])
+                ->whereNumber('leaveRequest')
+                ->name('show');
         });
 
         Route::middleware('permission:leave-requests-edit')->group(function () {
@@ -352,25 +401,22 @@ Route::middleware('auth')->group(function () {
             ->name('toggle');
     });
 
-    Route::prefix('categories')->name('categories.')->group(function () {
-        Route::middleware('permission:categories-list')->group(function () {
-            Route::get('/', [\App\Http\Controllers\CategoryController::class, 'index'])->name('index');
+    // Transfer module
+    Route::prefix('transfers')->name('transfers.')->group(function () {
+        Route::middleware('permission:transfers-list')->group(function () {
+            Route::get('/', [\App\Http\Controllers\TransferDetailsController::class, 'index'])->name('index');
         });
-        Route::middleware('permission:categories-create')->group(function () {
-            Route::get('/create', [\App\Http\Controllers\CategoryController::class, 'create'])->name('create');
-            Route::post('/store', [\App\Http\Controllers\CategoryController::class, 'store'])->name('store');
+        Route::middleware('permission:transfers-create')->group(function () {
+            Route::get('/create', [\App\Http\Controllers\TransferDetailsController::class, 'create'])->name('create');
+            Route::post('/store', [\App\Http\Controllers\TransferDetailsController::class, 'store'])->name('store');
         });
-        Route::middleware('permission:categories-edit')->group(function () {
-            Route::get('/edit/{id}', [\App\Http\Controllers\CategoryController::class, 'edit'])->name('edit');
-            Route::put('/update/{id}', [\App\Http\Controllers\CategoryController::class, 'update'])->name('update');
+        Route::middleware('permission:transfers-edit')->group(function () {
+            Route::get('/{id}/edit', [\App\Http\Controllers\TransferDetailsController::class, 'edit'])->name('edit');
+            Route::put('/{id}/update', [\App\Http\Controllers\TransferDetailsController::class, 'update'])->name('update');
         });
-        Route::middleware('permission:categories-delete')->group(function () {
-            Route::delete('/destroy/{id}', [\App\Http\Controllers\CategoryController::class, 'destroy'])->name('destroy');
+        Route::middleware('permission:transfers-delete')->group(function () {
+            Route::delete('/{id}', [\App\Http\Controllers\TransferDetailsController::class, 'destroy'])->name('destroy');
         });
-
-        Route::post('/assign', [\App\Http\Controllers\CategoryController::class, 'assign'])
-            ->middleware('permission:categories-edit')
-            ->name('categories.assign');
     });
 
     // Route::prefix('quotations')->name('quotations.')->group(function () {

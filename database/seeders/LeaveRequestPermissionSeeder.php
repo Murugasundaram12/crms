@@ -2,27 +2,36 @@
 
 namespace Database\Seeders;
 
+use App\Models\Permission;
+use App\Models\Role;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 class LeaveRequestPermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        $permissions = [
-            'leave-requests-list',
-            'leave-requests-edit',
-            'leave-requests-delete',
+        $permissionMap = [
+            'leave-requests-list' => 'List Leave Requests',
+            'leave-requests-create' => 'Create Leave Requests',
+            'leave-requests-edit' => 'Edit Leave Requests',
+            'leave-requests-delete' => 'Delete Leave Requests',
         ];
 
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+        foreach ($permissionMap as $key => $name) {
+            Permission::query()->updateOrCreate(
+                ['key' => $key],
+                ['name' => $name]
+            );
         }
 
-        $adminRole = Role::where('name', 'admin')->first();
-        if ($adminRole) {
-            $adminRole->givePermissionTo($permissions);
+        $superAdminRole = Role::query()->where('name', 'Super Admin')->first();
+        if ($superAdminRole) {
+            $permissionIds = Permission::query()
+                ->whereIn('key', array_keys($permissionMap))
+                ->pluck('id')
+                ->all();
+
+            $superAdminRole->permissions()->syncWithoutDetaching($permissionIds);
         }
     }
 }

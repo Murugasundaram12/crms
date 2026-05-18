@@ -10,7 +10,7 @@
             <h4 class="mb-1">Leave Requests</h4>
         </div>
         <div>
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#add-modal"><i
+            <a href="{{ route('leaveRequests.create') }}" class="btn btn-primary"><i
                     class="ti ti-square-rounded-plus-filled me-1"></i>Add Leave Request</a>
         </div>
     </div>

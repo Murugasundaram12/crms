@@ -21,10 +21,13 @@ class PermissionSeeder extends Seeder
         'labour-roles' => 'Labour Roles',
         'labours' => 'Labours',
         'quotations' => 'Quotations',
+        'leave-requests' => 'Leave Requests',
         'vendors' => 'Vendors',
         'main-categories' => 'Main Categories',
         'categories' => 'Categories',
         'employees-salary' => 'Employee Salary',
+        'attendance' => 'Attendance',
+        'expense-reports' => 'Expense Reports',
     ];
 
     private const ACTIONS = [

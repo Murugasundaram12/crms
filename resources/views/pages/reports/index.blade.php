@@ -5,9 +5,22 @@
 @section('content')
     @include('partials.alerts')
 
+    @php
+        $user = auth()->user();
+        $isSuperAdmin = $user && (method_exists($user, 'assignedRoles')
+            ? $user->assignedRoles()->contains('name', 'Super Admin')
+            : (($user->role ?? '') === 'Super Admin'));
+
+        $title = match ($type) {
+            'office' => 'Office Report',
+            'total' => 'Total Report',
+            default => 'Site Report',
+        };
+    @endphp
+
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
-            <h4 class="mb-1">Reports</h4>
+            <h4 class="mb-1">{{ $title }}</h4>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
@@ -17,179 +30,102 @@
         </div>
     </div>
 
-    <ul class="nav nav-tabs custom-tab-1 mb-4" id="reportTab" role="tablist">
-        <li class="nav-item">
-            <a class="nav-link active" id="site-tab" data-bs-toggle="tab" href="#site" role="tab">
-                Site Report
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="office-tab" data-bs-toggle="tab" href="#office" role="tab">
-                Office Report
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="total-tab" data-bs-toggle="tab" href="#total" role="tab">
-                Total Report
-            </a>
-        </li>
-    </ul>
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ route('reports.index') }}" class="row g-2 align-items-end">
+                <input type="hidden" name="type" value="{{ $type }}">
 
-    <div class="tab-content" id="reportTabContent">
-        <!-- Site Report -->
-        <div class="tab-pane fade show active" id="site" role="tabpanel">
-            <div class="row g-4 mb-4">
                 <div class="col-md-3">
-                    <select name="site_date_from" class="form-select">
-                        <option>Date From</option>
-                    </select>
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}">
                 </div>
+
                 <div class="col-md-3">
-                    <select name="site_date_to" class="form-select">
-                        <option>Date To</option>
-                    </select>
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
                 </div>
-                <div class="col-md-3">
-                    <select name="site_project" class="form-select">
-                        <option>Project</option>
-                    </select>
+
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="{{ route('reports.index', ['type' => $type]) }}" class="btn btn-light">Reset</a>
                 </div>
-                <div class="col-md-3">
-                    <select name="site_client" class="form-select">
-                        <option>Client</option>
-                    </select>
-                </div>
-            </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Entries</p><h5 class="mb-0">{{ $summary['count'] ?? 0 }}</h5></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Amount</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['total_amount'] ?? 0), 2) }}</h5></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Paid</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['paid'] ?? 0), 2) }}</h5></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Unpaid</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['unpaid'] ?? 0), 2) }}</h5></div></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
             <div class="table-responsive">
-                <table class="table">
+                <table class="table table-striped align-middle">
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Project</th>
-                            <th>Activity</th>
+                            <th>Project Name</th>
+                            <th>Main Category</th>
+                            <th>Sub Category</th>
+                            <th>Labour</th>
+                            <th>Vendor</th>
+                            @if($isSuperAdmin)
+                                <th>Income</th>
+                            @endif
                             <th>Amount</th>
-                            <th>Status</th>
+                            <th>Paid</th>
+                            <th>Unpaid</th>
+                            <th>Description</th>
+                            <th>Payment Mode</th>
+                            <th>Entry Name</th>
+                            <th>Edit Name</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>2024-12-01</td>
-                            <td>Project A</td>
-                            <td>Site work</td>
-                            <td>₹50,000</td>
-                            <td>Completed</td>
-                        </tr>
+                        @forelse($records as $row)
+                            <tr>
+                                <td>{{ $row['date'] ?? '-' }}</td>
+                                <td>{{ $row['project_name'] ?? '-' }}</td>
+                                <td>{{ $row['main_category'] ?? '-' }}</td>
+                                <td>{{ $row['sub_category'] ?? '-' }}</td>
+                                <td>{{ $row['labour'] ?? '-' }}</td>
+                                <td>{{ $row['vendor'] ?? '-' }}</td>
+                                @if($isSuperAdmin)
+                                    <td>{{ is_null($row['income']) ? '-' : 'Rs '.number_format((float) $row['income'], 2) }}</td>
+                                @endif
+                                <td>Rs {{ number_format((float) ($row['amount'] ?? 0), 2) }}</td>
+                                <td>Rs {{ number_format((float) ($row['paid'] ?? 0), 2) }}</td>
+                                <td>Rs {{ number_format((float) ($row['unpaid'] ?? 0), 2) }}</td>
+                                <td>{{ $row['description'] ?? '-' }}</td>
+                                <td>{{ $row['payment_mode'] ?? '-' }}</td>
+                                <td>{{ $row['entry_name'] ?? '-' }}</td>
+                                <td>{{ $row['edit_name'] ?? '-' }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="14" class="text-center text-muted py-4">No report data found for the selected filter.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
-        </div>
 
-        <!-- Office Report -->
-        <div class="tab-pane fade" id="office" role="tabpanel">
-            <div class="row g-4 mb-4">
-                <div class="col-md-3">
-                    <select name="office_date_from" class="form-select">
-                        <option>Date From</option>
-                    </select>
+            @if(method_exists($records, 'links'))
+                <div class="mt-3">
+                    {{ $records->links() }}
                 </div>
-                <div class="col-md-3">
-                    <select name="office_date_to" class="form-select">
-                        <option>Date To</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="office_project" class="form-select">
-                        <option>Project</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="office_client" class="form-select">
-                        <option>Client</option>
-                    </select>
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Activity</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>2024-12-01</td>
-                            <td>Office meeting</td>
-                            <td>₹5,000</td>
-                            <td>Approved</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Total Report -->
-        <div class="tab-pane fade" id="total" role="tabpanel">
-            <div class="row g-4 mb-4">
-                <div class="col-md-3">
-                    <select name="total_date_from" class="form-select">
-                        <option>Date From</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="total_date_to" class="form-select">
-                        <option>Date To</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="total_project" class="form-select">
-                        <option>Project</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="total_client" class="form-select">
-                        <option>Client</option>
-                    </select>
-                </div>
-            </div>
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h5>Total Projects</h5>
-                            <h3>12</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h5>Total Payments</h5>
-                            <h3>₹2.5M</h3>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Project</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Site</td>
-                            <td>Project A</td>
-                            <td>₹50,000</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            @endif
         </div>
     </div>
 @endsection

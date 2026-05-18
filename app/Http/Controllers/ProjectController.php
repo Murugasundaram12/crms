@@ -133,7 +133,8 @@ class ProjectController extends Controller
             'client',
             'manager',
             'tasks.employee',
-            'payments.client.stage.project',
+            'payments.client',
+            'payments.stage',
             'expenses.employee',
             'quotations.items',
             'paymentStages.payments',
@@ -145,7 +146,9 @@ class ProjectController extends Controller
             'tasks as completed_tasks_count' => function ($query) {
                 $query->where('status', 'completed');
             },
-            'paymentStages',
+            'paymentStages as payment_stages_count' => function ($query) {
+                $query->selectRaw('COUNT(DISTINCT payment_stages.id)');
+            },
             'variations',
         ]);
     }

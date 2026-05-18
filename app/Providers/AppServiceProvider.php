@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate as GateFacade;
 use Illuminate\Support\Facades\View;
@@ -27,7 +28,52 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('*', function (): void {
             if (Auth::check()) {
-                Auth::user()->loadMissing('roles.permissions');
+                $user = Auth::user();
+                $user->loadMissing('roles.permissions');
+
+                $permissionKeys = [];
+                if (method_exists($user, 'assignedRoles')) {
+                    foreach ($user->assignedRoles() as $role) {
+                        foreach ($role->permissions as $permission) {
+                            if (! empty($permission->key)) {
+                                $permissionKeys[] = $permission->key;
+                            }
+                        }
+                    }
+                }
+
+                $permissionKeys = array_values(array_unique($permissionKeys));
+
+                $permissionRoutes = [];
+                foreach (Route::getRoutes() as $route) {
+                    $permissionMiddleware = collect($route->gatherMiddleware())
+                        ->first(fn(string $middleware) => str_starts_with($middleware, 'permission:'));
+
+                    if (! $permissionMiddleware) {
+                        continue;
+                    }
+
+                    $permissionKey = trim(substr($permissionMiddleware, strlen('permission:')));
+                    if ($permissionKey === '') {
+                        continue;
+                    }
+
+                    $methods = array_values(array_filter(
+                        $route->methods(),
+                        fn(string $method) => ! in_array(strtoupper($method), ['HEAD'], true)
+                    ));
+
+                    $permissionRoutes[] = [
+                        'uri' => trim($route->uri(), '/'),
+                        'methods' => $methods,
+                        'permission' => $permissionKey,
+                    ];
+                }
+
+                View::share('permissionUiContext', [
+                    'userPermissions' => $permissionKeys,
+                    'permissionRoutes' => $permissionRoutes,
+                ]);
             }
         });
 

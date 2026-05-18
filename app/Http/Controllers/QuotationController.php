@@ -87,13 +87,14 @@ class QuotationController extends Controller
         $nextId = Quotation::max('id') ?? 0; // safe increment
         $quotationData['quotation_number'] = sprintf('QTN-%04d', $nextId + 1);
 
-        DB::transaction(function () use ($quotationData, $validated) {
+        $quotation = DB::transaction(function () use ($quotationData, $validated) {
             $quotation = Quotation::create($quotationData);
             $this->syncItems($quotation, $validated['items']);
             $this->syncDefaultTerms($quotation);
+            return $quotation;
         });
 
-        return redirect()->route('quotations.list')->with('success', 'Quotation created successfully.');
+        return redirect()->route('quotations.show', $quotation)->with('success', 'Quotation created successfully.');
     }
 
     /**

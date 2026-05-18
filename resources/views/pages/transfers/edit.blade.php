@@ -1,0 +1,161 @@
+@extends('layouts.app')
+
+@section('content')
+    <div class="container-fluid">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h4 class="m-0">Edit Transfer</h4>
+            <a href="{{ route('transfers.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+        </div>
+
+        @if ($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <form method="POST" action="{{ route('transfers.update', $transfer->id) }}">
+            @csrf
+            @method('PUT')
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Transfer Type</label>
+                            <div class="d-flex gap-3 flex-wrap">
+                                <label class="d-flex align-items-center gap-2">
+                                    <input type="radio" name="transfer_type" value="employee" id="transfer_type_employee" {{ $transfer->transfer_type === 'employee' ? 'checked' : '' }} />
+                                    Employee
+                                </label>
+                                <label class="d-flex align-items-center gap-2">
+                                    <input type="radio" name="transfer_type" value="vendor" id="transfer_type_vendor" {{ $transfer->transfer_type === 'vendor' ? 'checked' : '' }} />
+                                    Vendor
+                                </label>
+                            </div>
+                            @error('transfer_type')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6" id="employee_id_field"
+                            style="{{ $transfer->transfer_type === 'employee' ? '' : 'display:none;' }}">
+                            <label class="form-label">Employee</label>
+                            <select name="employee_id" class="form-select form-select-sm">
+                                <option value="">Select Employee</option>
+                                @foreach($employees as $employee)
+                                    <option value="{{ $employee->id }}" {{ (string) ($transfer->employee_id ?? '') === (string) $employee->id ? 'selected' : '' }}>
+                                        {{ $employee->name ?? $employee->full_name ?? 'Employee #' . $employee->id }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('employee_id')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6" id="vendor_id_field"
+                            style="{{ $transfer->transfer_type === 'vendor' ? '' : 'display:none;' }}">
+                            <label class="form-label">Vendor</label>
+                            <select name="vendor_id" class="form-select form-select-sm">
+                                <option value="">Select Vendor</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->id }}" {{ (string) ($transfer->vendor_id ?? '') === (string) $vendor->id ? 'selected' : '' }}>
+                                        {{ $vendor->name ?? 'Vendor #' . $vendor->id }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('vendor_id')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Amount</label>
+                            <input type="number" step="0.01" name="amount" class="form-control form-control-sm"
+                                value="{{ $transfer->amount }}" />
+                            @error('amount')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Mode</label>
+                            <select name="payment_mode" class="form-select form-select-sm">
+                                @foreach($paymentModes as $mode)
+                                    <option value="{{ $mode }}" {{ $transfer->payment_mode === $mode ? 'selected' : '' }}>
+                                        {{ $mode }}</option>
+                                @endforeach
+                            </select>
+                            @error('payment_mode')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Current Date (dd/mm/yyyy)</label>
+                            <input type="text" name="current_date" class="form-control form-control-sm"
+                                value="{{ \Carbon\Carbon::parse($transfer->current_date)->format('d/m/Y') }}" />
+                            @error('current_date')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Current Time</label>
+                            <input type="text" name="current_time" class="form-control form-control-sm"
+                                value="{{ $transfer->current_time }}" placeholder="HH:MM:SS AM/PM" />
+                            @error('current_time')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-control"
+                                rows="3">{{ $transfer->description }}</textarea>
+                            @error('description')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-12 d-flex justify-content-end">
+                            <button class="btn btn-primary btn-sm" type="submit">Update</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function syncTransferTypeFields() {
+            const employeeField = document.getElementById('employee_id_field');
+            const vendorField = document.getElementById('vendor_id_field');
+            const employeeRadio = document.getElementById('transfer_type_employee');
+            const vendorRadio = document.getElementById('transfer_type_vendor');
+
+            if (employeeRadio && employeeRadio.checked) {
+                employeeField.style.display = '';
+                vendorField.style.display = 'none';
+            } else if (vendorRadio && vendorRadio.checked) {
+                vendorField.style.display = '';
+                employeeField.style.display = 'none';
+            } else {
+                employeeField.style.display = 'none';
+                vendorField.style.display = 'none';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const employeeRadio = document.getElementById('transfer_type_employee');
+            const vendorRadio = document.getElementById('transfer_type_vendor');
+            if (employeeRadio) employeeRadio.addEventListener('change', syncTransferTypeFields);
+            if (vendorRadio) vendorRadio.addEventListener('change', syncTransferTypeFields);
+            syncTransferTypeFields();
+        });
+    </script>
+@endsection

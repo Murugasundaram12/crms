@@ -22,6 +22,45 @@
     </div>
 
     <div class="row">
+        <div class="col-12">
+            <div class="card mb-3">
+                <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div>
+                        <h5 class="mb-1">Today's Attendance</h5>
+                        @if($todayAttendance)
+                            <p class="mb-0 text-muted">
+                                Check-in: {{ optional($todayAttendance->check_in_at)->format('h:i A') ?? '-' }}
+                                |
+                                Check-out: {{ optional($todayAttendance->check_out_at)->format('h:i A') ?? '-' }}
+                            </p>
+                        @else
+                            <p class="mb-0 text-muted">No check-in yet for today.</p>
+                        @endif
+                    </div>
+                    <div class="d-flex gap-2">
+                        @if(auth()->user()?->hasPermission('attendance-list'))
+                            <a href="{{ route('attendance.index') }}" class="btn btn-outline-light">Attendance List</a>
+                        @endif
+                        @if(!$todayAttendance)
+                            <form action="{{ route('attendance.check-in') }}" method="POST">
+                                @csrf
+                                <button type="submit" class="btn btn-success">Check In</button>
+                            </form>
+                        @elseif(!$todayAttendance->check_out_at)
+                            <form action="{{ route('attendance.check-out') }}" method="POST">
+                                @csrf
+                                <button type="submit" class="btn btn-warning">Check Out</button>
+                            </form>
+                        @else
+                            <button type="button" class="btn btn-outline-secondary" disabled>Attendance Completed</button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
         <div class="col-xxl-8 col-xl-7 d-flex">
             <div class="card flex-fill">
                 <div class="card-body pb-0">
@@ -32,8 +71,8 @@
                     </div>
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <div class="d-flex align-items-center flex-wrap gap-2">
-                            <h4 class="mb-0">₹{{ number_format($summary['totalPayments'], 2) }}</h4>
-                            <p class="mb-0">Paid revenue collected</p>
+                            <h4 class="mb-0">₹{{ number_format($summary['netRevenue'], 2) }}</h4>
+                            <p class="mb-0">Net revenue after total expenses</p>
                         </div>
                         <div class="d-flex align-items-center flex-wrap gap-2">
                             <div class="d-flex align-items-center border rounded px-2 py-1">
@@ -107,11 +146,11 @@
             <div class="card flex-fill">
                 <div class="card-body position-relative">
                     <p class="fw-medium mb-1">Revenue</p>
-                    <h4 class="mb-3">₹{{ number_format($summary['totalPayments'], 2) }}</h4>
+                    <h4 class="mb-3">₹{{ number_format($summary['netRevenue'], 2) }}</h4>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <span
                             class="d-inline-flex align-items-center badge rounded-pill badge-soft-success border-0">{{ $summary['completionRate'] }}%</span>
-                        <p class="text-dark mb-0">Completion Rate</p>
+                        <p class="text-dark mb-0">After expenses deduction</p>
                     </div>
                     <div class="custom-card-icon">
                         <div class="avatar avatar-rounded avatar-lg bg-primary-gradient-100 position-absolute top-0 end-0">
@@ -148,11 +187,16 @@
                 <div class="card-body position-relative">
                     <p class="fw-medium mb-1">Expenses</p>
                     <h4 class="mb-3">₹{{ number_format($summary['totalExpenses'], 2) }}</h4>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                    {{-- <div class="d-flex align-items-center gap-2 flex-wrap">
                         <span
                             class="d-inline-flex align-items-center badge rounded-pill badge-soft-warning border-0">{{ $summary['budgetUtilization'] }}%</span>
-                        <p class="text-dark mb-0">Budget Used</p>
+                        <p class="text-dark mb-0">Includes labour + employee salaries</p>
                     </div>
+                    <p class="text-muted mt-2 mb-0 fs-12">
+                        Expense: ₹{{ number_format($summary['expenseOnlyTotal'], 2) }} |
+                        Employee Salary: ₹{{ number_format($summary['employeeSalaryTotal'], 2) }} |
+                        Labour Salary: ₹{{ number_format($summary['labourSalaryTotal'], 2) }}
+                    </p> --}}
                     <div class="custom-card-icon">
                         <div class="avatar avatar-rounded avatar-lg bg-pink-gradient-100 position-absolute top-0 end-0">
                             <img src="{{ asset('assets/img/icons/conversion-icon.svg') }}" alt="icon"
@@ -202,7 +246,7 @@
                                 <tr>
                                     <th>Project</th>
                                     <th>Client</th>
-                                    <th>Manager</th>
+                                    <th>Added By</th>
                                     <th>Status</th>
                                     <th>Tasks</th>
                                 </tr>

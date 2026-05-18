@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\Employee;
+use App\Models\EmployeeSalary;
 use App\Models\Expense;
+use App\Models\Labour;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\Task;
@@ -18,6 +20,12 @@ class DashboardService
         $completedTasks = Task::where('status', 'completed')->count();
         $totalBudget = (float) Project::sum('budget');
         $totalSpent = (float) Project::sum('spent');
+        $paidRevenue = (float) Payment::where('status', 'paid')->sum('amount');
+        $expenseTotal = (float) Expense::sum('amount');
+        $employeeSalaryTotal = (float) EmployeeSalary::sum('salary');
+        $labourSalaryTotal = (float) Labour::sum('salary');
+        $totalExpenses = $expenseTotal + $employeeSalaryTotal + $labourSalaryTotal;
+        $netRevenue = $paidRevenue - $totalExpenses;
 
         return [
             'projectCount' => $projectCount,
@@ -28,8 +36,12 @@ class DashboardService
             'pendingTasks' => Task::where('status', '!=', 'completed')->count(),
             'totalBudget' => $totalBudget,
             'totalSpent' => $totalSpent,
-            'totalPayments' => (float) Payment::where('status', 'paid')->sum('amount'),
-            'totalExpenses' => (float) Expense::sum('amount'),
+            'totalPayments' => $paidRevenue,
+            'expenseOnlyTotal' => $expenseTotal,
+            'employeeSalaryTotal' => $employeeSalaryTotal,
+            'labourSalaryTotal' => $labourSalaryTotal,
+            'totalExpenses' => $totalExpenses,
+            'netRevenue' => $netRevenue,
             'completionRate' => $taskCount > 0 ? round(($completedTasks / $taskCount) * 100, 1) : 0,
             'budgetUtilization' => $totalBudget > 0 ? round(($totalSpent / $totalBudget) * 100, 1) : 0,
         ];

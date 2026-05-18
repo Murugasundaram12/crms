@@ -1,44 +1,35 @@
-# Update Laravel Project Modules (Client, Quotation, Expenses, Report, Project)
+# TODO - Expense/Labour/Vendor/Transfer modules
 
-## Phase 1: Database Updates ✅
+## Expense/Labour/Vendor
 
-- [x] Migrations created/edited
-- [ ] php artisan migrate (run manually)
+- [ ] Create new dedicated migrations + tables for:
+    - [ ] general expenses transactions (main_category_id, category_id, project_id, paid_amount, payment_mode, expense_date, expense_time, description, image_path, etc.)
+    - [ ] labour expense transactions (labour_id, salary, etc.)
+    - [ ] vendor expense transactions (vendor_id, salary, etc.)
+- [ ] Create dedicated models for each new table with proper relationships.
+- [ ] Create dedicated controllers with full CRUD + optimized eager-loading.
+- [ ] Implement validation + file upload handling (store image to public disk, delete on replace/remove).
+- [ ] Implement date/time parsing & formatting (dd/mm/yyyy for UI; store as Y-m-d and time string as HH:MM:SS AM/PM compatible format).
+- [ ] Create Blade pages (index/create/edit) with responsive offcanvas/modal UI:
+    - [ ] dropdowns for DB-driven data
+    - [ ] show/hide fields for Transfer module (radio)
+    - [ ] show validation errors and success messages
+- [ ] Add dedicated routes for each module.
+- [ ] Add view components/partials for reusable dropdowns if feasible.
 
-## Phase 2: Client ✅
+## Transfer module
 
-- [x] All updates complete
+- [ ] Add missing Blade views for transfers:
+    - [ ] index
+    - [ ] create
+    - [ ] edit
+- [ ] Implement validation improvements in TransferDetailsController (ensure employee/vendor required based on transfer_type).
+- [ ] Ensure correct dd/mm/yyyy date parsing and time formatting in UI.
+- [ ] Make Transfer UI responsive and mobile friendly.
 
-## Phase 3: Project ✅
+## Final verification
 
-- [x] Model/controller/view updated
-
-## Phase 4: Quotation ✅
-
-- [x] Unit dropdown
-- [x] Dependent Client-Project-Quotation
-- [x] Route/controller/JS added
-- [x] Subtitle validation relaxed
-
-## Phase 5: Expenses Module (Next)
-
-- [ ] Create ExpenseController.php
-- [ ] Create views/pages/expenses/index.blade.php
-- [ ] routes/web.php expenses.\*
-- [ ] layouts/app.blade.php menu
-- [ ] Permissions
-
-## Phase 6: Report
-
-- [ ] ReportController 3 types + filters
-- [ ] reports/index.blade.php
-
-## All Phases Complete ✅
-
-Run:
-
-1. php artisan migrate
-2. php artisan db:seed --class=ExpensePermissionSeeder
-3. php artisan optimize:clear
-
-Test modules and verify.
+- [ ] Run migrations.
+- [ ] Manual CRUD testing for all modules.
+- [ ] Verify images are stored and deleted correctly.
+- [ ] Verify duplicate/invalid entry prevention (at least server-side sanity checks).

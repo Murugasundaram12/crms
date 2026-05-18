@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Quotation;
@@ -65,9 +66,11 @@ class Project extends Model
         return $this->hasMany(Quotation::class);
     }
 
-    public function paymentStages(): HasMany
+    public function paymentStages(): BelongsToMany
     {
-        return $this->hasMany(PaymentStage::class);
+        return $this->belongsToMany(PaymentStage::class, 'payments', 'project_id', 'stage_id')
+            ->select('payment_stages.*')
+            ->distinct();
     }
 
     public function variations(): HasMany

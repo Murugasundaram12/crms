@@ -82,7 +82,11 @@
                         @forelse($quotations as $quotation)
                             <tr>
                                 <td><span class="fw-semibold">#{{ $quotation->id }}</span></td>
-                                <td>{{ $quotation->quotation_number ?? '-' }}</td>
+                                <td>
+                                    <a href="{{ route('quotations.show', $quotation->id) }}" class="fw-semibold">
+                                        {{ $quotation->quotation_number ?? '-' }}
+                                    </a>
+                                </td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <span class="avatar avatar-md bg-soft-primary text-primary">
@@ -113,6 +117,9 @@
                                         :deleteMessage="'Are you sure you want to delete quotation ' . ($quotation->quotation_number ?? '#' . $quotation->id) . '?'"
                                         deletePermission="quotations-delete"
                                     >
+                                        <a class="dropdown-item" href="{{ route('quotations.show', $quotation->id) }}">
+                                            <i class="ti ti-eye text-primary"></i> View
+                                        </a>
                                         <a class="dropdown-item" href="{{ route('quotations.edit', $quotation->id) }}?download=pdf">
                                             <i class="ti ti-file-download text-success"></i> PDF
                                         </a>
