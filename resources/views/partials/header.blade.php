@@ -11,6 +11,18 @@
     ['label' => 'Employee Salaries', 'route' => route('employee-salaries.index'), 'permission' => 'employees-salary-list', 'keywords' => ['salary', 'salaries', 'employee salary', 'employee salaries']],
     ['label' => 'Labour Roles', 'route' => route('labour_roles.index'), 'permission' => 'labour-roles-list', 'keywords' => ['labour role', 'labour roles']],
     ['label' => 'Labours', 'route' => route('labours.index'), 'permission' => 'labours-list', 'keywords' => ['labour', 'labours', 'worker', 'workers']],
+    ['label' => 'Labour Expenses History', 'route' => route('labour-expenses.history'), 'permission' => 'expenses-list', 'keywords' => ['labour expense', 'labour expenses history']],
+    ['label' => 'Labour Expenses Weekly', 'route' => route('labour-expenses.weekly'), 'permission' => 'expenses-list', 'keywords' => ['labour weekly', 'labour expense weekly']],
+    ['label' => 'Labour Expenses Advance', 'route' => route('labour-expenses.advance-history'), 'permission' => 'expenses-list', 'keywords' => ['labour advance', 'labour expenses advance']],
+    ['label' => 'Labour Expenses Deleted', 'route' => route('labour-expenses.deleted-history'), 'permission' => 'expenses-list', 'keywords' => ['labour deleted expenses']],
+    ['label' => 'Vendor Expenses History', 'route' => route('vendor-expenses.history'), 'permission' => 'expenses-list', 'keywords' => ['vendor expense', 'vendor expenses history']],
+    ['label' => 'Vendor Expenses Unpaid', 'route' => route('vendor-expenses.unpaid-history'), 'permission' => 'expenses-list', 'keywords' => ['vendor unpaid', 'vendor expenses unpaid']],
+    ['label' => 'Vendor Expenses Advance', 'route' => route('vendor-expenses.advance-history'), 'permission' => 'expenses-list', 'keywords' => ['vendor advance', 'vendor expenses advance']],
+    ['label' => 'Vendor Expenses Deleted', 'route' => route('vendor-expenses.deleted-history'), 'permission' => 'expenses-list', 'keywords' => ['vendor deleted expenses']],
+    ['label' => 'Expenses History', 'route' => route('expenses.history'), 'permission' => 'expenses-list', 'keywords' => ['expenses history', 'expense history']],
+    ['label' => 'Expenses Unpaid', 'route' => route('expenses.unpaid-history'), 'permission' => 'expenses-list', 'keywords' => ['expenses unpaid', 'unpaid expenses']],
+    ['label' => 'Expenses Deleted', 'route' => route('expenses.deleted-history'), 'permission' => 'expenses-list', 'keywords' => ['expenses deleted', 'deleted expenses']],
+    ['label' => 'Expense Report', 'route' => route('expenseReports.index'), 'permission' => 'expense-reports-list', 'keywords' => ['expense report', 'expense reports']],
     ['label' => 'Roles', 'route' => route('roles.index'), 'permission' => 'roles-list', 'keywords' => ['role', 'roles']],
     ['label' => 'Permissions', 'route' => route('permissions.index'), 'permission' => 'permissions-list', 'keywords' => ['permission', 'permissions']],
 ])->map(fn ($item) => $item + ['allowed' => blank($item['permission']) || ($currentUser?->hasPermission($item['permission']) ?? false)]))
@@ -56,6 +68,36 @@
                     <a href="javascript:void(0);" class="btn topbar-link btnFullscreen"><i class="ti ti-maximize"></i></a>
                 </div>
             </div>
+
+            @if($currentUser?->hasPermission('transfers-create'))
+                <div class="header-item d-none d-sm-flex">
+                    <div class="dropdown me-2">
+                        <a href="{{ route('transfers.create') }}" class="btn topbar-link" title="Add Transfers">
+                            <i class="ti ti-arrows-transfer-up-down"></i>
+                        </a>
+                    </div>
+                </div>
+            @endif
+
+            @php($canOpenExpenseQuickActions = $currentUser && ($currentUser->hasPermission('expenses-list') || $currentUser->hasPermission('expenses-create')))
+            @if($canOpenExpenseQuickActions)
+                <div class="header-item d-none d-sm-flex">
+                    <div class="dropdown me-2 quick-expense-dropdown">
+                        <a href="javascript:void(0);" class="btn topbar-link topbar-teal-link quick-expense-trigger" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="ti ti-coins"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-md p-2 quick-expense-menu">
+                            @if($currentUser->hasPermission('expenses-list'))
+                                <a href="{{ route('expense-transactions.create') }}" class="dropdown-item">Add Expenses</a>
+                            @endif
+                            @if($currentUser->hasPermission('expenses-create'))
+                                <a href="{{ route('expense-transactions.create', ['type' => 'labour']) }}" class="dropdown-item">Add Labour Expenses</a>
+                                <a href="{{ route('expense-transactions.create', ['type' => 'vendor']) }}" class="dropdown-item">Add Vendor Expenses</a>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <div class="header-item d-none d-sm-flex">
                 <div class="dropdown me-2">
@@ -239,6 +281,20 @@
 
                     window.location.href = moduleItem.route;
                 });
+            });
+
+            document.querySelectorAll('.quick-expense-dropdown').forEach((dropdownEl) => {
+                const trigger = dropdownEl.querySelector('.quick-expense-trigger');
+                if (!trigger || !window.bootstrap?.Dropdown) {
+                    return;
+                }
+
+                const instance = bootstrap.Dropdown.getOrCreateInstance(trigger, {
+                    autoClose: true,
+                });
+
+                dropdownEl.addEventListener('mouseenter', () => instance.show());
+                dropdownEl.addEventListener('mouseleave', () => instance.hide());
             });
         });
     </script>

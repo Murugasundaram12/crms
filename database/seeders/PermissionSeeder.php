@@ -28,6 +28,8 @@ class PermissionSeeder extends Seeder
         'employees-salary' => 'Employee Salary',
         'attendance' => 'Attendance',
         'expense-reports' => 'Expense Reports',
+        'expenses' => 'Expenses',
+        'transfers' => 'Transfers',
     ];
 
     private const ACTIONS = [

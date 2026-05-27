@@ -14,9 +14,11 @@ class Vendor extends Model
         'address',
         'phone',
         'advance_amount',
+        'advance_amt',
     ];
 
     protected $casts = [
         'advance_amount' => 'decimal:2',
+        'advance_amt' => 'decimal:2',
     ];
 }

@@ -6,6 +6,8 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeSalaryController;
+use App\Http\Controllers\ExpensesController;
+use App\Http\Controllers\LabourExpensesController;
 use App\Http\Controllers\LabourController;
 use App\Http\Controllers\LabourRoleController;
 use App\Http\Controllers\PaymentController;
@@ -13,6 +15,8 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Reports\ExpenseReportController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\UnpaidExpensesController;
+use App\Http\Controllers\VendorExpensesController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use Illuminate\Support\Facades\Route;
@@ -142,6 +146,79 @@ Route::middleware('auth')->group(function () {
     });
 
     // keep existing legacy expenses module untouched
+
+    Route::get('/expenses-history', [ExpensesController::class, 'history'])
+        ->middleware('permission:expenses-list')
+        ->name('expenses.history');
+    Route::post('/expenses/store', [ExpensesController::class, 'store'])
+        ->middleware('permission:expenses-create')
+        ->name('expenses.store.new');
+    Route::post('/expenses/update/{id}', [ExpensesController::class, 'update'])
+        ->middleware('permission:expenses-edit')
+        ->name('expenses.update.new');
+    Route::post('/expenses-delete_record', [ExpensesController::class, 'deleteRecord'])
+        ->middleware('permission:expenses-delete')
+        ->name('expenses.delete-record');
+    Route::get('/expenses-deleted-history', [ExpensesController::class, 'deletedHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('expenses.deleted-history');
+
+    Route::get('/unpaid-history', [UnpaidExpensesController::class, 'history'])
+        ->middleware('permission:expenses-list')
+        ->name('expenses.unpaid-history');
+    Route::post('/unpaid-store', [UnpaidExpensesController::class, 'store'])
+        ->middleware('permission:expenses-edit')
+        ->name('expenses.unpaid-store');
+
+    Route::get('/labour-expenses-history', [LabourExpensesController::class, 'history'])
+        ->middleware('permission:expenses-list')
+        ->name('labour-expenses.history');
+    Route::post('/labour-expenses/store', [LabourExpensesController::class, 'store'])
+        ->middleware('permission:expenses-create')
+        ->name('labour-expenses.store');
+    Route::get('/labour-expenses', [LabourExpensesController::class, 'weeklyHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('labour-expenses.weekly');
+    Route::get('/labour-expenses-project', [LabourExpensesController::class, 'projectHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('labour-expenses.project');
+    Route::get('/labour-expenses-advance', [LabourExpensesController::class, 'advanceHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('labour-expenses.advance-history');
+    Route::post('/labour-advance/store', [LabourExpensesController::class, 'advanceStore'])
+        ->middleware('permission:expenses-edit')
+        ->name('labour-expenses.advance-store');
+    Route::post('/labour-expenses-delete_record', [LabourExpensesController::class, 'deleteRecord'])
+        ->middleware('permission:expenses-delete')
+        ->name('labour-expenses.delete-record');
+    Route::get('/labour-expenses-deleted-history', [LabourExpensesController::class, 'deletedHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('labour-expenses.deleted-history');
+
+    Route::get('/vendor-expenses', [VendorExpensesController::class, 'history'])
+        ->middleware('permission:expenses-list')
+        ->name('vendor-expenses.history');
+    Route::post('/vendor-expenses/store', [VendorExpensesController::class, 'store'])
+        ->middleware('permission:expenses-create')
+        ->name('vendor-expenses.store');
+    Route::get('/vendor-expenses-unpaid-history', [VendorExpensesController::class, 'unpaidHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('vendor-expenses.unpaid-history');
+    Route::post('/vendor-expenses-unpaid-store', [VendorExpensesController::class, 'unpaidStore'])
+        ->middleware('permission:expenses-edit')
+        ->name('vendor-expenses.unpaid-store');
+    Route::get('/vendor-expenses-advance-history', [VendorExpensesController::class, 'advanceHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('vendor-expenses.advance-history');
+    Route::post('/vendor-advance-store', [VendorExpensesController::class, 'advanceStore'])
+        ->middleware('permission:expenses-edit')
+        ->name('vendor-expenses.advance-store');
+    Route::post('/vendor-expenses-delete_record', [VendorExpensesController::class, 'deleteRecord'])
+        ->middleware('permission:expenses-delete')
+        ->name('vendor-expenses.delete-record');
+    Route::get('/vendor-expenses-deleted-history', [VendorExpensesController::class, 'deletedHistory'])
+        ->middleware('permission:expenses-list')
+        ->name('vendor-expenses.deleted-history');
 
     Route::prefix('expenses')->name('expenses.')->group(function () {
         Route::middleware('permission:expenses-list')->group(function () {
@@ -417,6 +494,27 @@ Route::middleware('auth')->group(function () {
         Route::middleware('permission:transfers-delete')->group(function () {
             Route::delete('/{id}', [\App\Http\Controllers\TransferDetailsController::class, 'destroy'])->name('destroy');
         });
+    });
+
+    Route::prefix('categories')->name('categories.')->group(function () {
+        Route::middleware('permission:categories-list')->group(function () {
+            Route::get('/', [\App\Http\Controllers\CategoryController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:categories-create')->group(function () {
+            Route::get('/create', [\App\Http\Controllers\CategoryController::class, 'create'])->name('create');
+            Route::post('/store', [\App\Http\Controllers\CategoryController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:categories-edit')->group(function () {
+            Route::get('/edit/{id}', [\App\Http\Controllers\CategoryController::class, 'edit'])->name('edit');
+            Route::put('/update/{id}', [\App\Http\Controllers\CategoryController::class, 'update'])->name('update');
+        });
+        Route::middleware('permission:categories-delete')->group(function () {
+            Route::delete('/destroy/{id}', [\App\Http\Controllers\CategoryController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::post('/assign', [\App\Http\Controllers\CategoryController::class, 'assign'])
+            ->middleware('permission:categories-edit')
+            ->name('categories.assign');
     });
 
     // Route::prefix('quotations')->name('quotations.')->group(function () {

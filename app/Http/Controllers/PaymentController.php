@@ -51,7 +51,7 @@ class PaymentController extends Controller
             ->orderBy('quotation_number')
             ->get();
 
-        $stages = \App\Models\PaymentStage::orderBy('name')->get();
+        $stages = \App\Models\PaymentStage::orderBy('stage_name')->get();
 
         $expenses = Expense::with(['project', 'employee'])->latest()->take(5)->get();
 

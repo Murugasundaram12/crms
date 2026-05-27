@@ -50,11 +50,16 @@ class ExpenseTransactionController extends Controller
     public function create()
     {
         $mainCategories = MainCategory::query()->where('status', true)->orderBy('name')->get();
+        $categories = Category::query()
+            ->with('mainCategories:id')
+            ->orderBy('name')
+            ->get();
         $projects = Project::query()->orderBy('name')->get();
 
         return view('pages.expense_transactions.create', [
             'mainCategories' => $mainCategories,
             'projects' => $projects,
+            'categories' => $categories,
             'paymentModes' => $this->paymentModes,
         ]);
     }

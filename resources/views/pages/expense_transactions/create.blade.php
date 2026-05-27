@@ -15,7 +15,7 @@
 
             <div class="col-md-6">
                 <label class="form-label">Main Category <span class="text-danger">*</span></label>
-                <select name="main_category_id" class="form-select" required>
+                <select name="main_category_id" id="main_category_id" class="form-select" required>
                     <option value="">Select</option>
                     @foreach($mainCategories as $mc)
                         <option value="{{ $mc->id }}" @selected(old('main_category_id') == $mc->id)>{{ $mc->name }}</option>
@@ -26,10 +26,10 @@
 
             <div class="col-md-6">
                 <label class="form-label">Category <span class="text-danger">*</span></label>
-                <select name="category_id" class="form-select" required>
+                <select name="category_id" id="category_id" class="form-select" required>
                     <option value="">Select</option>
                     @foreach($categories ?? [] as $c)
-                        <option value="{{ $c->id }}" @selected(old('category_id') == $c->id)>{{ $c->name }}</option>
+                        <option value="{{ $c->id }}" data-main-ids='@json($c->mainCategories->pluck('id')->values())' @selected(old('category_id') == $c->id) hidden>{{ $c->name }}</option>
                     @endforeach
                 </select>
                 @error('category_id')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -102,3 +102,45 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const mainCategorySelect = document.getElementById('main_category_id');
+        const categorySelect = document.getElementById('category_id');
+
+        if (!mainCategorySelect || !categorySelect) {
+            return;
+        }
+
+        const categoryOptions = Array.from(categorySelect.options).filter((option) => option.value !== '');
+
+        const filterCategories = () => {
+            const selectedMainCategoryId = mainCategorySelect.value;
+
+            categoryOptions.forEach((option) => {
+                let mainIds = [];
+                try {
+                    mainIds = JSON.parse(option.dataset.mainIds || '[]');
+                } catch (e) {
+                    mainIds = [];
+                }
+
+                const isMatch = selectedMainCategoryId && mainIds.includes(Number(selectedMainCategoryId));
+                option.hidden = !isMatch;
+
+                if (!isMatch && option.selected) {
+                    option.selected = false;
+                }
+            });
+
+            if (!selectedMainCategoryId) {
+                categorySelect.value = '';
+            }
+        };
+
+        mainCategorySelect.addEventListener('change', filterCategories);
+        filterCategories();
+    });
+</script>
+@endpush

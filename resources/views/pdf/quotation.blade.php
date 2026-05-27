@@ -169,8 +169,28 @@
 
 <body>
     @php
-        $logoPath = public_path('assets/img/pdf/logo12.png');
-        $hasLogo = file_exists($logoPath) && extension_loaded('gd');
+        $logoDirectories = [
+            public_path('assets/pdf'),
+            public_path('assets/img/pdf'),
+        ];
+        $logoPath = null;
+        foreach ($logoDirectories as $logoDirectory) {
+            $logoCandidates = [
+                $logoDirectory . '/logo.png',
+                $logoDirectory . '/logo.jpg',
+                $logoDirectory . '/logo.jpeg',
+                $logoDirectory . '/logo.webp',
+            ];
+            $logoPath = collect($logoCandidates)->first(fn($path) => file_exists($path));
+            if (!$logoPath) {
+                $foundLogos = glob($logoDirectory . '/*.{png,jpg,jpeg,webp}', GLOB_BRACE);
+                $logoPath = $foundLogos[0] ?? null;
+            }
+            if ($logoPath) {
+                break;
+            }
+        }
+        $hasLogo = !empty($logoPath);
         $clientName = $quotation->client_name ?: ($quotation->client?->name ?? '-');
         $clientAddress = $quotation->client_address ?: ($quotation->client?->address ?? '-');
         $location = $quotation->project?->location ?: ($quotation->client?->city ?? '-');

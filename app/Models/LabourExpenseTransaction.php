@@ -16,7 +16,10 @@ class LabourExpenseTransaction extends Model
         'image_path',
         'project_id',
         'description',
+        'amount',
         'paid_amount',
+        'unpaid_amount',
+        'extra_amount',
         'payment_mode',
         'labour_id',
         'salary',
@@ -24,10 +27,14 @@ class LabourExpenseTransaction extends Model
         'current_time',
         'active_status',
         'delete_status',
+        'delete_reason',
     ];
 
     protected $casts = [
+        'amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
+        'unpaid_amount' => 'decimal:2',
+        'extra_amount' => 'decimal:2',
         'salary' => 'decimal:2',
         'current_date' => 'date',
         'active_status' => 'boolean',
