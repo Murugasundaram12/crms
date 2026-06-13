@@ -17,8 +17,10 @@ use App\Http\Controllers\Reports\ExpenseReportController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UnpaidExpensesController;
 use App\Http\Controllers\VendorExpensesController;
+use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\ExpenseImportController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Artisan;
@@ -496,6 +498,16 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    Route::get('/wallet-history', [WalletController::class, 'index'])
+        ->middleware('permission:transfers-list')
+        ->name('wallet.index');
+    Route::get('/wallet-create', [WalletController::class, 'create'])
+        ->middleware('permission:transfers-create')
+        ->name('wallet.create');
+    Route::post('/wallet/store', [WalletController::class, 'store'])
+        ->middleware('permission:transfers-create')
+        ->name('wallet.store');
+
     Route::prefix('categories')->name('categories.')->group(function () {
         Route::middleware('permission:categories-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\CategoryController::class, 'index'])->name('index');
@@ -516,6 +528,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:categories-edit')
             ->name('categories.assign');
     });
+    Route::get('/excel/import', function () {
+        return view('pages.excel.expense_import');
+    })->name('excel.import.form');
+    Route::post('/excel/import',[ExpenseImportController::class,'import'])->name('excel.import');
 
     // Route::prefix('quotations')->name('quotations.')->group(function () {
     //     Route::middleware('permission:quotations-list')->group(function () {

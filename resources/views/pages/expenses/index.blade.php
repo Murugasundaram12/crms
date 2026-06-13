@@ -1,214 +1,175 @@
 @extends('layouts.app')
 
-@section('title', 'Expenses')
+@section('title', 'Expenses History')
 
 @section('content')
     @include('partials.alerts')
 
-    <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
-        <div>
-            <h4 class="mb-1">Expenses<span class="badge badge-soft-primary ms-2">{{ $expenses->total() }}</span></h4>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Expenses</li>
-                </ol>
-            </nav>
-        </div>
-        <div class="gap-2 d-flex align-items-center flex-wrap">
-            <form action="{{ route('expenses.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search expenses"
-                        value="{{ request('q') }}">
-                </div>
-                <select name="status" class="form-select">
-                    <option value="">All Status</option>
-                    <option value="pending" @selected(request('status') === 'pending')>Pending</option>
-                    <option value="approved" @selected(request('status') === 'approved')>Approved</option>
-                    <option value="paid" @selected(request('status') === 'paid')>Paid</option>
+    @php
+        $filterRoute = request()->routeIs('expenses.unpaid-history')
+            ? 'expenses.unpaid-history'
+            : (request()->routeIs('expenses.deleted-history') ? 'expenses.deleted-history' : 'expenses.history');
+    @endphp
+
+    <div class="mb-3">
+        <form method="GET" action="{{ route($filterRoute) }}" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label mb-1">Main Category</label>
+                <select name="main_category" class="form-select">
+                    <option value="">All</option>
+                    @foreach($mainCategories as $mainCategory)
+                        <option value="{{ $mainCategory }}" @selected(request('main_category') == $mainCategory)>{{ strtoupper($mainCategory) }}</option>
+                    @endforeach
                 </select>
-                <button class="btn btn-outline-light shadow" type="submit">Filter</button>
-            </form>
-            @can('expenses-create')
-                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                    data-bs-target="#offcanvas_add">
-                    <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Expense
-                </a>
-            @endcan
-        </div>
-    </div>
-
-    <div class="row">
-        @forelse ($expenses as $expense)
-            <div class="col-xxl-3 col-xl-4 col-md-6">
-                <div class="card border shadow">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
-                            <div class="d-flex align-items-center">
-                                <span
-                                    class="badge badge-tag badge-soft-{{ $expense->status === 'paid' ? 'success' : ($expense->status === 'approved' ? 'warning' : 'danger') }} me-2">
-                                    {{ ucfirst($expense->status) }}
-                                </span>
-                                <span class="badge badge-tag badge-soft-info">{{ ucfirst($expense->type) }}</span>
-                            </div>
-                            <div class="dropdown">
-                                <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                    data-bs-toggle="dropdown">
-                                    <i class="ti ti-dots-vertical"></i>
-                                </a>
-                                <div class="dropdown-menu dropdown-menu-end">
-                                    @can('expenses-edit')
-                                        <a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                            data-bs-target="#edit_expense_{{ $expense->id }}">
-                                            <i class="ti ti-edit text-blue"></i> Edit
-                                        </a>
-                                    @endcan
-                                    @can('expenses-delete')
-                                        <button class="dropdown-item crm-delete-trigger" data-bs-toggle="modal"
-                                            data-bs-target="#crmDeleteModal"
-                                            data-delete-action="{{ route('expenses.destroy', $expense) }}"
-                                            data-delete-title="Delete Expense" data-delete-message="Delete {{ $expense->title }}?">
-                                            <i class="ti ti-trash"></i> Delete
-                                        </button>
-                                    @endcan
-                                </div>
-                            </div>
-                        </div>
-                        <h6 class="fw-medium">{{ $expense->title }}</h6>
-                        <p class="text-muted mb-3">{{ $expense->category }} - {{ $expense->expense_date->format('d M Y') }}</p>
-                        <div class="d-flex justify-content-between">
-                            <span class="h6 mb-0">₹{{ number_format($expense->amount, 2) }}</span>
-                            <div>
-                                @if($expense->project)<span class="badge bg-light text-dark">Project:
-                                {{ $expense->project->name }}</span>@endif
-                                @if($expense->employee)<span class="badge bg-light text-dark ms-1">By:
-                                {{ $expense->employee->name }}</span>@endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
-        @empty
-            <div class="col-12">
-                <div class="card border shadow-sm">
-                    <div class="card-body text-center py-5">
-                        <h5 class="mb-2">No expenses recorded</h5>
-                        <p class="text-muted mb-3">Add your first expense.</p>
-                        <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                            data-bs-target="#offcanvas_add">Add Expense</a>
-                    </div>
-                </div>
+            <div class="col-md-2">
+                <label class="form-label mb-1">Category</label>
+                <select name="category_name" class="form-select">
+                    <option value="">All</option>
+                    @foreach($categories as $category)
+                        <option value="{{ $category }}" @selected(request('category_name') == $category)>{{ $category }}</option>
+                    @endforeach
+                </select>
             </div>
-        @endforelse
+            <div class="col-md-2">
+                <label class="form-label mb-1">Project Name</label>
+                <select name="project_id" class="form-select">
+                    <option value="">All</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}" @selected((string) request('project_id') === (string) $project->id)>{{ $project->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-1">Member Name</label>
+                <select name="member_id" class="form-select">
+                    <option value="">All</option>
+                    @foreach($employees as $employee)
+                        <option value="{{ $employee->id }}" @selected((string) request('member_id') === (string) $employee->id)>{{ $employee->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-1">From</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-1">To</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-1">Search</label>
+                <input type="text" name="q" class="form-control" placeholder="Text" value="{{ request('q') }}">
+            </div>
+            <div class="col-md-1 d-flex gap-2">
+                <button class="btn btn-primary w-100" type="submit">Filter</button>
+                <a href="{{ route($filterRoute) }}" class="btn btn-light">Reset</a>
+            </div>
+        </form>
     </div>
 
-    {{ $expenses->links() }}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <ul class="nav nav-tabs nav-tabs-solid nav-justified mb-0">
+                <li class="nav-item">
+                    <a class="nav-link active" href="{{ route('expenses.history') }}">
+                        <i class="ti ti-file-invoice me-1"></i>Other Expenses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('labour-expenses.history') }}">
+                        <i class="ti ti-user-cog me-1"></i>Labour
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('vendor-expenses.history') }}">
+                        <i class="ti ti-building-warehouse me-1"></i>Vendor
+                    </a>
+                </li>
+            </ul>
 
-    <div class="offcanvas offcanvas-end" id="offcanvas_add">
-        <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">Add Expense</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body">
-            <form action="{{ route('expenses.store') }}" method="POST" class="row g-3">
-                @csrf
-                <div class="col-12">
-                    <label class="form-label">Title <span class="text-danger">*</span></label>
-                    <input type="text" name="title" class="form-control" required>
+            <div class="p-3">
+                <div class="table-responsive">
+                    <table class="table table-nowrap mb-0">
+                        <thead>
+                            <tr>
+                                <th>Paid Date</th>
+                                <th>Main Category</th>
+                                <th>Category Name</th>
+                                <th>Project Name</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Unpaid</th>
+                                <th>Advanced Amount</th>
+                                <th>Description</th>
+                                <th>Image</th>
+                                <th>Payment Mode</th>
+                                <th>Added By</th>
+                                <th>Edited By</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($expenses as $expense)
+                                <tr>
+                                    <td>
+                                        {{ optional($expense->expense_date)->format('d-m-Y') }}
+                                        <br>
+                                        <small>{{ optional($expense->created_at)->format('h:i A') }}</small>
+                                    </td>
+                                    <td>{{ $expense->mainCategory?->name ?? '-' }}</td>
+                                    <td>{{ $expense->category?->name ?? '-' }}</td>
+                                    <td>{{ $expense->project?->name ?? '-' }}</td>
+                                    <td class="text-warning fw-semibold">{{ number_format((float) $expense->amount, 2) }}</td>
+                                    <td class="text-success fw-semibold">{{ number_format((float) $expense->paid_amount, 2) }}</td>
+                                    <td class="text-danger fw-semibold">{{ number_format((float) $expense->unpaid_amount, 2) }}</td>
+                                    <td class="text-info fw-semibold">{{ number_format((float) $expense->extra_amount, 2) }}</td>
+                                    <td>{{ $expense->description ?? '-' }}</td>
+                                    <td>--</td>
+                                    <td>{{ $expense->payment_mode_label ?? '--' }}</td>
+                                    <td>{{ $expense->employee?->name ?? '--' }}</td>
+                                    <td>{{ $expense->editedByUser?->name ?? '--' }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <a href="javascript:void(0);" class="text-success" title="Edit">
+                                                <i class="ti ti-edit fs-16"></i>
+                                            </a>
+                                            <form method="POST" action="{{ route('expenses.delete-record') }}"
+                                                onsubmit="return confirm('Delete this expense?');">
+                                                @csrf
+                                                <input type="hidden" name="expense_id" value="{{ $expense->id }}">
+                                                <input type="hidden" name="delete_reason" value="Deleted from list">
+                                                <button type="submit" class="btn btn-link p-0 text-danger" title="Delete">
+                                                    <i class="ti ti-trash fs-16"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="14" class="text-center py-4">No records found</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Type <span class="text-danger">*</span></label>
-                    <select name="type" class="form-select" required>
-                        <option value="salary">Salary</option>
-                        <option value="material">Material</option>
-                        <option value="travel">Travel</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Category <span class="text-danger">*</span></label>
-                    <input type="text" name="category" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Amount <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0" name="amount" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Date <span class="text-danger">*</span></label>
-                    <input type="date" name="expense_date" class="form-control" required>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Project</label>
-                    <select name="project_id" class="form-select">
-                        <option value="">None</option>
-                        @foreach($projects as $project)
-                            <option value="{{ $project->id }}">{{ $project->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Employee</label>
-                    <select name="employee_id" class="form-select">
-                        <option value="">None</option>
-                        @foreach($employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Status <span class="text-danger">*</span></label>
-                    <select name="status" class="form-select" required>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="paid">Paid</option>
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Notes</label>
-                    <textarea name="notes" class="form-control" rows="3"></textarea>
-                </div>
-                <div class="col-12 d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Expense</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
-    @foreach($expenses as $expense)
-        <div class="modal fade" id="edit_expense_{{ $expense->id }}">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5>Edit {{ $expense->title }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form action="{{ route('expenses.update', $expense) }}" method="POST" class="row g-3">
-                            @csrf @method('PUT')
-                            <div class="col-12">
-                                <label>Title</label>
-                                <input type="text" name="title" value="{{ $expense->title }}" class="form-control" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label>Type</label>
-                                <select name="type" class="form-select" required>
-                                    <option value="salary" @selected($expense->type === 'salary')>Salary</option>
-                                    <option value="material" @selected($expense->type === 'material')>Material</option>
-                                    <option value="travel" @selected($expense->type === 'travel')>Travel</option>
-                                    <option value="other" @selected($expense->type === 'other')>Other</option>
-                                </select>
-                            </div>
-                            <!-- similar fields for category, amount, date, project, employee, status, notes -->
-                            <div class="col-12 d-flex gap-2 justify-content-end">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Update</button>
-                            </div>
-                        </form>
-                    </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                    <p class="mb-0 text-muted">
+                        Showing {{ $expenses->firstItem() ?? 0 }} to {{ $expenses->lastItem() ?? 0 }} of
+                        {{ $expenses->total() }} results
+                    </p>
+                    {{ $expenses->links() }}
                 </div>
             </div>
         </div>
-    @endforeach
+    </div>
+
+    <div class="d-flex justify-content-end mt-3 flex-wrap gap-4 fw-semibold">
+        <div>Total Amount: <span class="text-warning">{{ number_format((float) ($totals->total_amount ?? 0), 2) }}</span></div>
+        <div>Total Paid Amount: <span class="text-success">{{ number_format((float) ($totals->total_paid_amount ?? 0), 2) }}</span></div>
+        <div>Total Unpaid Amount: <span class="text-danger">{{ number_format((float) ($totals->total_unpaid_amount ?? 0), 2) }}</span></div>
+        <div>Total Advanced Amount: <span class="text-info">{{ number_format((float) ($totals->total_advanced_amount ?? 0), 2) }}</span></div>
+    </div>
 @endsection
