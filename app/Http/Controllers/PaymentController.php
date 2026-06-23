@@ -11,6 +11,8 @@ use App\Models\Quotation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use App\Services\CrmBalanceService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -211,7 +213,8 @@ class PaymentController extends Controller
             } else {
                 $validatedData['payment_code'] = 'PAY-' . strtoupper(Str::random(6));
             }
-            Payment::create($validatedData);
+            $payment = Payment::create($validatedData);
+            $this->applyPaymentBalance($payment, 1);
         });
 
         return redirect()->route('payments.index')->with('success', 'Payment recorded successfully.');
@@ -240,16 +243,22 @@ class PaymentController extends Controller
         }
         unset($validatedData['paid_at']);
 
-        // Save the updated payment values.
-        $payment->update($validatedData);
+        DB::transaction(function () use ($payment, $validatedData) {
+            $this->applyPaymentBalance($payment, -1);
+            $payment->update($validatedData);
+            $payment->refresh();
+            $this->applyPaymentBalance($payment, 1);
+        });
 
         return redirect()->route('payments.index')->with('success', 'Payment updated successfully.');
     }
 
     public function destroy(Payment $payment)
     {
-        // Delete the selected payment record.
-        $payment->delete();
+        DB::transaction(function () use ($payment) {
+            $this->applyPaymentBalance($payment, -1);
+            $payment->delete();
+        });
 
         return redirect()->route('payments.index')->with('success', 'Payment deleted successfully.');
     }
@@ -412,5 +421,30 @@ class PaymentController extends Controller
         }
 
         return 'INV-' . str_pad((string) ($lastNumber + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    private function applyPaymentBalance(Payment $payment, int $direction): void
+    {
+        if (! in_array($payment->status, self::BALANCE_AFFECTING_STATUSES, true)) {
+            return;
+        }
+
+        $amount = (float) $payment->amount * $direction;
+        $balanceService = app(CrmBalanceService::class);
+
+        if ($payment->project_id) {
+            if ($amount > 0) {
+                $balanceService->applyProjectIncome((int) $payment->project_id, $amount);
+            } elseif ($amount < 0) {
+                $balanceService->reverseProjectIncome((int) $payment->project_id, abs($amount));
+            }
+        }
+
+        $referenceId = (int) $payment->id;
+        if ($amount > 0) {
+            $balanceService->creditUserWallet((int) Auth::id(), $amount, 'Payment income credit', 'payment', $referenceId);
+        } elseif ($amount < 0) {
+            $balanceService->debitUserWallet((int) Auth::id(), abs($amount), 'Payment income rollback debit', 'payment', $referenceId);
+        }
     }
 }

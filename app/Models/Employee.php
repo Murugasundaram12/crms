@@ -22,6 +22,7 @@ class Employee extends Authenticatable
         'hourly_rate',
         'hire_date',
         'status',
+        'wallet',
         'avatar',
         'salary_name',
         'salary_amount',
@@ -34,6 +35,7 @@ class Employee extends Authenticatable
         'hire_date' => 'date',
         'password' => 'hashed',
         'salary_amount' => 'decimal:2',
+        'wallet' => 'decimal:2',
         'salary_type' => 'string',
         'email_verified_at' => 'datetime',
     ];

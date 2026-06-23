@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('expense_transactions')) {
+            return;
+        }
+
         Schema::create('expense_transactions', function (Blueprint $table) {
             // If this migration is re-run during development, do not hard-fail.
             // (Keeps local testing moving forward.)

@@ -13,7 +13,14 @@ class PaymentStage extends Model
 
     protected $fillable = [
         'name',
+        'stage_name',
+        'project_id',
     ];
+
+    public function getNameAttribute(): ?string
+    {
+        return $this->attributes['name'] ?? $this->attributes['stage_name'] ?? null;
+    }
 
     public function payments(): HasMany
     {

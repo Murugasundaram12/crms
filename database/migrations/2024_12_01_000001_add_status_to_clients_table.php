@@ -9,14 +9,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('clients', function (Blueprint $table) {
-            $table->enum('status', ['enquiry', 'active', 'inactive'])->default('enquiry')->after('name');
+            if (! Schema::hasColumn('clients', 'status')) {
+                $table->enum('status', ['enquiry', 'active', 'inactive'])->default('enquiry')->after('name');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('clients', function (Blueprint $table) {
-            $table->dropColumn('status');
+            if (Schema::hasColumn('clients', 'status')) {
+                $table->dropColumn('status');
+            }
         });
     }
 };

@@ -9,15 +9,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('projects', function (Blueprint $table) {
-            $table->dropColumn(['budget', 'spent']);
+            foreach (['budget', 'spent'] as $column) {
+                if (Schema::hasColumn('projects', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('projects', function (Blueprint $table) {
-            $table->decimal('budget', 14, 2)->nullable()->after('end_date');
-            $table->decimal('spent', 14, 2)->nullable()->after('budget');
+            if (! Schema::hasColumn('projects', 'budget')) {
+                $table->decimal('budget', 14, 2)->nullable()->after('end_date');
+            }
+            if (! Schema::hasColumn('projects', 'spent')) {
+                $table->decimal('spent', 14, 2)->nullable()->after('budget');
+            }
         });
     }
 };

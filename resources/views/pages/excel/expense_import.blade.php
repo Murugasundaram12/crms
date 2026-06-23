@@ -18,25 +18,9 @@
         {{-- <a href="{{ route('employee-salaries.index') }}" class="btn btn-outline-light shadow-sm">Back to Employee
             Salaries</a> --}}
     </div>
-    <form action="{{ route('excel.import') }}" method="POST" enctype="multipart/form-data">
-
-        @csrf
-
-        <input type="file" name="file" required>
-
-        <button type="submit">
-            Import
-        </button>
-
-    </form>
-
-    <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
-        <div>
-            <h4 class="mb-1">Labour Expense Import</h4>
-        </div>
-        {{-- <a href="{{ route('employee-salaries.index') }}" class="btn btn-outline-light shadow-sm">Back to Employee
-            Salaries</a> --}}
-    </div>
+    {{-- <div class="alert alert-info">
+        Upload request 60 seconds-kulla finish aagum. Data import background queue-la continue aagum.
+    </div> --}}
 
     <form action="{{ route('excel.import') }}" method="POST" enctype="multipart/form-data">
 
@@ -44,10 +28,12 @@
 
         <input type="file" name="file" required>
 
-        <button type="submit">
+        <button type="submit" class="btn btn-primary">
             Import
         </button>
 
     </form>
+
+
 
 @endsection

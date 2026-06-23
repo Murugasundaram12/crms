@@ -9,15 +9,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->string('invoice_number')->nullable()->unique()->after('id');
+            if (! Schema::hasColumn('payments', 'invoice_number')) {
+                $table->string('invoice_number')->nullable()->unique()->after('id');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->dropUnique(['invoice_number']);
-            $table->dropColumn('invoice_number');
+            if (Schema::hasColumn('payments', 'invoice_number')) {
+                $table->dropColumn('invoice_number');
+            }
         });
     }
 };

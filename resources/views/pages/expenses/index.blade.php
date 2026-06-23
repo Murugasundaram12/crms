@@ -134,15 +134,16 @@
                                             <a href="javascript:void(0);" class="text-success" title="Edit">
                                                 <i class="ti ti-edit fs-16"></i>
                                             </a>
-                                            <form method="POST" action="{{ route('expenses.delete-record') }}"
-                                                onsubmit="return confirm('Delete this expense?');">
-                                                @csrf
-                                                <input type="hidden" name="expense_id" value="{{ $expense->id }}">
-                                                <input type="hidden" name="delete_reason" value="Deleted from list">
-                                                <button type="submit" class="btn btn-link p-0 text-danger" title="Delete">
-                                                    <i class="ti ti-trash fs-16"></i>
-                                                </button>
-                                            </form>
+                                            <button type="button"
+                                                class="btn btn-link p-0 text-danger expense-delete-trigger"
+                                                title="Delete"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#expenseDeleteModal"
+                                                data-expense-id="{{ $expense->id }}"
+                                                data-expense-title="{{ $expense->mainCategory?->name ?? 'Expense' }}"
+                                                data-expense-amount="{{ number_format((float) $expense->amount, 2) }}">
+                                                <i class="ti ti-trash fs-16"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -172,4 +173,57 @@
         <div>Total Unpaid Amount: <span class="text-danger">{{ number_format((float) ($totals->total_unpaid_amount ?? 0), 2) }}</span></div>
         <div>Total Advanced Amount: <span class="text-info">{{ number_format((float) ($totals->total_advanced_amount ?? 0), 2) }}</span></div>
     </div>
+
+    <div class="modal fade" id="expenseDeleteModal" tabindex="-1" aria-labelledby="expenseDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form method="POST" action="{{ route('expenses.delete-record') }}" class="modal-content border-0 shadow">
+                @csrf
+                <input type="hidden" name="expense_id" id="expenseDeleteId">
+
+                <div class="modal-header bg-light">
+                    <div>
+                        <h5 class="modal-title" id="expenseDeleteModalLabel">Delete Expense</h5>
+                        <p class="mb-0 text-muted small">This expense will move to deleted history.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="d-flex align-items-start gap-3 mb-3">
+                        <span class="avatar avatar-md rounded-circle bg-danger-transparent text-danger d-inline-flex align-items-center justify-content-center">
+                            <i class="ti ti-trash fs-20"></i>
+                        </span>
+                        <div>
+                            <p class="mb-1 fw-semibold">Are you sure you want to delete this expense?</p>
+                            <p class="mb-0 text-muted small" id="expenseDeleteSummary">Selected expense</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="ti ti-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const deleteId = document.getElementById('expenseDeleteId');
+                const deleteSummary = document.getElementById('expenseDeleteSummary');
+
+                document.querySelectorAll('.expense-delete-trigger').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        deleteId.value = button.dataset.expenseId || '';
+                        deleteSummary.textContent = `${button.dataset.expenseTitle || 'Expense'} - Rs. ${button.dataset.expenseAmount || '0.00'}`;
+                    });
+                });
+            });
+        </script>
+    @endpush
 @endsection

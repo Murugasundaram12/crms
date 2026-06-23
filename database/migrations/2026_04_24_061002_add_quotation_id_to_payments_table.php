@@ -12,14 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            //
-            $table->unsignedBigInteger('quotation_id')->after('client_id');
-
-            // optional foreign key
-            $table->foreign('quotation_id')
-                ->references('id')
-                ->on('quotations')
-                ->onDelete('cascade');
+            if (! Schema::hasColumn('payments', 'quotation_id')) {
+                $table->unsignedBigInteger('quotation_id')->nullable()->after('client_id');
+            }
         });
     }
 
@@ -29,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            //
+            if (Schema::hasColumn('payments', 'quotation_id')) {
+                $table->dropColumn('quotation_id');
+            }
         });
     }
 };

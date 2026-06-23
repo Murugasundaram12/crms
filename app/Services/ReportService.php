@@ -17,11 +17,11 @@ class ReportService
     public function siteReport(array $filters): array
     {
         $query = Expense::query()
-            ->with(['project', 'employee'])
+            ->with(['project', 'employee', 'editedByUser', 'mainCategory', 'category', 'labour', 'vendor'])
             ->whereNotNull('project_id')
-            ->latest('expense_date');
+            ->latest('current_date');
 
-        $this->applyDateFilters($query, $filters, 'expense_date');
+        $this->applyDateFilters($query, $filters, 'current_date');
 
         $records = $query->paginate(20)->withQueryString();
 
@@ -61,7 +61,7 @@ class ReportService
 
     private function buildMergedPaginator(array $filters, bool $includeProjectExpenses): array
     {
-        $expenseQuery = Expense::query()->with(['project', 'employee'])->latest('expense_date');
+        $expenseQuery = Expense::query()->with(['project', 'employee', 'editedByUser', 'mainCategory', 'category', 'labour', 'vendor'])->latest('current_date');
 
         if ($includeProjectExpenses) {
             // Keep all expenses in total report.
@@ -69,27 +69,25 @@ class ReportService
             $expenseQuery->whereNull('project_id');
         }
 
-        $this->applyDateFilters($expenseQuery, $filters, 'expense_date');
+        $this->applyDateFilters($expenseQuery, $filters, 'current_date');
 
         $expenseRows = $expenseQuery->get()->map(function (Expense $expense) {
-            [$mainCategory, $subCategory] = $this->splitCategory((string) ($expense->category ?? ''));
-
             return [
-                'date' => optional($expense->expense_date)->format('Y-m-d') ?? optional($expense->created_at)->format('Y-m-d'),
+                'date' => optional($expense->current_date)->format('Y-m-d') ?? optional($expense->created_at)->format('Y-m-d'),
                 'project_name' => $expense->project?->name ?? '-',
-                'main_category' => $mainCategory,
-                'sub_category' => $subCategory,
-                'labour' => $expense->type === 'salary' ? ($expense->employee?->name ?? '-') : '-',
-                'vendor' => $expense->type === 'material' ? ($expense->title ?? '-') : '-',
+                'main_category' => $expense->mainCategory?->name ?? '-',
+                'sub_category' => $expense->category?->name ?? '-',
+                'labour' => $expense->labour?->name ?? '-',
+                'vendor' => $expense->vendor?->name ?? '-',
                 'income' => null,
                 'amount' => (float) $expense->amount,
-                'paid' => $expense->status === 'paid' ? (float) $expense->amount : 0.0,
-                'unpaid' => $expense->status === 'paid' ? 0.0 : (float) $expense->amount,
-                'description' => $expense->notes ?: ($expense->description ?? '-'),
-                'payment_mode' => '-',
-                'entry_name' => 'System',
-                'edit_name' => 'System',
-                '_sort_date' => optional($expense->expense_date)?->format('Y-m-d H:i:s') ?? optional($expense->created_at)?->format('Y-m-d H:i:s'),
+                'paid' => (float) $expense->paid_amt,
+                'unpaid' => (float) $expense->unpaid_amt,
+                'description' => $expense->description ?? '-',
+                'payment_mode' => $expense->payment_mode_label ?? '-',
+                'entry_name' => $expense->employee?->name ?? 'System',
+                'edit_name' => $expense->editedByUser?->name ?? 'System',
+                '_sort_date' => optional($expense->current_date)?->format('Y-m-d H:i:s') ?? optional($expense->created_at)?->format('Y-m-d H:i:s'),
             ];
         });
 
@@ -197,8 +195,8 @@ class ReportService
     private function buildExpenseQuerySummary(Builder $query): array
     {
         $totalAmount = (float) (clone $query)->sum('amount');
-        $paid = (float) (clone $query)->where('status', 'paid')->sum('amount');
-        $unpaid = max($totalAmount - $paid, 0);
+        $paid = (float) (clone $query)->sum('paid_amt');
+        $unpaid = (float) (clone $query)->sum('unpaid_amt');
 
         return [
             'count' => (clone $query)->count(),
@@ -212,23 +210,21 @@ class ReportService
     private function mapExpenseRows(LengthAwarePaginator $paginator): LengthAwarePaginator
     {
         $collection = $paginator->getCollection()->map(function (Expense $expense) {
-            [$mainCategory, $subCategory] = $this->splitCategory((string) ($expense->category ?? ''));
-
             return [
-                'date' => optional($expense->expense_date)->format('Y-m-d') ?? optional($expense->created_at)->format('Y-m-d'),
+                'date' => optional($expense->current_date)->format('Y-m-d') ?? optional($expense->created_at)->format('Y-m-d'),
                 'project_name' => $expense->project?->name ?? '-',
-                'main_category' => $mainCategory,
-                'sub_category' => $subCategory,
-                'labour' => $expense->type === 'salary' ? ($expense->employee?->name ?? '-') : '-',
-                'vendor' => $expense->type === 'material' ? ($expense->title ?? '-') : '-',
+                'main_category' => $expense->mainCategory?->name ?? '-',
+                'sub_category' => $expense->category?->name ?? '-',
+                'labour' => $expense->labour?->name ?? '-',
+                'vendor' => $expense->vendor?->name ?? '-',
                 'income' => null,
                 'amount' => (float) $expense->amount,
-                'paid' => $expense->status === 'paid' ? (float) $expense->amount : 0.0,
-                'unpaid' => $expense->status === 'paid' ? 0.0 : (float) $expense->amount,
-                'description' => $expense->notes ?: ($expense->description ?? '-'),
-                'payment_mode' => '-',
-                'entry_name' => 'System',
-                'edit_name' => 'System',
+                'paid' => (float) $expense->paid_amt,
+                'unpaid' => (float) $expense->unpaid_amt,
+                'description' => $expense->description ?? '-',
+                'payment_mode' => $expense->payment_mode_label ?? '-',
+                'entry_name' => $expense->employee?->name ?? 'System',
+                'edit_name' => $expense->editedByUser?->name ?? 'System',
             ];
         });
 
