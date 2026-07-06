@@ -22,8 +22,9 @@ class ExpensesController extends Controller
             ->whereNull('vendor_id');
 
         [$expenses, $totals] = $this->paginateWithTotals($query, $request);
+        $editingExpense = $this->editingExpense($request);
 
-        return view('pages.expenses.index', $this->commonViewData() + compact('expenses', 'totals'));
+        return view('pages.expenses.index', $this->commonViewData() + compact('expenses', 'totals', 'editingExpense'));
     }
 
     public function deletedHistory(Request $request)
@@ -174,9 +175,32 @@ class ExpensesController extends Controller
         return [
             'projects' => Project::query()->orderBy('name')->get(),
             'employees' => Employee::query()->orderBy('name')->get(),
-            'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->pluck('name'),
+            'mainCategories' => MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->pluck('name'),
             'categories' => Category::query()->orderBy('name')->pluck('name'),
+            'mainCategoryOptions' => MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->get(),
+            'categoryOptions' => Category::query()->orderBy('name')->get(),
+            'paymentModes' => [
+                1 => 'Cash',
+                2 => 'Bank Transfer',
+                3 => 'UPI',
+                4 => 'Cheque',
+                5 => 'Card',
+            ],
         ];
+    }
+
+    private function editingExpense(Request $request): ?Expense
+    {
+        if (! $request->filled('edit')) {
+            return null;
+        }
+
+        return Expense::query()
+            ->with(['project', 'user', 'mainCategory', 'category'])
+            ->whereNull('labour_id')
+            ->whereNull('vendor_id')
+            ->whereNull('deleted_at')
+            ->find($request->integer('edit'));
     }
 
     private function validateExpense(Request $request): array

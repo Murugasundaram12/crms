@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MainCategory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class MainCategoryController extends Controller
@@ -12,6 +13,7 @@ class MainCategoryController extends Controller
     {
         $mainCategoryQuery = MainCategory::query();
         $this->applySearchFilter($mainCategoryQuery, $request);
+        $this->applyDateFilter($mainCategoryQuery, $request);
 
         $mainCategories = $mainCategoryQuery->latest()->paginate(10)->withQueryString();
 
@@ -66,6 +68,18 @@ class MainCategoryController extends Controller
     public function destroy($id)
     {
         $mainCategory = MainCategory::findOrFail($id);
+
+        $isInUse = DB::table('expenses')->where('main_category_id', $mainCategory->id)->exists()
+            || DB::table('expense_transactions')->where('main_category_id', $mainCategory->id)->exists()
+            || DB::table('labour_expense_transactions')->where('main_category_id', $mainCategory->id)->exists()
+            || DB::table('vendor_expense_transactions')->where('main_category_id', $mainCategory->id)->exists();
+
+        if ($isInUse) {
+            return redirect()->route('main_categories.index')
+                ->with('error', 'Main category is used in transactions and cannot be deleted.');
+        }
+
+        $mainCategory->categories()->detach();
         $mainCategory->delete();
 
         return redirect()->route('main_categories.index')->with('success', 'Main category deleted successfully.');
@@ -82,6 +96,17 @@ class MainCategoryController extends Controller
         $mainCategoryQuery->where(function ($queryBuilder) use ($searchTerm) {
             $queryBuilder->where('name', 'like', "%{$searchTerm}%");
         });
+    }
+
+    private function applyDateFilter($mainCategoryQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $mainCategoryQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $mainCategoryQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validateMainCategoryData(Request $request, ?MainCategory $mainCategory = null): array

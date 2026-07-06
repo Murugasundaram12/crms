@@ -14,6 +14,7 @@ class LabourRoleController extends Controller
         $labourRoleQuery = LabourRole::query()->withCount('labours');
         $this->applySearchFilter($labourRoleQuery, $request);
         $this->applySalaryTypeFilter($labourRoleQuery, $request);
+        $this->applyDateFilter($labourRoleQuery, $request);
 
         // Load the filtered labour roles for the listing page.
         $labourRoles = $labourRoleQuery->latest()->paginate(10)->withQueryString();
@@ -92,6 +93,17 @@ class LabourRoleController extends Controller
         }
 
         $labourRoleQuery->where('salary_type', $salaryType);
+    }
+
+    private function applyDateFilter($labourRoleQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $labourRoleQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $labourRoleQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validateLabourRoleData(Request $request, ?LabourRole $labourRole = null): array

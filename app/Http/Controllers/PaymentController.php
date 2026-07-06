@@ -28,6 +28,7 @@ class PaymentController extends Controller
         $this->applySearchFilter($paymentQuery, $request);
         $this->applyStatusFilter($paymentQuery, $request);
         $this->applyQuotationFilter($paymentQuery, $request);
+        $this->applyDateFilter($paymentQuery, $request);
 
         // Load the main payment list for the page.
         $payments = $paymentQuery->latest()->paginate(10)->withQueryString();
@@ -213,7 +214,7 @@ class PaymentController extends Controller
             } else {
                 $validatedData['payment_code'] = 'PAY-' . strtoupper(Str::random(6));
             }
-            $payment = Payment::create($validatedData);
+            $payment = Payment::create($this->buildPaymentPayload($validatedData));
             $this->applyPaymentBalance($payment, 1);
         });
 
@@ -245,7 +246,7 @@ class PaymentController extends Controller
 
         DB::transaction(function () use ($payment, $validatedData) {
             $this->applyPaymentBalance($payment, -1);
-            $payment->update($validatedData);
+            $payment->update($this->buildPaymentPayload($validatedData));
             $payment->refresh();
             $this->applyPaymentBalance($payment, 1);
         });
@@ -307,6 +308,17 @@ class PaymentController extends Controller
         $paymentQuery->whereHas('quotation', function ($query) use ($quotationNumber) {
             $query->where('quotation_number', 'like', '%' . $quotationNumber . '%');
         });
+    }
+
+    private function applyDateFilter($paymentQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $paymentQuery->whereDate('payment_date', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $paymentQuery->whereDate('payment_date', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validatePaymentData(Request $request, ?Payment $payment = null): array
@@ -402,6 +414,16 @@ class PaymentController extends Controller
         }
 
         return $validated;
+    }
+
+    private function buildPaymentPayload(array $validatedData): array
+    {
+        if (Schema::hasColumn('payments', 'payment_method')) {
+            $validatedData['payment_method'] = $validatedData['method'];
+            unset($validatedData['method']);
+        }
+
+        return array_intersect_key($validatedData, array_flip(Schema::getColumnListing('payments')));
     }
 
     private function nextInvoiceNumber(): string

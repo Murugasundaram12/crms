@@ -17,20 +17,42 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <form action="{{ route('employees.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search users" value="{{ request('q') }}">
-                </div>
-                <select name="status" class="form-select">
-                    <option value="">All Status</option>
-                    <option value="active" @selected(request('status') === 'active')>Active</option>
-                    <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
-                </select>
-                <button class="btn btn-outline-light shadow" type="submit">Filter</button>
-            </form>
             <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
                 data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add User</a>
+        </div>
+    </div>
+
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form action="{{ route('employees.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search users" value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="active" @selected(request('status') === 'active')>Active</option>
+                        <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                    <a href="{{ route('employees.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -220,8 +242,11 @@
         </div>
     @endforeach
 @endsection
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}">
+@endpush
+
 @push('scripts')
-    <script src="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}"></script>
     <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
     <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
     <script>

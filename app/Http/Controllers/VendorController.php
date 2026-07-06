@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Vendor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class VendorController extends Controller
@@ -12,6 +13,7 @@ class VendorController extends Controller
     {
         $vendorQuery = Vendor::query();
         $this->applySearchFilter($vendorQuery, $request);
+        $this->applyDateFilter($vendorQuery, $request);
 
         $vendors = $vendorQuery->latest()->paginate(10)->withQueryString();
 
@@ -27,7 +29,7 @@ class VendorController extends Controller
     {
         $validatedData = $this->validateVendorData($request);
 
-        Vendor::create($validatedData);
+        Vendor::create($this->normalizeVendorAdvance($validatedData));
 
         return redirect()->route('vendors.index')->with('success', 'Vendor created successfully.');
     }
@@ -45,7 +47,7 @@ class VendorController extends Controller
 
         $validatedData = $this->validateVendorData($request, $vendor);
 
-        $vendor->update($validatedData);
+        $vendor->update($this->normalizeVendorAdvance($validatedData));
 
         return redirect()->route('vendors.index')->with('success', 'Vendor updated successfully.');
     }
@@ -74,6 +76,17 @@ class VendorController extends Controller
         });
     }
 
+    private function applyDateFilter($vendorQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $vendorQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $vendorQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
+    }
+
     private function validateVendorData(Request $request, ?Vendor $vendor = null): array
     {
         return $request->validate([
@@ -82,5 +95,14 @@ class VendorController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'advance_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
+    }
+
+    private function normalizeVendorAdvance(array $validatedData): array
+    {
+        if (array_key_exists('advance_amount', $validatedData) && Schema::hasColumn('vendors', 'advance_amt')) {
+            $validatedData['advance_amt'] = $validatedData['advance_amount'] ?? 0;
+        }
+
+        return $validatedData;
     }
 }

@@ -52,7 +52,15 @@ class QuotationController extends Controller
             $query->where('status', $request->status);
         }
 
-        $quotations = $query->paginate(10);
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
+
+        $quotations = $query->paginate(10)->withQueryString();
 
         return view('pages.quotations.index_new', compact('quotations'));
     }

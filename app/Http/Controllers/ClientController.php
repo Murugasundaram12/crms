@@ -14,6 +14,7 @@ class ClientController extends Controller
         $clientQuery = Client::query();
         $this->applySearchFilter($clientQuery, $request);
         $this->applyStatusFilter($clientQuery, $request);
+        $this->applyDateFilter($clientQuery, $request);
 
         // Load relationship counts for the listing page.
         $clients = $clientQuery
@@ -23,6 +24,11 @@ class ClientController extends Controller
             ->withQueryString();
 
         return view('pages.clients.index', compact('clients'));
+    }
+
+    public function create()
+    {
+        return redirect()->route('clients.index');
     }
 
     public function store(Request $request)
@@ -92,6 +98,17 @@ class ClientController extends Controller
         }
 
         $clientQuery->where('status', $status);
+    }
+
+    private function applyDateFilter($clientQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $clientQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $clientQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validateClientData(Request $request, ?Client $client = null): array

@@ -14,6 +14,7 @@ class EmployeeSalaryController extends Controller
         $employeeSalaryQuery = EmployeeSalary::query();
         $this->applySearchFilter($employeeSalaryQuery, $request);
         $this->applySalaryTypeFilter($employeeSalaryQuery, $request);
+        $this->applyDateFilter($employeeSalaryQuery, $request);
 
         $employeeSalaries = $employeeSalaryQuery->latest()->paginate(10)->withQueryString();
 
@@ -83,6 +84,17 @@ class EmployeeSalaryController extends Controller
         }
 
         $employeeSalaryQuery->where('salary_type', $salaryType);
+    }
+
+    private function applyDateFilter($employeeSalaryQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $employeeSalaryQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $employeeSalaryQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validateEmployeeSalaryData(Request $request, ?EmployeeSalary $employeeSalary = null): array

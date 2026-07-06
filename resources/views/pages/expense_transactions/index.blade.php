@@ -17,21 +17,71 @@
         </div>
 
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <form action="{{ route('expense-transactions.index') }}" method="GET"
-                class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
-                </div>
-                <button class="btn btn-outline-light shadow" type="submit">Filter</button>
-            </form>
-
             @can('expenses-create')
                 <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvas_add">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Expense
                 </a>
             @endcan
+        </div>
+    </div>
+
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form action="{{ route('expense-transactions.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-xl-3">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-2">
+                    <label class="form-label">Main Category</label>
+                    <select name="main_category_id" class="form-select">
+                        <option value="">All Main Categories</option>
+                        @foreach ($mainCategories as $mainCategory)
+                            <option value="{{ $mainCategory->id }}" @selected((string) request('main_category_id') === (string) $mainCategory->id)>
+                                {{ $mainCategory->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-xl-2">
+                    <label class="form-label">Category</label>
+                    <select name="category_id" class="form-select">
+                        <option value="">All Categories</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}" @selected((string) request('category_id') === (string) $category->id)>
+                                {{ $category->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-xl-2">
+                    <label class="form-label">Project</label>
+                    <select name="project_id" class="form-select">
+                        <option value="">All Projects</option>
+                        @foreach ($projects as $project)
+                            <option value="{{ $project->id }}" @selected((string) request('project_id') === (string) $project->id)>
+                                {{ $project->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-xl-1">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-xl-1">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-xl-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                    <a href="{{ route('expense-transactions.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
+            </form>
         </div>
     </div>
 

@@ -24,29 +24,50 @@
         </div>
     </div>
 
-    <div class="gap-2 d-flex align-items-center flex-wrap">
-        <form action="{{ route('payments.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap w-100">
-            <div class="input-icon input-icon-start position-relative">
-                <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
-            </div>
-            <select name="status" class="form-select">
-                <option value="">All Status</option>
-                @foreach (['pending' => 'Pending', 'paid' => 'Paid', 'overdue' => 'Overdue', 'partial' => 'Partial'] as $value => $label)
-                    <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
-                @endforeach
-            </select>
-            <select name="quotation_number" class="form-select">
-                <option value="">Quotation Number</option>
-                @foreach ($quotations as $quotation)
-                    <option value="{{ $quotation->quotation_number }}"
-                        @selected(request('quotation_number') == $quotation->quotation_number)>
-                        {{ $quotation->quotation_number }}
-                    </option>
-                @endforeach
-            </select>
-            <button class="btn btn-outline-light shadow" type="submit">Filter</button>
-        </form>
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form action="{{ route('payments.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        @foreach (['pending' => 'Pending', 'paid' => 'Paid', 'overdue' => 'Overdue', 'partial' => 'Partial'] as $value => $label)
+                            <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Quotation</label>
+                    <select name="quotation_number" class="form-select">
+                        <option value="">Quotation Number</option>
+                        @foreach ($quotations as $quotation)
+                            <option value="{{ $quotation->quotation_number }}" @selected(request('quotation_number') == $quotation->quotation_number)>
+                                {{ $quotation->quotation_number }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-1">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                    <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
+            </form>
+        </div>
     </div>
 
 

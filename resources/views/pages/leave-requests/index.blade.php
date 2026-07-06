@@ -16,27 +16,40 @@
     </div>
 
     <div class="card border-0 rounded-0">
-        <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <form method="GET" action="{{ route('leaveRequests.index') }}">
-                        <input type="text" name="q" class="form-control" placeholder="Search" />
-                    </form>
-                </div>
-
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <form method="GET" action="{{ route('leaveRequests.index') }}" class="d-flex gap-2">
-                        <select name="status" class="form-control" onchange="this.form.submit()">
+        <div class="card-header bg-white border-bottom">
+                <form method="GET" action="{{ route('leaveRequests.index') }}" class="row g-3 align-items-end m-0">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label">Search</label>
+                        <div class="input-icon input-icon-start position-relative">
+                            <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                            <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-2">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
                             <option value="">All Status</option>
                             <option value="pending" @selected(request('status') === 'pending')>Pending</option>
                             <option value="approved" @selected(request('status') === 'approved')>Approved</option>
                             <option value="rejected" @selected(request('status') === 'rejected')>Rejected</option>
                         </select>
-                    </form>
-                </div>
-            </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-2">
+                        <label class="form-label">From</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-2">
+                        <label class="form-label">To</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                        <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                        <a href="{{ route('leaveRequests.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                    </div>
+                </form>
+        </div>
 
+        <div class="card-body">
             <div class="table-responsive custom-table table-nowrap">
                 <table class="table table-nowrap" id="leave-request-list">
                     <thead class="table-light">

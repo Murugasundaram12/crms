@@ -56,18 +56,7 @@ class LabourExpensesController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'labour_id' => ['required', 'exists:labours,id'],
-            'project_id' => ['nullable', 'exists:projects,id'],
-            'main_category_id' => ['nullable', 'exists:main_categories,id'],
-            'category_id' => ['required', 'exists:categories,id'],
-            'description' => ['nullable', 'string'],
-            'amount' => ['required', 'integer', 'min:0'],
-            'paid_amount' => ['required', 'integer', 'min:0'],
-            'payment_mode' => ['nullable', 'integer'],
-            'current_date' => ['nullable', 'date'],
-            'image' => ['nullable', 'string', 'max:250'],
-        ]);
+        $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($validated) {
             $amount = (int) $validated['amount'];
@@ -111,6 +100,60 @@ class LabourExpensesController extends Controller
         });
 
         return redirect()->back()->with('success', 'Labour expense stored successfully.');
+    }
+
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        $expense = Expense::query()
+            ->whereNotNull('labour_id')
+            ->whereNull('deleted_at')
+            ->findOrFail($id);
+        $validated = $this->validateExpense($request);
+
+        DB::transaction(function () use ($expense, $validated) {
+            $amount = (int) $validated['amount'];
+            $paidAmount = (int) $validated['paid_amount'];
+            $unpaidAmount = max($amount - $paidAmount, 0);
+            $extraAmount = max($paidAmount - $amount, 0);
+            $oldPaid = (int) $expense->paid_amt;
+            $oldExtra = (int) $expense->extra_amt;
+            $oldLabourId = (int) $expense->labour_id;
+            $newLabourId = (int) $validated['labour_id'];
+            $balanceService = app(CrmBalanceService::class);
+
+            $deltaPaid = $paidAmount - $oldPaid;
+            if ($deltaPaid > 0) {
+                $balanceService->debitUserWallet((int) Auth::id(), $deltaPaid, 'Labour expense update debit', 'labour_expense', (int) $expense->id);
+            } elseif ($deltaPaid < 0) {
+                $balanceService->creditUserWallet((int) Auth::id(), abs($deltaPaid), 'Labour expense update refund', 'labour_expense', (int) $expense->id);
+            }
+
+            if ($oldExtra > 0) {
+                $balanceService->adjustLabourAdvance($oldLabourId, -$oldExtra);
+            }
+            if ($extraAmount > 0) {
+                $balanceService->adjustLabourAdvance($newLabourId, $extraAmount);
+            }
+
+            $expense->update([
+                'labour_id' => $newLabourId,
+                'user_id' => Auth::id(),
+                'main_category_id' => $validated['main_category_id'] ?? null,
+                'category_id' => $validated['category_id'],
+                'project_id' => $validated['project_id'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'amount' => $amount,
+                'paid_amt' => $paidAmount,
+                'unpaid_amt' => $unpaidAmount,
+                'extra_amt' => $extraAmount,
+                'payment_mode' => $validated['payment_mode'] ?? null,
+                'current_date' => $validated['current_date'] ?? now(),
+                'image' => $validated['image'] ?? null,
+                'editedBy' => Auth::id(),
+            ]);
+        });
+
+        return redirect()->back()->with('success', 'Labour expense updated successfully.');
     }
 
     public function advanceHistory(Request $request)
@@ -257,5 +300,25 @@ class LabourExpensesController extends Controller
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
         ];
+    }
+
+    private function validateExpense(Request $request): array
+    {
+        $request->merge([
+            'paid_amount' => $request->input('paid_amount', $request->input('paid_amt', 0)),
+        ]);
+
+        return $request->validate([
+            'labour_id' => ['required', 'exists:labours,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+            'main_category_id' => ['nullable', 'exists:main_categories,id'],
+            'category_id' => ['required', 'exists:categories,id'],
+            'description' => ['nullable', 'string'],
+            'amount' => ['required', 'integer', 'min:0'],
+            'paid_amount' => ['required', 'integer', 'min:0'],
+            'payment_mode' => ['nullable', 'integer'],
+            'current_date' => ['nullable', 'date'],
+            'image' => ['nullable', 'string', 'max:250'],
+        ]);
     }
 }

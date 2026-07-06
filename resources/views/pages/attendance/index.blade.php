@@ -14,10 +14,11 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-body">
-            <form method="GET" action="{{ route('attendance.index') }}" class="row g-2 mb-3">
-                <div class="col-md-3">
+    <div class="card border rounded-0">
+        <div class="card-header bg-white border-bottom">
+            <form method="GET" action="{{ route('attendance.index') }}" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label class="form-label">Employee</label>
                     <select name="user_id" class="form-select">
                         <option value="">All Employees</option>
                         @foreach($users as $user)
@@ -27,27 +28,30 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}"
-                        placeholder="From Date">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}">
                 </div>
-                <div class="col-md-2">
-                    <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}"
-                        placeholder="To Date">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
+                    <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}">
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
                     <select name="status" class="form-select">
                         <option value="">All Status</option>
                         <option value="checked_in" @selected(request('status') === 'checked_in')>Checked In Only</option>
                         <option value="checked_out" @selected(request('status') === 'checked_out')>Checked Out</option>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                    <a href="{{ route('attendance.index') }}" class="btn btn-light">Reset</a>
+                <div class="col-12 col-md-6 col-lg-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                    <a href="{{ route('attendance.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
                 </div>
             </form>
+        </div>
 
+        <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered table-striped align-middle">
                     <thead>

@@ -14,7 +14,9 @@
         @endcan
     </div>
 
-    <form method="GET" action="{{ route('wallet.index') }}" class="row g-2 align-items-end mb-3">
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+    <form method="GET" action="{{ route('wallet.index') }}" class="row g-3 align-items-end m-0">
         <div class="col-md-1">
             <label class="form-label mb-1">Entries</label>
             <select name="paginate" class="form-select">
@@ -54,10 +56,12 @@
             <input type="text" name="search" class="form-control" value="{{ request('search') }}" placeholder="credited, debited, text">
         </div>
         <div class="col-md-1 d-flex gap-2">
-            <button class="btn btn-primary w-100" type="submit">Filter</button>
-            <a class="btn btn-light" href="{{ route('wallet.index') }}">Reset</a>
+            <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+            <a class="btn btn-outline-secondary w-100 shadow-sm" href="{{ route('wallet.index') }}">Reset</a>
         </div>
     </form>
+        </div>
+    </div>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">

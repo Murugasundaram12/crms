@@ -30,24 +30,24 @@
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ route('reports.index') }}" class="row g-2 align-items-end">
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form method="GET" action="{{ route('reports.index') }}" class="row g-3 align-items-end m-0">
                 <input type="hidden" name="type" value="{{ $type }}">
 
-                <div class="col-md-3">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label">From</label>
                     <input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}">
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label">To</label>
                     <input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
                 </div>
 
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                    <a href="{{ route('reports.index', ['type' => $type]) }}" class="btn btn-light">Reset</a>
+                <div class="col-12 col-md-6 col-lg-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                    <a href="{{ route('reports.index', ['type' => $type]) }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
                 </div>
             </form>
         </div>

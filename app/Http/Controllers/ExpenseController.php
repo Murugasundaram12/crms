@@ -20,18 +20,19 @@ class ExpenseController extends Controller
 
         $this->applySearchFilter($expenseQuery, $request);
 
-        $expenses = $expenseQuery->latest('current_date')->paginate(12)->withQueryString();
-
-        $projects = Project::orderBy('name')->get();
-        $employees = Employee::orderBy('name')->get();
-        $mainCategories = MainCategory::query()->where('status', 'active')->orderBy('name')->pluck('name');
-        $categories = Category::query()->orderBy('name')->pluck('name');
         $totals = (clone $expenseQuery)
             ->selectRaw('COALESCE(SUM(amount),0) as total_amount')
             ->selectRaw('COALESCE(SUM(paid_amt),0) as total_paid_amount')
             ->selectRaw('COALESCE(SUM(unpaid_amt),0) as total_unpaid_amount')
             ->selectRaw('COALESCE(SUM(extra_amt),0) as total_advanced_amount')
             ->first();
+
+        $expenses = $expenseQuery->latest('current_date')->paginate(12)->withQueryString();
+
+        $projects = Project::orderBy('name')->get();
+        $employees = Employee::orderBy('name')->get();
+        $mainCategories = MainCategory::query()->where('status', 'active')->orderBy('name')->pluck('name');
+        $categories = Category::query()->orderBy('name')->pluck('name');
 
         return view('pages.expenses.index', compact('expenses', 'projects', 'employees', 'mainCategories', 'categories', 'totals'));
     }

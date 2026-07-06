@@ -22,6 +22,27 @@
                     <a href="{{ route('roles.create') }}" class="btn btn-primary">Add Role</a>
                 </div>
                 <div class="card-body">
+                    <form method="GET" action="{{ route('roles.index') }}" class="row g-3 align-items-end mb-3">
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Search</label>
+                            <div class="input-icon input-icon-start position-relative">
+                                <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                                <input type="text" name="q" class="form-control" placeholder="Search roles" value="{{ request('q') }}">
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <label class="form-label">From</label>
+                            <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <label class="form-label">To</label>
+                            <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                            <a href="{{ route('roles.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                        </div>
+                    </form>
                     <div class="table-responsive custom-table">
                         <table class="table table-nowrap datatable" id="roles-table">
                             <thead>
@@ -81,8 +102,11 @@
     </div>
 @endsection
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}">
+@endpush
+
 @push('scripts')
-    <script src="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}"></script>
     <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
     <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
     <script>

@@ -12,18 +12,21 @@
         </div>
     </div>
 
-    <div class="card mb-3">
-        <div class="card-body">
-            <form method="GET" action="{{ route('expenseReports.index') }}" class="row g-2">
-                <div class="col-md-2">
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form method="GET" action="{{ route('expenseReports.index') }}" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
                     <input type="date" name="date_from" value="{{ request('date_from') }}" class="form-control"
                         placeholder="Date From">
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
                     <input type="date" name="date_to" value="{{ request('date_to') }}" class="form-control"
                         placeholder="Date To">
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Project</label>
                     <select name="project_id" class="form-select">
                         <option value="">All Projects</option>
                         @foreach($projects as $project)
@@ -33,7 +36,8 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Employee</label>
                     <select name="employee_id" class="form-select">
                         <option value="">All Employees</option>
                         @foreach($employees as $employee)
@@ -43,11 +47,13 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Category</label>
                     <input type="text" name="category" value="{{ request('category') }}" class="form-control"
                         placeholder="Category">
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
                     <select name="status" class="form-select">
                         <option value="">All Status</option>
                         <option value="pending" @selected(request('status') === 'pending')>Pending</option>
@@ -56,9 +62,9 @@
                         <option value="recorded" @selected(request('status') === 'recorded')>Recorded</option>
                     </select>
                 </div>
-                <div class="col-12 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                    <a href="{{ route('expenseReports.index') }}" class="btn btn-light">Reset</a>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                    <a href="{{ route('expenseReports.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
                 </div>
             </form>
         </div>

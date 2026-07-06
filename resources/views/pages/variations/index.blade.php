@@ -23,32 +23,54 @@
     </div>
 
     <div class="card border-0 rounded-0">
-        <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <div class="card-header bg-white border-bottom">
             <form action="{{ route('variations.index') }}" method="GET"
-                class="d-flex align-items-center gap-2 flex-wrap w-100">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                    </div>
                 </div>
-                <select name="status" class="form-select">
-                    <option value="">All Status</option>
-                    @foreach (['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)
-                        <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-                <select name="type" class="form-select">
-                    <option value="">All Types</option>
-                    <option value="additional" @selected(request('type') === 'additional')>Additional</option>
-                    <option value="deduction" @selected(request('type') === 'deduction')>Deduction</option>
-                </select>
-                <select name="project_id" class="form-select">
-                    <option value="">All Projects</option>
-                    @foreach ($projects as $project)
-                        <option value="{{ $project->id }}" @selected(request('project_id') == $project->id)>{{ $project->name }}
-                        </option>
-                    @endforeach
-                </select>
-                <button class="btn btn-outline-light shadow" type="submit">Filter</button>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        @foreach (['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)
+                            <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Type</label>
+                    <select name="type" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="additional" @selected(request('type') === 'additional')>Additional</option>
+                        <option value="deduction" @selected(request('type') === 'deduction')>Deduction</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Project</label>
+                    <select name="project_id" class="form-select">
+                        <option value="">All Projects</option>
+                        @foreach ($projects as $project)
+                            <option value="{{ $project->id }}" @selected(request('project_id') == $project->id)>{{ $project->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-1">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-1">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                    <a href="{{ route('variations.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
             </form>
         </div>
         <div class="card-body">

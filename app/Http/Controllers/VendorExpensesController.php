@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class VendorExpensesController extends Controller
 {
@@ -27,18 +28,7 @@ class VendorExpensesController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'vendor_id' => ['required', 'exists:vendors,id'],
-            'project_id' => ['nullable', 'exists:projects,id'],
-            'main_category_id' => ['nullable', 'exists:main_categories,id'],
-            'category_id' => ['required', 'exists:categories,id'],
-            'description' => ['nullable', 'string'],
-            'amount' => ['required', 'integer', 'min:0'],
-            'paid_amount' => ['required', 'integer', 'min:0'],
-            'payment_mode' => ['nullable', 'integer'],
-            'current_date' => ['nullable', 'date'],
-            'image' => ['nullable', 'string', 'max:250'],
-        ]);
+        $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($validated) {
             $amount = (int) $validated['amount'];
@@ -68,7 +58,7 @@ class VendorExpensesController extends Controller
 
             if ($extraAmount > 0) {
                 app(CrmBalanceService::class)->adjustVendorAdvance((int) $validated['vendor_id'], $extraAmount);
-                AdvanceHistory::create([
+                AdvanceHistory::create($this->filterColumns('advance_history', [
                     'vendor_id' => $validated['vendor_id'],
                     'labour_expense_transaction_id' => $expense->id,
                     'amount' => $extraAmount,
@@ -77,11 +67,65 @@ class VendorExpensesController extends Controller
                     'user_id' => Auth::id(),
                     'current_date' => now()->toDateString(),
                     'current_time' => now()->format('H:i:s'),
-                ]);
+                ]));
             }
         });
 
         return redirect()->back()->with('success', 'Vendor expense stored successfully.');
+    }
+
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        $expense = Expense::query()
+            ->whereNotNull('vendor_id')
+            ->whereNull('deleted_at')
+            ->findOrFail($id);
+        $validated = $this->validateExpense($request);
+
+        DB::transaction(function () use ($expense, $validated) {
+            $amount = (int) $validated['amount'];
+            $paidAmount = (int) $validated['paid_amount'];
+            $unpaidAmount = max($amount - $paidAmount, 0);
+            $extraAmount = max($paidAmount - $amount, 0);
+            $oldPaid = (int) $expense->paid_amt;
+            $oldExtra = (int) $expense->extra_amt;
+            $oldVendorId = (int) $expense->vendor_id;
+            $newVendorId = (int) $validated['vendor_id'];
+            $balanceService = app(CrmBalanceService::class);
+
+            $deltaPaid = $paidAmount - $oldPaid;
+            if ($deltaPaid > 0) {
+                $balanceService->debitUserWallet((int) Auth::id(), $deltaPaid, 'Vendor expense update debit', 'vendor_expense', (int) $expense->id);
+            } elseif ($deltaPaid < 0) {
+                $balanceService->creditUserWallet((int) Auth::id(), abs($deltaPaid), 'Vendor expense update refund', 'vendor_expense', (int) $expense->id);
+            }
+
+            if ($oldExtra > 0) {
+                $balanceService->adjustVendorAdvance($oldVendorId, -$oldExtra);
+            }
+            if ($extraAmount > 0) {
+                $balanceService->adjustVendorAdvance($newVendorId, $extraAmount);
+            }
+
+            $expense->update([
+                'vendor_id' => $newVendorId,
+                'user_id' => Auth::id(),
+                'main_category_id' => $validated['main_category_id'] ?? null,
+                'category_id' => $validated['category_id'],
+                'project_id' => $validated['project_id'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'amount' => $amount,
+                'paid_amt' => $paidAmount,
+                'unpaid_amt' => $unpaidAmount,
+                'extra_amt' => $extraAmount,
+                'payment_mode' => $validated['payment_mode'] ?? null,
+                'current_date' => $validated['current_date'] ?? now(),
+                'image' => $validated['image'] ?? null,
+                'editedBy' => Auth::id(),
+            ]);
+        });
+
+        return redirect()->back()->with('success', 'Vendor expense updated successfully.');
     }
 
     public function unpaidHistory(Request $request)
@@ -116,7 +160,7 @@ class VendorExpensesController extends Controller
                 return;
             }
 
-            ExpenseUnpaidDate::create([
+            ExpenseUnpaidDate::create($this->filterColumns('expenses_unpaid_date', [
                 'expense_id' => $expense->id,
                 'vendor_expense_transaction_id' => $expense->id,
                 'user_id' => Auth::id(),
@@ -124,7 +168,7 @@ class VendorExpensesController extends Controller
                 'current_date' => now()->toDateString(),
                 'current_time' => now()->format('H:i:s'),
                 'notes' => $validated['notes'] ?? 'Vendor unpaid settlement',
-            ]);
+            ]));
 
             app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $pay, 'Vendor unpaid settlement', 'vendor_expense_unpaid', (int) $expense->id);
 
@@ -173,7 +217,7 @@ class VendorExpensesController extends Controller
                 app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $amount, 'Vendor advance credit', 'vendor_advance_credit', (int) $vendor->id);
             }
 
-            AdvanceHistory::create([
+            AdvanceHistory::create($this->filterColumns('advance_history', [
                 'vendor_id' => $vendor->id,
                 'amount' => $amount,
                 'entry_type' => $validated['entry_type'],
@@ -181,7 +225,7 @@ class VendorExpensesController extends Controller
                 'user_id' => Auth::id(),
                 'current_date' => now()->toDateString(),
                 'current_time' => now()->format('H:i:s'),
-            ]);
+            ]));
         });
 
         return redirect()->back()->with('success', 'Vendor advance entry stored successfully.');
@@ -272,5 +316,30 @@ class VendorExpensesController extends Controller
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
         ];
+    }
+
+    private function filterColumns(string $table, array $payload): array
+    {
+        return array_intersect_key($payload, array_flip(Schema::getColumnListing($table)));
+    }
+
+    private function validateExpense(Request $request): array
+    {
+        $request->merge([
+            'paid_amount' => $request->input('paid_amount', $request->input('paid_amt', 0)),
+        ]);
+
+        return $request->validate([
+            'vendor_id' => ['required', 'exists:vendors,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+            'main_category_id' => ['nullable', 'exists:main_categories,id'],
+            'category_id' => ['required', 'exists:categories,id'],
+            'description' => ['nullable', 'string'],
+            'amount' => ['required', 'integer', 'min:0'],
+            'paid_amount' => ['required', 'integer', 'min:0'],
+            'payment_mode' => ['nullable', 'integer'],
+            'current_date' => ['nullable', 'date'],
+            'image' => ['nullable', 'string', 'max:250'],
+        ]);
     }
 }

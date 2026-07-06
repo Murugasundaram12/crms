@@ -3,6 +3,11 @@
     @php($isReportsRoute = request()->routeIs('reports.index'))
     @php($reportType = request()->string('type')->toString())
     @php($reportType = in_array($reportType, ['site', 'office', 'total'], true) ? $reportType : 'site')
+    @php($isExpenseHistoryRoute = request()->routeIs('expenses.history'))
+    @php($isExpensesMenuActive = request()->routeIs('expenses.*') || request()->routeIs('expenseReports.*') || $isExpenseHistoryRoute)
+    @php($isLabourExpensesMenuActive = request()->routeIs('labour-expenses.*'))
+    @php($isVendorExpensesMenuActive = request()->routeIs('vendor-expenses.*'))
+    @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('expense-transactions.*') || request()->routeIs('vendor-expenses.history'))
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -122,15 +127,13 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('expenses-list'))
-                            <li
-                                class="submenu {{ request()->routeIs('expenses.*') || request()->routeIs('expenseReports.*') ? 'active' : '' }}">
+                            <li class="submenu {{ $isExpensesMenuActive ? 'active' : '' }}">
                                 <a href="javascript:void(0);"
-                                    class="{{ request()->routeIs('expenses.*') || request()->routeIs('expenseReports.*') ? 'subdrop active' : '' }}">
+                                    class="{{ $isExpensesMenuActive ? 'subdrop active' : '' }}">
                                     <i class="ti ti-receipt-2"></i><span>Expenses</span><span class="menu-arrow"></span>
                                 </a>
-                                <ul
-                                    style="{{ request()->routeIs('expenses.*') || request()->routeIs('expenseReports.*') ? 'display: block;' : 'display: none;' }}">
-                                    <li><a class="{{ request()->routeIs('expenses.history') ? 'active' : '' }}"
+                                <ul style="{{ $isExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
+                                    <li><a class="{{ $isExpenseHistoryRoute ? 'active' : '' }}"
                                             href="{{ route('expenses.history') }}">Expenses History</a></li>
                                     <li><a class="{{ request()->routeIs('expenses.unpaid-history') ? 'active' : '' }}"
                                             href="{{ route('expenses.unpaid-history') }}">Unpaid History</a></li>
@@ -143,14 +146,14 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('expenses-list'))
-                            <li class="submenu {{ request()->routeIs('labour-expenses.*') ? 'active' : '' }}">
+                            <li class="submenu {{ $isLabourExpensesMenuActive ? 'active' : '' }}">
                                 <a href="javascript:void(0);"
-                                    class="{{ request()->routeIs('labour-expenses.*') ? 'subdrop active' : '' }}">
+                                    class="{{ $isLabourExpensesMenuActive ? 'subdrop active' : '' }}">
                                     <i class="ti ti-user-cog"></i><span>Labour Expenses</span><span
                                         class="menu-arrow"></span>
                                 </a>
                                 <ul
-                                    style="{{ request()->routeIs('labour-expenses.*') ? 'display: block;' : 'display: none;' }}">
+                                    style="{{ $isLabourExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('labour-expenses.history') ? 'active' : '' }}"
                                             href="{{ route('labour-expenses.history') }}">Expense History</a></li>
                                     <li><a class="{{ request()->routeIs('labour-expenses.weekly') ? 'active' : '' }}"
@@ -164,14 +167,14 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('expenses-list'))
-                            <li class="submenu {{ request()->routeIs('vendor-expenses.*') ? 'active' : '' }}">
+                            <li class="submenu {{ $isVendorExpensesMenuActive ? 'active' : '' }}">
                                 <a href="javascript:void(0);"
-                                    class="{{ request()->routeIs('vendor-expenses.*') ? 'subdrop active' : '' }}">
+                                    class="{{ $isVendorExpensesMenuActive ? 'subdrop active' : '' }}">
                                     <i class="ti ti-building-warehouse"></i><span>Vendor Expenses</span><span
                                         class="menu-arrow"></span>
                                 </a>
                                 <ul
-                                    style="{{ request()->routeIs('vendor-expenses.*') ? 'display: block;' : 'display: none;' }}">
+                                    style="{{ $isVendorExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('vendor-expenses.history') ? 'active' : '' }}"
                                             href="{{ route('vendor-expenses.history') }}">Expense History</a></li>
                                     <li><a class="{{ request()->routeIs('vendor-expenses.unpaid-history') ? 'active' : '' }}"
@@ -185,15 +188,14 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('transfers-list'))
-                            <li
-                                class="submenu {{ request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('expense-transactions.*') || request()->routeIs('vendor-expenses.history') ? 'active' : '' }}">
+                            <li class="submenu {{ $isHistoryMenuActive ? 'active' : '' }}">
                                 <a href="javascript:void(0);"
-                                    class="{{ request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('expense-transactions.*') || request()->routeIs('vendor-expenses.history') ? 'subdrop active' : '' }}">
+                                    class="{{ $isHistoryMenuActive ? 'subdrop active' : '' }}">
                                     <i class="ti ti-arrows-transfer-up-down"></i><span>History</span><span
                                         class="menu-arrow"></span>
                                 </a>
                                 <ul
-                                    style="{{ request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('expense-transactions.*') || request()->routeIs('vendor-expenses.history') ? 'display: block;' : 'display: none;' }}">
+                                    style="{{ $isHistoryMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('transfers.*') ? 'active' : '' }}"
                                             href="{{ route('transfers.index') }}">Transfer History</a></li>
                                     <li><a class="{{ request()->routeIs('wallet.*') ? 'active' : '' }}"
@@ -222,9 +224,10 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('roles-list'))
-                                    <li>
-                                    <li class="sidebar-submenu"><a href="{{ route('roles.index') }}"><i
-                                                class="ti ti-user-shield"></i><span>Roles</span></a></li>
+                            <li class="sidebar-submenu">
+                                <a href="{{ route('roles.index') }}">
+                                    <i class="ti ti-user-shield"></i><span>Roles</span>
+                                </a>
                             </li>
                         @endif
 
@@ -240,14 +243,12 @@
                     </li>
                 @endif
                 @endif
-                <li><a href="{{ route('permissions.index') }}"><i
-                            class="ti ti-shield-check"></i><span>Permissions</span></a></li>
-
-
                 @if($currentUser && $currentUser->hasPermission('permissions-list'))
-
-                    <li><a href="{{ route('permissions.index') }}"><i
-                                class="ti ti-shield-check"></i><span>Permissions</span></a></li>
+                    <li>
+                        <a href="{{ route('permissions.index') }}">
+                            <i class="ti ti-shield-check"></i><span>Permissions</span>
+                        </a>
+                    </li>
                 @endif
 
             </ul>

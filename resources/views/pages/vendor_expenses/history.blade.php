@@ -3,8 +3,9 @@
 @section('content')
     @include('partials.alerts')
 
-    <div class="mb-3">
-        <form method="GET" action="{{ route('vendor-expenses.history') }}" class="row g-2 align-items-end">
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+        <form method="GET" action="{{ route('vendor-expenses.history') }}" class="row g-3 align-items-end m-0">
             <div class="col-md-2">
                 <label class="form-label mb-1">Main Category</label>
                 <select name="main_category_id" class="form-select">
@@ -53,11 +54,12 @@
                 <label class="form-label mb-1">Search</label>
                 <input type="text" name="q" class="form-control" placeholder="Text" value="{{ request('q') }}">
             </div>
-            <div class="col-md-1 d-flex gap-2">
-                <button class="btn btn-primary w-100" type="submit">Filter</button>
-                <a href="{{ route('vendor-expenses.history') }}" class="btn btn-light">Reset</a>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                <a href="{{ route('vendor-expenses.history') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
             </div>
         </form>
+        </div>
     </div>
 
     <div class="card border-0 shadow-sm">

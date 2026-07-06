@@ -9,10 +9,12 @@
         $filterRoute = request()->routeIs('expenses.unpaid-history')
             ? 'expenses.unpaid-history'
             : (request()->routeIs('expenses.deleted-history') ? 'expenses.deleted-history' : 'expenses.history');
+        $editingExpense = $editingExpense ?? null;
     @endphp
 
-    <div class="mb-3">
-        <form method="GET" action="{{ route($filterRoute) }}" class="row g-2 align-items-end">
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+        <form method="GET" action="{{ route($filterRoute) }}" class="row g-3 align-items-end m-0">
             <div class="col-md-2">
                 <label class="form-label mb-1">Main Category</label>
                 <select name="main_category" class="form-select">
@@ -61,11 +63,12 @@
                 <label class="form-label mb-1">Search</label>
                 <input type="text" name="q" class="form-control" placeholder="Text" value="{{ request('q') }}">
             </div>
-            <div class="col-md-1 d-flex gap-2">
-                <button class="btn btn-primary w-100" type="submit">Filter</button>
-                <a href="{{ route($filterRoute) }}" class="btn btn-light">Reset</a>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                <a href="{{ route($filterRoute) }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
             </div>
         </form>
+        </div>
     </div>
 
     <div class="card border-0 shadow-sm">
@@ -131,7 +134,7 @@
                                     <td>{{ $expense->editedByUser?->name ?? '--' }}</td>
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
-                                            <a href="javascript:void(0);" class="text-success" title="Edit">
+                                            <a href="{{ route('expenses.edit.legacy', $expense->id) }}" class="text-success" title="Edit">
                                                 <i class="ti ti-edit fs-16"></i>
                                             </a>
                                             <button type="button"
@@ -199,6 +202,12 @@
                         </div>
                     </div>
 
+                    <div class="mb-0">
+                        <label for="expenseDeleteReason" class="form-label">Reason</label>
+                        <input type="text" name="delete_reason" id="expenseDeleteReason" class="form-control"
+                            placeholder="Enter reason">
+                    </div>
+
                 </div>
 
                 <div class="modal-footer">
@@ -210,6 +219,122 @@
             </form>
         </div>
     </div>
+
+    @if($editingExpense)
+        <div class="modal fade" id="expenseEditModal" tabindex="-1" aria-labelledby="expenseEditModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <form method="POST" action="{{ route('expenses.update.new', $editingExpense->id) }}" class="modal-content border-0 shadow">
+                    @csrf
+                    @method('PUT')
+
+                    <div class="modal-header bg-light">
+                        <div>
+                            <h5 class="modal-title" id="expenseEditModalLabel">Edit Expense</h5>
+                            <p class="mb-0 text-muted small">Update expense details and paid amount.</p>
+                        </div>
+                        <a href="{{ route('expenses.history') }}" class="btn-close" aria-label="Close"></a>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Main Category</label>
+                                <select name="main_category_id" class="form-select">
+                                    <option value="">Select main category</option>
+                                    @foreach($mainCategoryOptions as $mainCategory)
+                                        <option value="{{ $mainCategory->id }}" @selected((int) old('main_category_id', $editingExpense->main_category_id) === (int) $mainCategory->id)>
+                                            {{ $mainCategory->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('main_category_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Category</label>
+                                <select name="category_id" class="form-select" required>
+                                    <option value="">Select category</option>
+                                    @foreach($categoryOptions as $category)
+                                        <option value="{{ $category->id }}" @selected((int) old('category_id', $editingExpense->category_id) === (int) $category->id)>
+                                            {{ $category->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('category_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Project Name</label>
+                                <select name="project_id" class="form-select">
+                                    <option value="">Select project</option>
+                                    @foreach($projects as $project)
+                                        <option value="{{ $project->id }}" @selected((int) old('project_id', $editingExpense->project_id) === (int) $project->id)>
+                                            {{ $project->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('project_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Amount</label>
+                                <input type="number" name="amount" class="form-control" min="0" required
+                                    value="{{ old('amount', $editingExpense->amount) }}">
+                                @error('amount')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Paid Amount</label>
+                                <input type="number" name="paid_amt" class="form-control" min="0" required
+                                    value="{{ old('paid_amt', $editingExpense->paid_amt) }}">
+                                @error('paid_amt')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Payment Mode</label>
+                                <select name="payment_mode" class="form-select">
+                                    <option value="">Select payment mode</option>
+                                    @foreach($paymentModes as $modeId => $modeLabel)
+                                        <option value="{{ $modeId }}" @selected((string) old('payment_mode', $editingExpense->payment_mode) === (string) $modeId)>
+                                            {{ $modeLabel }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('payment_mode')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Paid Date</label>
+                                <input type="date" name="current_date" class="form-control" required
+                                    value="{{ old('current_date', optional($editingExpense->current_date)->format('Y-m-d')) }}">
+                                @error('current_date')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-md-8">
+                                <label class="form-label">Image</label>
+                                <input type="text" name="image" class="form-control" maxlength="250"
+                                    value="{{ old('image', $editingExpense->image) }}" placeholder="Image filename or path">
+                                @error('image')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" class="form-control" rows="3">{{ old('description', $editingExpense->description) }}</textarea>
+                                @error('description')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <a href="{{ route('expenses.history') }}" class="btn btn-light">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ti ti-device-floppy me-1"></i>Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 
     @push('scripts')
         <script>
@@ -223,6 +348,13 @@
                         deleteSummary.textContent = `${button.dataset.expenseTitle || 'Expense'} - Rs. ${button.dataset.expenseAmount || '0.00'}`;
                     });
                 });
+
+                @if($editingExpense)
+                    const editModalElement = document.getElementById('expenseEditModal');
+                    if (editModalElement && window.bootstrap) {
+                        new bootstrap.Modal(editModalElement).show();
+                    }
+                @endif
             });
         </script>
     @endpush

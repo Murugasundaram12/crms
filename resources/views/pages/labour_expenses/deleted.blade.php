@@ -4,13 +4,15 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0">Labour Deleted History</h4>
     </div>
-    <form class="row g-2 mb-3" method="GET">
-        <div class="col-md-4"><select name="labour_id" class="form-select">
+    <div class="card border rounded-0 mb-4"><div class="card-header bg-white border-bottom">
+    <form class="row g-3 align-items-end m-0" method="GET">
+        <div class="col-12 col-md-6 col-lg-4"><label class="form-label">Labour</label><select name="labour_id" class="form-select">
                 <option value="">All Labour</option>@foreach($labours as $labour)<option value="{{ $labour->id }}"
                 @selected(request('labour_id') == $labour->id)>{{ $labour->name }}</option>@endforeach
             </select></div>
-        <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Filter</button></div>
+        <div class="col-12 col-md-6 col-lg-2"><button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button></div>
     </form>
+    </div></div>
     <div class="table-responsive">
         <table class="table table-bordered">
             <thead>

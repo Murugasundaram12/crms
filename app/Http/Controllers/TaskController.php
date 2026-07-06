@@ -23,6 +23,7 @@ class TaskController extends Controller
         $taskQuery = Task::with(['project', 'employee']);
         $this->applySearchFilter($taskQuery, $request);
         $this->applyListFilters($taskQuery, $request);
+        $this->applyDateFilter($taskQuery, $request);
 
         // Load the tasks in the same order used by the board view.
         $tasks = $taskQuery
@@ -54,6 +55,11 @@ class TaskController extends Controller
         $this->createNextRecurringTaskIfNeeded($task);
 
         return redirect()->route('tasks.index')->with('success', 'Task created successfully.');
+    }
+
+    public function create()
+    {
+        return redirect()->route('tasks.index');
     }
 
     public function show(Task $task)
@@ -117,6 +123,17 @@ class TaskController extends Controller
             if ($filterValue) {
                 $taskQuery->where($filterName, $filterValue);
             }
+        }
+    }
+
+    private function applyDateFilter($taskQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $taskQuery->whereDate('due_date', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $taskQuery->whereDate('due_date', '<=', $request->date('date_to')->toDateString());
         }
     }
 

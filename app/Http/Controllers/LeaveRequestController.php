@@ -20,6 +20,23 @@ class LeaveRequestController extends Controller
             $leaveRequestsQuery->where('status', $status);
         }
 
+        $searchTerm = $request->string('q')->toString();
+        if ($searchTerm !== '') {
+            $leaveRequestsQuery->where(function ($query) use ($searchTerm) {
+                $query->whereHas('user', fn($userQuery) => $userQuery->where('name', 'like', "%{$searchTerm}%"))
+                    ->orWhereHas('leaveType', fn($typeQuery) => $typeQuery->where('name', 'like', "%{$searchTerm}%"))
+                    ->orWhere('remarks', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $leaveRequestsQuery->whereDate('from_date', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $leaveRequestsQuery->whereDate('to_date', '<=', $request->date('date_to')->toDateString());
+        }
+
         $leaveRequests = $leaveRequestsQuery->paginate(12)->withQueryString();
         $leaveTypes = LeaveType::where('status', 'active')->orderBy('name')->get();
 

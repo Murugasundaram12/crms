@@ -17,12 +17,18 @@ class EmployeeController extends Controller
         $employeeQuery = User::query()->with('roles');
         $this->applySearchFilter($employeeQuery, $request);
         $this->applyStatusFilter($employeeQuery, $request);
+        $this->applyDateFilter($employeeQuery, $request);
 
         // Load employees and available roles for the page.
         $users = $employeeQuery->latest()->paginate(10)->withQueryString();
         $roles = Role::all();
 
         return view('pages.employees.index', compact('users', 'roles'));
+    }
+
+    public function create()
+    {
+        return redirect()->route('employees.index');
     }
 
     public function store(Request $request)
@@ -126,6 +132,17 @@ class EmployeeController extends Controller
         }
 
         $employeeQuery->where('status', $status);
+    }
+
+    private function applyDateFilter($employeeQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $employeeQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $employeeQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validateEmployeeData(Request $request, ?User $employee = null): array

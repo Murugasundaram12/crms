@@ -28,7 +28,7 @@
     <div class="card border rounded-0 quotation-list-card">
         <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between gap-2 flex-wrap">
             <form method="GET" class="row g-3 align-items-end flex-grow-1 m-0">
-                <div class="col-12 col-lg-5">
+                <div class="col-12 col-lg-4">
                     <label class="form-label">Search</label>
                     <div class="input-icon input-icon-start position-relative">
                         <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
@@ -36,13 +36,21 @@
                             value="{{ request('q') }}">
                     </div>
                 </div>
-                <div class="col-12 col-md-6 col-lg-3">
+                <div class="col-12 col-md-6 col-lg-2">
                     <label class="form-label">Status</label>
                     <select name="status" class="form-select">
                         <option value="">All Status</option>
                         <option value="draft" @selected(request('status') === 'draft')>Draft</option>
                         <option value="approved" @selected(request('status') === 'approved')>Approved</option>
                     </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                 </div>
                 <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
