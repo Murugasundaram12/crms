@@ -190,6 +190,10 @@ class ReportService
         if (! empty($filters['date_to'])) {
             $query->whereDate($dateColumn, '<=', $filters['date_to']);
         }
+
+        if (! empty($filters['project_id'])) {
+            $query->where('project_id', $filters['project_id']);
+        }
     }
 
     private function buildExpenseQuerySummary(Builder $query): array

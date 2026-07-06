@@ -22,7 +22,7 @@ class ReportController extends Controller
         $type = $request->string('type')->toString();
         $type = in_array($type, ['site', 'office', 'total'], true) ? $type : 'site';
 
-        $filters = $request->only(['date_from', 'date_to']);
+        $filters = $request->only(['date_from', 'date_to', 'project_id']);
 
         $data = match ($type) {
             'office' => $this->reportService->officeReport($filters),

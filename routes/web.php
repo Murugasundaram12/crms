@@ -21,6 +21,7 @@ use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ExpenseImportController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Artisan;
@@ -60,6 +61,35 @@ Route::middleware('auth')->group(function () {
         ->name('home');
 
     Route::redirect('/index', '/dashboard');
+
+    Route::get('/user', [EmployeeController::class, 'index'])->name('user-index');
+    Route::get('/user/create', fn () => redirect()->route('employees.index'))->name('user-create');
+    Route::post('/user/store', [EmployeeController::class, 'store'])->name('user.store');
+    Route::get('/user/show/{employee}', [EmployeeController::class, 'show'])->name('user-show');
+    Route::get('/user/edit/{employee}', fn (User $employee) => redirect()->route('employees.index', ['edit' => $employee->id]))->name('user-edit');
+    Route::put('/user/update/{employee}', [EmployeeController::class, 'update'])->name('user.update');
+
+    Route::get('/client', fn () => redirect()->route('clients.index'))->name('client-index');
+    Route::get('/client/create', fn () => redirect()->route('clients.create'))->name('client-create');
+    Route::get('/client/show/{client}', fn (\App\Models\Client $client) => redirect()->route('clients.show', $client))->name('client-show');
+    Route::get('/client/edit/{client}', fn (\App\Models\Client $client) => redirect()->route('clients.edit', $client))->name('client-edit');
+
+    Route::get('/project', fn () => redirect()->route('projects.index'))->name('project-index');
+    Route::get('/project/create', fn () => redirect()->route('projects.create'))->name('project-create');
+    Route::get('/project/show/{project}', fn (\App\Models\Project $project) => redirect()->route('projects.show', $project))->name('project-show');
+    Route::get('/project/edit/{project}', fn (\App\Models\Project $project) => redirect()->route('projects.edit', $project))->name('project-edit');
+
+    Route::get('/payment', fn () => redirect()->route('payments.index'))->name('payment-index');
+    Route::get('/stage', fn () => redirect()->route('payment-stages.index'))->name('stage-index');
+    Route::get('/maincategory', fn () => redirect()->route('main_categories.index'))->name('maincategory.index');
+    Route::get('/category', fn () => redirect()->route('categories.index'))->name('category-index');
+    Route::get('/vendor', fn () => redirect()->route('vendors.index'))->name('vendor-index');
+    Route::get('/labour', fn () => redirect()->route('labours.index'))->name('labour-index');
+    Route::get('/labour-role', fn () => redirect()->route('labour_roles.index'))->name('labourrole-index');
+    Route::get('/client-summary', fn () => redirect()->route('reports.index', ['type' => 'site']))->name('client-summary');
+    Route::get('/payment-summary', fn () => redirect()->route('reports.index', ['type' => 'office']))->name('payment-summary');
+    Route::get('/payment-income/{project}', fn (\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'total', 'project_id' => $project->id]))->name('payment-income');
+    Route::get('/payment-expenses/{project}', fn (\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'site', 'project_id' => $project->id]))->name('payment-expenses');
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');

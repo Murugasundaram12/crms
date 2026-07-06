@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Attendance;
+use App\Models\Expense;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -28,6 +30,7 @@ class EmployeeController extends Controller
         // Validate the form before creating the employee account.
         $validatedData = $this->validateEmployeeData($request);
         $selectedRole = Role::where('name', $validatedData['role'])->firstOrFail();
+        $validatedData = $this->handleAvatarUpload($request, $validatedData);
 
         // Create the employee record and attach the selected role.
         $employee = User::create($validatedData);
@@ -38,7 +41,35 @@ class EmployeeController extends Controller
 
     public function show(User $employee)
     {
-        return redirect()->route('employees.index', ['highlight' => $employee->id]);
+        $employee->load('roles');
+
+        $expenses = Expense::query()
+            ->with(['project', 'mainCategory', 'category'])
+            ->where('user_id', $employee->id)
+            ->latest('current_date')
+            ->paginate(10, ['*'], 'expenses_page')
+            ->withQueryString();
+
+        $attendances = Attendance::query()
+            ->where('user_id', $employee->id)
+            ->latest('attendance_date')
+            ->paginate(10, ['*'], 'attendance_page')
+            ->withQueryString();
+
+        $workedMinutes = (int) Attendance::query()
+            ->where('user_id', $employee->id)
+            ->where('attendance_date', '>=', now()->subDays(30)->toDateString())
+            ->sum('worked_minutes');
+
+        $stats = [
+            'expense_total' => (float) Expense::query()->where('user_id', $employee->id)->sum('amount'),
+            'paid_total' => (float) Expense::query()->where('user_id', $employee->id)->sum('paid_amt'),
+            'unpaid_total' => (float) Expense::query()->where('user_id', $employee->id)->sum('unpaid_amt'),
+            'worked_hours' => intdiv($workedMinutes, 60),
+            'worked_minutes' => $workedMinutes % 60,
+        ];
+
+        return view('pages.employees.show', compact('employee', 'expenses', 'attendances', 'stats'));
     }
 
     public function edit(User $employee)
@@ -52,6 +83,7 @@ class EmployeeController extends Controller
         // Validate the form before updating the employee account.
         $validatedData = $this->validateEmployeeData($request, $employee);
         $selectedRole = Role::where('name', $validatedData['role'])->firstOrFail();
+        $validatedData = $this->handleAvatarUpload($request, $validatedData);
 
         // Save the updated employee values and sync the selected role.
         $employee->update($validatedData);
@@ -114,7 +146,7 @@ class EmployeeController extends Controller
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
             'hire_date' => ['nullable', 'date'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
-            'avatar' => ['nullable', 'string', 'max:255'],
+            'avatar' => ['nullable', 'image', 'max:2048'],
             'password' => [$employee ? 'nullable' : 'required', 'string', 'min:6', 'confirmed'],
         ]);
 
@@ -123,6 +155,28 @@ class EmployeeController extends Controller
         if (blank($validatedData['password'] ?? null)) {
             unset($validatedData['password']);
         }
+
+        return $validatedData;
+    }
+
+    private function handleAvatarUpload(Request $request, array $validatedData): array
+    {
+        if (! $request->hasFile('avatar')) {
+            unset($validatedData['avatar']);
+
+            return $validatedData;
+        }
+
+        $file = $request->file('avatar');
+        $fileName = now()->format('YmdHis') . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $destination = public_path('images');
+
+        if (! is_dir($destination)) {
+            mkdir($destination, 0755, true);
+        }
+
+        $file->move($destination, $fileName);
+        $validatedData['avatar'] = 'images/' . $fileName;
 
         return $validatedData;
     }

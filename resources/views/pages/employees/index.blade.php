@@ -48,10 +48,6 @@
                             <th>Hire Date</th>
                             <th>Status</th>
                             <th class="text-end">Action</th>
-                            </xai:function_call>
-
-                            <xai:function_call name="edit_file">
-                                <parameter name="path">resources/views/pages/employees/index.blade.php
                         </tr>
                     </thead>
                     <tbody>
@@ -87,6 +83,8 @@
                                             data-bs-toggle="dropdown" aria-expanded="false"><i
                                                 class="ti ti-dots-vertical"></i></a>
                                         <div class="dropdown-menu dropdown-menu-right">
+                                            <a class="dropdown-item" href="{{ route('employees.show', $employee) }}"><i
+                                                    class="ti ti-eye text-info"></i> View</a>
                                             <a class="dropdown-item" href="#" data-bs-toggle="modal"
                                                 data-bs-target="#edit_employee_{{ $employee->id }}"><i
                                                     class="ti ti-edit text-blue"></i> Edit</a>
@@ -118,7 +116,7 @@
                 data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('employees.store') }}" method="POST" class="row g-3">
+            <form action="{{ route('employees.store') }}" method="POST" class="row g-3" enctype="multipart/form-data">
                 @csrf
                 <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
                         class="form-control" required></div>
@@ -149,7 +147,7 @@
                         class="form-control"></div>
                 <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
                         class="form-control"></div>
-                <div class="col-12"><label class="form-label">Avatar Path</label><input type="file" name="avatar"
+                <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
                         class="form-control"></div>
                 <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
                         <option value="active">Active</option>
@@ -171,7 +169,7 @@
                             data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('employees.update', $employee) }}" method="POST" class="row g-3">
+                        <form action="{{ route('employees.update', $employee) }}" method="POST" class="row g-3" enctype="multipart/form-data">
                             @csrf
                             @method('PUT')
                             <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
@@ -205,8 +203,8 @@
                                     class="form-control" value="{{ optional($employee->hire_date)->format('Y-m-d') }}"></div>
                             <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
                                     class="form-control" value="{{ $employee->address }}"></div>
-                            <div class="col-12"><label class="form-label">Avatar Path</label><input type="file" name="avatar"
-                                    class="form-control" value="{{ $employee->avatar }}"></div>
+                            <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
+                                    class="form-control"></div>
                             <div class="col-12"><label class="form-label">Status</label><select name="status"
                                     class="form-select">
                                     <option value="active" @selected($employee->status === 'active')>Active</option>
