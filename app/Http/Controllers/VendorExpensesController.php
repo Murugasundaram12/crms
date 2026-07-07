@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdvanceHistory;
+use App\Models\Category;
 use App\Models\ExpenseUnpaidDate;
+use App\Models\MainCategory;
+use App\Models\Project;
 use App\Models\Vendor;
 use App\Models\VendorExpenseTransaction;
 use App\Models\Wallet;
@@ -16,16 +19,50 @@ class VendorExpensesController extends Controller
 {
     public function history(Request $request)
     {
-        $items = VendorExpenseTransaction::query()
+        $query = VendorExpenseTransaction::query()
             ->where('delete_status', false)
-            ->with(['vendor', 'project'])
+            ->with(['vendor', 'project', 'mainCategory', 'category'])
+            ->when($request->filled('main_category_id'), fn($q) => $q->where('main_category_id', $request->integer('main_category_id')))
+            ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->integer('category_id')))
+            ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
             ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
+            ->when($request->filled('date_from'), fn($q) => $q->whereDate('current_date', '>=', $request->date('date_from')->toDateString()))
+            ->when($request->filled('date_to'), fn($q) => $q->whereDate('current_date', '<=', $request->date('date_to')->toDateString()))
+            ->when($request->filled('q'), function ($query) use ($request) {
+                $q = $request->string('q')->toString();
+                $query->where(function ($qq) use ($q) {
+                    $qq->where('description', 'like', "%{$q}%")
+                        ->orWhere('payment_mode', 'like', "%{$q}%")
+                        ->orWhereHas('mainCategory', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
+                        ->orWhereHas('category', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"));
+                });
+            });
+
+        $totals = (clone $query)
+            ->selectRaw('COALESCE(SUM(amount),0) as total_amount')
+            ->selectRaw('COALESCE(SUM(paid_amount),0) as total_paid_amount')
+            ->selectRaw('COALESCE(SUM(unpaid_amount),0) as total_unpaid_amount')
+            ->selectRaw('COALESCE(SUM(extra_amount),0) as total_advanced_amount')
+            ->first();
+
+        $items = $query
             ->latest()
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate((int) $request->get('paginate', 10))
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
-        return view('pages.vendor_expenses.history', ['transactions' => $items, 'vendors' => $vendors]);
+        $projects = Project::query()->orderBy('name')->get();
+        $mainCategories = MainCategory::query()->where('status', 'active')->orderBy('name')->get();
+        $categories = Category::query()->orderBy('name')->get();
+
+        return view('pages.vendor_expenses.history', [
+            'transactions' => $items,
+            'vendors' => $vendors,
+            'projects' => $projects,
+            'mainCategories' => $mainCategories,
+            'categories' => $categories,
+            'totals' => $totals,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdvanceHistory;
+use App\Models\Category;
 use App\Models\Labour;
 use App\Models\LabourExpenseTransaction;
+use App\Models\MainCategory;
+use App\Models\Project;
 use App\Models\Wallet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,16 +18,43 @@ class LabourExpensesController extends Controller
 {
     public function history(Request $request)
     {
-        $transactions = LabourExpenseTransaction::query()
+        $query = LabourExpenseTransaction::query()
             ->where('delete_status', false)
-            ->with(['labour', 'project'])
+            ->with(['labour', 'project', 'mainCategory', 'category'])
+            ->when($request->filled('main_category_id'), fn($q) => $q->where('main_category_id', $request->integer('main_category_id')))
+            ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->integer('category_id')))
+            ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
             ->when($request->filled('labour_id'), fn($q) => $q->where('labour_id', $request->integer('labour_id')))
+            ->when($request->filled('date_from'), fn($q) => $q->whereDate('current_date', '>=', $request->date('date_from')->toDateString()))
+            ->when($request->filled('date_to'), fn($q) => $q->whereDate('current_date', '<=', $request->date('date_to')->toDateString()))
+            ->when($request->filled('q'), function ($query) use ($request) {
+                $q = $request->string('q')->toString();
+                $query->where(function ($qq) use ($q) {
+                    $qq->where('description', 'like', "%{$q}%")
+                        ->orWhere('payment_mode', 'like', "%{$q}%")
+                        ->orWhereHas('mainCategory', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
+                        ->orWhereHas('category', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"));
+                });
+            });
+
+        $totals = (clone $query)
+            ->selectRaw('COALESCE(SUM(amount),0) as total_amount')
+            ->selectRaw('COALESCE(SUM(paid_amount),0) as total_paid_amount')
+            ->selectRaw('COALESCE(SUM(unpaid_amount),0) as total_unpaid_amount')
+            ->selectRaw('COALESCE(SUM(extra_amount),0) as total_advanced_amount')
+            ->first();
+
+        $transactions = $query
             ->latest()
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate((int) $request->get('paginate', 10))
             ->withQueryString();
 
         $labours = Labour::query()->orderBy('name')->get();
-        return view('pages.labour_expenses.history', compact('transactions', 'labours'));
+        $projects = Project::query()->orderBy('name')->get();
+        $mainCategories = MainCategory::query()->where('status', 'active')->orderBy('name')->get();
+        $categories = Category::query()->orderBy('name')->get();
+
+        return view('pages.labour_expenses.history', compact('transactions', 'labours', 'projects', 'mainCategories', 'categories', 'totals'));
     }
 
     public function weeklyHistory(Request $request)

@@ -43,9 +43,10 @@
                                         @error('password')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
-                                        <span class="input-group-text toggle-password">
+                                        <button class="input-group-text toggle-password" type="button"
+                                            aria-label="Show password">
                                             <i class="ti ti-eye-off"></i>
-                                        </span>
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -82,20 +83,3 @@
         <!-- end row -->
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const togglePassword = document.querySelector('.toggle-password');
-            const passInput = document.querySelector('.pass-input');
-            if (togglePassword && passInput) {
-                togglePassword.addEventListener('click', function () {
-                    const type = passInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                    passInput.setAttribute('type', type);
-                    this.querySelector('i').classList.toggle('ti-eye');
-                    this.querySelector('i').classList.toggle('ti-eye-off');
-                });
-            }
-        });
-    </script>
-@endpush

@@ -1,35 +1,50 @@
-# TODO - Expense/Labour/Vendor/Transfer modules
+# TODO - Labour Expenses List Fields Upgrade
 
-## Expense/Labour/Vendor
+## Step 1 (done): Repo exploration & current files identified
 
-- [ ] Create new dedicated migrations + tables for:
-    - [ ] general expenses transactions (main_category_id, category_id, project_id, paid_amount, payment_mode, expense_date, expense_time, description, image_path, etc.)
-    - [ ] labour expense transactions (labour_id, salary, etc.)
-    - [ ] vendor expense transactions (vendor_id, salary, etc.)
-- [ ] Create dedicated models for each new table with proper relationships.
-- [ ] Create dedicated controllers with full CRUD + optimized eager-loading.
-- [ ] Implement validation + file upload handling (store image to public disk, delete on replace/remove).
-- [ ] Implement date/time parsing & formatting (dd/mm/yyyy for UI; store as Y-m-d and time string as HH:MM:SS AM/PM compatible format).
-- [ ] Create Blade pages (index/create/edit) with responsive offcanvas/modal UI:
-    - [ ] dropdowns for DB-driven data
-    - [ ] show/hide fields for Transfer module (radio)
-    - [ ] show validation errors and success messages
-- [ ] Add dedicated routes for each module.
-- [ ] Add view components/partials for reusable dropdowns if feasible.
+- Located Labour Expense views:
+    - resources/views/pages/labour_expenses/history.blade.php
+    - resources/views/pages/labour_expenses/weekly.blade.php
+    - resources/views/pages/labour_expenses/advance.blade.php
+    - resources/views/pages/labour_expenses/deleted.blade.php
+- Located LabourExpensesController methods that supply those pages.
 
-## Transfer module
+## Step 2: Align Labour Expenses UI columns to requested spec
 
-- [ ] Add missing Blade views for transfers:
-    - [ ] index
-    - [ ] create
-    - [ ] edit
-- [ ] Implement validation improvements in TransferDetailsController (ensure employee/vendor required based on transfer_type).
-- [ ] Ensure correct dd/mm/yyyy date parsing and time formatting in UI.
-- [ ] Make Transfer UI responsive and mobile friendly.
+- Update Labour history table columns:
+    - Paid date
+    - Main Category
+    - Category
+    - Name
+    - Project Name
+    - Labour Name
+    - Amount
+    - Paid / Unpaid
+    - Advanced Amount
+    - Image
+    - Payment Mode
+    - Description
+    - Added By / Edited By / Advance Edited By
+    - Action: Edit + Delete buttons
+    - Plus delete UI/logic (checkbox/modal) tied to labour-expenses-delete_record
 
-## Final verification
+## Step 3: Update Labour weekly salary list
 
-- [ ] Run migrations.
-- [ ] Manual CRUD testing for all modules.
-- [ ] Verify images are stored and deleted correctly.
-- [ ] Verify duplicate/invalid entry prevention (at least server-side sanity checks).
+- Implement Week / Unpaid Amount / Advance Amount (aggregated per week)
+- Ensure controller produces week-grouped totals.
+
+## Step 4: Update Labour advance amount list
+
+- Update list to match:
+    - ID / Name / Job Title / Salary / Labour Role / Advance Amount
+    - Action (history + money button)
+
+## Step 5: Update Labour deleted history list
+
+- Add full requested deleted columns including Deleted Date
+- Ensure controller provides delete_reason, categories, image/payment_mode, added/edited/advance edited by.
+
+## Step 6: Quick verification
+
+- php artisan route:list | findstr labour-expenses
+- Manually check each labour page renders without missing variables.
