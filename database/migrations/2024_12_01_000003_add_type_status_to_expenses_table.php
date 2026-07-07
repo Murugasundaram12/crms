@@ -8,18 +8,31 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasColumn('expenses', 'title')) {
+            return;
+        }
+
         Schema::table('expenses', function (Blueprint $table) {
-            $table->enum('type', ['salary', 'material', 'travel', 'other'])->default('other')->after('title');
-            $table->string('category')->nullable()->after('type');
-            $table->enum('status', ['pending', 'approved', 'paid'])->default('pending')->after('amount');
+            if (! Schema::hasColumn('expenses', 'type')) {
+                $table->enum('type', ['salary', 'material', 'travel', 'other'])->default('other')->after('title');
+            }
+            if (! Schema::hasColumn('expenses', 'category')) {
+                $table->string('category')->nullable()->after('type');
+            }
+            if (! Schema::hasColumn('expenses', 'status')) {
+                $table->enum('status', ['pending', 'approved', 'paid'])->default('pending')->after('amount');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('expenses', function (Blueprint $table) {
-            $table->dropColumn(['type', 'status']);
-            $table->dropColumn('category');
+            foreach (['type', 'status', 'category'] as $column) {
+                if (Schema::hasColumn('expenses', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 };

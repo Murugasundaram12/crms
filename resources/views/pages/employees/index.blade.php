@@ -17,20 +17,42 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <form action="{{ route('employees.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search users" value="{{ request('q') }}">
-                </div>
-                <select name="status" class="form-select">
-                    <option value="">All Status</option>
-                    <option value="active" @selected(request('status') === 'active')>Active</option>
-                    <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
-                </select>
-                <button class="btn btn-outline-light shadow" type="submit">Filter</button>
-            </form>
             <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
                 data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add User</a>
+        </div>
+    </div>
+
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form action="{{ route('employees.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search users" value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="active" @selected(request('status') === 'active')>Active</option>
+                        <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                    <a href="{{ route('employees.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -48,10 +70,6 @@
                             <th>Hire Date</th>
                             <th>Status</th>
                             <th class="text-end">Action</th>
-                            </xai:function_call>
-
-                            <xai:function_call name="edit_file">
-                                <parameter name="path">resources/views/pages/employees/index.blade.php
                         </tr>
                     </thead>
                     <tbody>
@@ -87,6 +105,8 @@
                                             data-bs-toggle="dropdown" aria-expanded="false"><i
                                                 class="ti ti-dots-vertical"></i></a>
                                         <div class="dropdown-menu dropdown-menu-right">
+                                            <a class="dropdown-item" href="{{ route('employees.show', $employee) }}"><i
+                                                    class="ti ti-eye text-info"></i> View</a>
                                             <a class="dropdown-item" href="#" data-bs-toggle="modal"
                                                 data-bs-target="#edit_employee_{{ $employee->id }}"><i
                                                     class="ti ti-edit text-blue"></i> Edit</a>
@@ -118,7 +138,7 @@
                 data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('employees.store') }}" method="POST" class="row g-3">
+            <form action="{{ route('employees.store') }}" method="POST" class="row g-3" enctype="multipart/form-data">
                 @csrf
                 <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
                         class="form-control" required></div>
@@ -149,7 +169,7 @@
                         class="form-control"></div>
                 <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
                         class="form-control"></div>
-                <div class="col-12"><label class="form-label">Avatar Path</label><input type="file" name="avatar"
+                <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
                         class="form-control"></div>
                 <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
                         <option value="active">Active</option>
@@ -171,7 +191,7 @@
                             data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('employees.update', $employee) }}" method="POST" class="row g-3">
+                        <form action="{{ route('employees.update', $employee) }}" method="POST" class="row g-3" enctype="multipart/form-data">
                             @csrf
                             @method('PUT')
                             <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
@@ -205,8 +225,8 @@
                                     class="form-control" value="{{ optional($employee->hire_date)->format('Y-m-d') }}"></div>
                             <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
                                     class="form-control" value="{{ $employee->address }}"></div>
-                            <div class="col-12"><label class="form-label">Avatar Path</label><input type="file" name="avatar"
-                                    class="form-control" value="{{ $employee->avatar }}"></div>
+                            <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
+                                    class="form-control"></div>
                             <div class="col-12"><label class="form-label">Status</label><select name="status"
                                     class="form-select">
                                     <option value="active" @selected($employee->status === 'active')>Active</option>
@@ -222,8 +242,11 @@
         </div>
     @endforeach
 @endsection
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}">
+@endpush
+
 @push('scripts')
-    <script src="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}"></script>
     <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
     <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
     <script>

@@ -11,27 +11,27 @@
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
-        <div class="card">
-            <div class="card-body">
-                <form method="GET" action="{{ route('transfers.index') }}" class="row g-2 align-items-end">
-                    <div class="col-md-4">
+        <div class="card border rounded-0">
+            <div class="card-header bg-white border-bottom">
+                <form method="GET" action="{{ route('transfers.index') }}" class="row g-3 align-items-end m-0">
+                    <div class="col-12 col-lg-4">
                         <label class="form-label">Search</label>
-                        <input type="text" name="search" class="form-control form-control-sm"
+                        <input type="text" name="search" class="form-control"
                             value="{{ request('search') }}" placeholder="Type to search" />
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-12 col-md-6 col-lg-2">
                         <label class="form-label">From Date (dd/mm/yyyy)</label>
-                        <input type="text" name="from_date" class="form-control form-control-sm"
+                        <input type="text" name="from_date" class="form-control"
                             value="{{ request('from_date') }}" placeholder="dd/mm/yyyy" />
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-12 col-md-6 col-lg-2">
                         <label class="form-label">To Date (dd/mm/yyyy)</label>
-                        <input type="text" name="to_date" class="form-control form-control-sm"
+                        <input type="text" name="to_date" class="form-control"
                             value="{{ request('to_date') }}" placeholder="dd/mm/yyyy" />
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-12 col-md-6 col-lg-2">
                         <label class="form-label">Type</label>
-                        <select name="transfer_type" class="form-select form-select-sm">
+                        <select name="transfer_type" class="form-select">
                             <option value="">All</option>
                             <option value="employee" {{ request('transfer_type') === 'employee' ? 'selected' : '' }}>Employee
                             </option>
@@ -39,8 +39,9 @@
                             </option>
                         </select>
                     </div>
-                    <div class="col-md-12 d-flex gap-2 justify-content-end">
-                        <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
+                    <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                        <a href="{{ route('transfers.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
                     </div>
                 </form>
             </div>

@@ -10,6 +10,7 @@ use App\Models\Labour;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\Task;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardService
 {
@@ -18,8 +19,12 @@ class DashboardService
         $projectCount = Project::count();
         $taskCount = Task::count();
         $completedTasks = Task::where('status', 'completed')->count();
-        $totalBudget = (float) Project::sum('budget');
-        $totalSpent = (float) Project::sum('spent');
+        $totalBudget = Schema::hasColumn('projects', 'budget')
+            ? (float) Project::sum('budget')
+            : (float) Project::with('quotations')->get()->sum(fn(Project $project) => $project->budget);
+        $totalSpent = Schema::hasColumn('projects', 'spent')
+            ? (float) Project::sum('spent')
+            : (float) Project::with('expenses')->get()->sum(fn(Project $project) => $project->spent);
         $paidRevenue = (float) Payment::where('status', 'paid')->sum('amount');
         $expenseTotal = (float) Expense::sum('amount');
         $employeeSalaryTotal = (float) EmployeeSalary::sum('salary');

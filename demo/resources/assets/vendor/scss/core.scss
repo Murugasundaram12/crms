@@ -1,0 +1,10 @@
+@import 'bootstrap';
+@import 'bootstrap-extended';
+@import 'components';
+@import 'colors';
+
+$theme-colors-rgb: (
+    "primary": #007bff,
+    "secondary": #6c757d,
+    // Define other colors as needed
+);

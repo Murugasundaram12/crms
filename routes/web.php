@@ -17,8 +17,11 @@ use App\Http\Controllers\Reports\ExpenseReportController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UnpaidExpensesController;
 use App\Http\Controllers\VendorExpensesController;
+use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\ExpenseImportController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Artisan;
@@ -58,6 +61,35 @@ Route::middleware('auth')->group(function () {
         ->name('home');
 
     Route::redirect('/index', '/dashboard');
+
+    Route::get('/user', [EmployeeController::class, 'index'])->name('user-index');
+    Route::get('/user/create', fn () => redirect()->route('employees.index'))->name('user-create');
+    Route::post('/user/store', [EmployeeController::class, 'store'])->name('user.store');
+    Route::get('/user/show/{employee}', [EmployeeController::class, 'show'])->name('user-show');
+    Route::get('/user/edit/{employee}', fn (User $employee) => redirect()->route('employees.index', ['edit' => $employee->id]))->name('user-edit');
+    Route::put('/user/update/{employee}', [EmployeeController::class, 'update'])->name('user.update');
+
+    Route::get('/client', fn () => redirect()->route('clients.index'))->name('client-index');
+    Route::get('/client/create', fn () => redirect()->route('clients.create'))->name('client-create');
+    Route::get('/client/show/{client}', fn (\App\Models\Client $client) => redirect()->route('clients.show', $client))->name('client-show');
+    Route::get('/client/edit/{client}', fn (\App\Models\Client $client) => redirect()->route('clients.edit', $client))->name('client-edit');
+
+    Route::get('/project', fn () => redirect()->route('projects.index'))->name('project-index');
+    Route::get('/project/create', fn () => redirect()->route('projects.create'))->name('project-create');
+    Route::get('/project/show/{project}', fn (\App\Models\Project $project) => redirect()->route('projects.show', $project))->name('project-show');
+    Route::get('/project/edit/{project}', fn (\App\Models\Project $project) => redirect()->route('projects.edit', $project))->name('project-edit');
+
+    Route::get('/payment', fn () => redirect()->route('payments.index'))->name('payment-index');
+    Route::get('/stage', fn () => redirect()->route('payment-stages.index'))->name('stage-index');
+    Route::get('/maincategory', fn () => redirect()->route('main_categories.index'))->name('maincategory.index');
+    Route::get('/category', fn () => redirect()->route('categories.index'))->name('category-index');
+    Route::get('/vendor', fn () => redirect()->route('vendors.index'))->name('vendor-index');
+    Route::get('/labour', fn () => redirect()->route('labours.index'))->name('labour-index');
+    Route::get('/labour-role', fn () => redirect()->route('labour_roles.index'))->name('labourrole-index');
+    Route::get('/client-summary', fn () => redirect()->route('reports.index', ['type' => 'site']))->name('client-summary');
+    Route::get('/payment-summary', fn () => redirect()->route('reports.index', ['type' => 'office']))->name('payment-summary');
+    Route::get('/payment-income/{project}', fn (\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'total', 'project_id' => $project->id]))->name('payment-income');
+    Route::get('/payment-expenses/{project}', fn (\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'site', 'project_id' => $project->id]))->name('payment-expenses');
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
@@ -111,13 +143,13 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('clients')->name('clients.')->group(function () {
-        Route::middleware('permission:clients-list')->group(function () {
-            Route::get('/', [ClientController::class, 'index'])->name('index');
-            Route::get('/{client}', [ClientController::class, 'show'])->name('show');
-        });
         Route::middleware('permission:clients-create')->group(function () {
             Route::get('/create', [ClientController::class, 'create'])->name('create');
             Route::post('/store', [ClientController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:clients-list')->group(function () {
+            Route::get('/', [ClientController::class, 'index'])->name('index');
+            Route::get('/{client}', [ClientController::class, 'show'])->name('show');
         });
         Route::middleware('permission:clients-edit')->group(function () {
             Route::get('/{client}/edit', [ClientController::class, 'edit'])->name('edit');
@@ -150,10 +182,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/expenses-history', [ExpensesController::class, 'history'])
         ->middleware('permission:expenses-list')
         ->name('expenses.history');
+    Route::get('/expenses-create', fn () => redirect()->route('expenses.history'))
+        ->middleware('permission:expenses-create')
+        ->name('expenses.create.legacy');
+    Route::get('/expenses/edit/{id}', fn (int $id) => redirect()->route('expenses.history', ['edit' => $id]))
+        ->middleware('permission:expenses-edit')
+        ->name('expenses.edit.legacy');
     Route::post('/expenses/store', [ExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('expenses.store.new');
-    Route::post('/expenses/update/{id}', [ExpensesController::class, 'update'])
+    Route::match(['post', 'put'], '/expenses/update/{id}', [ExpensesController::class, 'update'])
         ->middleware('permission:expenses-edit')
         ->name('expenses.update.new');
     Route::post('/expenses-delete_record', [ExpensesController::class, 'deleteRecord'])
@@ -166,6 +204,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/unpaid-history', [UnpaidExpensesController::class, 'history'])
         ->middleware('permission:expenses-list')
         ->name('expenses.unpaid-history');
+    Route::get('/unpaid-create/{id}', fn (int $id) => redirect()->route('expenses.unpaid-history', ['edit' => $id]))
+        ->middleware('permission:expenses-edit')
+        ->name('expenses.unpaid-create.legacy');
     Route::post('/unpaid-store', [UnpaidExpensesController::class, 'store'])
         ->middleware('permission:expenses-edit')
         ->name('expenses.unpaid-store');
@@ -176,6 +217,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/labour-expenses/store', [LabourExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('labour-expenses.store');
+    Route::get('/labour-expenses/create', fn () => redirect()->route('labour-expenses.history'))
+        ->middleware('permission:expenses-create')
+        ->name('labour-expenses.create.legacy');
+    Route::get('/labour-expenses/edit/{id}', fn (int $id) => redirect()->route('labour-expenses.history', ['edit' => $id]))
+        ->middleware('permission:expenses-edit')
+        ->name('labour-expenses.edit.legacy');
+    Route::put('/labour-expenses/update/{id}', [LabourExpensesController::class, 'update'])
+        ->middleware('permission:expenses-edit')
+        ->name('labour-expenses.update.legacy');
     Route::get('/labour-expenses', [LabourExpensesController::class, 'weeklyHistory'])
         ->middleware('permission:expenses-list')
         ->name('labour-expenses.weekly');
@@ -201,9 +251,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendor-expenses/store', [VendorExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('vendor-expenses.store');
+    Route::get('/vendor-expenses/create', fn () => redirect()->route('vendor-expenses.history'))
+        ->middleware('permission:expenses-create')
+        ->name('vendor-expenses.create.legacy');
+    Route::get('/vendor-expenses/edit/{id}', fn (int $id) => redirect()->route('vendor-expenses.history', ['edit' => $id]))
+        ->middleware('permission:expenses-edit')
+        ->name('vendor-expenses.edit.legacy');
+    Route::put('/vendor-expenses/update/{id}', [VendorExpensesController::class, 'update'])
+        ->middleware('permission:expenses-edit')
+        ->name('vendor-expenses.update.legacy');
     Route::get('/vendor-expenses-unpaid-history', [VendorExpensesController::class, 'unpaidHistory'])
         ->middleware('permission:expenses-list')
         ->name('vendor-expenses.unpaid-history');
+    Route::get('/vendor-expenses-unpaid-edit/{id}', fn (int $id) => redirect()->route('vendor-expenses.unpaid-history', ['edit' => $id]))
+        ->middleware('permission:expenses-edit')
+        ->name('vendor-expenses.unpaid-edit.legacy');
     Route::post('/vendor-expenses-unpaid-store', [VendorExpensesController::class, 'unpaidStore'])
         ->middleware('permission:expenses-edit')
         ->name('vendor-expenses.unpaid-store');
@@ -256,13 +318,13 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('employees')->name('employees.')->group(function () {
-        Route::middleware('permission:employees-list')->group(function () {
-            Route::get('/', [EmployeeController::class, 'index'])->name('index');
-            Route::get('/{employee}', [EmployeeController::class, 'show'])->name('show');
-        });
         Route::middleware('permission:employees-create')->group(function () {
             Route::get('/create', [EmployeeController::class, 'create'])->name('create');
             Route::post('/store', [EmployeeController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:employees-list')->group(function () {
+            Route::get('/', [EmployeeController::class, 'index'])->name('index');
+            Route::get('/{employee}', [EmployeeController::class, 'show'])->name('show');
         });
         Route::middleware('permission:employees-edit')->group(function () {
             Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('edit');
@@ -496,6 +558,16 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    Route::get('/wallet-history', [WalletController::class, 'index'])
+        ->middleware('permission:transfers-list')
+        ->name('wallet.index');
+    Route::get('/wallet-create', [WalletController::class, 'create'])
+        ->middleware('permission:transfers-create')
+        ->name('wallet.create');
+    Route::post('/wallet/store', [WalletController::class, 'store'])
+        ->middleware('permission:transfers-create')
+        ->name('wallet.store');
+
     Route::prefix('categories')->name('categories.')->group(function () {
         Route::middleware('permission:categories-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\CategoryController::class, 'index'])->name('index');
@@ -516,6 +588,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:categories-edit')
             ->name('categories.assign');
     });
+    Route::get('/excel/import', function () {
+        return view('pages.excel.expense_import');
+    })->name('excel.import.form');
+    Route::post('/excel/import',[ExpenseImportController::class,'import'])->name('excel.import');
 
     // Route::prefix('quotations')->name('quotations.')->group(function () {
     //     Route::middleware('permission:quotations-list')->group(function () {

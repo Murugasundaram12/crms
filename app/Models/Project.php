@@ -28,12 +28,16 @@ class Project extends Model
         'start_date',
         'end_date',
         'location',
+        'advance_amt',
+        'profit',
     ];
 
     protected $casts = [
         'progress' => 'integer',
         'start_date' => 'date',
         'end_date' => 'date',
+        'advance_amt' => 'decimal:2',
+        'profit' => 'decimal:2',
     ];
 
     public function client(): BelongsTo
@@ -95,5 +99,31 @@ class Project extends Model
             ->sum('amount');
 
         return (float) ($quotationTotal + $variationsNet - $paymentsSum);
+    }
+
+    public function getBudgetAttribute(): float
+    {
+        if (array_key_exists('budget', $this->attributes)) {
+            return (float) $this->attributes['budget'];
+        }
+
+        if ($this->relationLoaded('quotations')) {
+            return (float) ($this->quotations->sortByDesc('created_at')->first()?->total_amount ?? 0);
+        }
+
+        return (float) ($this->quotations()->latest('created_at')->value('total_amount') ?? 0);
+    }
+
+    public function getSpentAttribute(): float
+    {
+        if (array_key_exists('spent', $this->attributes)) {
+            return (float) $this->attributes['spent'];
+        }
+
+        if ($this->relationLoaded('expenses')) {
+            return (float) $this->expenses->sum('amount');
+        }
+
+        return (float) $this->expenses()->sum('amount');
     }
 }

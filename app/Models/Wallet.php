@@ -11,23 +11,42 @@ class Wallet extends Model
 
     protected $fillable = [
         'user_id',
+        'client_id',
+        'project_id',
         'amount',
+        'payment_mode',
         'transfer_type',
+        'stage_id',
         'description',
-        'reference_type',
-        'reference_id',
         'current_date',
-        'current_time',
+        'active_status',
+        'delete_status',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'current_date' => 'date',
+        'amount' => 'integer',
+        'current_date' => 'datetime',
+        'active_status' => 'integer',
+        'delete_status' => 'integer',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
-}
 
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function stage(): BelongsTo
+    {
+        return $this->belongsTo(PaymentStage::class, 'stage_id');
+    }
+}

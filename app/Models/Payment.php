@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 use App\Models\PaymentStage;
 
@@ -21,6 +22,7 @@ class Payment extends Model
         'stage_id',
         'transaction_id',
         'method',
+        'payment_method',
         'amount',
         'due_date',
         'payment_date',
@@ -52,5 +54,20 @@ class Payment extends Model
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(Quotation::class);
+    }
+
+    public function getMethodAttribute($value): ?string
+    {
+        return $value ?? $this->attributes['payment_method'] ?? null;
+    }
+
+    public function setMethodAttribute(?string $value): void
+    {
+        if (Schema::hasColumn($this->getTable(), 'payment_method')) {
+            $this->attributes['payment_method'] = $value;
+            return;
+        }
+
+        $this->attributes['method'] = $value;
     }
 }

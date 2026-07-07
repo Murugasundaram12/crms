@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\TransferDetails;
 use App\Models\Employee;
 use App\Models\Vendor;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 use Illuminate\Http\Request;
 
@@ -80,7 +83,10 @@ class TransferDetailsController extends Controller
         $validated['current_date'] = $this->parseDateToYmd($request->string('current_date'));
         $validated['current_time'] = $request->string('current_time');
 
-        TransferDetails::create($validated);
+        DB::transaction(function () use ($validated) {
+            $transfer = TransferDetails::create($validated);
+            $this->applyTransferBalances($transfer, 1);
+        });
 
         return redirect()->route('transfers.index')->with('success', 'Transfer added successfully.');
     }
@@ -105,10 +111,16 @@ class TransferDetailsController extends Controller
 
         $validated = $this->validateTransfer($request);
 
-        $transfer->fill($validated);
-        $transfer->current_date = $this->parseDateToYmd($request->string('current_date'));
-        $transfer->current_time = $request->string('current_time');
-        $transfer->save();
+        DB::transaction(function () use ($transfer, $validated, $request) {
+            $this->applyTransferBalances($transfer, -1);
+
+            $transfer->fill($validated);
+            $transfer->current_date = $this->parseDateToYmd($request->string('current_date'));
+            $transfer->current_time = $request->string('current_time');
+            $transfer->save();
+
+            $this->applyTransferBalances($transfer, 1);
+        });
 
         return redirect()->route('transfers.index')->with('success', 'Transfer updated successfully.');
     }
@@ -117,9 +129,13 @@ class TransferDetailsController extends Controller
     {
         $transfer = TransferDetails::where('id', $id)->where('delete_status', false)->firstOrFail();
 
-        $transfer->delete_status = true;
-        $transfer->active_status = false;
-        $transfer->save();
+        DB::transaction(function () use ($transfer) {
+            $this->applyTransferBalances($transfer, -1);
+
+            $transfer->delete_status = true;
+            $transfer->active_status = false;
+            $transfer->save();
+        });
 
         return redirect()->route('transfers.index')->with('success', 'Transfer deleted successfully.');
     }
@@ -128,7 +144,7 @@ class TransferDetailsController extends Controller
     {
         $paymentModes = $this->paymentModes;
 
-        return $request->validate([
+        $validated = $request->validate([
             'transfer_type' => ['required', 'in:employee,vendor'],
             'employee_id' => ['nullable', 'integer'],
             'vendor_id' => ['nullable', 'integer'],
@@ -143,13 +159,40 @@ class TransferDetailsController extends Controller
             'vendor_id' => 'Vendor',
         ]);
 
-        // Conditional required fields (checked after basic validation)
-        // Note: implemented after validate() to keep compatibility with the current controller style.
-        // (Laravel will still return proper validation errors when we throw ValidationException.)
+        if ($validated['transfer_type'] === 'employee' && empty($validated['employee_id'])) {
+            throw ValidationException::withMessages(['employee_id' => 'Employee is required for employee transfer.']);
+        }
 
-        // $validated is returned above
-        // (kept intentionally unreachable)
+        if ($validated['transfer_type'] === 'vendor' && empty($validated['vendor_id'])) {
+            throw ValidationException::withMessages(['vendor_id' => 'Vendor is required for vendor transfer.']);
+        }
 
+        $validated['employee_id'] = $validated['transfer_type'] === 'employee' ? $validated['employee_id'] : null;
+        $validated['vendor_id'] = $validated['transfer_type'] === 'vendor' ? $validated['vendor_id'] : null;
+
+        return $validated;
+
+    }
+
+    private function applyTransferBalances(TransferDetails $transfer, int $direction): void
+    {
+        $amount = (float) $transfer->amount * $direction;
+        $balanceService = app(CrmBalanceService::class);
+
+        if ($amount > 0) {
+            $balanceService->debitUserWallet((int) $transfer->user_id, $amount, 'Transfer debit', 'transfer', (int) $transfer->id);
+        } elseif ($amount < 0) {
+            $balanceService->creditUserWallet((int) $transfer->user_id, abs($amount), 'Transfer rollback credit', 'transfer', (int) $transfer->id);
+        }
+
+        if ($transfer->transfer_type === 'vendor' && $transfer->vendor_id) {
+            $balanceService->adjustVendorAdvance((int) $transfer->vendor_id, $amount);
+            return;
+        }
+
+        if ($transfer->transfer_type === 'employee' && $transfer->employee_id) {
+            $balanceService->adjustEmployeeWallet((int) $transfer->employee_id, $amount);
+        }
     }
 
     private function parseDateToYmd(string $date): string

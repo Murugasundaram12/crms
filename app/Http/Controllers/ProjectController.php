@@ -16,6 +16,7 @@ class ProjectController extends Controller
         $projectQuery = Project::with(['client', 'manager'])->withCount('tasks');
         $this->applySearchFilter($projectQuery, $request);
         $this->applyListFilters($projectQuery, $request);
+        $this->applyDateFilter($projectQuery, $request);
 
         // Load the paginated project list.
         $projects = $projectQuery->latest()->paginate(12)->withQueryString();
@@ -124,6 +125,17 @@ class ProjectController extends Controller
             if ($filterValue) {
                 $projectQuery->where($filterName, $filterValue);
             }
+        }
+    }
+
+    private function applyDateFilter($projectQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $projectQuery->whereDate('start_date', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $projectQuery->whereDate('start_date', '<=', $request->date('date_to')->toDateString());
         }
     }
 

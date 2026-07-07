@@ -17,8 +17,8 @@ class ExpenseReportController extends Controller
     public function index(Request $request)
     {
         $expenseQuery = Expense::query()
-            ->with(['project', 'employee'])
-            ->latest('expense_date')
+            ->with(['project', 'employee', 'mainCategory', 'category', 'labour', 'vendor'])
+            ->latest('current_date')
             ->latest('id');
 
         if ($request->filled('project_id')) {
@@ -26,23 +26,23 @@ class ExpenseReportController extends Controller
         }
 
         if ($request->filled('employee_id')) {
-            $expenseQuery->where('employee_id', $request->integer('employee_id'));
-        }
-
-        if ($request->filled('status')) {
-            $expenseQuery->where('status', $request->string('status')->toString());
+            $expenseQuery->where('user_id', $request->integer('employee_id'));
         }
 
         if ($request->filled('category')) {
-            $expenseQuery->where('category', 'like', '%'.$request->string('category')->toString().'%');
+            $term = $request->string('category')->toString();
+            $expenseQuery->where(function ($query) use ($term) {
+                $query->whereHas('mainCategory', fn($q) => $q->where('name', 'like', '%'.$term.'%'))
+                    ->orWhereHas('category', fn($q) => $q->where('name', 'like', '%'.$term.'%'));
+            });
         }
 
         if ($request->filled('date_from')) {
-            $expenseQuery->whereDate('expense_date', '>=', $request->date('date_from')->toDateString());
+            $expenseQuery->whereDate('current_date', '>=', $request->date('date_from')->toDateString());
         }
 
         if ($request->filled('date_to')) {
-            $expenseQuery->whereDate('expense_date', '<=', $request->date('date_to')->toDateString());
+            $expenseQuery->whereDate('current_date', '<=', $request->date('date_to')->toDateString());
         }
 
         $projects = Project::query()->orderBy('name')->get(['id', 'name']);
@@ -52,12 +52,12 @@ class ExpenseReportController extends Controller
             return [
                 'source' => 'Expense',
                 'id' => $expense->id,
-                'date' => optional($expense->expense_date)?->startOfDay() ?? $expense->created_at,
+                'date' => optional($expense->current_date)?->startOfDay() ?? $expense->created_at,
                 'project' => $expense->project?->name ?? '-',
                 'employee' => $expense->employee?->name ?? '-',
-                'title' => $expense->title,
-                'category' => $expense->category ?? '-',
-                'status' => $expense->status ?? 'pending',
+                'title' => $expense->description ?? 'Expense',
+                'category' => trim(($expense->mainCategory?->name ?? '') . ' ' . ($expense->category?->name ?? '')) ?: '-',
+                'status' => (int) $expense->unpaid_amt > 0 ? 'pending' : 'paid',
                 'amount' => (float) $expense->amount,
             ];
         });

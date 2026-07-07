@@ -9,10 +9,28 @@ use Illuminate\Validation\Rule;
 
 class RoleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         // Load roles with their permission counts for the listing page.
-        $roles = Role::withCount('permissions')->latest()->paginate(10);
+        $roleQuery = Role::query()->withCount('permissions');
+
+        if ($request->filled('q')) {
+            $searchTerm = $request->string('q')->toString();
+            $roleQuery->where(function ($query) use ($searchTerm) {
+                $query->where('name', 'like', "%{$searchTerm}%")
+                    ->orWhere('description', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $roleQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $roleQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
+
+        $roles = $roleQuery->latest()->paginate(10)->withQueryString();
 
         return view('roles.index', compact('roles'));
     }

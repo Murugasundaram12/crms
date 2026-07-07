@@ -6,6 +6,7 @@
     ['label' => 'Tasks', 'route' => route('tasks.index'), 'permission' => 'tasks-list', 'keywords' => ['task', 'tasks']],
     ['label' => 'Payments', 'route' => route('payments.index'), 'permission' => 'payments-list', 'keywords' => ['payment', 'payments']],
     ['label' => 'Payment Stages', 'route' => route('payment-stages.index'), 'permission' => 'payment-stages-list', 'keywords' => ['payment stage', 'payment stages', 'stages']],
+    ['label' => 'Wallet History', 'route' => route('wallet.index'), 'permission' => 'transfers-list', 'keywords' => ['wallet', 'wallet history', 'balance']],
     ['label' => 'Variations', 'route' => route('variations.index'), 'permission' => 'variations-list', 'keywords' => ['variation', 'variations']],
     ['label' => 'Manage Users', 'route' => route('manage-users'), 'permission' => 'employees-list', 'keywords' => ['user', 'users', 'manage users', 'employee', 'employees']],
     ['label' => 'Employee Salaries', 'route' => route('employee-salaries.index'), 'permission' => 'employees-salary-list', 'keywords' => ['salary', 'salaries', 'employee salary', 'employee salaries']],
@@ -26,6 +27,35 @@
     ['label' => 'Roles', 'route' => route('roles.index'), 'permission' => 'roles-list', 'keywords' => ['role', 'roles']],
     ['label' => 'Permissions', 'route' => route('permissions.index'), 'permission' => 'permissions-list', 'keywords' => ['permission', 'permissions']],
 ])->map(fn ($item) => $item + ['allowed' => blank($item['permission']) || ($currentUser?->hasPermission($item['permission']) ?? false)]))
+
+<style>
+    .navbar-wallet-trigger {
+        position: relative;
+        overflow: visible;
+    }
+
+    .navbar-wallet-trigger .wallet-balance {
+        display: none;
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        z-index: 1060;
+        min-width: 96px;
+        padding: 6px 10px;
+        border: 1px solid #dbe3ea;
+        border-radius: 6px;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+        white-space: nowrap;
+        justify-content: center;
+    }
+
+    .navbar-wallet-trigger:hover .wallet-balance,
+    .navbar-wallet-trigger:focus .wallet-balance,
+    .navbar-wallet-trigger.show-balance .wallet-balance {
+        display: inline-flex;
+    }
+</style>
 
 <header class="navbar-header">
     <div class="page-container topbar-menu d-flex align-items-center justify-content-between w-100">
@@ -78,6 +108,34 @@
                     </div>
                 </div>
             @endif
+
+            @php($walletBalance = (float) ($currentUser?->wallet ?? 0))
+            @php($walletBalanceClass = $walletBalance > 0 ? 'text-success' : 'text-danger')
+            <div class="header-item d-flex">
+                <div class="dropdown me-2">
+                    @if($currentUser?->hasPermission('transfers-create'))
+                        <a href="{{ route('wallet.create') }}"
+                            class="btn topbar-link topbar-teal-link navbar-wallet-trigger d-inline-flex align-items-center gap-1"
+                            id="wallet-click"
+                            title="Current Wallet Balance">
+                            <i class="ti ti-wallet"></i>
+                            <span class="wallet-balance fw-semibold {{ $walletBalanceClass }}">
+                                {{ number_format($walletBalance, 2) }}
+                            </span>
+                        </a>
+                    @else
+                        <button type="button"
+                            class="btn topbar-link topbar-teal-link navbar-wallet-trigger d-inline-flex align-items-center gap-1"
+                            title="Current Wallet Balance"
+                            aria-label="Current Wallet Balance">
+                            <i class="ti ti-wallet"></i>
+                            <span class="wallet-balance fw-semibold {{ $walletBalanceClass }}">
+                                {{ number_format($walletBalance, 2) }}
+                            </span>
+                        </button>
+                    @endif
+                </div>
+            </div>
 
             @php($canOpenExpenseQuickActions = $currentUser && ($currentUser->hasPermission('expenses-list') || $currentUser->hasPermission('expenses-create')))
             @if($canOpenExpenseQuickActions)

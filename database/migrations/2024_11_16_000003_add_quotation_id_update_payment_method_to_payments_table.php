@@ -9,10 +9,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->renameColumn('method', 'payment_method');
-            $table->enum('payment_method', ['cash', 'bank_transfer'])->default('bank_transfer')->change();
-            $table->foreignId('quotation_id')->nullable()->after('client_id')->constrained()->nullOnDelete();
-            $table->foreignId('stage_id')->nullable()->constrained('payment_stages')->nullOnDelete()->change();
+            if (Schema::hasColumn('payments', 'method') && ! Schema::hasColumn('payments', 'payment_method')) {
+                $table->renameColumn('method', 'payment_method');
+            }
+            if (Schema::hasColumn('payments', 'payment_method')) {
+                $table->enum('payment_method', ['cash', 'bank_transfer'])->default('bank_transfer')->change();
+            }
+            if (! Schema::hasColumn('payments', 'quotation_id')) {
+                $table->foreignId('quotation_id')->nullable()->after('client_id')->constrained()->nullOnDelete();
+            }
+            if (! Schema::hasColumn('payments', 'stage_id')) {
+                $table->foreignId('stage_id')->nullable()->constrained('payment_stages')->nullOnDelete();
+            }
         });
     }
 

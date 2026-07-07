@@ -24,24 +24,40 @@
     </div>
 
     <div class="card border-0 rounded-0">
-        <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <div class="card-header bg-white border-bottom">
             <form action="{{ route('payment-stages.index') }}" method="GET"
-                class="d-flex align-items-center gap-2 flex-wrap w-100">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search" value="{{ request('q') }}">
+                    </div>
                 </div>
 
-                <select name="name" class="form-select">
-                    <option value="">Stage</option>
-                    @foreach ($paymentStages as $stages)
-                        <option value="{{ $stages->name }}"
-                            @selected(request('name') == $stages->name)>
-                            {{ $stages->name }}
-                        </option>
-                    @endforeach
-                </select>
-                <button class="btn btn-outline-light shadow" type="submit">Filter</button>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Stage</label>
+                    <select name="name" class="form-select">
+                        <option value="">Stage</option>
+                        @foreach ($paymentStages as $stages)
+                            <option value="{{ $stages->name }}" @selected(request('name') == $stages->name)>
+                                {{ $stages->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100 shadow-sm" type="submit">Filter</button>
+                    <a href="{{ route('payment-stages.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
             </form>
         </div>
         <div class="card-body">

@@ -34,6 +34,7 @@ class User extends Authenticatable
         'hourly_rate',
         'hire_date',
         'status',
+        'wallet',
         'avatar',
         'password',
     ];
@@ -59,6 +60,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'hire_date' => 'date',
             'hourly_rate' => 'decimal:2',
+            'wallet' => 'decimal:2',
             'password' => 'hashed',
         ];
     }

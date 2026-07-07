@@ -36,14 +36,40 @@ class ExpenseTransactionController extends Controller
             $q = $request->string('q');
             $query->where(function ($qq) use ($q) {
                 $qq->where('description', 'like', "%{$q}%")
-                    ->orWhere('payment_mode', 'like', "%{$q}%");
+                    ->orWhere('payment_mode', 'like', "%{$q}%")
+                    ->orWhereHas('mainCategory', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
+                    ->orWhereHas('category', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
+                    ->orWhereHas('project', fn($projectQuery) => $projectQuery->where('name', 'like', "%{$q}%"));
             });
+        }
+
+        if ($request->filled('main_category_id')) {
+            $query->where('main_category_id', $request->integer('main_category_id'));
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->integer('category_id'));
+        }
+
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->integer('project_id'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('current_date', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('current_date', '<=', $request->date('date_to')->toDateString());
         }
 
         $expenseTransactions = $query->latest()->paginate((int) $request->get('paginate', 12))->withQueryString();
 
         return view('pages.expense_transactions.index', [
             'expenseTransactions' => $expenseTransactions,
+            'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
+            'categories' => Category::query()->orderBy('name')->get(),
+            'projects' => Project::query()->orderBy('name')->get(),
         ]);
     }
 

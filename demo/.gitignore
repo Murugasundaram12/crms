@@ -1,0 +1,17 @@
+
+/public/hot
+
+/storage/*.key
+.env.backup
+.phpunit.result.cache
+docker-compose.override.yml
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
+
+/public/mix-manifest.json
+# But not these files...
+

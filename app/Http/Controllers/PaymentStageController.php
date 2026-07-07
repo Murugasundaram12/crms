@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PaymentStage;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class PaymentStageController extends Controller
@@ -14,6 +15,8 @@ class PaymentStageController extends Controller
         // Build the payment stage query with optional filters.
         $paymentStageQuery = PaymentStage::with('payments');
         $this->applySearchFilter($paymentStageQuery, $request);
+        $this->applyNameFilter($paymentStageQuery, $request);
+        $this->applyDateFilter($paymentStageQuery, $request);
 
         // Load the listing and supporting data.
         $paymentStages = $paymentStageQuery->latest()->paginate(10)->withQueryString();
@@ -27,7 +30,7 @@ class PaymentStageController extends Controller
         $validatedData = $this->validatePaymentStageData($request);
 
         // Save the new payment stage.
-        PaymentStage::create($validatedData);
+        PaymentStage::create($this->buildPaymentStagePayload($validatedData));
 
         return redirect()->route('payment-stages.index')->with('success', 'Payment stage created successfully.');
     }
@@ -49,7 +52,7 @@ class PaymentStageController extends Controller
         $validatedData = $this->validatePaymentStageData($request, $paymentStage);
 
         // Save the updated payment stage.
-        $paymentStage->update($validatedData);
+        $paymentStage->update($this->buildPaymentStagePayload($validatedData, $paymentStage));
 
         return redirect()->route('payment-stages.index')->with('success', 'Payment stage updated successfully.');
     }
@@ -70,7 +73,34 @@ class PaymentStageController extends Controller
             return;
         }
 
-        $paymentStageQuery->where('stage_name', 'like', "%{$searchTerm}%");
+        $paymentStageQuery->where($this->stageNameColumn(), 'like', "%{$searchTerm}%");
+    }
+
+    private function applyNameFilter($paymentStageQuery, Request $request): void
+    {
+        $name = $request->string('name')->toString();
+
+        if ($name === '') {
+            return;
+        }
+
+        $paymentStageQuery->where($this->stageNameColumn(), $name);
+    }
+
+    private function applyDateFilter($paymentStageQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $paymentStageQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $paymentStageQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
+    }
+
+    private function stageNameColumn(): string
+    {
+        return Schema::hasColumn('payment_stages', 'stage_name') ? 'stage_name' : 'name';
     }
 
     // Removed status/project filters as fields dropped
@@ -81,5 +111,32 @@ class PaymentStageController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
         ]);
+    }
+
+    private function buildPaymentStagePayload(array $validatedData, ?PaymentStage $paymentStage = null): array
+    {
+        $payload = ['stage_name' => $validatedData['name']];
+
+        if (Schema::hasColumn('payment_stages', 'name')) {
+            $payload = ['name' => $validatedData['name']];
+        }
+
+        if (Schema::hasColumn('payment_stages', 'project_id') && ! $paymentStage?->project_id) {
+            $payload['project_id'] = Project::query()->value('id');
+        }
+
+        if (Schema::hasColumn('payment_stages', 'percentage') && ! $paymentStage?->percentage) {
+            $payload['percentage'] = 0;
+        }
+
+        if (Schema::hasColumn('payment_stages', 'status') && ! $paymentStage?->status) {
+            $payload['status'] = 'pending';
+        }
+
+        if (Schema::hasColumn('payment_stages', 'order') && ! $paymentStage?->order) {
+            $payload['order'] = ((int) PaymentStage::query()->max('order')) + 1;
+        }
+
+        return $payload;
     }
 }

@@ -18,6 +18,7 @@ class VariationController extends Controller
         $this->applyStatusFilter($variationQuery, $request);
         $this->applyTypeFilter($variationQuery, $request);
         $this->applyProjectFilter($variationQuery, $request);
+        $this->applyDateFilter($variationQuery, $request);
 
         // Load the variation list and supporting form data.
         $variations = $variationQuery->latest()->paginate(10)->withQueryString();
@@ -116,6 +117,17 @@ class VariationController extends Controller
         }
 
         $variationQuery->where('project_id', $projectId);
+    }
+
+    private function applyDateFilter($variationQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $variationQuery->whereDate('date', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $variationQuery->whereDate('date', '<=', $request->date('date_to')->toDateString());
+        }
     }
 
     private function validateVariationData(Request $request, ?Variation $variation = null): array

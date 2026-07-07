@@ -2,51 +2,143 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Expense extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
-        'expense_code',
-        'project_id',
-        'employee_id',
-        'title',
-        'type',
-        'category',
         'amount',
-        'paid_amount',
-        'unpaid_amount',
-        'extra_amount',
-        'status',
-        'expense_date',
+        'main_category_id',
+        'category_id',
+        'project_id',
+        'user_id',
+        'current_date',
         'description',
-        'active_status',
-        'delete_status',
-        'delete_reason',
-        'notes',
+        'paid_amt',
+        'unpaid_amt',
+        'extra_amt',
+        'image',
+        'editedBy',
+        'payment_mode',
+        'reason',
+        'labour_id',
+        'vendor_id',
+        'is_advance',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'paid_amount' => 'decimal:2',
-        'unpaid_amount' => 'decimal:2',
-        'extra_amount' => 'decimal:2',
-        'expense_date' => 'date',
-        'active_status' => 'boolean',
-        'delete_status' => 'boolean',
+        'amount' => 'integer',
+        'main_category_id' => 'integer',
+        'category_id' => 'integer',
+        'project_id' => 'integer',
+        'user_id' => 'integer',
+        'current_date' => 'datetime',
+        'paid_amt' => 'integer',
+        'unpaid_amt' => 'integer',
+        'extra_amt' => 'integer',
+        'editedBy' => 'integer',
+        'payment_mode' => 'integer',
+        'labour_id' => 'integer',
+        'vendor_id' => 'integer',
+        'is_advance' => 'integer',
+        'deleted_at' => 'datetime',
     ];
+
+    protected $appends = [
+        'paid_amount',
+        'unpaid_amount',
+        'extra_amount',
+        'expense_date',
+        'delete_reason',
+        'delete_status',
+        'payment_mode_label',
+        'type',
+    ];
+
+    public function mainCategory(): BelongsTo
+    {
+        return $this->belongsTo(MainCategory::class, 'main_category_id');
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
 
     public function project(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Project::class, 'project_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function employee(): BelongsTo
     {
-        return $this->belongsTo(Employee::class);
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function editedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'editedBy');
+    }
+
+    public function labour(): BelongsTo
+    {
+        return $this->belongsTo(Labour::class, 'labour_id');
+    }
+
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class, 'vendor_id');
+    }
+
+    protected function paidAmount(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->paid_amt);
+    }
+
+    protected function unpaidAmount(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->unpaid_amt);
+    }
+
+    protected function extraAmount(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->extra_amt);
+    }
+
+    protected function expenseDate(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->current_date);
+    }
+
+    protected function deleteReason(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->reason);
+    }
+
+    protected function deleteStatus(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->deleted_at !== null);
+    }
+
+    protected function paymentModeLabel(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->payment_mode === null ? null : (string) $this->payment_mode);
+    }
+
+    protected function type(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->mainCategory?->name);
     }
 }

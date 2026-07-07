@@ -16,22 +16,6 @@
             </nav>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
-            <form action="{{ route('categories.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search categories"
-                        value="{{ request('q') }}">
-                </div>
-                <select name="main_category_id" class="form-select">
-                    <option value="">All Main Categories</option>
-                    @foreach($mainCategories as $mainCategory)
-                        <option value="{{ $mainCategory->id }}" @selected(request('main_category_id') == $mainCategory->id)>
-                            {{ $mainCategory->name }}
-                        </option>
-                    @endforeach
-                </select>
-                <button type="submit" class="btn btn-outline-light shadow">Filter</button>
-            </form>
             @can('categories-create')
                 <a href="{{ route('categories.create') }}" class="btn btn-primary">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Category
@@ -42,6 +26,43 @@
                     <i class="ti ti-link me-1"></i>Assign Category
                 </button>
             @endcan
+        </div>
+    </div>
+
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form action="{{ route('categories.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search categories" value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Main Category</label>
+                    <select name="main_category_id" class="form-select">
+                        <option value="">All Main Categories</option>
+                        @foreach($mainCategories as $mainCategory)
+                            <option value="{{ $mainCategory->id }}" @selected(request('main_category_id') == $mainCategory->id)>
+                                {{ $mainCategory->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                    <a href="{{ route('categories.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
+            </form>
         </div>
     </div>
 

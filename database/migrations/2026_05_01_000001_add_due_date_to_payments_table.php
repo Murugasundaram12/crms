@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->date('due_date')->nullable()->after('payment_date');
+            if (! Schema::hasColumn('payments', 'due_date')) {
+                $table->date('due_date')->nullable()->after('payment_date');
+            }
         });
     }
 
@@ -22,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->dropColumn('due_date');
+            if (Schema::hasColumn('payments', 'due_date')) {
+                $table->dropColumn('due_date');
+            }
         });
     }
 };

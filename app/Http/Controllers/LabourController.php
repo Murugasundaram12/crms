@@ -17,6 +17,7 @@ class LabourController extends Controller
         $this->applySearchFilter($labourQuery, $request);
         $this->applyRoleFilter($labourQuery, $request);
         $this->applyGenderFilter($labourQuery, $request);
+        $this->applyDateFilter($labourQuery, $request);
 
         // Load the list results and the role filter options.
         $labours = $labourQuery->latest()->paginate(10)->withQueryString();
@@ -136,6 +137,17 @@ class LabourController extends Controller
         $labourQuery->where('gender', $gender);
     }
 
+    private function applyDateFilter($labourQuery, Request $request): void
+    {
+        if ($request->filled('date_from')) {
+            $labourQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $labourQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
+    }
+
     private function validateLabourData(Request $request): array
     {
         // Validate each field before saving the labour record.
@@ -146,6 +158,7 @@ class LabourController extends Controller
             'labour_role_id' => ['required', 'exists:labour_roles,id'],
             'gender' => ['required', Rule::in(['male', 'female', 'other'])],
             'salary' => ['required', 'numeric'],
+            'advance_amt' => ['nullable', 'numeric', 'min:0'],
             'government_photo' => ['nullable', 'image', 'max:2048'],
         ]);
     }

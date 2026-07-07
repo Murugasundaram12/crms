@@ -1,0 +1,41 @@
+{
+  "menu": [
+    {
+      "url": "/dashboard",
+      "name": "Dashboard",
+      "icon": "menu-icon tf-icons bx bx-home-circle",
+      "slug": "dashboard-analytics"
+    },
+    {
+      "url": "/roles",
+      "name": "User Roles",
+      "icon": "menu-icon tf-icons bx bxs-user-circle",
+      "slug": " "
+    },
+    {
+      "url": "/user",
+      "name": "Members",
+      "icon": "menu-icon tf-icons bx bxs-user-circle",
+      "slug": " "
+    },
+    {
+      "url": "/category",
+      "name": "Category",
+      "icon": "menu-icon tf-icons bx bxs-category",
+      "slug": " "
+    },
+    {
+      "url": "/client",
+      "name": "Client Details",
+      "icon": "menu-icon tf-icons bx bxs-user-circle",
+      "slug": " "
+    },
+    {
+      "url": "/project",
+      "name": "Project Details",
+      "icon": "menu-icon tf-icons bi bi-tools",
+      "slug": " "
+    }
+   
+  ]
+}

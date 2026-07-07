@@ -16,33 +16,57 @@
             </nav>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
-            <form action="{{ route('labours.index') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="input-icon input-icon-start position-relative">
-                    <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Search labours"
-                        value="{{ request('q') }}">
-                </div>
-                <select name="labour_role_id" class="form-select">
-                    <option value="">All Roles</option>
-                    @foreach ($labourRoles as $labourRole)
-                        <option value="{{ $labourRole->id }}" @selected((string) request('labour_role_id') === (string) $labourRole->id)>
-                            {{ $labourRole->name }}
-                        </option>
-                    @endforeach
-                </select>
-                <select name="gender" class="form-select">
-                    <option value="">All Genders</option>
-                    <option value="male" @selected(request('gender') === 'male')>Male</option>
-                    <option value="female" @selected(request('gender') === 'female')>Female</option>
-                    <option value="other" @selected(request('gender') === 'other')>Other</option>
-                </select>
-                <button type="submit" class="btn btn-outline-light shadow">Filter</button>
-            </form>
             @can('labours-create')
                 <a href="{{ route('labours.create') }}" class="btn btn-primary">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Labour
                 </a>
             @endcan
+        </div>
+    </div>
+
+    <div class="card border rounded-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <form action="{{ route('labours.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Search</label>
+                    <div class="input-icon input-icon-start position-relative">
+                        <span class="input-icon-addon text-dark"><i class="ti ti-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search labours" value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Role</label>
+                    <select name="labour_role_id" class="form-select">
+                        <option value="">All Roles</option>
+                        @foreach ($labourRoles as $labourRole)
+                            <option value="{{ $labourRole->id }}" @selected((string) request('labour_role_id') === (string) $labourRole->id)>
+                                {{ $labourRole->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Gender</label>
+                    <select name="gender" class="form-select">
+                        <option value="">All Genders</option>
+                        <option value="male" @selected(request('gender') === 'male')>Male</option>
+                        <option value="female" @selected(request('gender') === 'female')>Female</option>
+                        <option value="other" @selected(request('gender') === 'other')>Other</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-1">
+                    <label class="form-label">To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
+                    <a href="{{ route('labours.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -58,6 +82,7 @@
                             <th>Role</th>
                             <th>Gender</th>
                             <th>Salary</th>
+                            <th>Wallet / Advance</th>
                             <th>Photo</th>
                             <th class="text-end">Action</th>
                         </tr>
@@ -71,6 +96,7 @@
                                 <td>{{ $labour->labourRole?->name ?: '-' }}</td>
                                 <td>{{ ucfirst($labour->gender) }}</td>
                                 <td>₹{{ number_format((float) $labour->salary, 2) }}</td>
+                                <td class="text-info fw-semibold">Rs. {{ number_format((float) $labour->advance_amt, 2) }}</td>
                                 <td>
                                     @if ($labour->government_photo)
                                         <a href="{{ asset('storage/' . $labour->government_photo) }}" target="_blank"

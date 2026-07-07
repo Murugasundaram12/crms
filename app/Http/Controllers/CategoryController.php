@@ -35,6 +35,14 @@ class CategoryController extends Controller
             $query->where('categories.name', 'like', '%' . $request->q . '%');
         }
 
+        if ($request->filled('date_from')) {
+            $query->whereDate('categories.created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('categories.created_at', '<=', $request->date('date_to')->toDateString());
+        }
+
         $categories = $query->orderBy('categories.created_at', 'desc')->paginate(10)->withQueryString();
 
         // Get all categories (for assign modal) - show all to allow assign/remove
@@ -82,6 +90,17 @@ class CategoryController extends Controller
     public function destroy($id)
     {
         $category = Category::findOrFail($id);
+
+        $isInUse = DB::table('expenses')->where('category_id', $category->id)->exists()
+            || DB::table('expense_transactions')->where('category_id', $category->id)->exists()
+            || DB::table('labour_expense_transactions')->where('category_id', $category->id)->exists()
+            || DB::table('vendor_expense_transactions')->where('category_id', $category->id)->exists();
+
+        if ($isInUse) {
+            return redirect()->route("categories.index")
+                ->with("error", "Category is used in transactions and cannot be deleted.");
+        }
+
         $category->mainCategories()->detach();
         $category->delete();
         return redirect()->route("categories.index")->with("success", "Category deleted successfully.");

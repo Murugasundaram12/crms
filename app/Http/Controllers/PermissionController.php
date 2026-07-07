@@ -8,10 +8,28 @@ use Illuminate\Validation\Rule;
 
 class PermissionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         // Load permissions for the listing page.
-        $permissions = Permission::latest()->paginate(10);
+        $permissionQuery = Permission::query();
+
+        if ($request->filled('q')) {
+            $searchTerm = $request->string('q')->toString();
+            $permissionQuery->where(function ($query) use ($searchTerm) {
+                $query->where('name', 'like', "%{$searchTerm}%")
+                    ->orWhere('key', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $permissionQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if ($request->filled('date_to')) {
+            $permissionQuery->whereDate('created_at', '<=', $request->date('date_to')->toDateString());
+        }
+
+        $permissions = $permissionQuery->latest()->paginate(10)->withQueryString();
 
         return view('permissions.index', compact('permissions'));
     }
