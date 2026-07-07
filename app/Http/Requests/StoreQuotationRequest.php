@@ -37,6 +37,7 @@ class StoreQuotationRequest extends FormRequest
             'start_date' => 'nullable|date',
             'duration_days' => 'nullable|integer|min:1|max:3650',
             'notes' => 'nullable|string|max:2000',
+            'terms' => 'nullable|string|max:5000',
             'items' => 'required|array|min:1',
             'items.*.main_title' => 'required|string|max:255',
             'items.*.rows' => 'required|array|min:1',

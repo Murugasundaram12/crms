@@ -25,7 +25,7 @@
         </div>
     </div>
 
-    <div class="card border rounded-0 quotation-list-card">
+    <div class="card border-0 shadow-sm quotation-list-card">
         <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between gap-2 flex-wrap">
             <form method="GET" class="row g-3 align-items-end flex-grow-1 m-0">
                 <div class="col-12 col-lg-4">
@@ -71,7 +71,7 @@
             </div>
 
             <div class="table-responsive">
-                <table class="table table-nowrap align-middle quotation-table mb-0">
+                <table class="table table-hover table-nowrap align-middle quotation-table mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>#</th>
@@ -108,12 +108,12 @@
                                 </td>
                                 <td>{{ $quotation->quotation_date?->format('d M Y') ?? '-' }}</td>
                                 <td class="fw-semibold">{{ Str::limit($quotation->quotation_title ?? '-', 40) }}</td>
-                                <td>₹{{ number_format($quotation->amount ?? 0, 2) }}</td>
+                                <td>Rs {{ number_format($quotation->amount ?? 0, 2) }}</td>
                                 {{-- <td><span class="fw-semibold text-dark">₹{{ number_format((float) $quotation->total_amount,
                                         2) }}</span>
                                 </td> --}}
                                 <td><span
-                                        class="badge {{ $quotation->status === 'approved' ? 'bg-success' : 'bg-warning text-dark' }}">{{ ucfirst($quotation->status) }}</span>
+                                        class="badge {{ $quotation->status === 'approved' ? 'bg-soft-success text-success' : 'bg-soft-warning text-warning' }}">{{ ucfirst($quotation->status) }}</span>
                                 </td>
                                 <td>{{ $quotation->created_at->format('d M Y') }}</td>
                                 <td class="text-end">
@@ -126,10 +126,13 @@
                                         deletePermission="quotations-delete"
                                     >
                                         <a class="dropdown-item" href="{{ route('quotations.show', $quotation->id) }}">
-                                            <i class="ti ti-eye text-primary"></i> View
+                                            <i class="ti ti-eye text-primary"></i> View Details
                                         </a>
-                                        <a class="dropdown-item" href="{{ route('quotations.edit', $quotation->id) }}?download=pdf">
-                                            <i class="ti ti-file-download text-success"></i> PDF
+                                        <a class="dropdown-item" href="{{ route('quotations.stream', $quotation->id) }}" target="_blank">
+                                            <i class="ti ti-printer text-info"></i> View / Print PDF
+                                        </a>
+                                        <a class="dropdown-item" href="{{ route('quotations.download', $quotation->id) }}">
+                                            <i class="ti ti-file-download text-success"></i> Download PDF
                                         </a>
                                     </x-action-dropdown>
                                 </td>
@@ -166,7 +169,6 @@
 @push('styles')
     <style>
         .quotation-list-card {
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
             border-color: rgba(226, 232, 240, 0.7);
             background-color: #fff;
         }

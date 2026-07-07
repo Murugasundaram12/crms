@@ -22,8 +22,9 @@ class VendorExpensesController extends Controller
     {
         $query = $this->vendorExpenseQuery($request);
         [$transactions, $totals] = $this->paginateWithTotals($query, $request);
+        $editingTransaction = $this->editingTransaction($request);
 
-        return view('pages.vendor_expenses.history', $this->viewData() + compact('transactions', 'totals'));
+        return view('pages.vendor_expenses.history', $this->viewData() + compact('transactions', 'totals', 'editingTransaction'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -52,10 +53,6 @@ class VendorExpensesController extends Controller
                 'image' => $validated['image'] ?? null,
             ]);
 
-            if ($paidAmount > 0) {
-                app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $paidAmount, 'Vendor expense paid', 'vendor_expense', (int) $expense->id);
-            }
-
             if ($extraAmount > 0) {
                 app(CrmBalanceService::class)->adjustVendorAdvance((int) $validated['vendor_id'], $extraAmount);
                 AdvanceHistory::create($this->filterColumns('advance_history', [
@@ -71,7 +68,12 @@ class VendorExpensesController extends Controller
             }
         });
 
-        return redirect()->back()->with('success', 'Vendor expense stored successfully.');
+        return redirect()
+            ->route('vendor-expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+                'vendor_id' => $validated['vendor_id'] ?? null,
+            ]))
+            ->with('success', 'Vendor expense stored successfully.');
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -87,18 +89,10 @@ class VendorExpensesController extends Controller
             $paidAmount = (int) $validated['paid_amount'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
-            $oldPaid = (int) $expense->paid_amt;
             $oldExtra = (int) $expense->extra_amt;
             $oldVendorId = (int) $expense->vendor_id;
             $newVendorId = (int) $validated['vendor_id'];
             $balanceService = app(CrmBalanceService::class);
-
-            $deltaPaid = $paidAmount - $oldPaid;
-            if ($deltaPaid > 0) {
-                $balanceService->debitUserWallet((int) Auth::id(), $deltaPaid, 'Vendor expense update debit', 'vendor_expense', (int) $expense->id);
-            } elseif ($deltaPaid < 0) {
-                $balanceService->creditUserWallet((int) Auth::id(), abs($deltaPaid), 'Vendor expense update refund', 'vendor_expense', (int) $expense->id);
-            }
 
             if ($oldExtra > 0) {
                 $balanceService->adjustVendorAdvance($oldVendorId, -$oldExtra);
@@ -125,7 +119,12 @@ class VendorExpensesController extends Controller
             ]);
         });
 
-        return redirect()->back()->with('success', 'Vendor expense updated successfully.');
+        return redirect()
+            ->route('vendor-expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+                'vendor_id' => $validated['vendor_id'] ?? null,
+            ]))
+            ->with('success', 'Vendor expense updated successfully.');
     }
 
     public function unpaidHistory(Request $request)
@@ -241,10 +240,6 @@ class VendorExpensesController extends Controller
         DB::transaction(function () use ($validated) {
             $expense = Expense::query()->whereNotNull('vendor_id')->findOrFail((int) $validated['id']);
 
-            if ((int) $expense->paid_amt > 0) {
-                app(CrmBalanceService::class)->creditUserWallet((int) Auth::id(), (int) $expense->paid_amt, 'Vendor expense delete refund', 'vendor_expense', (int) $expense->id);
-            }
-
             if ((int) $expense->extra_amt > 0) {
                 app(CrmBalanceService::class)->adjustVendorAdvance((int) $expense->vendor_id, -(int) $expense->extra_amt);
             }
@@ -277,7 +272,7 @@ class VendorExpensesController extends Controller
     {
         return Expense::query()
             ->whereNotNull('vendor_id')
-            ->with(['vendor', 'project', 'mainCategory', 'category'])
+            ->with(['vendor', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
             ->when($request->filled('main_category_id'), fn($q) => $q->where('main_category_id', $request->integer('main_category_id')))
             ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->integer('category_id')))
             ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
@@ -315,7 +310,21 @@ class VendorExpensesController extends Controller
             'projects' => Project::query()->orderBy('name')->get(),
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
+            'paymentModes' => Expense::paymentModes(),
         ];
+    }
+
+    private function editingTransaction(Request $request): ?Expense
+    {
+        if (! $request->filled('edit')) {
+            return null;
+        }
+
+        return Expense::query()
+            ->with(['vendor', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
+            ->whereNotNull('vendor_id')
+            ->whereNull('deleted_at')
+            ->find($request->integer('edit'));
     }
 
     private function filterColumns(string $table, array $payload): array

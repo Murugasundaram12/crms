@@ -18,7 +18,7 @@
 
         <div class="gap-2 d-flex align-items-center flex-wrap">
             @can('expenses-create')
-                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                <a href="javascript:void(0);" class="btn btn-primary shadow-sm" data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvas_add">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Expense
                 </a>
@@ -26,7 +26,7 @@
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('expense-transactions.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-xl-3">
@@ -88,7 +88,7 @@
     <div class="row">
         @forelse ($expenseTransactions as $tx)
             <div class="col-xxl-3 col-xl-4 col-md-6">
-                <div class="card border shadow-sm">
+                <div class="card border-0 shadow-sm h-100">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center">
@@ -107,14 +107,14 @@
                                     @endcan
 
                                     @can('expenses-delete')
-                                        <form method="POST" action="{{ route('expense-transactions.destroy', $tx) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="dropdown-item"
-                                                onclick="return confirm('Delete this expense?')">
-                                                <i class="ti ti-trash"></i> Delete
-                                            </button>
-                                        </form>
+                                        <button type="button" class="dropdown-item text-danger crm-delete-trigger"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#crmDeleteModal"
+                                            data-delete-action="{{ route('expense-transactions.destroy', $tx) }}"
+                                            data-delete-title="Delete Expense"
+                                            data-delete-message="Are you sure you want to delete this expense?">
+                                            <i class="ti ti-trash me-1"></i> Delete
+                                        </button>
                                     @endcan
                                 </div>
                             </div>
@@ -127,7 +127,7 @@
                         </p>
 
                         <div class="d-flex justify-content-between align-items-end gap-2">
-                            <span class="h6 mb-0">₹{{ number_format($tx->paid_amount, 2) }}</span>
+                            <span class="h6 mb-0">Rs {{ number_format($tx->paid_amount, 2) }}</span>
                             <span class="badge bg-light text-dark">
                                 {{ \Carbon\Carbon::parse($tx->current_date)->format('d/m/Y') }}
                                 <br>
@@ -148,7 +148,7 @@
             </div>
         @empty
             <div class="col-12">
-                <div class="card border shadow-sm">
+                <div class="card border-0 shadow-sm">
                     <div class="card-body text-center py-5">
                         <h5 class="mb-2">No expenses recorded</h5>
                         <p class="text-muted mb-3">Add your first expense.</p>
@@ -158,7 +158,11 @@
         @endforelse
     </div>
 
-    {{ $expenseTransactions->links() }}
+    @if ($expenseTransactions->hasPages())
+        <div class="d-flex justify-content-end mt-3">
+            {{ $expenseTransactions->withQueryString()->links() }}
+        </div>
+    @endif
 
     {{-- Add Offcanvas --}}
     <div class="offcanvas offcanvas-end" id="offcanvas_add">
@@ -175,7 +179,7 @@
                     <label class="form-label">Main Category <span class="text-danger">*</span></label>
                     <select name="main_category_id" class="form-select" required>
                         <option value="">Select</option>
-                        @foreach(\App\Models\MainCategory::query()->where('status', true)->orderBy('name')->get() as $mc)
+                        @foreach($mainCategories as $mc)
                             <option value="{{ $mc->id }}" @selected(old('main_category_id') == $mc->id)>{{ $mc->name }}</option>
                         @endforeach
                     </select>

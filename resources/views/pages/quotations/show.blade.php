@@ -10,14 +10,20 @@
             <div class="text-muted">{{ $quotation->quotation_number ?? '-' }}</div>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ route('quotations.list') }}" class="btn btn-outline-secondary">Back</a>
-            {{-- @if(auth()->user()?->hasPermission('quotations-edit'))
-                <a href="{{ route('quotations.edit', $quotation->id) }}" class="btn btn-primary">Edit</a>
-            @endif --}}
+            <a href="{{ route('quotations.list') }}" class="btn btn-outline-secondary shadow-sm">Back</a>
+            <a href="{{ route('quotations.stream', $quotation->id) }}" target="_blank" class="btn btn-outline-primary shadow-sm">
+                <i class="ti ti-eye me-1"></i>View / Print
+            </a>
+            <a href="{{ route('quotations.download', $quotation->id) }}" class="btn btn-success shadow-sm">
+                <i class="ti ti-file-download me-1"></i>Download PDF
+            </a>
+            @if(auth()->user()?->hasPermission('quotations-edit'))
+                <a href="{{ route('quotations.edit', $quotation->id) }}" class="btn btn-primary shadow-sm">Edit</a>
+            @endif
         </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card border-0 shadow-sm mb-3">
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-4">
@@ -30,7 +36,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="text-muted mb-1">Status</div>
-                    <span class="badge {{ $quotation->status === 'approved' ? 'bg-success' : 'bg-warning text-dark' }}">
+                    <span class="badge {{ $quotation->status === 'approved' ? 'bg-soft-success text-success' : 'bg-soft-warning text-warning' }}">
                         {{ ucfirst($quotation->status ?? 'draft') }}
                     </span>
                 </div>
@@ -50,8 +56,8 @@
         </div>
     </div>
 
-    <div class="card mb-3">
-        <div class="card-header">
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white border-bottom">
             <h5 class="mb-0">Items</h5>
         </div>
         <div class="card-body">
@@ -69,8 +75,8 @@
                 <div class="mb-3">
                     <h6 class="mb-2">{{ $title }}</h6>
                     <div class="table-responsive">
-                        <table class="table table-sm table-bordered align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-hover table-nowrap align-middle mb-0">
+                            <thead class="table-light">
                                 <tr>
                                     <th>Description</th>
                                     <th class="text-end">Qty</th>
@@ -83,8 +89,8 @@
                                     <tr>
                                         <td>{{ $item->description }}</td>
                                         <td class="text-end">{{ rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.') }}</td>
-                                        <td class="text-end">₹ {{ number_format((float) ($item->price ?? $item->rate ?? 0), 2) }}</td>
-                                        <td class="text-end">₹ {{ number_format((float) ($item->amount ?? 0), 2) }}</td>
+                                        <td class="text-end">Rs {{ number_format((float) ($item->price ?? $item->rate ?? 0), 2) }}</td>
+                                        <td class="text-end">Rs {{ number_format((float) ($item->amount ?? 0), 2) }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -97,8 +103,8 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">
             <h5 class="mb-0">Terms & Conditions</h5>
         </div>
         <div class="card-body">

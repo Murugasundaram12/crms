@@ -23,7 +23,7 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
+    <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('payment-stages.index') }}" method="GET"
                 class="row g-3 align-items-end m-0">
@@ -62,7 +62,7 @@
         </div>
         <div class="card-body">
             <div class="table-responsive table-nowrap custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
@@ -84,12 +84,12 @@
                                             <a class="dropdown-item" href="#" data-bs-toggle="modal"
                                                 data-bs-target="#edit_stage_{{ $stage->id }}"><i
                                                     class="ti ti-edit text-blue"></i> Edit</a>
-                                            <button type="button" class="dropdown-item crm-delete-trigger"
+                                            <button type="button" class="dropdown-item text-danger crm-delete-trigger"
                                                 data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
                                                 data-delete-action="{{ route('payment-stages.destroy', $stage) }}"
                                                 data-delete-title="Delete Payment Stage"
-                                                data-delete-message="Are you sure you want to delete payment stage '{{ $stage->name }}'?"
-                                                <i class="ti ti-trash"></i> Delete
+                                                data-delete-message="Are you sure you want to delete payment stage '{{ $stage->name }}'?">
+                                                <i class="ti ti-trash me-1"></i> Delete
                                             </button>
                                         </div>
                                     </div>

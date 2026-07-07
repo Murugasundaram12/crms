@@ -17,14 +17,14 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('employees-salary-create')
-                <a href="{{ route('employee-salaries.create') }}" class="btn btn-primary">
+                <a href="{{ route('employee-salaries.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Salary
                 </a>
             @endcan
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('employee-salaries.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-lg-4">
@@ -59,10 +59,10 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
-        <div class="card-body">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
             <div class="table-responsive custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
@@ -76,7 +76,7 @@
                         @forelse ($employeeSalaries as $employeeSalary)
                             <tr>
                                 <td>{{ $employeeSalary->name }}</td>
-                                <td>₹{{ number_format((float) $employeeSalary->salary, 2) }}</td>
+                                <td>Rs {{ number_format((float) $employeeSalary->salary, 2) }}</td>
                                 <td>{{ ucfirst($employeeSalary->salary_type) }}</td>
                                 <td>{{ $employeeSalary->created_at?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
@@ -92,16 +92,17 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted">No employee salaries found.</td>
+                                <td colspan="5" class="text-center text-muted py-4">No employee salaries found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            <div class="mt-3">
-                {{ $employeeSalaries->links() }}
-            </div>
         </div>
+        @if ($employeeSalaries->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $employeeSalaries->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 @endsection

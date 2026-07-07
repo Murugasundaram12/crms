@@ -8,7 +8,7 @@
 
         <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
             <div>
-                <h4 class="mb-1">Projects<span class="badge badge-soft-primary ms-2">{{ $project->tasks_count }}</span></h4>
+                <h4 class="mb-1">{{ $project->name }}<span class="badge badge-soft-primary ms-2">{{ $project->tasks_count }} Tasks</span></h4>
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb mb-0 p-0">
                         <li class="breadcrumb-item"><a href="{{ route('home') }}">Home</a></li>
@@ -27,7 +27,7 @@
 
         <div class="row">
             <div class="col-md-12">
-                <div class="card">
+                <div class="card border-0 shadow-sm">
                     <div class="card-body pb-2">
                         <div class="d-flex align-items-center justify-content-between flex-wrap">
                             <div class="d-flex align-items-center mb-2">
@@ -60,7 +60,7 @@
             </div>
 
             <div class="col-xl-4">
-                <div class="card">
+                <div class="card border-0 shadow-sm">
                     <div class="card-body p-3">
                         <h6 class="mb-3 fw-semibold">Project Information</h6>
                         <div class="border-bottom mb-3 pb-3">
@@ -164,7 +164,7 @@
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <div class="card border-0 shadow-sm mb-3">
                     <div class="card-body pb-0 pt-2 px-2">
                         <ul class="nav nav-tabs nav-bordered border-0 mb-0" role="tablist">
                             <li class="nav-item" role="presentation">
@@ -204,7 +204,7 @@
 
                 <div class="tab-content pt-0">
                     <div class="tab-pane active show" id="tab_1">
-                        <div class="card">
+                        <div class="card border-0 shadow-sm">
                             <div class="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
                                 <h5 class="fw-semibold mb-0">Tasks</h5>
                                 <a href="{{ route('tasks.index', ['project_id' => $project->id]) }}"
@@ -235,7 +235,7 @@
                     </div>
 
                     <div class="tab-pane fade" id="tab_2">
-                        <div class="card">
+                        <div class="card border-0 shadow-sm">
                             <div class="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
                                 <h5 class="fw-semibold mb-0">Payments</h5>
                                 <a href="{{ route('payments.index') }}" class="link-primary fw-medium"><i
@@ -273,7 +273,7 @@
                     </div>
 
                     <div class="tab-pane fade" id="tab_3">
-                        <div class="card">
+                        <div class="card border-0 shadow-sm">
                             <div class="card-header">
                                 <h5 class="fw-semibold mb-0">Expenses</h5>
                             </div>
@@ -310,7 +310,7 @@
 
                     {{-- QUOTATION & BILLING TAB --}}
                     <div class="tab-pane fade" id="tab_4">
-                        <div class="card">
+                        <div class="card border-0 shadow-sm">
                             <div class="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
                                 <h5 class="fw-semibold mb-0">Quotation & Billing</h5>
                                 <div class="d-flex gap-2">
@@ -364,7 +364,7 @@
 
                     {{-- PAYMENT STAGES TAB --}}
                     <div class="tab-pane fade" id="tab_5">
-                        <div class="card">
+                        <div class="card border-0 shadow-sm">
                             <div class="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
                                 <h5 class="fw-semibold mb-0">Payment Stages</h5>
                                 <a href="{{ route('payment-stages.index', ['project_id' => $project->id]) }}"
@@ -397,7 +397,7 @@
 
                     {{-- VARIATIONS TAB --}}
                     <div class="tab-pane fade" id="tab_6">
-                        <div class="card">
+                        <div class="card border-0 shadow-sm">
                             <div class="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
                                 <h5 class="fw-semibold mb-0">Variations</h5>
                                 <a href="{{ route('variations.index', ['project_id' => $project->id]) }}"

@@ -75,7 +75,7 @@ class ExpenseTransactionController extends Controller
 
     public function create()
     {
-        $mainCategories = MainCategory::query()->where('status', true)->orderBy('name')->get();
+        $mainCategories = MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->get();
         $categories = Category::query()
             ->with('mainCategories:id')
             ->orderBy('name')
@@ -109,7 +109,7 @@ class ExpenseTransactionController extends Controller
 
     public function edit(ExpenseTransaction $expenseTransaction)
     {
-        $mainCategories = MainCategory::query()->where('status', true)->orderBy('name')->get();
+        $mainCategories = MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->get();
         $categories = Category::query()->whereHas('mainCategories', function ($q) use ($expenseTransaction) {
             $q->where('main_categories.id', $expenseTransaction->main_category_id);
         })->orderBy('name')->get();

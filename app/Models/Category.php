@@ -13,6 +13,7 @@ class Category extends Model
 
     protected $fillable = [
         'name',
+        'main_category_id',
     ];
 
     protected function name(): Attribute
@@ -27,5 +28,10 @@ class Category extends Model
     {
         return $this->belongsToMany(MainCategory::class, 'category_main_category')
             ->withTimestamps();
+    }
+
+    public function mainCategory()
+    {
+        return $this->belongsTo(MainCategory::class, 'main_category_id');
     }
 }

@@ -20,8 +20,9 @@ class LabourExpensesController extends Controller
     {
         $query = $this->labourExpenseQuery($request);
         [$transactions, $totals] = $this->paginateWithTotals($query, $request);
+        $editingTransaction = $this->editingTransaction($request);
 
-        return view('pages.labour_expenses.history', $this->viewData() + compact('transactions', 'totals'));
+        return view('pages.labour_expenses.history', $this->viewData() + compact('transactions', 'totals', 'editingTransaction'));
     }
 
     public function weeklyHistory(Request $request)
@@ -80,10 +81,6 @@ class LabourExpensesController extends Controller
                 'image' => $validated['image'] ?? null,
             ]);
 
-            if ($paidAmount > 0) {
-                app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $paidAmount, 'Labour expense paid', 'labour_expense', (int) $expense->id);
-            }
-
             if ($extraAmount > 0) {
                 app(CrmBalanceService::class)->adjustLabourAdvance((int) $validated['labour_id'], $extraAmount);
                 AdvanceHistory::create([
@@ -99,7 +96,12 @@ class LabourExpensesController extends Controller
             }
         });
 
-        return redirect()->back()->with('success', 'Labour expense stored successfully.');
+        return redirect()
+            ->route('labour-expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+                'labour_id' => $validated['labour_id'] ?? null,
+            ]))
+            ->with('success', 'Labour expense stored successfully.');
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -115,18 +117,10 @@ class LabourExpensesController extends Controller
             $paidAmount = (int) $validated['paid_amount'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
-            $oldPaid = (int) $expense->paid_amt;
             $oldExtra = (int) $expense->extra_amt;
             $oldLabourId = (int) $expense->labour_id;
             $newLabourId = (int) $validated['labour_id'];
             $balanceService = app(CrmBalanceService::class);
-
-            $deltaPaid = $paidAmount - $oldPaid;
-            if ($deltaPaid > 0) {
-                $balanceService->debitUserWallet((int) Auth::id(), $deltaPaid, 'Labour expense update debit', 'labour_expense', (int) $expense->id);
-            } elseif ($deltaPaid < 0) {
-                $balanceService->creditUserWallet((int) Auth::id(), abs($deltaPaid), 'Labour expense update refund', 'labour_expense', (int) $expense->id);
-            }
 
             if ($oldExtra > 0) {
                 $balanceService->adjustLabourAdvance($oldLabourId, -$oldExtra);
@@ -153,40 +147,108 @@ class LabourExpensesController extends Controller
             ]);
         });
 
-        return redirect()->back()->with('success', 'Labour expense updated successfully.');
+        return redirect()
+            ->route('labour-expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+                'labour_id' => $validated['labour_id'] ?? null,
+            ]))
+            ->with('success', 'Labour expense updated successfully.');
     }
 
     public function advanceHistory(Request $request)
     {
         $history = AdvanceHistory::query()
-            ->with('labour')
+            ->with(['labour', 'expense.project', 'user'])
             ->when($request->filled('labour_id'), fn($q) => $q->where('labour_id', $request->integer('labour_id')))
             ->latest()
             ->paginate((int) $request->get('paginate', 12))
             ->withQueryString();
 
         $labours = Labour::query()->orderBy('name')->get();
+        $selectedLabourId = $request->integer('labour_id') ?: null;
+        $walletLabours = Labour::query()
+            ->when($selectedLabourId, fn($query) => $query->where('id', $selectedLabourId))
+            ->orderBy('name')
+            ->get();
+        $unpaidExpenses = Expense::query()
+            ->whereNotNull('labour_id')
+            ->where('unpaid_amt', '>', 0)
+            ->when($selectedLabourId, fn($query) => $query->where('labour_id', $selectedLabourId))
+            ->with(['labour', 'project'])
+            ->latest('current_date')
+            ->get();
+        $totalWalletBalance = (float) $walletLabours->sum('advance_amt');
+        $totalUnpaidAmount = (float) $unpaidExpenses->sum('unpaid_amt');
 
-        return view('pages.labour_expenses.advance', compact('history', 'labours'));
+        return view('pages.labour_expenses.advance', compact(
+            'history',
+            'labours',
+            'walletLabours',
+            'unpaidExpenses',
+            'totalWalletBalance',
+            'totalUnpaidAmount'
+        ));
     }
 
     public function advanceStore(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'labour_id' => ['required', 'exists:labours,id'],
-            'labour_expense_transaction_id' => ['required', 'exists:expenses,id'],
+            'entry_type' => ['required', 'in:credit,withdraw,settle'],
+            'labour_expense_transaction_id' => ['nullable', 'required_if:entry_type,settle', 'exists:expenses,id'],
             'amount' => ['required', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         DB::transaction(function () use ($validated) {
             $labour = Labour::query()->lockForUpdate()->findOrFail((int) $validated['labour_id']);
+            $amount = (int) $validated['amount'];
+
+            if ($validated['entry_type'] === 'credit') {
+                app(CrmBalanceService::class)->adjustLabourAdvance((int) $labour->id, $amount);
+
+                AdvanceHistory::create([
+                    'labour_id' => $labour->id,
+                    'amount' => $amount,
+                    'entry_type' => 'credit',
+                    'notes' => $validated['notes'] ?? 'Labour wallet credited',
+                    'user_id' => Auth::id(),
+                    'current_date' => now()->toDateString(),
+                    'current_time' => now()->format('H:i:s'),
+                ]);
+
+                return;
+            }
+
+            if ($validated['entry_type'] === 'withdraw') {
+                $withdraw = min($amount, (int) $labour->advance_amt);
+
+                if ($withdraw <= 0) {
+                    return;
+                }
+
+                app(CrmBalanceService::class)->adjustLabourAdvance((int) $labour->id, -$withdraw);
+
+                AdvanceHistory::create([
+                    'labour_id' => $labour->id,
+                    'amount' => $withdraw,
+                    'entry_type' => 'withdraw',
+                    'notes' => $validated['notes'] ?? 'Labour wallet withdrawn',
+                    'user_id' => Auth::id(),
+                    'current_date' => now()->toDateString(),
+                    'current_time' => now()->format('H:i:s'),
+                ]);
+
+                return;
+            }
+
             $expense = Expense::query()
                 ->where('labour_id', $labour->id)
+                ->where('unpaid_amt', '>', 0)
                 ->lockForUpdate()
                 ->findOrFail((int) $validated['labour_expense_transaction_id']);
 
-            $settle = min((int) $validated['amount'], (int) $labour->advance_amt, (int) $expense->unpaid_amt);
+            $settle = min($amount, (int) $labour->advance_amt, (int) $expense->unpaid_amt);
 
             if ($settle <= 0) {
                 return;
@@ -212,7 +274,9 @@ class LabourExpensesController extends Controller
             ]);
         });
 
-        return redirect()->back()->with('success', 'Labour advance settled successfully.');
+        return redirect()
+            ->route('labour-expenses.advance-history', ['labour_id' => $validated['labour_id']])
+            ->with('success', 'Labour wallet updated successfully.');
     }
 
     public function deleteRecord(Request $request): RedirectResponse
@@ -224,10 +288,6 @@ class LabourExpensesController extends Controller
 
         DB::transaction(function () use ($validated) {
             $expense = Expense::query()->whereNotNull('labour_id')->findOrFail((int) $validated['id']);
-
-            if ((int) $expense->paid_amt > 0) {
-                app(CrmBalanceService::class)->creditUserWallet((int) Auth::id(), (int) $expense->paid_amt, 'Labour expense delete refund', 'labour_expense', (int) $expense->id);
-            }
 
             if ((int) $expense->extra_amt > 0) {
                 app(CrmBalanceService::class)->adjustLabourAdvance((int) $expense->labour_id, -(int) $expense->extra_amt);
@@ -246,7 +306,7 @@ class LabourExpensesController extends Controller
     {
         $transactions = Expense::onlyTrashed()
             ->whereNotNull('labour_id')
-            ->with(['labour', 'project', 'mainCategory', 'category'])
+            ->with(['labour', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
             ->when($request->filled('labour_id'), fn($q) => $q->where('labour_id', $request->integer('labour_id')))
             ->latest('current_date')
             ->paginate((int) $request->get('paginate', 12))
@@ -299,7 +359,21 @@ class LabourExpensesController extends Controller
             'projects' => Project::query()->orderBy('name')->get(),
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
+            'paymentModes' => Expense::paymentModes(),
         ];
+    }
+
+    private function editingTransaction(Request $request): ?Expense
+    {
+        if (! $request->filled('edit')) {
+            return null;
+        }
+
+        return Expense::query()
+            ->with(['labour', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
+            ->whereNotNull('labour_id')
+            ->whereNull('deleted_at')
+            ->find($request->integer('edit'));
     }
 
     private function validateExpense(Request $request): array

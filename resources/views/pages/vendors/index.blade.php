@@ -17,14 +17,14 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('vendors-create')
-                <a href="{{ route('vendors.create') }}" class="btn btn-primary">
+                <a href="{{ route('vendors.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Vendor
                 </a>
             @endcan
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('vendors.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-lg-6">
@@ -50,10 +50,10 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
-        <div class="card-body">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
             <div class="table-responsive custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
@@ -70,7 +70,7 @@
                                 <td>{{ $vendor->name }}</td>
                                 <td>{{ Str::limit($vendor->address, 30) }}</td>
                                 <td>{{ $vendor->phone ?: '-' }}</td>
-                                <td>₹{{ number_format((float) $vendor->advance_amount, 2) }}</td>
+                                <td>Rs {{ number_format((float) $vendor->advance_amount, 2) }}</td>
                                 <td>{{ $vendor->created_at?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
                                     <x-action-dropdown
@@ -85,16 +85,17 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted">No vendors found.</td>
+                                <td colspan="6" class="text-center text-muted py-4">No vendors found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            <div class="mt-3">
-                {{ $vendors->links() }}
-            </div>
         </div>
+        @if ($vendors->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $vendors->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 @endsection

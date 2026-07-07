@@ -3,11 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\MainCategory;
 use App\Models\Project;
-use App\Services\CrmBalanceService;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -56,13 +55,13 @@ class ExpensesController extends Controller
                 'extra_amt' => $extraAmount,
                 'current_date' => $validated['current_date'] ?? now(),
             ]);
-
-            if ($paidAmount > 0) {
-                app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $paidAmount, 'Expense paid amount', 'expense', (int) $expense->id);
-            }
         });
 
-        return redirect()->back()->with('success', 'Expense stored successfully.');
+        return redirect()
+            ->route('expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+            ]))
+            ->with('success', 'Expense stored successfully.');
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -75,13 +74,6 @@ class ExpensesController extends Controller
             $paidAmount = (int) $validated['paid_amt'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
-            $deltaPaid = $paidAmount - (int) $expense->paid_amt;
-
-            if ($deltaPaid > 0) {
-                app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $deltaPaid, 'Expense update debit', 'expense', (int) $expense->id);
-            } elseif ($deltaPaid < 0) {
-                app(CrmBalanceService::class)->creditUserWallet((int) Auth::id(), abs($deltaPaid), 'Expense update refund', 'expense', (int) $expense->id);
-            }
 
             $expense->update([
                 ...$validated,
@@ -105,10 +97,6 @@ class ExpensesController extends Controller
         $expense = Expense::query()->whereNull('deleted_at')->findOrFail((int) $validated['expense_id']);
 
         DB::transaction(function () use ($expense, $validated) {
-            if ((int) $expense->paid_amt > 0) {
-                app(CrmBalanceService::class)->creditUserWallet((int) Auth::id(), (int) $expense->paid_amt, 'Expense delete refund', 'expense', (int) $expense->id);
-            }
-
             $expense->reason = $validated['delete_reason'] ?? null;
             $expense->editedBy = Auth::id();
             $expense->save();
@@ -123,7 +111,7 @@ class ExpensesController extends Controller
         $query = $deleted ? Expense::onlyTrashed() : Expense::query();
 
         return $query
-            ->with(['project', 'user', 'mainCategory', 'category'])
+            ->with(['project', 'employee', 'editedByUser', 'mainCategory', 'category'])
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->string('q')->toString();
                 $query->where(function ($qq) use ($q) {
@@ -174,18 +162,12 @@ class ExpensesController extends Controller
     {
         return [
             'projects' => Project::query()->orderBy('name')->get(),
-            'employees' => Employee::query()->orderBy('name')->get(),
+            'employees' => User::query()->orderBy('name')->get(),
             'mainCategories' => MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->pluck('name'),
             'categories' => Category::query()->orderBy('name')->pluck('name'),
             'mainCategoryOptions' => MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->get(),
             'categoryOptions' => Category::query()->orderBy('name')->get(),
-            'paymentModes' => [
-                1 => 'Cash',
-                2 => 'Bank Transfer',
-                3 => 'UPI',
-                4 => 'Cheque',
-                5 => 'Card',
-            ],
+            'paymentModes' => Expense::paymentModes(),
         ];
     }
 
@@ -196,7 +178,7 @@ class ExpensesController extends Controller
         }
 
         return Expense::query()
-            ->with(['project', 'user', 'mainCategory', 'category'])
+            ->with(['project', 'employee', 'editedByUser', 'mainCategory', 'category'])
             ->whereNull('labour_id')
             ->whereNull('vendor_id')
             ->whereNull('deleted_at')

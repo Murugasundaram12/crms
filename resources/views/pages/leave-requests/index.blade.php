@@ -8,14 +8,20 @@
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
             <h4 class="mb-1">Leave Requests</h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Leave Requests</li>
+                </ol>
+            </nav>
         </div>
         <div>
-            <a href="{{ route('leaveRequests.create') }}" class="btn btn-primary"><i
+            <a href="{{ route('leaveRequests.create') }}" class="btn btn-primary shadow-sm"><i
                     class="ti ti-square-rounded-plus-filled me-1"></i>Add Leave Request</a>
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
+    <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom">
                 <form method="GET" action="{{ route('leaveRequests.index') }}" class="row g-3 align-items-end m-0">
                     <div class="col-12 col-lg-4">
@@ -49,9 +55,9 @@
                 </form>
         </div>
 
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive custom-table table-nowrap">
-                <table class="table table-nowrap" id="leave-request-list">
+                <table class="table table-hover table-nowrap align-middle mb-0" id="leave-request-list">
                     <thead class="table-light">
                         <tr>
                             <th>Leave ID</th>
@@ -73,30 +79,33 @@
                                 <td>{{ $leaveRequest->to_date?->format('Y-m-d') }}</td>
                                 <td>
                                     @if($leaveRequest->status === 'pending')
-                                        <span class="badge bg-warning">Pending</span>
+                                        <span class="badge bg-soft-warning text-warning">Pending</span>
                                     @elseif($leaveRequest->status === 'approved')
-                                        <span class="badge bg-success">Approved</span>
+                                        <span class="badge bg-soft-success text-success">Approved</span>
                                     @else
-                                        <span class="badge bg-danger">Rejected</span>
+                                        <span class="badge bg-soft-danger text-danger">Rejected</span>
                                     @endif
                                 </td>
                                 <td>
-                                    <a class="btn btn-sm btn-outline-primary"
-                                        href="{{ route('leaveRequests.show', $leaveRequest) }}">Details</a>
+                                    <a class="btn btn-sm btn-outline-primary" title="Details"
+                                        href="{{ route('leaveRequests.show', $leaveRequest) }}">
+                                        <i class="ti ti-eye"></i>
+                                    </a>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted">No leave requests found.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No leave requests found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            <div class="mt-3">
-                {{ $leaveRequests->links() }}
-            </div>
         </div>
+        @if ($leaveRequests->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $leaveRequests->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 @endsection

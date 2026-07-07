@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\ExpenseUnpaidDate;
 use App\Models\MainCategory;
 use App\Models\Project;
+use App\Models\User;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class UnpaidExpensesController extends Controller
     public function history(Request $request)
     {
         $query = Expense::query()
-            ->with(['project', 'user', 'mainCategory', 'category'])
+            ->with(['project', 'employee', 'editedByUser', 'mainCategory', 'category'])
             ->whereNull('labour_id')
             ->whereNull('vendor_id')
             ->where('unpaid_amt', '>', 0)
@@ -55,11 +55,12 @@ class UnpaidExpensesController extends Controller
             ->withQueryString();
 
         $projects = Project::query()->orderBy('name')->get();
-        $employees = Employee::query()->orderBy('name')->get();
-        $mainCategories = MainCategory::query()->where('status', 'active')->orderBy('name')->pluck('name');
+        $employees = User::query()->orderBy('name')->get();
+        $mainCategories = MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->pluck('name');
         $categories = Category::query()->orderBy('name')->pluck('name');
+        $paymentModes = Expense::paymentModes();
 
-        return view('pages.expenses.index', compact('expenses', 'projects', 'employees', 'totals', 'mainCategories', 'categories'));
+        return view('pages.expenses.index', compact('expenses', 'projects', 'employees', 'totals', 'mainCategories', 'categories', 'paymentModes'));
     }
 
     public function store(Request $request): RedirectResponse

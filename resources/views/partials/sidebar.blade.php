@@ -7,7 +7,7 @@
     @php($isExpensesMenuActive = request()->routeIs('expenses.*') || request()->routeIs('expenseReports.*') || $isExpenseHistoryRoute)
     @php($isLabourExpensesMenuActive = request()->routeIs('labour-expenses.*'))
     @php($isVendorExpensesMenuActive = request()->routeIs('vendor-expenses.*'))
-    @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('expense-transactions.*') || request()->routeIs('vendor-expenses.history'))
+    @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('vendor-expenses.history'))
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -159,7 +159,7 @@
                                     <li><a class="{{ request()->routeIs('labour-expenses.weekly') ? 'active' : '' }}"
                                             href="{{ route('labour-expenses.weekly') }}">Weekly History</a></li>
                                     <li><a class="{{ request()->routeIs('labour-expenses.advance-history') ? 'active' : '' }}"
-                                            href="{{ route('labour-expenses.advance-history') }}">Advance Amount</a></li>
+                                            href="{{ route('labour-expenses.advance-history') }}">Labour Wallet</a></li>
                                     <li><a class="{{ request()->routeIs('labour-expenses.deleted-history') ? 'active' : '' }}"
                                             href="{{ route('labour-expenses.deleted-history') }}">Deleted History</a></li>
                                 </ul>

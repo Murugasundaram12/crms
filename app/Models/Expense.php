@@ -62,6 +62,17 @@ class Expense extends Model
         'type',
     ];
 
+    public static function paymentModes(): array
+    {
+        return [
+            1 => 'Cash',
+            2 => 'Bank Transfer',
+            3 => 'UPI',
+            4 => 'Cheque',
+            5 => 'Card',
+        ];
+    }
+
     public function mainCategory(): BelongsTo
     {
         return $this->belongsTo(MainCategory::class, 'main_category_id');
@@ -134,7 +145,7 @@ class Expense extends Model
 
     protected function paymentModeLabel(): Attribute
     {
-        return Attribute::make(get: fn() => $this->payment_mode === null ? null : (string) $this->payment_mode);
+        return Attribute::make(get: fn() => self::paymentModes()[$this->payment_mode] ?? null);
     }
 
     protected function type(): Attribute

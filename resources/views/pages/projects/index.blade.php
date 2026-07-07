@@ -23,7 +23,7 @@
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('projects.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-xl-3">
@@ -80,7 +80,7 @@
     <div class="row">
         @forelse ($projects as $project)
             <div class="col-xxl-3 col-xl-4 col-md-6">
-                <div class="card border">
+                <div class="card border-0 shadow-sm h-100">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center">

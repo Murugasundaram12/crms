@@ -45,7 +45,7 @@
                                 class="form-select @error('main_category_id') is-invalid @enderror">
                                 <option value="">No Main Category</option>
                                 @foreach($mainCategories as $main)
-                                    <option value="{{ $main->id }}" {{ old('main_category_id', $category->main_category_id) == $main->id ? 'selected' : '' }}>
+                                    <option value="{{ $main->id }}" @selected(old('main_category_id', $category->mainCategories->first()?->id ?? $category->main_category_id) == $main->id)>
                                         {{ $main->name }}
                                     </option>
                                 @endforeach

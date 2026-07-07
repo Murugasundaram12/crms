@@ -14,7 +14,7 @@
     ['label' => 'Labours', 'route' => route('labours.index'), 'permission' => 'labours-list', 'keywords' => ['labour', 'labours', 'worker', 'workers']],
     ['label' => 'Labour Expenses History', 'route' => route('labour-expenses.history'), 'permission' => 'expenses-list', 'keywords' => ['labour expense', 'labour expenses history']],
     ['label' => 'Labour Expenses Weekly', 'route' => route('labour-expenses.weekly'), 'permission' => 'expenses-list', 'keywords' => ['labour weekly', 'labour expense weekly']],
-    ['label' => 'Labour Expenses Advance', 'route' => route('labour-expenses.advance-history'), 'permission' => 'expenses-list', 'keywords' => ['labour advance', 'labour expenses advance']],
+    ['label' => 'Labour Wallet', 'route' => route('labour-expenses.advance-history'), 'permission' => 'expenses-list', 'keywords' => ['labour wallet', 'labour advance', 'labour expenses advance']],
     ['label' => 'Labour Expenses Deleted', 'route' => route('labour-expenses.deleted-history'), 'permission' => 'expenses-list', 'keywords' => ['labour deleted expenses']],
     ['label' => 'Vendor Expenses History', 'route' => route('vendor-expenses.history'), 'permission' => 'expenses-list', 'keywords' => ['vendor expense', 'vendor expenses history']],
     ['label' => 'Vendor Expenses Unpaid', 'route' => route('vendor-expenses.unpaid-history'), 'permission' => 'expenses-list', 'keywords' => ['vendor unpaid', 'vendor expenses unpaid']],
@@ -145,12 +145,12 @@
                             <i class="ti ti-coins"></i>
                         </a>
                         <div class="dropdown-menu dropdown-menu-end dropdown-menu-md p-2 quick-expense-menu">
-                            @if($currentUser->hasPermission('expenses-list'))
-                                <a href="{{ route('expense-transactions.create') }}" class="dropdown-item">Add Expenses</a>
+                            @if($currentUser->hasPermission('expenses-create'))
+                                <a href="{{ route('expenses.create.legacy') }}" class="dropdown-item">Add Expenses</a>
                             @endif
                             @if($currentUser->hasPermission('expenses-create'))
-                                <a href="{{ route('expense-transactions.create', ['type' => 'labour']) }}" class="dropdown-item">Add Labour Expenses</a>
-                                <a href="{{ route('expense-transactions.create', ['type' => 'vendor']) }}" class="dropdown-item">Add Vendor Expenses</a>
+                                <a href="{{ route('labour-expenses.create.legacy') }}" class="dropdown-item">Add Labour Expenses</a>
+                                <a href="{{ route('vendor-expenses.create.legacy') }}" class="dropdown-item">Add Vendor Expenses</a>
                             @endif
                         </div>
                     </div>

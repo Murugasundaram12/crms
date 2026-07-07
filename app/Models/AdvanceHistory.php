@@ -30,4 +30,14 @@ class AdvanceHistory extends Model
     {
         return $this->belongsTo(Labour::class);
     }
+
+    public function expense(): BelongsTo
+    {
+        return $this->belongsTo(Expense::class, 'labour_expense_transaction_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

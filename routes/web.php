@@ -128,6 +128,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/{quotation}', [\App\Http\Controllers\QuotationController::class, 'show'])
                 ->whereNumber('quotation')
                 ->name('show');
+            Route::get('/{quotation}/download', [\App\Http\Controllers\QuotationController::class, 'downloadPdf'])->name('download');
+            Route::get('/{quotation}/stream', [\App\Http\Controllers\QuotationController::class, 'streamPdf'])->name('stream');
         });
         Route::middleware('permission:quotations-create')->group(function () {
             Route::get('/create', [\App\Http\Controllers\QuotationController::class, 'create'])->name('create');
@@ -182,7 +184,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/expenses-history', [ExpensesController::class, 'history'])
         ->middleware('permission:expenses-list')
         ->name('expenses.history');
-    Route::get('/expenses-create', fn () => redirect()->route('expenses.history'))
+    Route::get('/expenses-create', fn () => redirect()->route('expenses.history', ['create' => 1]))
         ->middleware('permission:expenses-create')
         ->name('expenses.create.legacy');
     Route::get('/expenses/edit/{id}', fn (int $id) => redirect()->route('expenses.history', ['edit' => $id]))
@@ -217,7 +219,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/labour-expenses/store', [LabourExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('labour-expenses.store');
-    Route::get('/labour-expenses/create', fn () => redirect()->route('labour-expenses.history'))
+    Route::get('/labour-expenses/create', fn () => redirect()->route('labour-expenses.history', ['create' => 1]))
         ->middleware('permission:expenses-create')
         ->name('labour-expenses.create.legacy');
     Route::get('/labour-expenses/edit/{id}', fn (int $id) => redirect()->route('labour-expenses.history', ['edit' => $id]))
@@ -251,7 +253,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendor-expenses/store', [VendorExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('vendor-expenses.store');
-    Route::get('/vendor-expenses/create', fn () => redirect()->route('vendor-expenses.history'))
+    Route::get('/vendor-expenses/create', fn () => redirect()->route('vendor-expenses.history', ['create' => 1]))
         ->middleware('permission:expenses-create')
         ->name('vendor-expenses.create.legacy');
     Route::get('/vendor-expenses/edit/{id}', fn (int $id) => redirect()->route('vendor-expenses.history', ['edit' => $id]))
@@ -286,8 +288,6 @@ Route::middleware('auth')->group(function () {
         Route::middleware('permission:expenses-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\ExpenseController::class, 'index'])->name('index');
         });
-
-        // New dedicated modules are under /expense-transactions, /labour-expense-transactions, /vendor-expense-transactions
 
         Route::middleware('permission:expenses-create')->group(function () {
             Route::post('/', [\App\Http\Controllers\ExpenseController::class, 'store'])->name('store');
@@ -586,7 +586,7 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/assign', [\App\Http\Controllers\CategoryController::class, 'assign'])
             ->middleware('permission:categories-edit')
-            ->name('categories.assign');
+            ->name('assign');
     });
     Route::get('/excel/import', function () {
         return view('pages.excel.expense_import');

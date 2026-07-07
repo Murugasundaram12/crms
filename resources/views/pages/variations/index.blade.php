@@ -22,7 +22,49 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Additional</p>
+                        <h5 class="mb-0 text-success">Rs. {{ number_format((float) ($totals->total_additional ?? 0), 2) }}</h5>
+                    </div>
+                    <span class="avatar avatar-md rounded bg-success-transparent text-success d-inline-flex align-items-center justify-content-center">
+                        <i class="ti ti-plus fs-22"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Deduction</p>
+                        <h5 class="mb-0 text-danger">Rs. {{ number_format((float) ($totals->total_deduction ?? 0), 2) }}</h5>
+                    </div>
+                    <span class="avatar avatar-md rounded bg-danger-transparent text-danger d-inline-flex align-items-center justify-content-center">
+                        <i class="ti ti-minus fs-22"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Approved Net Impact</p>
+                        <h5 class="mb-0 text-info">Rs. {{ number_format((float) ($totals->approved_net ?? 0), 2) }}</h5>
+                    </div>
+                    <span class="avatar avatar-md rounded bg-info-transparent text-info d-inline-flex align-items-center justify-content-center">
+                        <i class="ti ti-receipt-dollar fs-22"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('variations.index') }}" method="GET"
                 class="row g-3 align-items-end m-0">
@@ -75,7 +117,7 @@
         </div>
         <div class="card-body">
             <div class="table-responsive table-nowrap custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Type</th>
@@ -83,6 +125,7 @@
                             <th>Description</th>
                             <th>Amount</th>
                             <th>Date</th>
+                            <th>Approved By</th>
                             <th>Status</th>
                             <th class="text-end">Action</th>
                         </tr>
@@ -90,40 +133,37 @@
                     <tbody>
                         @forelse ($variations as $variation)
                             <tr>
-                                <td><span
-                                        class="badge bg-{{ $variation->type === 'additional' ? 'success' : 'danger' }}">{{ ucfirst($variation->type) }}</span>
+                                <td><span class="badge {{ $variation->type === 'additional' ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger' }}">
+                                        {{ ucfirst($variation->type) }}</span>
                                 </td>
                                 <td>{{ $variation->project?->name ?? '-' }}</td>
                                 <td>{{ Str::limit($variation->description, 50) }}</td>
-                                <td>${{ number_format($variation->amount, 2) }}</td>
+                                <td class="{{ $variation->type === 'additional' ? 'text-success' : 'text-danger' }} fw-semibold">Rs. {{ number_format($variation->amount, 2) }}</td>
                                 <td>{{ $variation->date->format('d M Y') }}</td>
-                                <td><span
-                                        class="badge bg-{{ $variation->status === 'approved' ? 'success' : ($variation->status === 'rejected' ? 'danger' : 'warning') }}">{{ ucfirst($variation->status) }}</span>
+                                <td>{{ $variation->approvedBy?->name ?? '-' }}</td>
+                                <td><span class="badge {{ $variation->status === 'approved' ? 'bg-success-transparent text-success' : ($variation->status === 'rejected' ? 'bg-danger-transparent text-danger' : 'bg-warning-transparent text-warning') }}">
+                                        {{ ucfirst($variation->status) }}</span>
                                 </td>
                                 <td class="text-end">
-                                    <div class="dropdown table-action">
-                                        <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                            data-bs-toggle="dropdown">
-                                            <i class="ti ti-dots-vertical"></i>
-                                        </a>
-                                        <div class="dropdown-menu dropdown-menu-right">
-                                            <a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                                data-bs-target="#edit_variation_{{ $variation->id }}"><i
-                                                    class="ti ti-edit text-blue"></i> Edit</a>
-                                            <button type="button" class="dropdown-item crm-delete-trigger"
-                                                data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
-                                                data-delete-action="{{ route('variations.destroy', $variation) }}"
-                                                data-delete-title="Delete Variation"
-                                                data-delete-message="Are you sure you want to delete this variation?">
-                                                <i class="ti ti-trash"></i> Delete
-                                            </button>
-                                        </div>
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-icon btn-sm btn-outline-success" data-bs-toggle="modal"
+                                            data-bs-target="#edit_variation_{{ $variation->id }}" title="Edit">
+                                            <i class="ti ti-edit"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-icon btn-sm btn-outline-danger crm-delete-trigger"
+                                            data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
+                                            data-delete-action="{{ route('variations.destroy', $variation) }}"
+                                            data-delete-title="Delete Variation"
+                                            data-delete-message="Are you sure you want to delete this variation?"
+                                            title="Delete">
+                                            <i class="ti ti-trash"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted">No variations found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No variations found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -148,7 +188,7 @@
                     <select name="project_id" class="form-select" required>
                         <option value="">Select</option>
                         @foreach ($projects as $project)
-                            <option value="{{ $project->id }}">{{ $project->name }}</option>
+                            <option value="{{ $project->id }}" @selected((string) old('project_id', request('project_id')) === (string) $project->id)>{{ $project->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -156,37 +196,37 @@
                     <label class="form-label">Type</label>
                     <select name="type" class="form-select" required>
                         <option value="">Select</option>
-                        <option value="additional">Additional</option>
-                        <option value="deduction">Deduction</option>
+                        <option value="additional" @selected(old('type') === 'additional')>Additional</option>
+                        <option value="deduction" @selected(old('type') === 'deduction')>Deduction</option>
                     </select>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Description</label>
-                    <textarea name="description" class="form-control" rows="3" required></textarea>
+                    <textarea name="description" class="form-control" rows="3" required>{{ old('description') }}</textarea>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Amount</label>
-                    <input type="number" step="0.01" name="amount" class="form-control" min="0" required>
+                    <input type="number" step="0.01" name="amount" class="form-control" min="0" value="{{ old('amount') }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Date</label>
-                    <input type="date" name="date" class="form-control">
+                    <input type="date" name="date" class="form-control" value="{{ old('date', now()->toDateString()) }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Approved By</label>
                     <select name="approved_by" class="form-select">
                         <option value="">Select Employee</option>
                         @foreach ($employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}</option>
+                            <option value="{{ $employee->id }}" @selected((string) old('approved_by') === (string) $employee->id)>{{ $employee->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Status</label>
                     <select name="status" class="form-select">
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="pending" @selected(old('status', 'pending') === 'pending')>Pending</option>
+                        <option value="approved" @selected(old('status') === 'approved')>Approved</option>
+                        <option value="rejected" @selected(old('status') === 'rejected')>Rejected</option>
                     </select>
                 </div>
                 <div class="col-12 d-flex justify-content-end gap-2">
@@ -201,7 +241,7 @@
     @foreach ($variations as $variation)
         <div class="modal fade" id="edit_variation_{{ $variation->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content">
+                <div class="modal-content border-0 shadow">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Variation</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

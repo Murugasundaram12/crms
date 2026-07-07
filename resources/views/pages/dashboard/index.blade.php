@@ -8,34 +8,44 @@
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
-            <h4 class="mb-0">Dashboard</h4>
+            <h4 class="mb-1">Dashboard</h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item active" aria-current="page">Construction Overview</li>
+                </ol>
+            </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <div class="daterangepick form-control w-auto d-flex align-items-center me-2">
+            <div class="form-control w-auto d-flex align-items-center me-2 bg-white shadow-sm">
                 <i class="ti ti-calendar text-dark me-2"></i>
                 <span class="reportrange-picker-field text-dark">Construction Overview</span>
             </div>
-            <a href="{{ route('projects.index') }}" class="btn btn-outline-light shadow">Projects</a>
-            <a href="{{ route('tasks.index') }}" class="btn btn-outline-light shadow">Tasks</a>
-            <a href="{{ route('payments.index') }}" class="btn btn-outline-light shadow">Payments</a>
+            <a href="{{ route('projects.index') }}" class="btn btn-outline-light shadow"><i class="ti ti-atom-2 me-1"></i>Projects</a>
+            <a href="{{ route('tasks.index') }}" class="btn btn-outline-light shadow"><i class="ti ti-list-check me-1"></i>Tasks</a>
+            <a href="{{ route('payments.index') }}" class="btn btn-primary shadow"><i class="ti ti-report-money me-1"></i>Payments</a>
         </div>
     </div>
 
     <div class="row">
         <div class="col-12">
-            <div class="card mb-3">
+            <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
-                    <div>
-                        <h5 class="mb-1">Today's Attendance</h5>
-                        @if($todayAttendance)
-                            <p class="mb-0 text-muted">
-                                Check-in: {{ optional($todayAttendance->check_in_at)->format('h:i A') ?? '-' }}
-                                |
-                                Check-out: {{ optional($todayAttendance->check_out_at)->format('h:i A') ?? '-' }}
-                            </p>
-                        @else
-                            <p class="mb-0 text-muted">No check-in yet for today.</p>
-                        @endif
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="avatar avatar-md rounded bg-success-transparent text-success d-inline-flex align-items-center justify-content-center">
+                            <i class="ti ti-clock-check fs-22"></i>
+                        </span>
+                        <div>
+                            <h5 class="mb-1">Today's Attendance</h5>
+                            @if($todayAttendance)
+                                <p class="mb-0 text-muted">
+                                    Check-in: {{ optional($todayAttendance->check_in_at)->format('h:i A') ?? '-' }}
+                                    |
+                                    Check-out: {{ optional($todayAttendance->check_out_at)->format('h:i A') ?? '-' }}
+                                </p>
+                            @else
+                                <p class="mb-0 text-muted">No check-in yet for today.</p>
+                            @endif
+                        </div>
                     </div>
                     <div class="d-flex gap-2">
                         @if(auth()->user()?->hasPermission('attendance-list'))
@@ -62,7 +72,7 @@
 
     <div class="row">
         <div class="col-xxl-8 col-xl-7 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body pb-0">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                         <h5 class="mb-0 fs-16 fw-bold d-inline-flex items-center"><span
@@ -106,7 +116,7 @@
         </div>
 
         <div class="col-xxl-4 col-xl-5 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
                         <h5 class="mb-0 fs-16 fw-bold d-inline-flex items-center"><span
@@ -143,7 +153,7 @@
 
     <div class="row">
         <div class="col-xl-3 col-sm-6 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
                     <p class="fw-medium mb-1">Revenue</p>
                     <h4 class="mb-3">₹{{ number_format($summary['netRevenue'], 2) }}</h4>
@@ -163,7 +173,7 @@
         </div>
 
         <div class="col-xl-3 col-sm-6 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
                     <p class="fw-medium mb-1">Active Projects</p>
                     <h4 class="mb-3">{{ $summary['projectCount'] }}</h4>
@@ -183,7 +193,7 @@
         </div>
 
         <div class="col-xl-3 col-sm-6 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
                     <p class="fw-medium mb-1">Expenses</p>
                     <h4 class="mb-3">₹{{ number_format($summary['totalExpenses'], 2) }}</h4>
@@ -208,7 +218,7 @@
         </div>
 
         <div class="col-xl-3 col-sm-6 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
                     <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-3">
                         <div>
@@ -230,7 +240,7 @@
 
     <div class="row">
         <div class="col-xxl-6 col-xl-6 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap row-gap-3 mb-3">
                         <h5 class="mb-0 fs-16 fw-bold d-inline-flex items-center"><span
@@ -241,7 +251,7 @@
                         </a>
                     </div>
                     <div class="table-responsive custom-table">
-                        <table class="table table-bordered table-nowrap">
+                        <table class="table table-hover table-nowrap mb-0">
                             <thead class="table-white">
                                 <tr>
                                     <th>Project</th>
@@ -257,7 +267,7 @@
                                         <td><a href="{{ route('projects.show', $project) }}">{{ $project->name }}</a></td>
                                         <td>{{ $project->client?->name ?? '-' }}</td>
                                         <td>{{ $project->manager?->name ?? '-' }}</td>
-                                        <td>{{ ucfirst(str_replace('_', ' ', $project->status)) }}</td>
+                                        <td><span class="badge bg-light text-dark">{{ ucfirst(str_replace('_', ' ', $project->status)) }}</span></td>
                                         <td>{{ $project->tasks_count }}</td>
                                     </tr>
                                 @empty
@@ -273,7 +283,7 @@
         </div>
 
         <div class="col-xxl-6 col-xl-6 d-flex">
-            <div class="card flex-fill">
+            <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap row-gap-3 mb-3">
                         <h5 class="mb-0 fs-16 fw-bold d-inline-flex items-center"><span
@@ -283,7 +293,7 @@
                         </a>
                     </div>
                     <div class="table-responsive custom-table">
-                        <table class="table table-bordered table-nowrap">
+                        <table class="table table-hover table-nowrap mb-0">
                             <thead class="table-white">
                                 <tr>
                                     <th>Task</th>
@@ -300,7 +310,7 @@
                                         <td>{{ $task->project?->name ?? '-' }}</td>
                                         <td>{{ $task->employee?->name ?? '-' }}</td>
                                         <td>{{ optional($task->due_date)->format('d M Y') ?? '-' }}</td>
-                                        <td>{{ ucfirst(str_replace('_', ' ', $task->status)) }}</td>
+                                        <td><span class="badge bg-light text-dark">{{ ucfirst(str_replace('_', ' ', $task->status)) }}</span></td>
                                     </tr>
                                 @empty
                                     <tr>

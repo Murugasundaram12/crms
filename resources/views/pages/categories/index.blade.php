@@ -17,19 +17,19 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('categories-create')
-                <a href="{{ route('categories.create') }}" class="btn btn-primary">
+                <a href="{{ route('categories.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Category
                 </a>
             @endcan
             @can('categories-edit')
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#assignCategoryModal">
+                <button class="btn btn-success shadow-sm" data-bs-toggle="modal" data-bs-target="#assignCategoryModal">
                     <i class="ti ti-link me-1"></i>Assign Category
                 </button>
             @endcan
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('categories.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-lg-4">
@@ -69,12 +69,12 @@
     <!-- Assign Category Modal -->
     <div class="modal fade" id="assignCategoryModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
+            <div class="modal-content border-0 shadow">
                 <div class="modal-header">
                     <h5 class="modal-title">Assign Categories to Main Category</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="assignCategoryForm" method="POST" action="/categories/assign">
+                <form id="assignCategoryForm" method="POST" action="{{ route('categories.assign') }}">
                     @csrf
                     <div class="modal-body">
                         <div class="mb-3">
@@ -97,6 +97,7 @@
                                             data-id="{{ $category->id }}">
                                             <input class="form-check-input category-checkbox" type="checkbox"
                                                 name="category_ids[]" value="{{ $category->id }}" id="cat{{ $category->id }}"
+                                                data-category-id="{{ $category->id }}"
                                                 data-category-name="{{ $category->name }}">
                                             <label class="form-check-label" for="cat{{ $category->id }}">
                                                 {{ $category->name }}
@@ -121,10 +122,10 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0 mt-4">
-        <div class="card-body">
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body p-0">
             <div class="table-responsive custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Main Category</th>
@@ -167,40 +168,20 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center text-muted">No assignments found.</td>
+                                <td colspan="4" class="text-center text-muted py-4">No assignments found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            <div class="mt-3">
-                {{ $categories->links() }}
-            </div>
         </div>
+        @if ($categories->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $categories->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 
-    <div class="modal fade" id="crmDeleteModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteTitle">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="deleteMessage">
-                    Are you sure you want to delete this item?
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <form id="deleteForm" method="POST" style="display: inline-block;">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-danger">Delete</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
 @endsection
 
 @push('scripts')
@@ -225,12 +206,12 @@
                 });
 
                 if (selectedMainCatId && assignedCategories[selectedMainCatId]) {
-                    const assignedNames = assignedCategories[selectedMainCatId];
+                    const assignedIds = assignedCategories[selectedMainCatId].map(Number);
 
                     // Check categories that are already assigned to this main category
                     categoryCheckboxes.forEach(checkbox => {
-                        const catName = checkbox.dataset.categoryName;
-                        if (assignedNames.includes(catName)) {
+                        const categoryId = Number(checkbox.dataset.categoryId);
+                        if (assignedIds.includes(categoryId)) {
                             checkbox.checked = true;
                         }
                     });
@@ -253,16 +234,6 @@
                 });
 
                 noCategoriesMsg.classList.toggle('d-none', visibleCount > 0);
-            });
-
-            // Delete trigger
-            $('.crm-delete-trigger').on('click', function () {
-                var deleteAction = $(this).data('delete-action');
-                var deleteTitle = $(this).data('delete-title');
-                var deleteMessage = $(this).data('delete-message');
-                $('#deleteTitle').text(deleteTitle);
-                $('#deleteMessage').text(deleteMessage);
-                $('#deleteForm').attr('action', deleteAction);
             });
 
             // Reset form when modal is closed

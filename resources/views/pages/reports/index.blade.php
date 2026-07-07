@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form method="GET" action="{{ route('reports.index') }}" class="row g-3 align-items-end m-0">
                 <input type="hidden" name="type" value="{{ $type }}">
@@ -55,24 +55,24 @@
 
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Entries</p><h5 class="mb-0">{{ $summary['count'] ?? 0 }}</h5></div></div>
+            <div class="card border-0 shadow-sm h-100"><div class="card-body"><p class="mb-1 text-muted">Entries</p><h5 class="mb-0">{{ $summary['count'] ?? 0 }}</h5></div></div>
         </div>
         <div class="col-md-3">
-            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Amount</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['total_amount'] ?? 0), 2) }}</h5></div></div>
+            <div class="card border-0 shadow-sm h-100"><div class="card-body"><p class="mb-1 text-muted">Amount</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['total_amount'] ?? 0), 2) }}</h5></div></div>
         </div>
         <div class="col-md-3">
-            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Paid</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['paid'] ?? 0), 2) }}</h5></div></div>
+            <div class="card border-0 shadow-sm h-100"><div class="card-body"><p class="mb-1 text-muted">Paid</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['paid'] ?? 0), 2) }}</h5></div></div>
         </div>
         <div class="col-md-3">
-            <div class="card h-100"><div class="card-body"><p class="mb-1 text-muted">Unpaid</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['unpaid'] ?? 0), 2) }}</h5></div></div>
+            <div class="card border-0 shadow-sm h-100"><div class="card-body"><p class="mb-1 text-muted">Unpaid</p><h5 class="mb-0">Rs {{ number_format((float) ($summary['unpaid'] ?? 0), 2) }}</h5></div></div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-body">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-striped align-middle">
-                    <thead>
+                <table class="table table-hover table-nowrap align-middle mb-0">
+                    <thead class="table-light">
                         <tr>
                             <th>Date</th>
                             <th>Project Name</th>
@@ -120,12 +120,11 @@
                     </tbody>
                 </table>
             </div>
-
-            @if(method_exists($records, 'links'))
-                <div class="mt-3">
-                    {{ $records->links() }}
-                </div>
-            @endif
         </div>
+        @if(method_exists($records, 'links'))
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $records->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 @endsection
