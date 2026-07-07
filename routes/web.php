@@ -27,9 +27,9 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Artisan;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login.form');
-Route::post('/', [AuthController::class, 'login'])->name('login');
+Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::get('/login', [AuthController::class, 'showLogin']);
-Route::post('/login', [AuthController::class, 'login']);
+// Route::post('/login', [AuthController::class, 'login']);
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
