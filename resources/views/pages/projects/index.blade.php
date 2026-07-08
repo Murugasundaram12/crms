@@ -247,11 +247,6 @@
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Progress %</label>
-                    <input type="number" min="0" max="100" name="progress" class="form-control"
-                        value="{{ old('progress', 0) }}">
-                </div>
-                <div class="col-md-6">
                     <label class="form-label">Start Date</label>
                     <input type="date" name="start_date" class="form-control" value="{{ old('start_date') }}">
                 </div>

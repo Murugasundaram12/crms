@@ -44,7 +44,7 @@
                         </div>
                     </form>
                     <div class="table-responsive custom-table">
-                        <table class="table table-nowrap datatable" id="roles-table">
+                        <table class="table table-nowrap mb-0" id="roles-table">
                             <thead>
                                 <tr>
                                     <th>ID</th>
@@ -67,7 +67,7 @@
                                         </td>
                                         <td class="text-end">
                                             <div class="dropdown">
-                                                <button class="btn btn-sm btn-icon dropdown-toggle" data-bs-toggle="dropdown">
+                                                <button class="btn btn-sm btn-icon" data-bs-toggle="dropdown">
                                                     <i class="ti ti-dots-vertical"></i>
                                                 </button>
                                                 <div class="dropdown-menu dropdown-menu-end">
@@ -96,29 +96,14 @@
                             </tbody>
                         </table>
                     </div>
+
+                    @if ($roles->hasPages())
+                        <div class="d-flex justify-content-end mt-3">
+                            {{ $roles->withQueryString()->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 @endsection
-
-@push('styles')
-    <link rel="stylesheet" href="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}">
-@endpush
-
-@push('scripts')
-    <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
-    <script>
-        $(document).ready(function () {
-            $('#roles-table').DataTable({
-                pageLength: 10,
-                responsive: true,
-                columnDefs: [
-                    { orderable: false, targets: 4 }
-                ]
-            });
-
-        });
-    </script>
-@endpush

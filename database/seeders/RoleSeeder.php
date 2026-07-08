@@ -51,6 +51,8 @@ class RoleSeeder extends Seeder
             'expenses-create',
             'expenses-edit',
             'expenses-delete',
+            'reports-list',
+            'expense-reports-list',
             'transfers-list',
             'transfers-create',
             'transfers-edit',

@@ -32,6 +32,7 @@ class ProjectController extends Controller
     {
         // Validate the submitted form before creating the project.
         $validatedData = $this->validateProjectData($request);
+        $validatedData['progress'] = 0;
 
         // Save the new project.
         Project::create($validatedData);

@@ -94,7 +94,7 @@
                                 <td>{{ $labour->job_title ?: '-' }}</td>
                                 <td>{{ $labour->phone_number }}</td>
                                 <td>{{ $labour->labourRole?->name ?: '-' }}</td>
-                                <td>{{ ucfirst($labour->gender) }}</td>
+                                <td>{{ $labour->gender ? ucfirst($labour->gender) : '-' }}</td>
                                 <td>Rs {{ number_format((float) $labour->salary, 2) }}</td>
                                 <td class="text-info fw-semibold">Rs. {{ number_format((float) $labour->advance_amt, 2) }}</td>
                                 <td>
@@ -118,7 +118,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No labour records found.</td>
+                                <td colspan="9" class="text-center text-muted py-4">No labour records found.</td>
                             </tr>
                         @endforelse
                     </tbody>

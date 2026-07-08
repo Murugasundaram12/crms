@@ -86,7 +86,7 @@
                                                 class="rounded-circle"></span>
                                         <div>
                                             <h6 class="mb-0 fs-14">{{ $employee->name }}</h6>
-                                            <small>{{ $assignedRole ?: $employee->role }}</small>
+                                            <small>{{ $assignedRole ?: ($employee->role ?: '-') }}</small>
                                         </div>
                                     </div>
                                 </td>
@@ -96,7 +96,7 @@
                                 <td>{{ $assignedRole ?: ($employee->role ?: '-') }}</td>
                                 <td>{{ optional($employee->hire_date)->format('d M Y') ?: '-' }}</td>
                                 <td><span
-                                        class="badge {{ $employee->status === 'active' ? 'bg-soft-success text-success' : 'bg-soft-secondary text-secondary' }}">{{ ucfirst($employee->status) }}</span>
+                                        class="badge {{ $employee->status === 'active' ? 'bg-soft-success text-success' : 'bg-soft-secondary text-secondary' }}">{{ $employee->status ? ucfirst($employee->status) : '-' }}</span>
                                 </td>
 
                                 <td class="text-end">
@@ -123,7 +123,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center text-muted py-4">No users available yet.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No users available yet.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -244,23 +244,3 @@
         </div>
     @endforeach
 @endsection
-@push('styles')
-    <link rel="stylesheet" href="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}">
-@endpush
-
-@push('scripts')
-    <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
-    <script>
-        $(document).ready(function () {
-            $('#permissions-table').DataTable({
-                pageLength: 10,
-                responsive: true,
-                columnDefs: [
-                    { orderable: false, targets: 4 }
-                ]
-            });
-
-        });
-    </script>
-@endpush

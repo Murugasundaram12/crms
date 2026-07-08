@@ -210,14 +210,19 @@
                             class="ti ti-circle-filled d-flex bg-white rounded-circle border border-1 border-white"></i></span>
                 </a>
                 <div class="dropdown-menu dropdown-menu-end dropdown-menu-md p-2">
-                    <div class="d-flex align-items-center bg-light rounded-3 p-2 mb-2">
+                    <a href="{{ route('profile.show') }}" class="d-flex align-items-center bg-light rounded-3 p-2 mb-2 text-decoration-none">
                         <img src="{{ asset($currentUser?->avatar ?: 'assets/img/users/user-01.jpg') }}"
                             class="rounded-circle" width="42" height="42" alt="Img">
                         <div class="ms-2">
                             <p class="fw-medium text-dark mb-0">{{ $currentUser?->name ?? 'User' }}</p>
                             <span class="d-block fs-13">{{ $currentUser?->role ?? 'Team Member' }}</span>
                         </div>
-                    </div>
+                    </a>
+
+                    <a href="{{ route('profile.show') }}" class="dropdown-item">
+                        <i class="ti ti-user-circle me-1 align-middle"></i>
+                        <span class="align-middle">My Profile</span>
+                    </a>
 
                     @if($currentUser?->hasPermission('employees-list'))
                         <a href="{{ route('manage-users') }}" class="dropdown-item">

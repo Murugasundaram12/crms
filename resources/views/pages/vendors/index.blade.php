@@ -68,9 +68,9 @@
                         @forelse ($vendors as $vendor)
                             <tr>
                                 <td>{{ $vendor->name }}</td>
-                                <td>{{ Str::limit($vendor->address, 30) }}</td>
+                                <td>{{ $vendor->address ? Str::limit($vendor->address, 30) : '-' }}</td>
                                 <td>{{ $vendor->phone ?: '-' }}</td>
-                                <td>Rs {{ number_format((float) $vendor->advance_amount, 2) }}</td>
+                                <td class="fw-semibold">Rs {{ number_format((float) $vendor->advance_amount, 2) }}</td>
                                 <td>{{ $vendor->created_at?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
                                     <x-action-dropdown

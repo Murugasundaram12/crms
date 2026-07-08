@@ -27,6 +27,7 @@ class PermissionSeeder extends Seeder
         'categories' => 'Categories',
         'employees-salary' => 'Employee Salary',
         'attendance' => 'Attendance',
+        'reports' => 'Reports',
         'expense-reports' => 'Expense Reports',
         'expenses' => 'Expenses',
         'transfers' => 'Transfers',

@@ -6,7 +6,13 @@
     @include('partials.alerts')
 
     @php($selectedPermissions = old('permissions', $rolePermissions ?? []))
-    @php($grouped = $permissions->groupBy(fn ($permission) => explode('.', $permission->key)[0]))
+    @php
+        $grouped = $permissions->groupBy(function ($permission) {
+            return str_contains($permission->key, '-')
+                ? \Illuminate\Support\Str::beforeLast($permission->key, '-')
+                : explode('.', $permission->key)[0];
+        });
+    @endphp
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
@@ -81,7 +87,7 @@
                             <div class="col-12">
                                 <div class="border rounded-3 p-3 permission-module">
                                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                                        <h6 class="mb-0 text-dark">{{ ucwords(str_replace('_', ' ', $module)) }}</h6>
+                                        <h6 class="mb-0 text-dark">{{ ucwords(str_replace(['-', '_'], ' ', $module)) }}</h6>
                                         <div class="d-flex align-items-center gap-3">
                                             <span class="badge bg-light text-dark">{{ $modulePermissions->count() }} items</span>
                                             <label class="d-inline-flex align-items-center gap-2 mb-0">

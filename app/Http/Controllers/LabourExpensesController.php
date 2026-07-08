@@ -161,8 +161,7 @@ class LabourExpensesController extends Controller
             ->with(['labour', 'expense.project', 'user'])
             ->when($request->filled('labour_id'), fn($q) => $q->where('labour_id', $request->integer('labour_id')))
             ->latest()
-            ->paginate((int) $request->get('paginate', 12))
-            ->withQueryString();
+            ->get();
 
         $labours = Labour::query()->orderBy('name')->get();
         $selectedLabourId = $request->integer('labour_id') ?: null;

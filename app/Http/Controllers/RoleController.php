@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\Permission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class RoleController extends Controller
@@ -38,7 +39,7 @@ class RoleController extends Controller
     public function create()
     {
         // Load all permissions so they can be assigned to the new role.
-        $permissions = Permission::all();
+        $permissions = Permission::query()->orderBy('key')->get();
 
         return view('roles.create', compact('permissions'));
     }
@@ -48,12 +49,15 @@ class RoleController extends Controller
         // Validate the role form before creating a new record.
         $validatedData = $this->validateRoleData($request);
 
-        // Create the role and attach the selected permissions.
-        $role = Role::create([
-            'name' => $validatedData['name'],
-            'description' => $validatedData['description'] ?? null,
-        ]);
-        $role->permissions()->sync($validatedData['permissions'] ?? []);
+        DB::transaction(function () use ($validatedData): void {
+            // Create the role and attach the selected permissions in one save.
+            $role = Role::create([
+                'name' => $validatedData['name'],
+                'description' => $validatedData['description'] ?? null,
+            ]);
+
+            $role->permissions()->sync($validatedData['permissions'] ?? []);
+        });
 
         return redirect()->route('roles.index')->with('success', 'Role Created Successfully');
     }
@@ -61,7 +65,7 @@ class RoleController extends Controller
     public function edit(Role $role)
     {
         // Load all permissions and the role's current selections.
-        $permissions = Permission::all();
+        $permissions = Permission::query()->orderBy('key')->get();
         $rolePermissions = $role->permissions->pluck('id')->toArray();
 
         return view('roles.edit', compact('role', 'permissions', 'rolePermissions'));
@@ -72,12 +76,15 @@ class RoleController extends Controller
         // Validate the role form before updating the existing record.
         $validatedData = $this->validateRoleData($request, $role);
 
-        // Update the role details and sync the selected permissions.
-        $role->update([
-            'name' => $validatedData['name'],
-            'description' => $validatedData['description'] ?? null,
-        ]);
-        $role->permissions()->sync($validatedData['permissions'] ?? []);
+        DB::transaction(function () use ($role, $validatedData): void {
+            // Update the role details and sync the selected permissions together.
+            $role->update([
+                'name' => $validatedData['name'],
+                'description' => $validatedData['description'] ?? null,
+            ]);
+
+            $role->permissions()->sync($validatedData['permissions'] ?? []);
+        });
 
         return redirect()->route('roles.index')->with('success', 'Role Updated Successfully');
     }

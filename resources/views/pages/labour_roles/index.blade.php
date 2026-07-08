@@ -77,7 +77,7 @@
                         @forelse ($labourRoles as $labourRole)
                             <tr>
                                 <td>{{ $labourRole->name }}</td>
-                                <td>{{ ucfirst($labourRole->salary_type) }}</td>
+                                <td>{{ $labourRole->salary_type ? ucfirst($labourRole->salary_type) : '-' }}</td>
                                 <td>Rs {{ number_format((float) $labourRole->salary, 2) }}</td>
                                 <td>{{ $labourRole->labours_count }}</td>
                                 <td>{{ $labourRole->created_at?->format('d M Y') ?: '-' }}</td>

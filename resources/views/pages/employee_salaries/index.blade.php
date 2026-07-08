@@ -77,7 +77,7 @@
                             <tr>
                                 <td>{{ $employeeSalary->name }}</td>
                                 <td>Rs {{ number_format((float) $employeeSalary->salary, 2) }}</td>
-                                <td>{{ ucfirst($employeeSalary->salary_type) }}</td>
+                                <td>{{ $employeeSalary->salary_type ? ucfirst($employeeSalary->salary_type) : '-' }}</td>
                                 <td>{{ $employeeSalary->created_at?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
                                     <x-action-dropdown

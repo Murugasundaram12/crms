@@ -96,14 +96,14 @@
                             <td>{{ $payment->client?->name ?? '-' }}</td>
                             <td>{{ $payment->project?->name ?? '-' }}</td>
                             <td>{{ $payment->stage->name ?? '-' }}</td>
-                            <td>Rs. {{ number_format($payment->amount, 2) }}</td>
+                            <td class="fw-semibold">Rs. {{ number_format($payment->amount, 2) }}</td>
                             <td>{{ optional($payment->due_date)->format('d M Y') ?? '-' }}</td>
-                            <td>{{ ucfirst($payment->method) }}</td>
+                            <td>{{ $payment->method ? ucfirst(str_replace('_', ' ', $payment->method)) : '-' }}</td>
                             {{-- <td>{{ $payment->transaction_id ?: '-' }}</td> --}}
                             <td>
                                 <span
                                     class="badge {{ $payment->status === 'paid' ? 'bg-success-transparent text-success' : ($payment->status === 'overdue' ? 'bg-danger-transparent text-danger' : 'bg-warning-transparent text-warning') }}">
-                                    {{ ucfirst($payment->status) }}
+                                    {{ $payment->status ? ucfirst($payment->status) : '-' }}
                                 </span>
                             </td>
                             <td class="text-end">
@@ -126,7 +126,7 @@
         </div>
     </div>
     <div class="card-footer bg-white">
-        {{ $payments->links() }}
+        {{ $payments->withQueryString()->links() }}
     </div>
     </div>
 

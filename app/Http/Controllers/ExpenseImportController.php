@@ -12,7 +12,11 @@ class ExpenseImportController extends Controller
     public function import(Request $request)
     {
         $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv',
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ], [
+            'file.required' => 'Please choose an Excel or CSV file to import.',
+            'file.mimes' => 'Upload only XLSX, XLS, or CSV files.',
+            'file.max' => 'The import file must be 10 MB or smaller.',
         ]);
 
         $path = $request->file('file')->store('imports');
@@ -20,7 +24,7 @@ class ExpenseImportController extends Controller
         ImportExpensesFromExcel::dispatch($path, (int) Auth::id());
         $this->startQueueWorkerOnce();
 
-        return back()->with('success', 'Excel uploaded');
+        return back()->with('success', 'Expense import uploaded successfully. Processing will continue in the background.');
     }
 
     private function startQueueWorkerOnce(): void

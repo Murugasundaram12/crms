@@ -2,6 +2,22 @@
 
 @section('title', 'Labour Wallet')
 
+@push('styles')
+    <style>
+        .labour-wallet-scroll {
+            max-height: 540px;
+            overflow-y: auto;
+        }
+
+        .labour-wallet-scroll thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #fff;
+        }
+    </style>
+@endpush
+
 @section('content')
     @include('partials.alerts')
 
@@ -97,7 +113,7 @@
             <h5 class="mb-0">Wallet Balances</h5>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive labour-wallet-scroll">
                 <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead>
                         <tr>
@@ -129,7 +145,7 @@
             <h5 class="mb-0">Settle Unpaid From Wallet</h5>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive labour-wallet-scroll">
                 <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead>
                         <tr>
@@ -182,7 +198,7 @@
             <h5 class="mb-0">Wallet History</h5>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive labour-wallet-scroll">
                 <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead>
                         <tr>
@@ -222,10 +238,6 @@
                 </table>
             </div>
         </div>
-    </div>
-
-    <div class="mt-3">
-        {{ $history->links() }}
     </div>
 
     <div class="modal fade" id="walletCreditModal" tabindex="-1" aria-labelledby="walletCreditModalLabel" aria-hidden="true">

@@ -5,18 +5,24 @@
 @section('content')
     @include('partials.alerts')
 
+    @php($isOwnProfile = request()->routeIs('profile.show'))
+
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
-            <h4 class="mb-1">User Details</h4>
+            <h4 class="mb-1">{{ $isOwnProfile ? 'My Profile' : 'User Details' }}</h4>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a href="{{ route('employees.index') }}">Manage Users</a></li>
-                    <li class="breadcrumb-item active">{{ $employee->name }}</li>
+                    @if($isOwnProfile)
+                        <li class="breadcrumb-item active">{{ $employee->name }}</li>
+                    @else
+                        <li class="breadcrumb-item"><a href="{{ route('employees.index') }}">Manage Users</a></li>
+                        <li class="breadcrumb-item active">{{ $employee->name }}</li>
+                    @endif
                 </ol>
             </nav>
         </div>
-        <a href="{{ route('employees.index') }}" class="btn btn-light">
+        <a href="{{ $isOwnProfile ? route('dashboard') : route('employees.index') }}" class="btn btn-light">
             <i class="ti ti-arrow-left me-1"></i>Back
         </a>
     </div>

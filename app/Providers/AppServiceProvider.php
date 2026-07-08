@@ -31,8 +31,17 @@ class AppServiceProvider extends ServiceProvider
                 $user = Auth::user();
                 $user->loadMissing('roles.permissions');
 
-                $permissionKeys = [];
-                if (method_exists($user, 'assignedRoles')) {
+                if ($this->isSuperAdmin($user)) {
+                    $permissionKeys = \App\Models\Permission::query()
+                        ->whereNotNull('key')
+                        ->pluck('key')
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+                } else {
+                    $permissionKeys = [];
+
                     foreach ($user->assignedRoles() as $role) {
                         foreach ($role->permissions as $permission) {
                             if (! empty($permission->key)) {
@@ -40,9 +49,9 @@ class AppServiceProvider extends ServiceProvider
                             }
                         }
                     }
-                }
 
-                $permissionKeys = array_values(array_unique($permissionKeys));
+                    $permissionKeys = array_values(array_unique($permissionKeys));
+                }
 
                 $permissionRoutes = [];
                 foreach (Route::getRoutes() as $route) {
@@ -78,11 +87,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         GateFacade::before(function ($user, $ability) {
-            if (method_exists($user, 'assignedRoles') && $user->assignedRoles()->contains('name', 'Super Admin')) {
-                return true;
-            }
-
-            if (($user->role ?? null) === 'Super Admin') {
+            if ($this->isSuperAdmin($user)) {
                 return true;
             }
 
@@ -92,5 +97,15 @@ class AppServiceProvider extends ServiceProvider
 
             return null;
         });
+    }
+
+    private function isSuperAdmin($user): bool
+    {
+        if (($user->role ?? null) === 'Super Admin') {
+            return true;
+        }
+
+        return method_exists($user, 'assignedRoles')
+            && $user->assignedRoles()->contains('name', 'Super Admin');
     }
 }

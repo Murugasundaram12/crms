@@ -134,15 +134,15 @@
                         @forelse ($variations as $variation)
                             <tr>
                                 <td><span class="badge {{ $variation->type === 'additional' ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger' }}">
-                                        {{ ucfirst($variation->type) }}</span>
+                                        {{ $variation->type ? ucfirst($variation->type) : '-' }}</span>
                                 </td>
                                 <td>{{ $variation->project?->name ?? '-' }}</td>
                                 <td>{{ Str::limit($variation->description, 50) }}</td>
                                 <td class="{{ $variation->type === 'additional' ? 'text-success' : 'text-danger' }} fw-semibold">Rs. {{ number_format($variation->amount, 2) }}</td>
-                                <td>{{ $variation->date->format('d M Y') }}</td>
+                                <td>{{ optional($variation->date)->format('d M Y') ?? '-' }}</td>
                                 <td>{{ $variation->approvedBy?->name ?? '-' }}</td>
                                 <td><span class="badge {{ $variation->status === 'approved' ? 'bg-success-transparent text-success' : ($variation->status === 'rejected' ? 'bg-danger-transparent text-danger' : 'bg-warning-transparent text-warning') }}">
-                                        {{ ucfirst($variation->status) }}</span>
+                                        {{ $variation->status ? ucfirst($variation->status) : '-' }}</span>
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
@@ -169,7 +169,7 @@
                     </tbody>
                 </table>
             </div>
-            <div class="mt-3">{{ $variations->links() }}</div>
+            <div class="mt-3">{{ $variations->withQueryString()->links() }}</div>
         </div>
     </div>
 
@@ -279,7 +279,7 @@
                             <div class="col-md-6">
                                 <label class="form-label">Date</label>
                                 <input type="date" name="date" class="form-control"
-                                    value="{{ $variation->date->format('Y-m-d') }}">
+                                    value="{{ optional($variation->date)->format('Y-m-d') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Approved By</label>

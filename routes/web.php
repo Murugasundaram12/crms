@@ -35,14 +35,13 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/logout', [AuthController::class, 'logout'])->name('logout.get');
 
-Route::prefix('server-commands')->group(function () {
+Route::prefix('server-commands')->middleware(['auth', 'permission:permissions-edit'])->group(function () {
     Route::get('optimize', function () {
         Artisan::call('optimize:clear');
         Artisan::call('route:clear');
-        Artisan::call('route:cache');
         Artisan::call('config:clear');
-        dd("Done!");
-    });
+        return redirect()->route('dashboard')->with('success', 'Application cache cleared successfully.');
+    })->name('server-commands.optimize');
 });
 
 Route::middleware('auth')->group(function () {
@@ -57,17 +56,32 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::get('/profile', [EmployeeController::class, 'profile'])
+        ->name('profile.show');
+
     Route::get('/home', [DashboardController::class, 'index'])
         ->name('home');
 
     Route::redirect('/index', '/dashboard');
 
-    Route::get('/user', [EmployeeController::class, 'index'])->name('user-index');
-    Route::get('/user/create', fn () => redirect()->route('employees.index'))->name('user-create');
-    Route::post('/user/store', [EmployeeController::class, 'store'])->name('user.store');
-    Route::get('/user/show/{employee}', [EmployeeController::class, 'show'])->name('user-show');
-    Route::get('/user/edit/{employee}', fn (User $employee) => redirect()->route('employees.index', ['edit' => $employee->id]))->name('user-edit');
-    Route::put('/user/update/{employee}', [EmployeeController::class, 'update'])->name('user.update');
+    Route::get('/user', [EmployeeController::class, 'index'])
+        ->middleware('permission:employees-list')
+        ->name('user-index');
+    Route::get('/user/create', fn () => redirect()->route('employees.index'))
+        ->middleware('permission:employees-create')
+        ->name('user-create');
+    Route::post('/user/store', [EmployeeController::class, 'store'])
+        ->middleware('permission:employees-create')
+        ->name('user.store');
+    Route::get('/user/show/{employee}', [EmployeeController::class, 'show'])
+        ->middleware('permission:employees-list')
+        ->name('user-show');
+    Route::get('/user/edit/{employee}', fn (User $employee) => redirect()->route('employees.index', ['edit' => $employee->id]))
+        ->middleware('permission:employees-edit')
+        ->name('user-edit');
+    Route::put('/user/update/{employee}', [EmployeeController::class, 'update'])
+        ->middleware('permission:employees-edit')
+        ->name('user.update');
 
     Route::get('/client', fn () => redirect()->route('clients.index'))->name('client-index');
     Route::get('/client/create', fn () => redirect()->route('clients.create'))->name('client-create');
@@ -590,8 +604,10 @@ Route::middleware('auth')->group(function () {
     });
     Route::get('/excel/import', function () {
         return view('pages.excel.expense_import');
-    })->name('excel.import.form');
-    Route::post('/excel/import',[ExpenseImportController::class,'import'])->name('excel.import');
+    })->middleware('permission:expenses-create')->name('excel.import.form');
+    Route::post('/excel/import', [ExpenseImportController::class, 'import'])
+        ->middleware('permission:expenses-create')
+        ->name('excel.import');
 
     // Route::prefix('quotations')->name('quotations.')->group(function () {
     //     Route::middleware('permission:quotations-list')->group(function () {

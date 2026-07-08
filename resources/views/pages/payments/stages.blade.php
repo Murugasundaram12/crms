@@ -97,13 +97,13 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted">No payment stages found.</td>
+                                <td colspan="2" class="text-center text-muted py-4">No payment stages found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-            <div class="mt-3">{{ $paymentStages->links() }}</div>
+            <div class="mt-3">{{ $paymentStages->withQueryString()->links() }}</div>
         </div>
     </div>
 

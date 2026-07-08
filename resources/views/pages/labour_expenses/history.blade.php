@@ -92,12 +92,6 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
-            <ul class="nav nav-tabs nav-tabs-solid nav-justified mb-0">
-                <li class="nav-item"><a class="nav-link" href="{{ route('expenses.history') }}"><i class="ti ti-file-invoice me-1"></i>Other Expenses</a></li>
-                <li class="nav-item"><a class="nav-link active" href="{{ route('labour-expenses.history') }}"><i class="ti ti-user-cog me-1"></i>Labour</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('vendor-expenses.history') }}"><i class="ti ti-building-warehouse me-1"></i>Vendor</a></li>
-            </ul>
-
             <div class="p-3">
                 @php
                     $pageTransactions = $transactions->getCollection();

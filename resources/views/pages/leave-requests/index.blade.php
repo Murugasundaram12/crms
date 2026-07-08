@@ -73,10 +73,10 @@
                         @forelse($leaveRequests as $leaveRequest)
                             <tr>
                                 <td>{{ $leaveRequest->id }}</td>
-                                <td>{{ $leaveRequest->user?->name }}</td>
-                                <td>{{ $leaveRequest->leaveType?->name }}</td>
-                                <td>{{ $leaveRequest->from_date?->format('Y-m-d') }}</td>
-                                <td>{{ $leaveRequest->to_date?->format('Y-m-d') }}</td>
+                                <td>{{ $leaveRequest->user?->name ?? '-' }}</td>
+                                <td>{{ $leaveRequest->leaveType?->name ?? '-' }}</td>
+                                <td>{{ $leaveRequest->from_date?->format('Y-m-d') ?? '-' }}</td>
+                                <td>{{ $leaveRequest->to_date?->format('Y-m-d') ?? '-' }}</td>
                                 <td>
                                     @if($leaveRequest->status === 'pending')
                                         <span class="badge bg-soft-warning text-warning">Pending</span>

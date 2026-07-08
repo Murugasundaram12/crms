@@ -78,6 +78,11 @@ class EmployeeController extends Controller
         return view('pages.employees.show', compact('employee', 'expenses', 'attendances', 'stats'));
     }
 
+    public function profile(Request $request)
+    {
+        return $this->show($request->user());
+    }
+
     public function edit(User $employee)
     {
         // Reuse the main listing page and open the selected employee for editing.

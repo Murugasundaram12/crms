@@ -6,6 +6,23 @@
 @section('content')
     @include('partials.alerts')
 
+    @php
+        $statusBadgeClass = function (?string $status): string {
+            return match (strtolower((string) $status)) {
+                'active', 'completed', 'complete', 'approved', 'paid' => 'bg-success text-white',
+                'in_progress', 'in progress', 'processing', 'ongoing' => 'bg-primary text-white',
+                'pending', 'open', 'not_started', 'not started' => 'bg-warning text-dark',
+                'hold', 'on_hold', 'on hold' => 'bg-info text-dark',
+                'cancelled', 'canceled', 'rejected', 'overdue' => 'bg-danger text-white',
+                default => 'bg-secondary text-white',
+            };
+        };
+
+        $statusLabel = fn (?string $status): string => filled($status)
+            ? ucfirst(str_replace('_', ' ', $status))
+            : 'Unknown';
+    @endphp
+
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
             <h4 class="mb-1">Dashboard</h4>
@@ -267,7 +284,11 @@
                                         <td><a href="{{ route('projects.show', $project) }}">{{ $project->name }}</a></td>
                                         <td>{{ $project->client?->name ?? '-' }}</td>
                                         <td>{{ $project->manager?->name ?? '-' }}</td>
-                                        <td><span class="badge bg-light text-dark">{{ ucfirst(str_replace('_', ' ', $project->status)) }}</span></td>
+                                        <td>
+                                            <span class="badge {{ $statusBadgeClass($project->status) }}">
+                                                {{ $statusLabel($project->status) }}
+                                            </span>
+                                        </td>
                                         <td>{{ $project->tasks_count }}</td>
                                     </tr>
                                 @empty
@@ -310,7 +331,11 @@
                                         <td>{{ $task->project?->name ?? '-' }}</td>
                                         <td>{{ $task->employee?->name ?? '-' }}</td>
                                         <td>{{ optional($task->due_date)->format('d M Y') ?? '-' }}</td>
-                                        <td><span class="badge bg-light text-dark">{{ ucfirst(str_replace('_', ' ', $task->status)) }}</span></td>
+                                        <td>
+                                            <span class="badge {{ $statusBadgeClass($task->status) }}">
+                                                {{ $statusLabel($task->status) }}
+                                            </span>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -327,13 +352,10 @@
 @endsection
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('assets/plugins/datatables/css/dataTables.bootstrap5.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/plugins/daterangepicker/daterangepicker.css') }}">
 @endpush
 
 @push('scripts')
-    <script src="{{ asset('assets/plugins/datatables/js/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ asset('assets/plugins/datatables/js/dataTables.bootstrap5.min.js') }}"></script>
     <script src="{{ asset('assets/js/moment.min.js') }}"></script>
     <script src="{{ asset('assets/plugins/daterangepicker/daterangepicker.js') }}">
     </script>

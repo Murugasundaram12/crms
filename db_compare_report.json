@@ -1,0 +1,294 @@
+{
+    "old_table_count": 28,
+    "new_table_count": 47,
+    "only_old": [
+        "attendance",
+        "category",
+        "clientdetails",
+        "labour_details",
+        "labour_role",
+        "main_category",
+        "model_has_roles",
+        "password_resets",
+        "payment",
+        "personal_access_tokens",
+        "project_details",
+        "role_has_permissions",
+        "salary_details",
+        "settings",
+        "stage",
+        "vendor_details"
+    ],
+    "only_new": [
+        "attendances",
+        "cache",
+        "cache_locks",
+        "categories",
+        "category_main_category",
+        "clients",
+        "daily_activities",
+        "daily_labours",
+        "daily_materials",
+        "employee_salaries",
+        "employees",
+        "expense_transactions",
+        "job_batches",
+        "jobs",
+        "labour_expense_transactions",
+        "labour_roles",
+        "labours",
+        "leave_requests",
+        "leave_types",
+        "main_categories",
+        "payment_stages",
+        "payments",
+        "projects",
+        "quotation_items",
+        "quotation_schedules",
+        "quotation_terms",
+        "quotations",
+        "role_permission",
+        "sessions",
+        "stages",
+        "tasks",
+        "user_roles",
+        "variations",
+        "vendor_expense_transactions",
+        "vendors"
+    ],
+    "common_count": 12,
+    "column_diffs": {
+        "advance_history": {
+            "old_cols": 8,
+            "new_cols": 11,
+            "missing_in_new": [
+                "vendor_id",
+                "expense_id",
+                "date"
+            ],
+            "missing_in_old": [
+                "labour_expense_transaction_id",
+                "entry_type",
+                "notes",
+                "user_id",
+                "current_date",
+                "current_time"
+            ],
+            "type_diff": {
+                "id": {
+                    "old": "int(11) NOT NULL",
+                    "new": "bigint(20) UNSIGNED NOT NULL"
+                },
+                "labour_id": {
+                    "old": "int(11) NOT NULL",
+                    "new": "bigint(20) UNSIGNED DEFAULT NULL"
+                },
+                "amount": {
+                    "old": "int(11) NOT NULL",
+                    "new": "decimal(14"
+                }
+            }
+        },
+        "expenses_unpaid_date": {
+            "old_cols": 6,
+            "new_cols": 9,
+            "missing_in_new": [
+                "unpaid_amt"
+            ],
+            "missing_in_old": [
+                "user_id",
+                "paid_amount",
+                "current_time",
+                "notes"
+            ],
+            "type_diff": {
+                "expense_id": {
+                    "old": "int(10) UNSIGNED NOT NULL",
+                    "new": "bigint(20) UNSIGNED NOT NULL"
+                },
+                "current_date": {
+                    "old": "datetime NOT NULL",
+                    "new": "date DEFAULT NULL"
+                }
+            }
+        },
+        "permissions": {
+            "old_cols": 5,
+            "new_cols": 5,
+            "missing_in_new": [
+                "guard_name"
+            ],
+            "missing_in_old": [
+                "key"
+            ],
+            "type_diff": []
+        },
+        "roles": {
+            "old_cols": 5,
+            "new_cols": 5,
+            "missing_in_new": [
+                "guard_name"
+            ],
+            "missing_in_old": [
+                "description"
+            ],
+            "type_diff": []
+        },
+        "transferdetails": {
+            "old_cols": 11,
+            "new_cols": 14,
+            "missing_in_new": [
+                "member_id",
+                "is_vendor"
+            ],
+            "missing_in_old": [
+                "employee_id",
+                "transfer_type",
+                "current_time",
+                "active_status",
+                "delete_status"
+            ],
+            "type_diff": {
+                "amount": {
+                    "old": "int(11) NOT NULL",
+                    "new": "int(11) NOT NULL DEFAULT 0"
+                },
+                "user_id": {
+                    "old": "int(10) UNSIGNED NOT NULL",
+                    "new": "bigint(20) UNSIGNED NOT NULL"
+                },
+                "current_date": {
+                    "old": "datetime NOT NULL",
+                    "new": "date NOT NULL"
+                },
+                "payment_mode": {
+                    "old": "int(11) NOT NULL",
+                    "new": "varchar(255) NOT NULL"
+                },
+                "vendor_id": {
+                    "old": "int(11) DEFAULT NULL",
+                    "new": "bigint(20) UNSIGNED DEFAULT NULL"
+                }
+            }
+        },
+        "users": {
+            "old_cols": 43,
+            "new_cols": 20,
+            "missing_in_new": [
+                "first_name",
+                "last_name",
+                "user_type",
+                "is_admin",
+                "role_id",
+                "type",
+                "confirm_password",
+                "image",
+                "message_checked_at",
+                "client_id",
+                "notification_checked_at",
+                "is_primary_contact",
+                "job_title",
+                "disable_login",
+                "note",
+                "alternative_address",
+                "alternative_phone",
+                "dob",
+                "ssn",
+                "gender",
+                "sticky_note",
+                "skype",
+                "language",
+                "enable_web_notification",
+                "enable_email_notification",
+                "requested_account_removal",
+                "active_status",
+                "delete_status",
+                "date_of_joining",
+                "salary",
+                "government_image",
+                "deleted_at"
+            ],
+            "missing_in_old": [
+                "name",
+                "designation",
+                "role",
+                "hourly_rate",
+                "hire_date",
+                "avatar",
+                "salary_name",
+                "salary_amount",
+                "salary_type"
+            ],
+            "type_diff": {
+                "status": {
+                    "old": "int(11) NOT NULL DEFAULT 0",
+                    "new": "varchar(255) NOT NULL DEFAULT 'active'"
+                },
+                "phone": {
+                    "old": "varchar(255) NOT NULL",
+                    "new": "varchar(30) DEFAULT NULL"
+                },
+                "wallet": {
+                    "old": "int(11) NOT NULL DEFAULT 0",
+                    "new": "decimal(14"
+                }
+            }
+        }
+    },
+    "insert_counts_old": {
+        "advance_history": 4,
+        "attendance": 1,
+        "category": 1,
+        "clientdetails": 1,
+        "expenses": 71,
+        "expenses_unpaid_date": 3,
+        "labour_details": 1,
+        "labour_role": 1,
+        "main_category": 1,
+        "migrations": 1,
+        "model_has_roles": 1,
+        "payment": 1,
+        "permissions": 1,
+        "project_details": 1,
+        "roles": 1,
+        "role_has_permissions": 1,
+        "salary_details": 1,
+        "settings": 1,
+        "stage": 1,
+        "transferdetails": 10,
+        "users": 1,
+        "vendor_details": 1,
+        "wallet": 4
+    },
+    "insert_counts_new": {
+        "advance_history": 1,
+        "attendances": 1,
+        "categories": 1,
+        "category_main_category": 1,
+        "clients": 1,
+        "employees": 1,
+        "employee_salaries": 1,
+        "expenses": 64,
+        "expense_transactions": 1,
+        "labours": 1,
+        "labour_roles": 1,
+        "leave_requests": 1,
+        "main_categories": 1,
+        "migrations": 1,
+        "payments": 1,
+        "payment_stages": 1,
+        "permissions": 1,
+        "projects": 1,
+        "quotations": 1,
+        "quotation_items": 1,
+        "quotation_terms": 1,
+        "roles": 1,
+        "role_permission": 1,
+        "stages": 1,
+        "tasks": 1,
+        "users": 1,
+        "user_roles": 1,
+        "vendors": 1,
+        "wallet": 1
+    }
+}

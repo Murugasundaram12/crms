@@ -12,6 +12,16 @@
                 </ol>
             </nav>
         </div>
+        @can('expenses-edit')
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#vendorAdvanceCreditModal">
+                    <i class="ti ti-plus me-1"></i>Add Amount
+                </button>
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#vendorAdvanceWithdrawModal">
+                    <i class="ti ti-arrow-back-up me-1"></i>Withdraw
+                </button>
+            </div>
+        @endcan
     </div>
 
     <div class="card border-0 shadow-sm mb-4">
@@ -59,4 +69,86 @@
             <div class="card-footer bg-white d-flex justify-content-end">{{ $advanceVendors->withQueryString()->links() }}</div>
         @endif
     </div>
+
+    @can('expenses-edit')
+        <div class="modal fade" id="vendorAdvanceCreditModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" action="{{ route('vendor-expenses.advance-store') }}" class="modal-content border-0 shadow">
+                    @csrf
+                    <input type="hidden" name="entry_type" value="credit">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title">Add Vendor Advance</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Vendor</label>
+                            <select name="vendor_id" class="form-select" required>
+                                <option value="">Select vendor</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->id }}" @selected((string) request('vendor_id') === (string) $vendor->id)>
+                                        {{ $vendor->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Amount</label>
+                            <input type="number" name="amount" class="form-control" min="1" required>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Notes</label>
+                            <input type="text" name="notes" class="form-control" placeholder="Advance paid to vendor">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="ti ti-plus me-1"></i>Add Amount
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal fade" id="vendorAdvanceWithdrawModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" action="{{ route('vendor-expenses.advance-store') }}" class="modal-content border-0 shadow">
+                    @csrf
+                    <input type="hidden" name="entry_type" value="withdraw">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title">Withdraw Vendor Advance</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Vendor</label>
+                            <select name="vendor_id" class="form-select" required>
+                                <option value="">Select vendor</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->id }}" @selected((string) request('vendor_id') === (string) $vendor->id)>
+                                        {{ $vendor->name }} - Rs. {{ number_format((float) $vendor->advance_amt, 2) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Amount</label>
+                            <input type="number" name="amount" class="form-control" min="1" required>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Notes</label>
+                            <input type="text" name="notes" class="form-control" placeholder="Advance returned or corrected">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button class="btn btn-danger" type="submit">
+                            <i class="ti ti-arrow-back-up me-1"></i>Withdraw
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endcan
 @endsection

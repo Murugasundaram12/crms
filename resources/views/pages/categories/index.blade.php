@@ -141,7 +141,7 @@
                                     {{ $row->main_category_name }}
                                 </td>
                                 <td>{{ $row->category_name }}</td>
-                                <td>{{ \Carbon\Carbon::parse($row->created_at)->format('d M Y') ?: '-' }}</td>
+                                <td>{{ $row->created_at ? \Carbon\Carbon::parse($row->created_at)->format('d M Y') : '-' }}</td>
                                 <td class="text-end">
                                     <div class="dropdown table-action">
                                         <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"

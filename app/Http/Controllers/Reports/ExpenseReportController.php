@@ -14,6 +14,8 @@ use Illuminate\Support\Collection;
 
 class ExpenseReportController extends Controller
 {
+    private const PER_PAGE = 10;
+
     public function index(Request $request)
     {
         $expenseQuery = Expense::query()
@@ -131,7 +133,7 @@ class ExpenseReportController extends Controller
             return optional($row['date'])->timestamp ?? 0;
         })->values();
 
-        $expenses = $this->paginateCollection($merged, 15, $request);
+        $expenses = $this->paginateCollection($merged, self::PER_PAGE, $request);
 
         $totals = [
             'count' => $merged->count(),
