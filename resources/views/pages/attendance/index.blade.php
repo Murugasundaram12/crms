@@ -8,13 +8,19 @@
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
             <h4 class="mb-1">Attendance List</h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Attendance</li>
+                </ol>
+            </nav>
         </div>
         <div>
             <a href="{{ route('dashboard') }}" class="btn btn-outline-light shadow">Back to Dashboard</a>
         </div>
     </div>
 
-    <div class="card border rounded-0">
+    <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom">
             <form method="GET" action="{{ route('attendance.index') }}" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-md-6 col-lg-3">
@@ -51,10 +57,10 @@
             </form>
         </div>
 
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-bordered table-striped align-middle">
-                    <thead>
+                <table class="table table-hover table-nowrap align-middle mb-0">
+                    <thead class="table-light">
                         <tr>
                             <th>#</th>
                             <th>Employee</th>
@@ -82,24 +88,25 @@
                                 </td>
                                 <td>
                                     @if($attendance->check_out_at)
-                                        <span class="badge bg-success">Checked Out</span>
+                                        <span class="badge bg-soft-success text-success">Checked Out</span>
                                     @else
-                                        <span class="badge bg-warning text-dark">Checked In</span>
+                                        <span class="badge bg-soft-warning text-warning">Checked In</span>
                                     @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted">No attendance records found.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No attendance records found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            <div class="mt-3">
-                {{ $attendances->links() }}
-            </div>
         </div>
+        @if ($attendances->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $attendances->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 @endsection

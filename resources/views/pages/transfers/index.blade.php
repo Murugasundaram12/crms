@@ -2,16 +2,26 @@
 
 @section('content')
     <div class="container-fluid">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-            <h4 class="m-0">Transfers</h4>
-            <a href="{{ route('transfers.create') }}" class="btn btn-primary btn-sm">Add Transfer</a>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+            <div>
+                <h4 class="mb-1">Transfers</h4>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0 p-0">
+                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Transfers</li>
+                    </ol>
+                </nav>
+            </div>
+            <a href="{{ route('transfers.create') }}" class="btn btn-primary shadow-sm">
+                <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Transfer
+            </a>
         </div>
 
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
-        <div class="card border rounded-0">
+        <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <form method="GET" action="{{ route('transfers.index') }}" class="row g-3 align-items-end m-0">
                     <div class="col-12 col-lg-4">
@@ -47,8 +57,10 @@
             </div>
         </div>
 
-        <div class="table-responsive mt-3">
-            <table class="table table-bordered align-middle">
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-nowrap align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <th>#</th>
@@ -66,7 +78,7 @@
                     @forelse($transfers as $i => $transfer)
                         <tr>
                             <td>{{ $i + 1 }}</td>
-                            <td>{{ ucfirst($transfer->transfer_type) }}</td>
+                            <td><span class="badge bg-soft-primary text-primary">{{ ucfirst($transfer->transfer_type) }}</span></td>
                             <td>
                                 @if($transfer->transfer_type === 'employee')
                                     {{ $transfer->employee_id ?? '-' }}
@@ -83,27 +95,35 @@
                             <td>
                                 <div class="d-flex gap-2">
                                     <a href="{{ route('transfers.edit', $transfer->id) }}"
-                                        class="btn btn-sm btn-warning">Edit</a>
-                                    <form method="POST" action="{{ route('transfers.destroy', $transfer->id) }}"
-                                        onsubmit="return confirm('Delete this transfer?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-sm btn-danger" type="submit">Delete</button>
-                                    </form>
+                                        class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="ti ti-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
+                                        title="Delete"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#crmDeleteModal"
+                                        data-delete-action="{{ route('transfers.destroy', $transfer->id) }}"
+                                        data-delete-title="Delete Transfer"
+                                        data-delete-message="Are you sure you want to delete this transfer?">
+                                        <i class="ti ti-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center">No transfers found.</td>
+                            <td colspan="9" class="text-center text-muted py-4">No transfers found.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-
-        <div class="mt-3">
-            {{ $transfers->links() }}
+            </div>
+            @if ($transfers->hasPages())
+                <div class="card-footer bg-white d-flex justify-content-end">
+                    {{ $transfers->withQueryString()->links() }}
+                </div>
+            @endif
         </div>
     </div>
 @endsection

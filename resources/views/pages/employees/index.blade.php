@@ -17,12 +17,12 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+            <a href="javascript:void(0);" class="btn btn-primary shadow-sm" data-bs-toggle="offcanvas"
                 data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add User</a>
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('employees.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-lg-4">
@@ -56,10 +56,10 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
-        <div class="card-body">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
             <div class="table-responsive custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
@@ -96,7 +96,7 @@
                                 <td>{{ $assignedRole ?: ($employee->role ?: '-') }}</td>
                                 <td>{{ optional($employee->hire_date)->format('d M Y') ?: '-' }}</td>
                                 <td><span
-                                        class="badge {{ $employee->status === 'active' ? 'bg-success' : 'bg-secondary' }}">{{ ucfirst($employee->status) }}</span>
+                                        class="badge {{ $employee->status === 'active' ? 'bg-soft-success text-success' : 'bg-soft-secondary text-secondary' }}">{{ ucfirst($employee->status) }}</span>
                                 </td>
 
                                 <td class="text-end">
@@ -123,14 +123,16 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center text-muted">No users available yet.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No users available yet.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-            <div class="mt-3">{{ $users->links() }}</div>
         </div>
+        @if ($users->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">{{ $users->withQueryString()->links() }}</div>
+        @endif
     </div>
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
@@ -185,7 +187,7 @@
     @foreach ($users as $employee)
         <div class="modal fade" id="edit_employee_{{ $employee->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content">
+                <div class="modal-content border-0 shadow">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit User</h5><button type="button" class="btn-close"
                             data-bs-dismiss="modal"></button>

@@ -98,11 +98,11 @@ class QuotationController extends Controller
         $quotation = DB::transaction(function () use ($quotationData, $validated) {
             $quotation = Quotation::create($quotationData);
             $this->syncItems($quotation, $validated['items']);
-            $this->syncDefaultTerms($quotation);
+            $this->syncTerms($quotation, $validated['terms'] ?? null);
             return $quotation;
         });
 
-        return redirect()->route('quotations.show', $quotation)->with('success', 'Quotation created successfully.');
+        return redirect()->route('quotations.list')->with('success', 'Quotation created successfully.');
     }
 
     /**
@@ -148,7 +148,7 @@ class QuotationController extends Controller
             QuotationTerm::where('quotation_id', $quotation->id)->delete();
 
             $this->syncItems($quotation, $validated['items']);
-            $this->syncDefaultTerms($quotation);
+            $this->syncTerms($quotation, $validated['terms'] ?? null);
         });
 
         return redirect()->route('quotations.list')->with('success', 'Quotation updated successfully.');
@@ -194,9 +194,25 @@ class QuotationController extends Controller
         $pdfTerms = $this->resolvePdfTerms($quotation);
 
         $pdf = Pdf::loadView('pdf.quotation', compact('quotation', 'groupedItems', 'bankDetails', 'pdfTerms'))
-            ->setPaper('a4', 'portrait');
+            ->setPaper('a4', 'landscape');
 
         return $pdf->download('Quotation-' . $quotation->id . '.pdf');
+    }
+
+    /**
+     * Stream PDF in browser
+     */
+    public function streamPdf(Quotation $quotation)
+    {
+        $quotation->load(['client', 'project', 'items', 'schedules', 'terms']);
+        $groupedItems = $this->groupQuotationItems($quotation);
+        $bankDetails = config('quotation.bank_details', []);
+        $pdfTerms = $this->resolvePdfTerms($quotation);
+
+        $pdf = Pdf::loadView('pdf.quotation', compact('quotation', 'groupedItems', 'bankDetails', 'pdfTerms'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->stream('Quotation-' . $quotation->id . '.pdf');
     }
 
     public function clientDetails(Client $client): JsonResponse
@@ -293,9 +309,14 @@ class QuotationController extends Controller
         }
     }
 
-    private function syncDefaultTerms(Quotation $quotation): void
+    private function syncTerms(Quotation $quotation, ?string $terms): void
     {
-        foreach (config('quotation.default_terms', []) as $term) {
+        $termLines = collect(preg_split('/\r\n|\r|\n/', (string) $terms))
+            ->map(fn($term) => trim($term))
+            ->filter()
+            ->values();
+
+        foreach ($termLines as $term) {
             $quotation->terms()->create([
                 'term_text' => $term,
             ]);
@@ -333,16 +354,6 @@ class QuotationController extends Controller
 
     private function resolvePdfTerms(Quotation $quotation): array
     {
-        $configTerms = collect(config('quotation.default_terms', []))
-            ->map(fn($term) => trim((string) $term))
-            ->filter()
-            ->values()
-            ->all();
-
-        if ($configTerms !== []) {
-            return $configTerms;
-        }
-
         return $quotation->terms
             ->pluck('term_text')
             ->map(fn($term) => trim((string) $term))

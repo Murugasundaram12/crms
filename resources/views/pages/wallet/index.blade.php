@@ -6,15 +6,39 @@
     @include('partials.alerts')
 
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <h4 class="m-0">Wallet History</h4>
+        <div>
+            <h4 class="mb-1">Wallet History</h4>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0 p-0">
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Wallet History</li>
+                </ol>
+            </nav>
+        </div>
         @can('transfers-create')
-            <a href="{{ route('wallet.create') }}" class="btn btn-primary btn-sm">
+            <a href="{{ route('wallet.create') }}" class="btn btn-primary">
                 <i class="ti ti-plus me-1"></i>Add Wallet
             </a>
         @endcan
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1">Filtered Total</p>
+                        <h5 class="mb-0 text-primary">Rs. {{ number_format((float) $totalAmount, 2) }}</h5>
+                    </div>
+                    <span class="avatar avatar-md rounded bg-primary-transparent text-primary d-inline-flex align-items-center justify-content-center">
+                        <i class="ti ti-wallet fs-22"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
     <form method="GET" action="{{ route('wallet.index') }}" class="row g-3 align-items-end m-0">
         <div class="col-md-1">
@@ -66,7 +90,7 @@
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-nowrap mb-0">
+                <table class="table table-hover table-nowrap mb-0">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -95,7 +119,7 @@
                                 <td>{{ $wallet->project?->name ?? '-' }}</td>
                                 <td class="fw-semibold">{{ number_format((float) $wallet->amount, 2) }}</td>
                                 <td>
-                                    <span class="badge {{ (int) $wallet->transfer_type === 0 ? 'bg-success' : 'bg-danger' }}">
+                                    <span class="badge {{ (int) $wallet->transfer_type === 0 ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger' }}">
                                         {{ (int) $wallet->transfer_type === 0 ? 'Credited' : 'Debited' }}
                                     </span>
                                 </td>
@@ -121,7 +145,4 @@
         {{ $wallets->links() }}
     </div>
 
-    <div class="d-flex justify-content-end mt-3 fw-semibold">
-        Total Amount: <span class="text-primary ms-2">{{ number_format((float) $totalAmount, 2) }}</span>
-    </div>
 @endsection

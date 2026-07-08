@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="{{ asset('assets/plugins/simplebar/simplebar.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/plugins/daterangepicker/daterangepicker.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="app-style">
+    <link rel="stylesheet" href="{{ asset('assets/css/crm-list-ui.css') }}">
 
     @stack('styles')
 </head>

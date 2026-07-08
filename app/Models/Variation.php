@@ -29,4 +29,9 @@ class Variation extends Model
     {
         return $this->belongsTo(Project::class);
     }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'approved_by');
+    }
 }

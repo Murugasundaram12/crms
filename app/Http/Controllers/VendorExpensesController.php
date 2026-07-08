@@ -4,192 +4,177 @@ namespace App\Http\Controllers;
 
 use App\Models\AdvanceHistory;
 use App\Models\Category;
+use App\Models\Expense;
 use App\Models\ExpenseUnpaidDate;
 use App\Models\MainCategory;
 use App\Models\Project;
 use App\Models\Vendor;
-use App\Models\VendorExpenseTransaction;
-use App\Models\Wallet;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class VendorExpensesController extends Controller
 {
     public function history(Request $request)
     {
-        $query = VendorExpenseTransaction::query()
-            ->where('delete_status', false)
-            ->with(['vendor', 'project', 'mainCategory', 'category'])
-            ->when($request->filled('main_category_id'), fn($q) => $q->where('main_category_id', $request->integer('main_category_id')))
-            ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->integer('category_id')))
-            ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
-            ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
-            ->when($request->filled('date_from'), fn($q) => $q->whereDate('current_date', '>=', $request->date('date_from')->toDateString()))
-            ->when($request->filled('date_to'), fn($q) => $q->whereDate('current_date', '<=', $request->date('date_to')->toDateString()))
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $q = $request->string('q')->toString();
-                $query->where(function ($qq) use ($q) {
-                    $qq->where('description', 'like', "%{$q}%")
-                        ->orWhere('payment_mode', 'like', "%{$q}%")
-                        ->orWhereHas('mainCategory', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
-                        ->orWhereHas('category', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"));
-                });
-            });
+        $query = $this->vendorExpenseQuery($request);
+        [$transactions, $totals] = $this->paginateWithTotals($query, $request);
+        $editingTransaction = $this->editingTransaction($request);
 
-        $totals = (clone $query)
-            ->selectRaw('COALESCE(SUM(amount),0) as total_amount')
-            ->selectRaw('COALESCE(SUM(paid_amount),0) as total_paid_amount')
-            ->selectRaw('COALESCE(SUM(unpaid_amount),0) as total_unpaid_amount')
-            ->selectRaw('COALESCE(SUM(extra_amount),0) as total_advanced_amount')
-            ->first();
-
-        $items = $query
-            ->latest()
-            ->paginate((int) $request->get('paginate', 10))
-            ->withQueryString();
-
-        $vendors = Vendor::query()->orderBy('name')->get();
-        $projects = Project::query()->orderBy('name')->get();
-        $mainCategories = MainCategory::query()->where('status', 'active')->orderBy('name')->get();
-        $categories = Category::query()->orderBy('name')->get();
-
-        return view('pages.vendor_expenses.history', [
-            'transactions' => $items,
-            'vendors' => $vendors,
-            'projects' => $projects,
-            'mainCategories' => $mainCategories,
-            'categories' => $categories,
-            'totals' => $totals,
-        ]);
+        return view('pages.vendor_expenses.history', $this->viewData() + compact('transactions', 'totals', 'editingTransaction'));
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'vendor_id' => ['required', 'exists:vendors,id'],
-            'project_id' => ['nullable', 'exists:projects,id'],
-            'main_category_id' => ['required', 'exists:main_categories,id'],
-            'category_id' => ['required', 'exists:categories,id'],
-            'description' => ['nullable', 'string'],
-            'amount' => ['required', 'numeric', 'min:0'],
-            'paid_amount' => ['required', 'numeric', 'min:0'],
-            'salary' => ['nullable', 'numeric', 'min:0'],
-            'payment_mode' => ['nullable', 'string', 'max:100'],
-        ]);
+        $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($validated) {
-            $amount = (float) $validated['amount'];
-            $paidAmount = (float) $validated['paid_amount'];
+            $amount = (int) $validated['amount'];
+            $paidAmount = (int) $validated['paid_amount'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
 
-            $tx = VendorExpenseTransaction::create([
+            $expense = Expense::create([
                 'user_id' => Auth::id(),
-                'main_category_id' => $validated['main_category_id'],
+                'main_category_id' => $validated['main_category_id'] ?? null,
                 'category_id' => $validated['category_id'],
                 'project_id' => $validated['project_id'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'amount' => $amount,
-                'paid_amount' => $paidAmount,
-                'unpaid_amount' => $unpaidAmount,
-                'extra_amount' => $extraAmount,
-                'payment_mode' => $validated['payment_mode'] ?? 'Cash',
+                'paid_amt' => $paidAmount,
+                'unpaid_amt' => $unpaidAmount,
+                'extra_amt' => $extraAmount,
+                'payment_mode' => $validated['payment_mode'] ?? null,
                 'vendor_id' => $validated['vendor_id'],
-                'salary' => $validated['salary'] ?? $amount,
-                'current_date' => now()->toDateString(),
-                'current_time' => now()->format('H:i:s'),
-                'active_status' => true,
-                'delete_status' => false,
+                'current_date' => $validated['current_date'] ?? now(),
+                'image' => $validated['image'] ?? null,
             ]);
 
-            if ($paidAmount > 0) {
-                Wallet::create([
-                    'user_id' => Auth::id(),
-                    'amount' => $paidAmount,
-                    'transfer_type' => 1,
-                    'description' => 'Vendor expense paid',
-                    'reference_type' => 'vendor_expense',
-                    'reference_id' => $tx->id,
-                    'current_date' => now()->toDateString(),
-                    'current_time' => now()->format('H:i:s'),
-                ]);
-            }
-
             if ($extraAmount > 0) {
-                Vendor::query()->where('id', $validated['vendor_id'])->increment('advance_amt', $extraAmount);
-                AdvanceHistory::create([
-                    'labour_id' => null,
+                app(CrmBalanceService::class)->adjustVendorAdvance((int) $validated['vendor_id'], $extraAmount);
+                AdvanceHistory::create($this->filterColumns('advance_history', [
                     'vendor_id' => $validated['vendor_id'],
-                    'labour_expense_transaction_id' => $tx->id,
+                    'labour_expense_transaction_id' => $expense->id,
                     'amount' => $extraAmount,
                     'entry_type' => 'credit',
                     'notes' => 'Vendor extra amount added as advance',
                     'user_id' => Auth::id(),
                     'current_date' => now()->toDateString(),
                     'current_time' => now()->format('H:i:s'),
-                ]);
+                ]));
             }
         });
 
-        return redirect()->back()->with('success', 'Vendor expense stored successfully.');
+        return redirect()
+            ->route('vendor-expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+                'vendor_id' => $validated['vendor_id'] ?? null,
+            ]))
+            ->with('success', 'Vendor expense stored successfully.');
+    }
+
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        $expense = Expense::query()
+            ->whereNotNull('vendor_id')
+            ->whereNull('deleted_at')
+            ->findOrFail($id);
+        $validated = $this->validateExpense($request);
+
+        DB::transaction(function () use ($expense, $validated) {
+            $amount = (int) $validated['amount'];
+            $paidAmount = (int) $validated['paid_amount'];
+            $unpaidAmount = max($amount - $paidAmount, 0);
+            $extraAmount = max($paidAmount - $amount, 0);
+            $oldExtra = (int) $expense->extra_amt;
+            $oldVendorId = (int) $expense->vendor_id;
+            $newVendorId = (int) $validated['vendor_id'];
+            $balanceService = app(CrmBalanceService::class);
+
+            if ($oldExtra > 0) {
+                $balanceService->adjustVendorAdvance($oldVendorId, -$oldExtra);
+            }
+            if ($extraAmount > 0) {
+                $balanceService->adjustVendorAdvance($newVendorId, $extraAmount);
+            }
+
+            $expense->update([
+                'vendor_id' => $newVendorId,
+                'user_id' => Auth::id(),
+                'main_category_id' => $validated['main_category_id'] ?? null,
+                'category_id' => $validated['category_id'],
+                'project_id' => $validated['project_id'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'amount' => $amount,
+                'paid_amt' => $paidAmount,
+                'unpaid_amt' => $unpaidAmount,
+                'extra_amt' => $extraAmount,
+                'payment_mode' => $validated['payment_mode'] ?? null,
+                'current_date' => $validated['current_date'] ?? now(),
+                'image' => $validated['image'] ?? null,
+                'editedBy' => Auth::id(),
+            ]);
+        });
+
+        return redirect()
+            ->route('vendor-expenses.history', array_filter([
+                'project_id' => $validated['project_id'] ?? null,
+                'vendor_id' => $validated['vendor_id'] ?? null,
+            ]))
+            ->with('success', 'Vendor expense updated successfully.');
     }
 
     public function unpaidHistory(Request $request)
     {
-        $items = VendorExpenseTransaction::query()
-            ->where('delete_status', false)
-            ->where('unpaid_amount', '>', 0)
+        $items = Expense::query()
+            ->whereNotNull('vendor_id')
+            ->where('unpaid_amt', '>', 0)
             ->with(['vendor', 'project'])
-            ->latest()
+            ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
+            ->latest('current_date')
             ->paginate((int) $request->get('paginate', 12))
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
+
         return view('pages.vendor_expenses.unpaid', ['transactions' => $items, 'vendors' => $vendors]);
     }
 
     public function unpaidStore(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'id' => ['required', 'exists:vendor_expense_transactions,id'],
-            'paid_amount' => ['required', 'numeric', 'min:0.01'],
+            'id' => ['required', 'exists:expenses,id'],
+            'paid_amount' => ['required', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         DB::transaction(function () use ($validated) {
-            $tx = VendorExpenseTransaction::query()->lockForUpdate()->findOrFail((int) $validated['id']);
-            $pay = min((float) $validated['paid_amount'], (float) $tx->unpaid_amount);
+            $expense = Expense::query()->whereNotNull('vendor_id')->lockForUpdate()->findOrFail((int) $validated['id']);
+            $pay = min((int) $validated['paid_amount'], (int) $expense->unpaid_amt);
 
             if ($pay <= 0) {
                 return;
             }
 
-            ExpenseUnpaidDate::create([
-                'expense_id' => null,
-                'vendor_expense_transaction_id' => $tx->id,
+            ExpenseUnpaidDate::create($this->filterColumns('expenses_unpaid_date', [
+                'expense_id' => $expense->id,
+                'vendor_expense_transaction_id' => $expense->id,
                 'user_id' => Auth::id(),
                 'paid_amount' => $pay,
                 'current_date' => now()->toDateString(),
                 'current_time' => now()->format('H:i:s'),
                 'notes' => $validated['notes'] ?? 'Vendor unpaid settlement',
-            ]);
+            ]));
 
-            Wallet::create([
-                'user_id' => Auth::id(),
-                'amount' => $pay,
-                'transfer_type' => 1,
-                'description' => 'Vendor unpaid settlement',
-                'reference_type' => 'vendor_expense_unpaid',
-                'reference_id' => $tx->id,
-                'current_date' => now()->toDateString(),
-                'current_time' => now()->format('H:i:s'),
-            ]);
+            app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $pay, 'Vendor unpaid settlement', 'vendor_expense_unpaid', (int) $expense->id);
 
-            $tx->update([
-                'paid_amount' => (float) $tx->paid_amount + $pay,
-                'unpaid_amount' => max((float) $tx->unpaid_amount - $pay, 0),
+            $expense->update([
+                'paid_amt' => (int) $expense->paid_amt + $pay,
+                'unpaid_amt' => max((int) $expense->unpaid_amt - $pay, 0),
+                'editedBy' => Auth::id(),
             ]);
         });
 
@@ -205,6 +190,7 @@ class VendorExpensesController extends Controller
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
+
         return view('pages.vendor_expenses.advance', ['advanceVendors' => $items, 'vendors' => $vendors]);
     }
 
@@ -212,53 +198,33 @@ class VendorExpensesController extends Controller
     {
         $validated = $request->validate([
             'vendor_id' => ['required', 'exists:vendors,id'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => ['required', 'integer', 'min:1'],
             'entry_type' => ['required', 'in:credit,withdraw'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         DB::transaction(function () use ($validated) {
             $vendor = Vendor::query()->lockForUpdate()->findOrFail((int) $validated['vendor_id']);
-            $amount = (float) $validated['amount'];
+            $amount = (int) $validated['amount'];
 
             if ($validated['entry_type'] === 'withdraw') {
-                $amount = min($amount, (float) $vendor->advance_amt);
-                $vendor->decrement('advance_amt', $amount);
-                Wallet::create([
-                    'user_id' => Auth::id(),
-                    'amount' => $amount,
-                    'transfer_type' => 0,
-                    'description' => 'Vendor advance withdraw refund',
-                    'reference_type' => 'vendor_advance_withdraw',
-                    'reference_id' => $vendor->id,
-                    'current_date' => now()->toDateString(),
-                    'current_time' => now()->format('H:i:s'),
-                ]);
+                $amount = min($amount, (int) $vendor->advance_amt);
+                app(CrmBalanceService::class)->adjustVendorAdvance((int) $vendor->id, -$amount);
+                app(CrmBalanceService::class)->creditUserWallet((int) Auth::id(), $amount, 'Vendor advance withdraw refund', 'vendor_advance_withdraw', (int) $vendor->id);
             } else {
-                $vendor->increment('advance_amt', $amount);
-                Wallet::create([
-                    'user_id' => Auth::id(),
-                    'amount' => $amount,
-                    'transfer_type' => 1,
-                    'description' => 'Vendor advance credit',
-                    'reference_type' => 'vendor_advance_credit',
-                    'reference_id' => $vendor->id,
-                    'current_date' => now()->toDateString(),
-                    'current_time' => now()->format('H:i:s'),
-                ]);
+                app(CrmBalanceService::class)->adjustVendorAdvance((int) $vendor->id, $amount);
+                app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $amount, 'Vendor advance credit', 'vendor_advance_credit', (int) $vendor->id);
             }
 
-            AdvanceHistory::create([
-                'labour_id' => null,
+            AdvanceHistory::create($this->filterColumns('advance_history', [
                 'vendor_id' => $vendor->id,
-                'labour_expense_transaction_id' => null,
                 'amount' => $amount,
                 'entry_type' => $validated['entry_type'],
                 'notes' => $validated['notes'] ?? 'Vendor advance entry',
                 'user_id' => Auth::id(),
                 'current_date' => now()->toDateString(),
                 'current_time' => now()->format('H:i:s'),
-            ]);
+            ]));
         });
 
         return redirect()->back()->with('success', 'Vendor advance entry stored successfully.');
@@ -267,31 +233,21 @@ class VendorExpensesController extends Controller
     public function deleteRecord(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'id' => ['required', 'exists:vendor_expense_transactions,id'],
-            'delete_reason' => ['required', 'string', 'max:1000'],
+            'id' => ['required', 'exists:expenses,id'],
+            'delete_reason' => ['required', 'string', 'max:255'],
         ]);
 
         DB::transaction(function () use ($validated) {
-            $tx = VendorExpenseTransaction::query()->where('delete_status', false)->findOrFail((int) $validated['id']);
+            $expense = Expense::query()->whereNotNull('vendor_id')->findOrFail((int) $validated['id']);
 
-            if ((float) $tx->paid_amount > 0) {
-                Wallet::create([
-                    'user_id' => Auth::id(),
-                    'amount' => (float) $tx->paid_amount,
-                    'transfer_type' => 0,
-                    'description' => 'Vendor expense delete refund',
-                    'reference_type' => 'vendor_expense',
-                    'reference_id' => $tx->id,
-                    'current_date' => now()->toDateString(),
-                    'current_time' => now()->format('H:i:s'),
-                ]);
+            if ((int) $expense->extra_amt > 0) {
+                app(CrmBalanceService::class)->adjustVendorAdvance((int) $expense->vendor_id, -(int) $expense->extra_amt);
             }
 
-            $tx->update([
-                'delete_status' => true,
-                'active_status' => false,
-                'delete_reason' => $validated['delete_reason'],
-            ]);
+            $expense->reason = $validated['delete_reason'];
+            $expense->editedBy = Auth::id();
+            $expense->save();
+            $expense->delete();
         });
 
         return redirect()->back()->with('success', 'Vendor expense deleted successfully.');
@@ -299,15 +255,100 @@ class VendorExpensesController extends Controller
 
     public function deletedHistory(Request $request)
     {
-        $items = VendorExpenseTransaction::query()
-            ->where('delete_status', true)
+        $items = Expense::onlyTrashed()
+            ->whereNotNull('vendor_id')
             ->with(['vendor', 'project'])
             ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
-            ->latest()
+            ->latest('current_date')
             ->paginate((int) $request->get('paginate', 12))
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
+
         return view('pages.vendor_expenses.deleted', ['transactions' => $items, 'vendors' => $vendors]);
+    }
+
+    private function vendorExpenseQuery(Request $request)
+    {
+        return Expense::query()
+            ->whereNotNull('vendor_id')
+            ->with(['vendor', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
+            ->when($request->filled('main_category_id'), fn($q) => $q->where('main_category_id', $request->integer('main_category_id')))
+            ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->integer('category_id')))
+            ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
+            ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
+            ->when($request->filled('date_from'), fn($q) => $q->whereDate('current_date', '>=', $request->date('date_from')->toDateString()))
+            ->when($request->filled('date_to'), fn($q) => $q->whereDate('current_date', '<=', $request->date('date_to')->toDateString()))
+            ->when($request->filled('q'), function ($query) use ($request) {
+                $q = $request->string('q')->toString();
+                $query->where(function ($qq) use ($q) {
+                    $qq->where('description', 'like', "%{$q}%")
+                        ->orWhereHas('mainCategory', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
+                        ->orWhereHas('category', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"));
+                });
+            });
+    }
+
+    private function paginateWithTotals($query, Request $request): array
+    {
+        $totals = (clone $query)
+            ->selectRaw('COALESCE(SUM(amount),0) as total_amount')
+            ->selectRaw('COALESCE(SUM(paid_amt),0) as total_paid_amount')
+            ->selectRaw('COALESCE(SUM(unpaid_amt),0) as total_unpaid_amount')
+            ->selectRaw('COALESCE(SUM(extra_amt),0) as total_advanced_amount')
+            ->first();
+
+        $transactions = $query->latest('current_date')->paginate((int) $request->get('paginate', 10))->withQueryString();
+
+        return [$transactions, $totals];
+    }
+
+    private function viewData(): array
+    {
+        return [
+            'vendors' => Vendor::query()->orderBy('name')->get(),
+            'projects' => Project::query()->orderBy('name')->get(),
+            'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
+            'categories' => Category::query()->orderBy('name')->get(),
+            'paymentModes' => Expense::paymentModes(),
+        ];
+    }
+
+    private function editingTransaction(Request $request): ?Expense
+    {
+        if (! $request->filled('edit')) {
+            return null;
+        }
+
+        return Expense::query()
+            ->with(['vendor', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
+            ->whereNotNull('vendor_id')
+            ->whereNull('deleted_at')
+            ->find($request->integer('edit'));
+    }
+
+    private function filterColumns(string $table, array $payload): array
+    {
+        return array_intersect_key($payload, array_flip(Schema::getColumnListing($table)));
+    }
+
+    private function validateExpense(Request $request): array
+    {
+        $request->merge([
+            'paid_amount' => $request->input('paid_amount', $request->input('paid_amt', 0)),
+        ]);
+
+        return $request->validate([
+            'vendor_id' => ['required', 'exists:vendors,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+            'main_category_id' => ['nullable', 'exists:main_categories,id'],
+            'category_id' => ['required', 'exists:categories,id'],
+            'description' => ['nullable', 'string'],
+            'amount' => ['required', 'integer', 'min:0'],
+            'paid_amount' => ['required', 'integer', 'min:0'],
+            'payment_mode' => ['nullable', 'integer'],
+            'current_date' => ['nullable', 'date'],
+            'image' => ['nullable', 'string', 'max:250'],
+        ]);
     }
 }

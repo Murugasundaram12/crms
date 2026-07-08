@@ -53,6 +53,9 @@
         optional($currentClient)->state,
         optional($currentClient)->country,
     ])->filter()->implode(', '));
+    $currentTerms = old('terms', isset($quotation)
+        ? $quotation->terms->pluck('term_text')->implode("\n")
+        : '');
 @endphp
 
 <div class="row g-4">
@@ -204,6 +207,15 @@
                         <textarea name="notes" class="form-control @error('notes') is-invalid @enderror"
                             rows="4">{{ old('notes', $quotation->notes ?? '') }}</textarea>
                         @error('notes')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Terms & Conditions</label>
+                        <textarea name="terms" class="form-control @error('terms') is-invalid @enderror"
+                            rows="6" placeholder="Enter one term per line">{{ $currentTerms }}</textarea>
+                        @error('terms')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
@@ -381,6 +393,8 @@
                                     <option value="cft" ${row.unit === 'cft' ? 'selected' : ''}>cft (Cubic Feet)</option>
                                     <option value="nos" ${row.unit === 'nos' ? 'selected' : ''}>nos (Numbers)</option>
                                     <option value="m.sq" ${row.unit === 'm.sq' ? 'selected' : ''}>m.sq (Square Meter)</option>
+                                    <option value="Sqm" ${row.unit === 'Sqm' ? 'selected' : ''}>Sqm (Square Meter)</option>
+                                    <option value="Cum" ${row.unit === 'Cum' ? 'selected' : ''}>Cum (Cubic Meter)</option>
                                     <option value="m" ${row.unit === 'm' ? 'selected' : ''}>m (Meter)</option>
                                     <option value="ft" ${row.unit === 'ft' ? 'selected' : ''}>ft (Feet)</option>
                                     <option value="pcs" ${row.unit === 'pcs' ? 'selected' : ''}>pcs (Pieces)</option>

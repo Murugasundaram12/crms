@@ -17,14 +17,14 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('labours-create')
-                <a href="{{ route('labours.create') }}" class="btn btn-primary">
+                <a href="{{ route('labours.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Labour
                 </a>
             @endcan
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('labours.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-lg-3">
@@ -70,10 +70,10 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
-        <div class="card-body">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
             <div class="table-responsive custom-table">
-                <table class="table table-nowrap">
+                <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
@@ -95,7 +95,7 @@
                                 <td>{{ $labour->phone_number }}</td>
                                 <td>{{ $labour->labourRole?->name ?: '-' }}</td>
                                 <td>{{ ucfirst($labour->gender) }}</td>
-                                <td>₹{{ number_format((float) $labour->salary, 2) }}</td>
+                                <td>Rs {{ number_format((float) $labour->salary, 2) }}</td>
                                 <td class="text-info fw-semibold">Rs. {{ number_format((float) $labour->advance_amt, 2) }}</td>
                                 <td>
                                     @if ($labour->government_photo)
@@ -118,16 +118,17 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted">No labour records found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No labour records found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            <div class="mt-3">
-                {{ $labours->links() }}
-            </div>
         </div>
+        @if ($labours->hasPages())
+            <div class="card-footer bg-white d-flex justify-content-end">
+                {{ $labours->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 @endsection

@@ -11,24 +11,26 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        // Get main categories
-        $mainCategories = MainCategory::select("id", "name")->get();
+        $mainCategories = MainCategory::select("id", "name")->orderBy('name')->get();
 
-        // Pivot query for assignments - one row per main-category assignment
-        $query = DB::table('category_main_category as pivot')
-            ->join('categories', 'pivot.category_id', '=', 'categories.id')
-            ->join('main_categories', 'pivot.main_category_id', '=', 'main_categories.id')
+        $query = DB::table('categories')
+            ->leftJoin('category_main_category as pivot', 'pivot.category_id', '=', 'categories.id')
+            ->leftJoin('main_categories as pivot_main', 'pivot.main_category_id', '=', 'pivot_main.id')
+            ->leftJoin('main_categories as legacy_main', 'categories.main_category_id', '=', 'legacy_main.id')
             ->select(
-                'pivot.category_id',
-                'pivot.main_category_id',
+                'categories.id as category_id',
+                DB::raw('COALESCE(pivot.main_category_id, categories.main_category_id) as main_category_id'),
                 'categories.name as category_name',
-                'main_categories.name as main_category_name',
+                DB::raw("COALESCE(pivot_main.name, legacy_main.name, '-') as main_category_name"),
                 'categories.created_at'
             );
 
         $mainCategoryId = $request->get('main_category_id');
         if ($mainCategoryId) {
-            $query->where('pivot.main_category_id', $mainCategoryId);
+            $query->where(function ($filterQuery) use ($mainCategoryId) {
+                $filterQuery->where('pivot.main_category_id', $mainCategoryId)
+                    ->orWhere('categories.main_category_id', $mainCategoryId);
+            });
         }
 
         if ($request->filled('q')) {
@@ -51,9 +53,9 @@ class CategoryController extends Controller
         // Get assigned categories grouped by main_category_id (for modal checkbox states)
         $assignedCategories = [];
         foreach ($mainCategories as $mainCat) {
-            $catIds = $mainCat->categories()->pluck('id')->toArray();
-            $categoryNames = Category::whereIn("id", $catIds)->pluck("name")->toArray();
-            $assignedCategories[$mainCat->id] = $categoryNames;
+            $pivotIds = $mainCat->categories()->pluck('categories.id')->toArray();
+            $legacyIds = Category::where('main_category_id', $mainCat->id)->pluck('id')->toArray();
+            $assignedCategories[$mainCat->id] = array_values(array_unique(array_merge($pivotIds, $legacyIds)));
         }
 
         return view("pages.categories.index", compact("categories", "masterCategories", "mainCategories", "assignedCategories"));
@@ -61,29 +63,41 @@ class CategoryController extends Controller
 
     public function create()
     {
-        $mainCategories = MainCategory::select("id", "name")->get();
+        $mainCategories = MainCategory::select("id", "name")->orderBy('name')->get();
         return view("pages.categories.create", compact("mainCategories"));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate(["name" => "required|string|max:255|unique:categories,name"]);
-        Category::create($validated);
+        $validated = $request->validate([
+            "name" => "required|string|max:255|unique:categories,name",
+            "main_category_id" => "nullable|exists:main_categories,id",
+        ]);
+
+        $category = Category::create($validated);
+        $this->syncCategoryMainCategory($category, $validated['main_category_id'] ?? null);
+
         return redirect()->route("categories.index")->with("success", "Category created successfully.");
     }
 
     public function edit($id)
     {
         $category = Category::findOrFail($id);
-        $mainCategories = MainCategory::select("id", "name")->get();
+        $mainCategories = MainCategory::select("id", "name")->orderBy('name')->get();
         return view("pages.categories.edit", compact("category", "mainCategories"));
     }
 
     public function update(Request $request, $id)
     {
         $category = Category::findOrFail($id);
-        $validated = $request->validate(["name" => "required|string|max:255|unique:categories,name," . $category->id]);
+        $validated = $request->validate([
+            "name" => "required|string|max:255|unique:categories,name," . $category->id,
+            "main_category_id" => "nullable|exists:main_categories,id",
+        ]);
+
         $category->update($validated);
+        $this->syncCategoryMainCategory($category, $validated['main_category_id'] ?? null);
+
         return redirect()->route("categories.index")->with("success", "Category updated successfully.");
     }
 
@@ -116,7 +130,26 @@ class CategoryController extends Controller
         $mainCategoryId = $request->main_category_id;
         $selectedCategoryIds = $request->category_ids ?? [];
         $mainCategory = MainCategory::findOrFail($mainCategoryId);
-        $mainCategory->categories()->sync($selectedCategoryIds);
+
+        DB::transaction(function () use ($mainCategory, $mainCategoryId, $selectedCategoryIds) {
+            $mainCategory->categories()->sync($selectedCategoryIds);
+
+            Category::whereIn('id', $selectedCategoryIds)->update(['main_category_id' => $mainCategoryId]);
+            Category::where('main_category_id', $mainCategoryId)
+                ->when(! empty($selectedCategoryIds), fn($query) => $query->whereNotIn('id', $selectedCategoryIds))
+                ->update(['main_category_id' => null]);
+        });
+
         return redirect()->back()->with("success", "Categories assigned successfully");
+    }
+
+    private function syncCategoryMainCategory(Category $category, ?int $mainCategoryId): void
+    {
+        if ($mainCategoryId) {
+            $category->mainCategories()->sync([$mainCategoryId]);
+            return;
+        }
+
+        $category->mainCategories()->detach();
     }
 }

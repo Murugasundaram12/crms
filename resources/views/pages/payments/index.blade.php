@@ -24,7 +24,7 @@
         </div>
     </div>
 
-    <div class="card border rounded-0 mb-4">
+    <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('payments.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-lg-3">
@@ -71,9 +71,10 @@
     </div>
 
 
-    <div class="card-body">
+    <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
         <div class="table-responsive table-nowrap custom-table">
-            <table class="table table-nowrap">
+            <table class="table table-hover table-nowrap mb-0">
                 <thead class="table-light">
                     <tr>
                         <th>Quotation Number</th>
@@ -95,13 +96,13 @@
                             <td>{{ $payment->client?->name ?? '-' }}</td>
                             <td>{{ $payment->project?->name ?? '-' }}</td>
                             <td>{{ $payment->stage->name ?? '-' }}</td>
-                            <td>₹{{ number_format($payment->amount, 2) }}</td>
+                            <td>Rs. {{ number_format($payment->amount, 2) }}</td>
                             <td>{{ optional($payment->due_date)->format('d M Y') ?? '-' }}</td>
                             <td>{{ ucfirst($payment->method) }}</td>
                             {{-- <td>{{ $payment->transaction_id ?: '-' }}</td> --}}
                             <td>
                                 <span
-                                    class="badge {{ $payment->status === 'paid' ? 'bg-success' : ($payment->status === 'overdue' ? 'bg-danger' : 'bg-warning') }}">
+                                    class="badge {{ $payment->status === 'paid' ? 'bg-success-transparent text-success' : ($payment->status === 'overdue' ? 'bg-danger-transparent text-danger' : 'bg-warning-transparent text-warning') }}">
                                     {{ ucfirst($payment->status) }}
                                 </span>
                             </td>
@@ -117,13 +118,15 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted">No payments found.</td>
+                            <td colspan="9" class="text-center text-muted py-4">No payments found.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <div class="mt-3">{{ $payments->links() }}</div>
+    </div>
+    <div class="card-footer bg-white">
+        {{ $payments->links() }}
     </div>
     </div>
 

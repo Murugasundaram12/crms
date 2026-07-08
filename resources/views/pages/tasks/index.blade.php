@@ -22,7 +22,7 @@
         </div>
     </div>
 
-    <div class="card border-0 rounded-0">
+    <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('tasks.index') }}" method="GET" class="row g-3 align-items-end m-0">
                 <div class="col-12 col-xl-3">
@@ -87,25 +87,25 @@
         <div class="card-body">
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
-                    <div class="border rounded p-3 bg-light">
+                    <div class="border rounded p-3 bg-light h-100">
                         <p class="mb-1">Total Tasks</p>
                         <h5 class="mb-0">{{ $summary['total'] }}</h5>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="border rounded p-3 bg-light">
+                    <div class="border rounded p-3 bg-light h-100">
                         <p class="mb-1">Completed</p>
                         <h5 class="mb-0">{{ $summary['completed'] }}</h5>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="border rounded p-3 bg-light">
+                    <div class="border rounded p-3 bg-light h-100">
                         <p class="mb-1">Important</p>
                         <h5 class="mb-0">{{ $summary['important'] }}</h5>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="border rounded p-3 bg-light">
+                    <div class="border rounded p-3 bg-light h-100">
                         <p class="mb-1">Overdue</p>
                         <h5 class="mb-0">{{ $summary['overdue'] }}</h5>
                     </div>
@@ -121,7 +121,7 @@
                     </a>
                     <div class="collapse show" id="task_group_{{ $loop->iteration }}">
                         @foreach ($tasks as $task)
-                            <div class="card rounded-start-0 {{ $loop->last ? 'mb-0' : 'mb-3' }}">
+                            <div class="card border-0 shadow-sm rounded-start-0 {{ $loop->last ? 'mb-0' : 'mb-3' }}">
                                 <div
                                     class="card-body border-start border-3 border-{{ $task->status === 'completed' ? 'success' : ($task->status === 'blocked' ? 'danger' : 'warning') }}">
                                     <div class="d-flex align-items-center justify-content-between flex-wrap row-gap-3">

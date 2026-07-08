@@ -38,6 +38,20 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Main Category</label>
+                            <select name="main_category_id" class="form-select @error('main_category_id') is-invalid @enderror">
+                                <option value="">No Main Category</option>
+                                @foreach($mainCategories as $main)
+                                    <option value="{{ $main->id }}" @selected(old('main_category_id') == $main->id)>
+                                        {{ $main->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('main_category_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-4">
