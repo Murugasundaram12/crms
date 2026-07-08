@@ -233,12 +233,3 @@
         </div>
     @endforeach
 @endsection
-
-@push('styles')
-    <link rel="stylesheet" href="{{ asset('assets/plugins/daterangepicker/daterangepicker.css') }}">
-@endpush
-
-@push('scripts')
-    <script src="{{ asset('assets/js/moment.min.js') }}"></script>
-    <script src="{{ asset('assets/plugins/daterangepicker/daterangepicker.js') }}"></script>
-@endpush
