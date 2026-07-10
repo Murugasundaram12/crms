@@ -1,11 +1,11 @@
 {
     "pdfcalibri": {
-        "normal": "D:\\xampp-8.2\\htdocs\\crms\\storage\\fonts\/pdfcalibri_normal_aebbad755c437365315a24093a04661c",
-        "bold": "pdfcalibri_bold_67f2e6f97c55c6761691c44f9bf111b1"
+        "normal": "\/home\/admin\/web\/housefix360.com\/public_html\/crms\/storage\/fonts\/pdfcalibri_normal_a8bf0eeebecc80b534ae6e0df31e34e2",
+        "bold": "pdfcalibri_bold_5d69e8de1c8311496501025fcb830782"
     },
     "pdfarial": {
-        "normal": "D:\\xampp-8.2\\htdocs\\crms\\storage\\fonts\/pdfarial_normal_3aa65171e14a6f0a3c7666328dc74f73",
-        "bold": "D:\\xampp-8.2\\htdocs\\crms\\storage\\fonts\/pdfarial_bold_720bc654197768286da3ec53ebdefa3e",
-        "italic": "pdfarial_italic_e601d6c7396368981e5c68ab88cf864c"
+        "normal": "\/home\/admin\/web\/housefix360.com\/public_html\/crms\/storage\/fonts\/pdfarial_normal_b4c8b03fd651175485d8bd8cc1cf1d8e",
+        "bold": "\/home\/admin\/web\/housefix360.com\/public_html\/crms\/storage\/fonts\/pdfarial_bold_b7a57f1b87c54206e74cb6bfa5dc9b1e",
+        "italic": "pdfarial_italic_949bb7150227ec8d378160e25602c6a7"
     }
 }

@@ -79,7 +79,7 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('employees-list'))
-                            <li><a href="/manage-users"><i class="ti ti-users"></i><span>Manage Users</span></a></li>
+                            <li><a href="{{ route('manage-users') }}"><i class="ti ti-users"></i><span>Manage Users</span></a></li>
                             @if($currentUser && $currentUser->hasPermission('employees-salary-list'))
                                 <li class="sidebar-submenu"><a href="{{ route('employee-salaries.index') }}"><i
                                             class="ti ti-cash me-2"></i><span>Employee Salaries</span></a></li>

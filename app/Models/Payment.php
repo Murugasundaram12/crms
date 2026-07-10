@@ -21,7 +21,6 @@ class Payment extends Model
         'quotation_id',
         'stage_id',
         'transaction_id',
-        'method',
         'payment_method',
         'amount',
         'due_date',

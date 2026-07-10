@@ -12,7 +12,6 @@ class PaymentStage extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
         'stage_name',
         'project_id',
     ];
