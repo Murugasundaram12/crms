@@ -19,109 +19,153 @@
             src: url("{{ public_path('assets/fonts/pdf/calibrib.ttf') }}") format("truetype");
         }
 
-        @font-face {
-            font-family: 'PdfArial';
-            font-style: normal;
-            font-weight: 400;
-            src: url("{{ public_path('assets/fonts/pdf/arial.ttf') }}") format("truetype");
-        }
-
-        @font-face {
-            font-family: 'PdfArial';
-            font-style: normal;
-            font-weight: 700;
-            src: url("{{ public_path('assets/fonts/pdf/arialbd.ttf') }}") format("truetype");
-        }
-
-        @font-face {
-            font-family: 'PdfArial';
-            font-style: italic;
-            font-weight: 400;
-            src: url("{{ public_path('assets/fonts/pdf/ariali.ttf') }}") format("truetype");
-        }
-
         @page {
-            margin: 60px 20px 75px 20px;
+            margin: 22px 24px 54px;
         }
 
         body {
-            font-family: 'PdfCalibri', 'Calibri', 'PdfArial', 'Arial', sans-serif;
-            font-size: 14px;
-            color: #000;
+            font-family: 'PdfCalibri', 'Arial', sans-serif;
+            font-size: 13.5px;
+            color: #172033;
             line-height: 1.42;
         }
 
-        .header {
+        .footer {
             position: fixed;
-            top: -45px;
-            right: 20px;
-            left: 20px;
-            height: 40px;
-            text-align: right;
+            left: 24px;
+            right: 24px;
+            bottom: 18px;
+            border-top: 1px solid #d8e0ee;
+            padding-top: 8px;
+            color: #516073;
+            font-size: 11px;
         }
 
-        .brand {
-            font-family: 'PdfArial', 'Arial', sans-serif;
-            font-size: 32px;
-            letter-spacing: 5px;
-            color: #3c7fc0;
+        .footer td {
+            vertical-align: top;
+        }
+
+        .top-band {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+
+        .brand-cell {
+            width: 56%;
+            background: #fff;
+            color: #102a43;
+            padding: 12px 16px;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+        }
+
+        .brand-name {
+            font-size: 25px;
             font-weight: 700;
-            line-height: 0.85;
+            letter-spacing: 3px;
+            margin-bottom: 3px;
         }
 
         .brand-sub {
-            font-family: 'PdfArial', 'Arial', sans-serif;
-            font-size: 9px;
-            letter-spacing: 2px;
-            color: #3c7fc0;
-            margin-top: 2px;
+            font-size: 10px;
+            letter-spacing: 1.5px;
+            color: #1261a6;
         }
 
-        .logo-wrap {
-            margin-bottom: 2px;
+        .logo {
+            width: 285px;
+            max-height: 70px;
+            object-fit: contain;
         }
 
-        .logo-wrap img {
-            max-width: 180px;
-            max-height: 54px;
-        }
-
-        .date-container {
+        .quote-cell {
+            width: 44%;
+            padding: 13px 16px;
+            background: #102a43;
+            border: 1px solid #102a43;
             text-align: right;
-            font-size: 15px;
+            color: #fff;
+        }
+
+        .quote-title {
+            font-size: 28px;
             font-weight: 700;
-            margin-top: 0px;
-            margin-bottom: 10px;
+            color: #fff;
+            letter-spacing: 1px;
         }
 
-        .to-block {
-            margin: 8px 0;
-            line-height: 1.48;
-        }
-
-        .location-block {
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-
-        .title {
-            font-family: 'PdfArial', 'Arial', sans-serif;
-            text-align: center;
-            font-size: 19px;
+        .quote-no {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 5px 10px;
+            background: #fff;
+            color: #102a43;
+            border: 1px solid #fff;
+            border-radius: 14px;
             font-weight: 700;
-            text-decoration: underline;
-            margin: 8px 0 10px;
+            font-size: 12.5px;
+        }
+
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+        }
+
+        .info-card {
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            padding: 12px 14px;
+            vertical-align: top;
+            background: #fbfdff;
+        }
+
+        .spacer {
+            width: 12px;
+        }
+
+        .label {
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .client-name,
+        .project-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #102a43;
+            margin-bottom: 4px;
+        }
+
+        .muted {
+            color: #64748b;
+        }
+
+        .subject {
+            border-left: 4px solid #1261a6;
+            background: #f2f7fd;
+            padding: 9px 12px;
+            margin-bottom: 12px;
+            font-size: 15.5px;
+            font-weight: 700;
+            color: #102a43;
         }
 
         table.items {
-            font-family: 'PdfCalibri', 'Calibri', 'PdfArial', 'Arial', sans-serif;
             width: 100%;
             border-collapse: collapse;
-            margin-top: 8px;
-            margin-bottom: 8px;
-            font-size: 14px;
-            line-height: 1.35;
+            margin-top: 7px;
+            font-size: 12.5px;
             page-break-inside: auto;
+        }
+
+        table.items thead {
+            display: table-header-group;
         }
 
         table.items tr {
@@ -129,35 +173,37 @@
             page-break-after: auto;
         }
 
-        table.items thead {
-            display: table-header-group;
-        }
-
-        table.items th,
-        table.items td {
-            border: 1.4px solid #000;
-            padding: 4px 6px;
-            vertical-align: middle;
-            color: #000;
-        }
-
         table.items th {
-            font-family: 'PdfArial', 'Arial', sans-serif;
+            background: #102a43;
+            color: #fff;
+            border: 1px solid #102a43;
+            padding: 7px 5px;
             text-align: center;
             font-weight: 700;
+        }
+
+        table.items td {
+            border: 1px solid #d8e0ee;
+            padding: 6px 5px;
+            vertical-align: middle;
+        }
+
+        table.items tbody tr:nth-child(even) td {
+            background: #fbfdff;
+        }
+
+        .section-row td {
+            background: #eaf3fb !important;
+            color: #102a43;
+            font-weight: 700;
+        }
+
+        .total-row td {
+            background: #102a43 !important;
+            color: #fff;
+            border-color: #102a43;
             font-size: 14px;
-            background: #fff;
-        }
-
-        table.items .section-row td {
-            font-family: 'PdfArial', 'Arial', sans-serif;
             font-weight: 700;
-        }
-
-        table.items .total-row td {
-            font-family: 'PdfArial', 'Arial', sans-serif;
-            font-weight: 700;
-            border-top: 1.8px solid #000;
         }
 
         .c {
@@ -170,70 +216,63 @@
 
         .bold {
             font-weight: 700;
-            font-family: 'PdfArial', 'Arial', sans-serif;
         }
 
-        .blue-line {
+        .summary-table {
             width: 100%;
-            margin: 8px 0;
-            color: #0068bf;
+            border-collapse: collapse;
+            margin: 12px 0 10px;
+        }
+
+        .summary-box {
+            border: 1px solid #d9e2ef;
+            background: #fbfdff;
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        .grand-total {
+            background: #1261a6;
+            color: #fff;
+            padding: 10px 12px;
+            text-align: right;
+            font-size: 18px;
             font-weight: 700;
-            font-size: 14px;
-            page-break-inside: avoid;
         }
 
-        .blue-line td {
-            width: 50%;
-        }
-
-        .account-block {
-            page-break-inside: avoid;
-        }
-
-        .account-title,
-        .terms-title {
-            color: #0068bf;
+        .section-title {
+            color: #1261a6;
+            font-size: 13px;
             font-weight: 700;
-            margin-top: 10px;
-            margin-bottom: 4px;
-            font-size: 14px;
-        }
-
-        .account-details {
-            line-height: 1.48;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            margin: 10px 0 5px;
         }
 
         .terms {
-            line-height: 1.48;
-        }
-
-        .terms>div {
+            border: 1px solid #d9e2ef;
+            padding: 9px 12px;
+            line-height: 1.45;
             page-break-inside: avoid;
         }
 
-        .footer {
-            position: fixed;
-            left: 20px;
-            right: 20px;
-            bottom: 15px;
-            font-size: 13px;
+        .terms div {
+            margin-bottom: 4px;
+        }
+
+        .bank-table {
+            width: 100%;
             border-collapse: collapse;
+            border: 1px solid #d9e2ef;
         }
 
-        .footer td {
-            vertical-align: bottom;
-            font-size: 13px;
-            line-height: 1.42;
+        .bank-table td {
+            padding: 7px 9px;
+            border-bottom: 1px solid #edf2f7;
         }
 
-        .footer .mid {
-            text-align: center;
-            color: #0068bf;
-            font-weight: 700;
-        }
-
-        .footer .right {
-            text-align: right;
+        .bank-table tr:last-child td {
+            border-bottom: 0;
         }
     </style>
 </head>
@@ -247,13 +286,14 @@
         $logoPath = null;
         foreach ($logoDirectories as $logoDirectory) {
             $logoCandidates = [
+                $logoDirectory . '/logo12.png',
                 $logoDirectory . '/logo.png',
                 $logoDirectory . '/logo.jpg',
                 $logoDirectory . '/logo.jpeg',
                 $logoDirectory . '/logo.webp',
             ];
             $logoPath = collect($logoCandidates)->first(fn($path) => file_exists($path));
-            if (!$logoPath) {
+            if (!$logoPath && is_dir($logoDirectory)) {
                 $foundLogos = glob($logoDirectory . '/*.{png,jpg,jpeg,webp}', GLOB_BRACE);
                 $logoPath = $foundLogos[0] ?? null;
             }
@@ -263,42 +303,25 @@
         }
         $hasLogo = !empty($logoPath);
 
-        // Client info formatting
         $clientName = $quotation->client_name ?: ($quotation->client?->company_name ?: ($quotation->client?->name ?? '-'));
-
         $clientAddress = $quotation->client_address ?: '';
         if (!$clientAddress && $quotation->client) {
-            $parts = collect([
+            $clientAddress = collect([
                 $quotation->client->address,
                 $quotation->client->city,
                 $quotation->client->state,
-                $quotation->client->country
-            ])->map(fn($val) => trim((string) $val))->filter()->values();
-            $clientAddress = $parts->implode(", ");
+                $quotation->client->country,
+            ])->map(fn($val) => trim((string) $val))->filter()->implode(', ');
         }
-
-        $clientAddressCleaned = rtrim(trim($clientAddress), " \t\n\r\0\x0B.,");
-        $clientAddressLines = array_map('trim', explode(',', $clientAddressCleaned));
-        $clientAddressFormatted = implode(",\n", $clientAddressLines) . '.';
-
-        // Location formatting
+        $clientAddress = trim($clientAddress);
+        $clientPhone = $quotation->client?->phone ?? null;
+        $clientEmail = $quotation->client?->email ?? null;
         $location = $quotation->project?->location ?: ($quotation->client?->city ?? '');
-        $locationFormatted = '';
-        if ($location) {
-            $locationFormatted = rtrim(trim($location), " \t\n\r\0\x0B.,") . '.';
-        }
-
-        // Title formatting
-        $title = $quotation->quotation_title ?: 'PCC works and flooring works';
-        if ($title && stripos($title, 'Quotation for') !== 0) {
-            $title = 'Quotation for ' . $title;
-        }
-
-        // Grand total formatting
+        $title = $quotation->quotation_title ?: 'Project Works';
+        $subject = stripos($title, 'Quotation for') === 0 ? $title : 'Quotation for ' . $title;
         $grandTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
         $sNo = 1;
 
-        // Roman numeral helper
         $toRoman = function (int $n): string {
             $map = [1000 => 'm', 900 => 'cm', 500 => 'd', 400 => 'cd', 100 => 'c', 90 => 'xc', 50 => 'l', 40 => 'xl', 10 => 'x', 9 => 'ix', 5 => 'v', 4 => 'iv', 1 => 'i'];
             $out = '';
@@ -311,144 +334,145 @@
             return $out;
         };
 
-        // Indian Currency Formatter helper
         $formatIndianCurrency = function ($num) {
             $parts = explode('.', number_format((float) $num, 2, '.', ''));
             $amount = $parts[0];
-            $decimal = isset($parts[1]) ? '.' . $parts[1] : '.00';
-
+            $decimal = '.' . ($parts[1] ?? '00');
             $lastThree = substr($amount, -3);
             $remaining = substr($amount, 0, -3);
-            if ($remaining != '') {
-                $remaining = preg_replace("/\B(?=(\d{2})+(?!\d))/", ",", $remaining) . ',';
+            if ($remaining !== '') {
+                $remaining = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $remaining) . ',';
             }
             return '&#8377; ' . $remaining . $lastThree . $decimal;
         };
 
-        // Dimension Formatter helper
         $formatDim = function ($val) {
-            if ($val === null || $val === '')
+            if ($val === null || $val === '') {
                 return '';
+            }
             $num = (float) $val;
-            if ($num == 0)
+            if ($num == 0) {
                 return '';
+            }
             return rtrim(rtrim(number_format($num, 2, '.', ''), '0'), '.');
         };
 
-        // Price Formatter helper
         $formatPrice = function ($val) {
             $num = (float) $val;
-            if ($num == (int) $num) {
-                return (int) $num;
-            }
-            return number_format($num, 2, '.', '');
+            return $num == (int) $num ? (string) (int) $num : number_format($num, 2, '.', '');
         };
 
-        // Fiscal Year Helper
         $getFiscalYear = function ($date) {
-            if (!$date)
-                $date = now();
+            $date = $date ?: now();
             $year = (int) $date->format('Y');
             $month = (int) $date->format('n');
-            if ($month >= 4) {
-                $fyStart = $year;
-                $fyEnd = $year + 1;
-            } else {
-                $fyStart = $year - 1;
-                $fyEnd = $year;
-            }
-            return substr((string) $fyStart, -2) . '-' . substr((string) $fyEnd, -2);
+            $fyStart = $month >= 4 ? $year : $year - 1;
+            return substr((string) $fyStart, -2) . '-' . substr((string) ($fyStart + 1), -2);
         };
         $fiscalYear = $getFiscalYear($quotation->quotation_date);
 
-        // Terms Renderer Helper
         $renderTerm = function ($term, $index = null) {
             $termStr = trim((string) $term);
-            if ($termStr === '')
+            if ($termStr === '') {
                 return '';
-
+            }
             if (stripos($termStr, 'Please note:') === 0) {
                 $rest = trim(substr($termStr, 12));
-                return '<div style="margin-top: 4px;"><strong>Please note:</strong> ' . nl2br(e($rest)) . '</div>';
+                return '<div><strong>Please note:</strong> ' . nl2br(e($rest)) . '</div>';
             }
-
             $cleaned = preg_replace('/^\d+\.\s*/', '', $termStr);
             $prefix = $index !== null ? '<strong>' . $index . '.</strong> ' : '';
             return '<div>' . $prefix . nl2br(e($cleaned)) . '</div>';
         };
     @endphp
 
-    <!-- Fixed Header repeating on every page -->
-    <div class="header">
-        @if($hasLogo)
-            <div class="logo-wrap">
-                <img src="{{ $logoPath }}" alt="Housefix Logo">
-            </div>
-        @else
-            <div class="brand">HOUSEFIX</div>
-            <div class="brand-sub">A DOCTOR FOR YOUR HOUSE</div>
-        @endif
-    </div>
-
-    <!-- Fixed Footer repeating on every page -->
     <table class="footer" style="width: 100%;">
         <tr>
-            <td colspan="3" style="border-bottom: 1px solid #ddd; padding-bottom: 2px; margin-bottom: 2px;">
-                <strong>Office:</strong> 20 A, Nerhu Street,Sathyomoorthy Nagar, Madurai - 625010.
+            <td style="width: 45%;">
+                <strong>Office:</strong> 20 A, Nerhu Street, Sathyomoorthy Nagar, Madurai - 625010.
             </td>
-        </tr>
-        <tr>
-            <td style="width: 40%; padding-top: 2px;">
-                <strong>Contact us:</strong> +91-452 796 9211.
-            </td>
-            <td class="mid" style="width: 30%; padding-top: 2px;">
+            <td style="width: 25%; text-align: center; color: #1261a6; font-weight: 700;">
                 www.housefix360.com
             </td>
-            <td class="right" style="width: 30%; padding-top: 2px;">
-                Q no: {{ $quotation->id }} - FY {{ $fiscalYear }}.
+            <td style="width: 30%; text-align: right;">
+                <strong>Contact:</strong> +91-452 796 9211<br>
+                Q no: {{ $quotation->id }} - FY {{ $fiscalYear }}
             </td>
         </tr>
     </table>
 
-    <!-- Body contents -->
-    <div class="date-container">
-        Date : {{ optional($quotation->quotation_date)->format('d/m/Y') ?? '-' }}.
-    </div>
+    <table class="top-band">
+        <tr>
+            <td class="brand-cell">
+                @if($hasLogo)
+                    <img class="logo" src="{{ $logoPath }}" alt="Housefix">
+                @else
+                    <div class="brand-name">HOUSEFIX</div>
+                    <div class="brand-sub">A DOCTOR FOR YOUR HOUSE</div>
+                @endif
+            </td>
+            <td class="quote-cell">
+                <div class="quote-title">QUOTATION</div>
+                <div class="quote-no">{{ $quotation->quotation_number ?? ('QTN-' . $quotation->id) }}</div>
+                <div style="margin-top: 8px;" class="muted">
+                    Date: {{ optional($quotation->quotation_date)->format('d M Y') ?? '-' }}
+                </div>
+            </td>
+        </tr>
+    </table>
 
-    <div class="to-block">
-        <div><strong>To,</strong></div>
-        <div style="margin-left: 42px;">
-            {{ $clientName }},<br>
-            {!! nl2br(e($clientAddressFormatted)) !!}
-        </div>
-    </div>
+    <table class="meta-table">
+        <tr>
+            <td class="info-card" style="width: 50%;">
+                <div class="label">Prepared For</div>
+                <div class="client-name">{{ $clientName }}</div>
+                @if($clientAddress)
+                    <div>{!! nl2br(e($clientAddress)) !!}</div>
+                @endif
+                @if($clientPhone || $clientEmail)
+                    <div class="muted" style="margin-top: 5px;">
+                        {{ collect([$clientPhone, $clientEmail])->filter()->implode(' | ') }}
+                    </div>
+                @endif
+            </td>
+            <td class="spacer"></td>
+            <td class="info-card" style="width: 50%;">
+                <div class="label">Project Details</div>
+                <div class="project-title">{{ $quotation->project?->name ?? $quotation->quotation_title ?? '-' }}</div>
+                @if($location)
+                    <div><strong>Location:</strong> {{ $location }}</div>
+                @endif
+                <div class="muted" style="margin-top: 5px;">
+                    Duration: {{ $quotation->duration_days ? $quotation->duration_days . ' working days' : '10 - 15 working days' }}
+                    &nbsp; | &nbsp;
+                    Validity: {{ $quotation->validity_days ?: 30 }} days
+                </div>
+            </td>
+        </tr>
+    </table>
 
-    @if($locationFormatted)
-        <div class="location-block">Location : {{ $locationFormatted }}</div>
-    @endif
-    <div class="title">{{ $title }}</div>
+    <div class="subject">{{ $subject }}</div>
 
     <table class="items">
         <thead>
             <tr>
-                <th style="width:5%">S.no</th>
-                <th style="width:46%">Description</th>
+                <th style="width:5%">S.No</th>
+                <th style="width:43%">Description</th>
                 <th style="width:5%">Nos</th>
                 <th style="width:5%">L</th>
                 <th style="width:5%">B</th>
                 <th style="width:5%">D</th>
-                <th style="width:6%">Qty</th>
-                <th style="width:5%">Unit</th>
-                <th style="width:8%">Price</th>
-                <th style="width:10%">Amount</th>
+                <th style="width:7%">Qty</th>
+                <th style="width:6%">Unit</th>
+                <th style="width:8%">Rate</th>
+                <th style="width:11%">Amount</th>
             </tr>
         </thead>
         <tbody>
             @foreach($groupedItems as $group)
                 <tr class="section-row">
-                    <td class="c bold">{{ $sNo++ }}</td>
-                    <td class="bold">{{ $group['main_title'] }}</td>
-                    <td colspan="8"></td>
+                    <td class="c">{{ $sNo++ }}</td>
+                    <td colspan="9">{{ $group['main_title'] }}</td>
                 </tr>
                 @foreach($group['rows'] as $idx => $row)
                     @php
@@ -458,87 +482,66 @@
                     <tr>
                         <td class="c"><em>{{ $toRoman($idx + 1) }}</em></td>
                         <td>{{ $row['description'] }}</td>
-
-                        <!-- Nos -->
-                        <td class="c">
-                            {{ ($row['nos'] !== null && (float) $row['nos'] > 0) ? $formatDim($row['nos']) : '' }}
-                        </td>
-
-                        <!-- L -->
-                        <td class="c">
-                            {{ $formatDim($row['length']) }}
-                        </td>
-
-                        <!-- B -->
-                        <td class="c">
-                            @if($isLumpsum)
-                                Lumsum
-                            @else
-                                {{ $formatDim($row['breadth']) }}
-                            @endif
-                        </td>
-
-                        <!-- D -->
-                        <td class="c">
-                            {{ $formatDim($row['depth']) }}
-                        </td>
-
-                        <!-- Qty -->
-                        <td class="c">
-                            {{ $isLumpsum ? '' : number_format((float) ($row['quantity'] ?? 0), 2) }}
-                        </td>
-
-                        <!-- Unit -->
-                        <td class="c">
-                            {{ $isLumpsum ? '' : ($row['unit'] ?: '') }}
-                        </td>
-
-                        <!-- Price -->
-                        <td class="r">
-                            {{ $formatPrice($row['price']) }}
-                        </td>
-
-                        <!-- Amount -->
-                        <td class="r bold">
-                            {!! $formatIndianCurrency($row['amount']) !!}
-                        </td>
+                        <td class="c">{{ ($row['nos'] !== null && (float) $row['nos'] > 0) ? $formatDim($row['nos']) : '' }}</td>
+                        <td class="c">{{ $formatDim($row['length']) }}</td>
+                        <td class="c">{{ $isLumpsum ? 'Lumpsum' : $formatDim($row['breadth']) }}</td>
+                        <td class="c">{{ $formatDim($row['depth']) }}</td>
+                        <td class="c">{{ $isLumpsum ? '' : number_format((float) ($row['quantity'] ?? 0), 2) }}</td>
+                        <td class="c">{{ $isLumpsum ? '' : ($row['unit'] ?: '') }}</td>
+                        <td class="r">{{ $formatPrice($row['price']) }}</td>
+                        <td class="r bold">{!! $formatIndianCurrency($row['amount']) !!}</td>
                     </tr>
                 @endforeach
             @endforeach
             <tr class="total-row">
-                <td colspan="9" class="c bold">Total* (excluding GST)</td>
-                <td class="r bold">{!! $formatIndianCurrency($grandTotal) !!}</td>
+                <td colspan="9" class="r">Total excluding GST</td>
+                <td class="r">{!! $formatIndianCurrency($grandTotal) !!}</td>
             </tr>
         </tbody>
     </table>
 
-    <table class="blue-line">
+    <table class="summary-table">
         <tr>
-            <td>Duration:
-                {{ $quotation->duration_days ? $quotation->duration_days . ' working days' : '10 - 15 working days' }}.
+            <td class="summary-box" style="width: 55%;">
+                <div class="section-title" style="margin-top: 0;">Bank Details</div>
+                <table class="bank-table">
+                    <tr>
+                        <td style="width: 24%;" class="muted">Account Name</td>
+                        <td class="bold">{{ $bankDetails['account_name'] ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="muted">Bank</td>
+                        <td>{{ $bankDetails['bank_name'] ?? '-' }}{{ !empty($bankDetails['branch']) ? ' - ' . $bankDetails['branch'] : '' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="muted">Account No</td>
+                        <td>{{ $bankDetails['account_number'] ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="muted">IFSC</td>
+                        <td>{{ $bankDetails['ifsc'] ?? '-' }}</td>
+                    </tr>
+                </table>
             </td>
-            <td class="r">Validity: This estimate is valid for {{ $quotation->validity_days ?: 30 }} days.</td>
+            <td class="spacer"></td>
+            <td style="width: 45%; vertical-align: bottom;">
+                <div class="grand-total">
+                    Grand Total: {!! $formatIndianCurrency($grandTotal) !!}
+                </div>
+                <div class="muted" style="text-align: right; margin-top: 7px;">
+                    *GST not applicable / excluded unless mentioned separately.
+                </div>
+            </td>
         </tr>
     </table>
 
-    <div class="account-block">
-        <div class="account-title">Account details:</div>
-        <div class="account-details">
-            <strong>Name:</strong> {{ $bankDetails['account_name'] ?? '-' }}.<br>
-            <strong>Acc no:</strong> {{ $bankDetails['account_number'] ?? '-' }}.<br>
-            <strong>IFS Code:</strong> {{ $bankDetails['ifsc'] ?? '-' }}.
-        </div>
-    </div>
-
     @if(!empty($pdfTerms))
-        <div class="terms-block">
-            <div class="terms-title">Terms and Conditions:</div>
-            <div class="terms">
-                @php $i = 1; @endphp
-                @foreach($pdfTerms as $term)
-                    <div>{!! $renderTerm($term, $i++) !!}</div>
-                @endforeach
-            </div>
+        <div class="section-title">Terms and Conditions</div>
+        <div class="terms">
+            @php $i = 1; @endphp
+            @foreach($pdfTerms as $term)
+                {!! $renderTerm($term, $i++) !!}
+            @endforeach
         </div>
     @endif
 </body>

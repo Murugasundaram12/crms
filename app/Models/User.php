@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -71,6 +72,26 @@ class User extends Authenticatable
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class, 'user_roles', 'user_id', 'role_id');
+    }
+
+    public function mobileApiTokens(): HasMany
+    {
+        return $this->hasMany(MobileApiToken::class);
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(EmployeeLocation::class);
+    }
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(EmployeeDevice::class, 'employee_id');
+    }
+
+    public function locationTrackings(): HasMany
+    {
+        return $this->hasMany(LocationTracking::class, 'employee_id');
     }
 
     public function assignedRoles(): EloquentCollection
