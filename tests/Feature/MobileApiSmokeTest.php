@@ -6,7 +6,9 @@ use App\Models\Attendance;
 use App\Models\Client;
 use App\Models\Employee;
 use App\Models\PaymentStage;
+use App\Models\Permission;
 use App\Models\Project;
+use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -235,6 +237,19 @@ class MobileApiSmokeTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
+        $permissions = collect(['roles-list', 'permissions-list', 'tasks-list'])
+            ->map(fn(string $key) => Permission::query()->create([
+                'name' => ucwords(str_replace('-', ' ', $key)),
+                'key' => $key,
+            ]));
+
+        $role = Role::query()->create([
+            'name' => 'Super Admin',
+            'description' => 'Full system access',
+        ]);
+        $role->permissions()->sync($permissions->pluck('id'));
+        $user->roles()->sync([$role->id]);
+
         $employee = Employee::query()->create([
             'name' => 'API Employee',
             'email' => 'api-employee@example.com',
@@ -268,7 +283,10 @@ class MobileApiSmokeTest extends TestCase
             'email' => $user->email,
             'password' => 'password',
             'device_name' => 'Smoke Test',
-        ])->assertOk();
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.roles.0.name', 'Super Admin')
+            ->assertJsonPath('user.permissions.0', 'permissions-list');
 
         $token = $loginResponse->json('token');
         $headers = ['Authorization' => 'Bearer ' . $token];
@@ -304,6 +322,23 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->getJson('/api/attendance?status=checked_in')
             ->assertOk();
+
+        $this->withHeaders($headers)
+            ->getJson('/api/me/permissions')
+            ->assertOk()
+            ->assertJsonPath('roles.0.name', 'Super Admin')
+            ->assertJsonPath('permissions.0', 'permissions-list');
+
+        $this->withHeaders($headers)
+            ->getJson('/api/roles')
+            ->assertOk()
+            ->assertJsonPath('data.0.name', 'Super Admin')
+            ->assertJsonFragment(['key' => 'permissions-list']);
+
+        $this->withHeaders($headers)
+            ->getJson('/api/permissions')
+            ->assertOk()
+            ->assertJsonPath('data.0.key', 'permissions-list');
 
         $taskPayload = [
             'project_id' => $project->id,

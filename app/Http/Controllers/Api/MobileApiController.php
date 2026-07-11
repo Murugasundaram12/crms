@@ -10,7 +10,9 @@ use App\Models\LocationTracking;
 use App\Models\MobileApiToken;
 use App\Models\Client;
 use App\Models\PaymentStage;
+use App\Models\Permission;
 use App\Models\Project;
+use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Wallet;
@@ -342,6 +344,45 @@ class MobileApiController extends Controller
         }));
 
         return response()->json($employees);
+    }
+
+    public function permissionContext(Request $request)
+    {
+        return response()->json([
+            'user' => $this->userPayload($request->user()),
+            'roles' => $this->userRolesPayload($request->user()),
+            'permissions' => $this->userPermissionKeys($request->user()),
+        ]);
+    }
+
+    public function roles(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'roles-list')) {
+            return $forbidden;
+        }
+
+        $roles = Role::query()
+            ->with('permissions')
+            ->withCount('users')
+            ->orderBy('name')
+            ->get()
+            ->map(fn(Role $role) => $this->rolePayload($role));
+
+        return response()->json(['data' => $roles]);
+    }
+
+    public function permissions(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'permissions-list')) {
+            return $forbidden;
+        }
+
+        $permissions = Permission::query()
+            ->orderBy('key')
+            ->get()
+            ->map(fn(Permission $permission) => $this->permissionPayload($permission));
+
+        return response()->json(['data' => $permissions]);
     }
 
     public function adminLiveLocations(Request $request)
@@ -903,8 +944,67 @@ class MobileApiController extends Controller
             'phone' => $user->phone,
             'designation' => $user->designation,
             'role' => $user->role,
+            'roles' => $this->userRolesPayload($user),
+            'permissions' => $this->userPermissionKeys($user),
             'status' => $user->status,
             'wallet' => (float) ($user->wallet ?? 0),
+        ];
+    }
+
+    private function userRolesPayload(User $user): array
+    {
+        return $user->assignedRoles()
+            ->map(fn(Role $role) => [
+                'id' => $role->id,
+                'name' => $role->name,
+                'description' => $role->description,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function userPermissionKeys(User $user): array
+    {
+        if ($this->isSuperAdmin($user)) {
+            return Permission::query()
+                ->whereNotNull('key')
+                ->orderBy('key')
+                ->pluck('key')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return $user->assignedRoles()
+            ->flatMap(fn(Role $role) => $role->permissions->pluck('key'))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function rolePayload(Role $role): array
+    {
+        return [
+            'id' => $role->id,
+            'name' => $role->name,
+            'description' => $role->description,
+            'users_count' => $role->users_count ?? null,
+            'permissions' => $role->permissions
+                ->map(fn(Permission $permission) => $this->permissionPayload($permission))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function permissionPayload(Permission $permission): array
+    {
+        return [
+            'id' => $permission->id,
+            'name' => $permission->name,
+            'key' => $permission->key,
         ];
     }
 

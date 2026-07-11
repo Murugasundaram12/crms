@@ -18,6 +18,9 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/admin/employees/live-locations', [MobileApiController::class, 'adminLiveLocations']);
     Route::get('/admin/employees/{employee}/timeline', [MobileApiController::class, 'adminTimeline'])->whereNumber('employee');
     Route::get('/employees/track', [MobileApiController::class, 'trackEmployees']);
+    Route::get('/me/permissions', [MobileApiController::class, 'permissionContext']);
+    Route::get('/roles', [MobileApiController::class, 'roles']);
+    Route::get('/permissions', [MobileApiController::class, 'permissions']);
     Route::get('/tasks', [MobileApiController::class, 'tasks']);
     Route::post('/tasks/assign', [MobileApiController::class, 'assignTask']);
     Route::get('/tasks/{task}', [MobileApiController::class, 'showTask'])->whereNumber('task');
