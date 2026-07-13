@@ -297,8 +297,10 @@ trait MobileTaskWalletEndpoints
 
         $validated = $this->validateWalletData($request);
         $amount = (int) $validated['amount'];
+        $actor = $request->user();
         $targetUser = $this->resolveWalletUser($validated, $request->user());
         $project = Project::query()->findOrFail((int) $validated['project_id']);
+        $isUserTransfer = (int) $targetUser->id !== (int) $actor->id;
 
         if ((int) $project->client_id !== (int) $validated['client_id']) {
             throw ValidationException::withMessages([
@@ -306,14 +308,19 @@ trait MobileTaskWalletEndpoints
             ]);
         }
 
-        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
+        $sourceUser = $isUserTransfer && (int) $validated['transfer_type'] === 0 ? $actor : $targetUser;
+
+        if ($amount > (float) ($sourceUser->wallet ?? 0)) {
             throw ValidationException::withMessages([
                 'amount' => 'Amount is insufficient',
             ]);
         }
 
-        $wallet = DB::transaction(function () use ($validated, $amount, $targetUser) {
+        $counterWallet = null;
+
+        $wallet = DB::transaction(function () use ($validated, $amount, $actor, $targetUser, $isUserTransfer, &$counterWallet) {
             $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
+            $description = $validated['description'] ?? null;
 
             $wallet = Wallet::query()->create([
                 'user_id' => $targetUser->id,
@@ -323,13 +330,55 @@ trait MobileTaskWalletEndpoints
                 'payment_mode' => $validated['payment_mode'],
                 'transfer_type' => $validated['transfer_type'],
                 'stage_id' => $validated['stage_id'] ?? null,
-                'description' => $validated['description'] ?? null,
+                'description' => $description,
                 'current_date' => $dateTime,
                 'active_status' => 1,
                 'delete_status' => 0,
             ]);
 
             $balanceService = app(CrmBalanceService::class);
+
+            if ($isUserTransfer) {
+                if ((int) $validated['transfer_type'] === 0) {
+                    $balanceService->adjustUserWallet((int) $actor->id, -$amount);
+                    $balanceService->adjustUserWallet((int) $targetUser->id, $amount);
+
+                    $counterWallet = Wallet::query()->create([
+                        'user_id' => $actor->id,
+                        'client_id' => $validated['client_id'],
+                        'project_id' => $validated['project_id'],
+                        'amount' => $amount,
+                        'payment_mode' => $validated['payment_mode'],
+                        'transfer_type' => 1,
+                        'stage_id' => $validated['stage_id'] ?? null,
+                        'description' => trim('Transfer to ' . $targetUser->name . ($description ? ': ' . $description : '')),
+                        'current_date' => $dateTime,
+                        'active_status' => 1,
+                        'delete_status' => 0,
+                    ]);
+
+                    return $wallet;
+                }
+
+                $balanceService->adjustUserWallet((int) $targetUser->id, -$amount);
+                $balanceService->adjustUserWallet((int) $actor->id, $amount);
+
+                $counterWallet = Wallet::query()->create([
+                    'user_id' => $actor->id,
+                    'client_id' => $validated['client_id'],
+                    'project_id' => $validated['project_id'],
+                    'amount' => $amount,
+                    'payment_mode' => $validated['payment_mode'],
+                    'transfer_type' => 0,
+                    'stage_id' => $validated['stage_id'] ?? null,
+                    'description' => trim('Transfer from ' . $targetUser->name . ($description ? ': ' . $description : '')),
+                    'current_date' => $dateTime,
+                    'active_status' => 1,
+                    'delete_status' => 0,
+                ]);
+
+                return $wallet;
+            }
 
             if ((int) $validated['transfer_type'] === 0) {
                 $balanceService->applyProjectIncome((int) $validated['project_id'], $amount);
@@ -347,7 +396,9 @@ trait MobileTaskWalletEndpoints
         return response()->json([
             'message' => 'Wallet entry saved successfully.',
             'wallet' => $this->walletPayload($wallet->load(['user', 'client', 'project', 'stage'])),
+            'counter_wallet' => $counterWallet ? $this->walletPayload($counterWallet->load(['user', 'client', 'project', 'stage'])) : null,
             'wallet_balance' => (float) $targetUser->fresh()->wallet,
+            'sender_wallet_balance' => (float) $actor->fresh()->wallet,
         ], 201);
     }
 }

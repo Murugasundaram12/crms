@@ -700,9 +700,12 @@ Fields:
 Important:
 
 - `user_id` / `employee_id` send pannina selected employee wallet update aagum.
+- Selected employee logged-in user illa na idhu real transfer-a work aagum: add panra user wallet debit aagum, receive panra employee wallet credit aagum.
 - `user_id` / `employee_id` send pannala na logged-in user wallet update aagum.
 - `client_id` and `project_id` still required because current wallet table project/client transaction-a maintain pannudhu.
 - `transfer_type = 0` credit, `transfer_type = 1` debit.
+- Transfer response-la `counter_wallet` varum. Idhu sender side debit/credit history.
+- `sender_wallet_balance` add panra user remaining balance.
 
 ## Leave Request APIs
 

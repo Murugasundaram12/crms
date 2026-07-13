@@ -898,7 +898,7 @@ class MobileApiSmokeTest extends TestCase
             'email' => 'wallet-admin@example.com',
             'role' => 'Super Admin',
             'status' => 'active',
-            'wallet' => 500,
+            'wallet' => 1500,
             'password' => Hash::make('password'),
         ]);
 
@@ -949,7 +949,10 @@ class MobileApiSmokeTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('wallet.user_id', $target->id)
-            ->assertJsonPath('wallet_balance', 1000);
+            ->assertJsonPath('wallet_balance', 1000)
+            ->assertJsonPath('sender_wallet_balance', 500)
+            ->assertJsonPath('counter_wallet.user_id', $actor->id)
+            ->assertJsonPath('counter_wallet.transfer_type', 1);
 
         $this->assertEquals(500.0, (float) $actor->fresh()->wallet);
         $this->assertEquals(1000.0, (float) $target->fresh()->wallet);
@@ -971,6 +974,15 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('debit_total', 400)
             ->assertJsonPath('net_total', 600)
             ->assertJsonPath('total_amount', 600);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/wallet/transfer', $payload + [
+                'amount' => 1000,
+                'transfer_type' => 0,
+                'description' => 'Too much advance',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.amount.0', 'Amount is insufficient');
     }
 
     public function test_mobile_api_module_routes_allow_employee_own_views_only(): void
