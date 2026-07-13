@@ -80,6 +80,28 @@ trait MobileAuthEndpoints
     public function logout(Request $request)
     {
         $plainToken = $request->bearerToken();
+        $taskEmployeeId = $this->taskEmployeeIdFromUserId($request->user()->id);
+
+        if ($taskEmployeeId) {
+            $pendingTodayTasks = Task::query()
+                ->with(['project', 'employee'])
+                ->where('employee_id', $taskEmployeeId)
+                ->whereDate('due_date', now()->toDateString())
+                ->where('status', '!=', 'completed')
+                ->orderByDesc('is_important')
+                ->orderBy('sort_order')
+                ->get();
+
+            if ($pendingTodayTasks->isNotEmpty()) {
+                return response()->json([
+                    'message' => 'Today due tasks are not completed. Complete today tasks before logout.',
+                    'pending_tasks_count' => $pendingTodayTasks->count(),
+                    'tasks' => $pendingTodayTasks
+                        ->map(fn(Task $task) => $this->taskPayload($task))
+                        ->values(),
+                ], 409);
+            }
+        }
 
         if ($plainToken) {
             MobileApiToken::query()

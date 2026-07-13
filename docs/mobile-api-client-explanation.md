@@ -56,6 +56,22 @@ Idhu `/login` API-ku same alias. Old/new mobile app builds rendu support panna k
 
 App logout panna token delete pannum.
 
+Important logout rule:
+
+- Logged-in employee-ku today due task irundhu status `completed` illa na logout block aagum.
+- Response status `409` varum.
+- App-la pending today tasks show panni, task complete pannitu logout retry panna sollanum.
+
+Example block response:
+
+```json
+{
+  "message": "Today due tasks are not completed. Complete today tasks before logout.",
+  "pending_tasks_count": 1,
+  "tasks": []
+}
+```
+
 ## Settings Flow
 
 Settings APIs mobile app behavior control pannum. App open aagumbothu first settings APIs call pannanum.
@@ -275,6 +291,10 @@ Query filters:
 ### `GET /attendance/status`
 
 Employee current check-in/check-out status quickly check panna use. App home screen-la check-in button show pannanuma checkout button show pannanuma decide panna indha API use pannunga.
+
+Alias:
+
+- `GET /check_status`: same response. Existing app build support-ku keep pannirukkom.
 
 Query:
 
@@ -640,11 +660,20 @@ Wallet/transfer history.
 
 Filters:
 
+- `user_id`: selected employee/user wallet history.
+- `employee_id`: selected employee id alias; user match pannum.
 - `client_id`: client wise.
 - `project_id`: project wise.
 - `transfer_type`: credit/debit.
 - `from_date`, `to_date`: date range.
 - `per_page`: pagination.
+
+Response totals:
+
+- `credit_total`: credited amount total.
+- `debit_total`: debited amount total.
+- `net_total`: credit minus debit.
+- `total_amount`: same as net total.
 
 ### `GET /wallet/options`
 
@@ -656,6 +685,8 @@ Wallet transfer create.
 
 Fields:
 
+- `user_id`: optional selected employee/user id. Admin/Manager employee wallet add panna use.
+- `employee_id`: optional alias. App employee id user id-a irundha use pannalam.
 - `client_id`: client.
 - `project_id`: project.
 - `amount`: transfer amount.
@@ -665,6 +696,13 @@ Fields:
 - `description`: notes.
 - `current_date`: transfer date.
 - `time`: transfer time.
+
+Important:
+
+- `user_id` / `employee_id` send pannina selected employee wallet update aagum.
+- `user_id` / `employee_id` send pannala na logged-in user wallet update aagum.
+- `client_id` and `project_id` still required because current wallet table project/client transaction-a maintain pannudhu.
+- `transfer_type = 0` credit, `transfer_type = 1` debit.
 
 ## Leave Request APIs
 
@@ -808,70 +846,71 @@ Indha list `routes/api.php` actual routes based-a prepare pannathu. Oru route-um
 | 7 | GET | `/dashboard` | Mobile dashboard summary. |
 | 8 | GET | `/options` | Common app options/dropdowns. |
 | 9 | POST | `/register` | Mobile device registration/update. |
-| 10 | GET | `/attendance/status` | Current check-in/check-out status. |
-| 11 | GET | `/attendance` | Attendance list/history. |
-| 12 | POST | `/check_in` | Employee check-in. |
-| 13 | POST | `/check_out` | Employee check-out. |
-| 14 | POST | `/tracking/location` | Background tracking location save. |
-| 15 | POST | `/devices/live-status` | Latest device/live status update. |
-| 16 | GET | `/settings/tracking` | Tracking settings. |
-| 17 | GET | `/settings/app` | Authenticated app settings alias. |
-| 18 | GET | `/settings/modules` | Authenticated module settings alias. |
-| 19 | GET | `/settings/map` | Authenticated map settings alias. |
-| 20 | GET | `/admin/employees/live-locations` | Admin live map employee markers. |
-| 21 | GET | `/admin/employees/{employee}/timeline` | One employee location timeline. |
-| 22 | GET | `/employees/track` | Employee tracking list/status. |
-| 23 | GET | `/employees` | Employee list. |
-| 24 | POST | `/employees` | Employee create. |
-| 25 | GET | `/employees/profile` | Logged-in user profile. |
-| 26 | GET | `/employees/{employee}` | Employee detail. |
-| 27 | PUT | `/employees/{employee}` | Employee update. |
-| 28 | POST | `/employees/{employee}/update` | Employee update alias. |
-| 29 | DELETE | `/employees/{employee}` | Employee inactive/delete action. |
-| 30 | GET | `/me/permissions` | Logged-in user permissions. |
-| 31 | GET | `/roles` | Role list. |
-| 32 | GET | `/permissions` | Permission list. |
-| 33 | GET | `/tasks` | Task list. |
-| 34 | POST | `/tasks/assign` | Task create/assign. |
-| 35 | GET | `/tasks/{task}` | Task detail. |
-| 36 | PUT | `/tasks/{task}` | Task update. |
-| 37 | POST | `/tasks/{task}/update` | Task update alias. |
-| 38 | DELETE | `/tasks/{task}` | Task delete. |
-| 39 | GET | `/wallet` | Wallet/transfer history. |
-| 40 | GET | `/wallet/options` | Wallet dropdown options. |
-| 41 | POST | `/wallet/store` | Wallet transfer create alias. |
-| 42 | POST | `/wallet/transfer` | Wallet transfer create. |
-| 43 | GET | `/clients` | Client list. |
-| 44 | POST | `/clients` | Client create. |
-| 45 | GET | `/clients/{client}` | Client detail. |
-| 46 | PUT | `/clients/{client}` | Client update. |
-| 47 | DELETE | `/clients/{client}` | Client delete/block if related data. |
-| 48 | GET | `/projects/options` | Project dropdown options. |
-| 49 | GET | `/projects` | Project list. |
-| 50 | POST | `/projects` | Project create. |
-| 51 | GET | `/projects/{project}` | Project detail. |
-| 52 | PUT | `/projects/{project}` | Project update. |
-| 53 | DELETE | `/projects/{project}` | Project delete/block if related data. |
-| 54 | GET | `/expenses/options` | Expense dropdown options. |
-| 55 | GET | `/expenses` | Expense list. |
-| 56 | POST | `/expenses` | Expense create. |
-| 57 | GET | `/expenses/{expense}` | Expense detail. |
-| 58 | PUT | `/expenses/{expense}` | Expense update. |
-| 59 | DELETE | `/expenses/{expense}` | Expense delete. |
-| 60 | GET | `/payments/options` | Payment dropdown/filter options. |
-| 61 | GET | `/payments` | Payment list. |
-| 62 | GET | `/payments/{payment}` | Payment detail. |
-| 63 | GET | `/payment-stages` | Payment stage list. |
-| 64 | GET | `/leave-requests/options` | Leave dropdown/status options. |
-| 65 | GET | `/leave-requests` | Leave request list. |
-| 66 | POST | `/leave-requests` | Leave request create. |
-| 67 | POST | `/leave-requests/{leaveRequest}/action` | Leave approve/reject action. |
-| 68 | DELETE | `/leave-requests/{leaveRequest}` | Leave request delete. |
-| 69 | GET | `/categories` | Category dropdown. |
-| 70 | GET | `/main-categories` | Main category dropdown. |
-| 71 | GET | `/vendors` | Vendor dropdown. |
-| 72 | GET | `/labour-roles` | Labour role dropdown. |
-| 73 | GET | `/labours` | Labour dropdown. |
+| 10 | GET | `/check_status` | Current check-in/check-out status alias. |
+| 11 | GET | `/attendance/status` | Current check-in/check-out status. |
+| 12 | GET | `/attendance` | Attendance list/history. |
+| 13 | POST | `/check_in` | Employee check-in. |
+| 14 | POST | `/check_out` | Employee check-out. |
+| 15 | POST | `/tracking/location` | Background tracking location save. |
+| 16 | POST | `/devices/live-status` | Latest device/live status update. |
+| 17 | GET | `/settings/tracking` | Tracking settings. |
+| 18 | GET | `/settings/app` | Authenticated app settings alias. |
+| 19 | GET | `/settings/modules` | Authenticated module settings alias. |
+| 20 | GET | `/settings/map` | Authenticated map settings alias. |
+| 21 | GET | `/admin/employees/live-locations` | Admin live map employee markers. |
+| 22 | GET | `/admin/employees/{employee}/timeline` | One employee location timeline. |
+| 23 | GET | `/employees/track` | Employee tracking list/status. |
+| 24 | GET | `/employees` | Employee list. |
+| 25 | POST | `/employees` | Employee create. |
+| 26 | GET | `/employees/profile` | Logged-in user profile. |
+| 27 | GET | `/employees/{employee}` | Employee detail. |
+| 28 | PUT | `/employees/{employee}` | Employee update. |
+| 29 | POST | `/employees/{employee}/update` | Employee update alias. |
+| 30 | DELETE | `/employees/{employee}` | Employee inactive/delete action. |
+| 31 | GET | `/me/permissions` | Logged-in user permissions. |
+| 32 | GET | `/roles` | Role list. |
+| 33 | GET | `/permissions` | Permission list. |
+| 34 | GET | `/tasks` | Task list. |
+| 35 | POST | `/tasks/assign` | Task create/assign. |
+| 36 | GET | `/tasks/{task}` | Task detail. |
+| 37 | PUT | `/tasks/{task}` | Task update. |
+| 38 | POST | `/tasks/{task}/update` | Task update alias. |
+| 39 | DELETE | `/tasks/{task}` | Task delete. |
+| 40 | GET | `/wallet` | Wallet/transfer history. |
+| 41 | GET | `/wallet/options` | Wallet dropdown options. |
+| 42 | POST | `/wallet/store` | Wallet transfer create alias. |
+| 43 | POST | `/wallet/transfer` | Wallet transfer create. |
+| 44 | GET | `/clients` | Client list. |
+| 45 | POST | `/clients` | Client create. |
+| 46 | GET | `/clients/{client}` | Client detail. |
+| 47 | PUT | `/clients/{client}` | Client update. |
+| 48 | DELETE | `/clients/{client}` | Client delete/block if related data. |
+| 49 | GET | `/projects/options` | Project dropdown options. |
+| 50 | GET | `/projects` | Project list. |
+| 51 | POST | `/projects` | Project create. |
+| 52 | GET | `/projects/{project}` | Project detail. |
+| 53 | PUT | `/projects/{project}` | Project update. |
+| 54 | DELETE | `/projects/{project}` | Project delete/block if related data. |
+| 55 | GET | `/expenses/options` | Expense dropdown options. |
+| 56 | GET | `/expenses` | Expense list. |
+| 57 | POST | `/expenses` | Expense create. |
+| 58 | GET | `/expenses/{expense}` | Expense detail. |
+| 59 | PUT | `/expenses/{expense}` | Expense update. |
+| 60 | DELETE | `/expenses/{expense}` | Expense delete. |
+| 61 | GET | `/payments/options` | Payment dropdown/filter options. |
+| 62 | GET | `/payments` | Payment list. |
+| 63 | GET | `/payments/{payment}` | Payment detail. |
+| 64 | GET | `/payment-stages` | Payment stage list. |
+| 65 | GET | `/leave-requests/options` | Leave dropdown/status options. |
+| 66 | GET | `/leave-requests` | Leave request list. |
+| 67 | POST | `/leave-requests` | Leave request create. |
+| 68 | POST | `/leave-requests/{leaveRequest}/action` | Leave approve/reject action. |
+| 69 | DELETE | `/leave-requests/{leaveRequest}` | Leave request delete. |
+| 70 | GET | `/categories` | Category dropdown. |
+| 71 | GET | `/main-categories` | Main category dropdown. |
+| 72 | GET | `/vendors` | Vendor dropdown. |
+| 73 | GET | `/labour-roles` | Labour role dropdown. |
+| 74 | GET | `/labours` | Labour dropdown. |
 
 ## Final End-To-End Flow
 

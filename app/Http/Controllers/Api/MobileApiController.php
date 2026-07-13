@@ -333,6 +333,8 @@ class MobileApiController extends Controller
     protected function validateWalletData(Request $request): array
     {
         return $request->validate([
+            'employee_id' => ['nullable', 'integer'],
+            'user_id' => ['nullable', 'exists:users,id'],
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
             'amount' => ['required', 'integer', 'min:1'],
@@ -343,6 +345,39 @@ class MobileApiController extends Controller
             'current_date' => ['required', 'date'],
             'time' => ['nullable', 'date_format:H:i'],
         ]);
+    }
+
+    protected function resolveWalletUser(array $validated, User $fallbackUser): User
+    {
+        if (! blank($validated['user_id'] ?? null)) {
+            return User::query()->findOrFail((int) $validated['user_id']);
+        }
+
+        if (! blank($validated['employee_id'] ?? null)) {
+            $employeeId = (int) $validated['employee_id'];
+
+            $user = User::query()->find($employeeId);
+
+            if ($user) {
+                return $user;
+            }
+
+            $employee = Employee::query()->find($employeeId);
+
+            if ($employee && filled($employee->email)) {
+                $user = User::query()->where('email', $employee->email)->first();
+
+                if ($user) {
+                    return $user;
+                }
+            }
+
+            throw ValidationException::withMessages([
+                'employee_id' => 'Selected employee could not be matched to a user wallet.',
+            ]);
+        }
+
+        return $fallbackUser;
     }
 
     protected function createNextRecurringTaskIfNeeded(Task $task): void

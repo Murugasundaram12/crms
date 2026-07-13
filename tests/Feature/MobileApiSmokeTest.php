@@ -838,6 +838,141 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('can_check_out', false);
     }
 
+    public function test_logout_is_blocked_when_today_due_task_is_not_completed(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Task Logout User',
+            'email' => 'task-logout@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $employee = Employee::query()->create([
+            'name' => $user->name,
+            'email' => $user->email,
+            'status' => 'active',
+        ]);
+
+        $task = Task::query()->create([
+            'employee_id' => $employee->id,
+            'title' => 'Finish today task',
+            'description' => 'Must be completed before logout',
+            'type' => 'general',
+            'priority' => 'high',
+            'status' => 'pending',
+            'due_date' => now()->toDateString(),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Task Logout Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/logout')
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Today due tasks are not completed. Complete today tasks before logout.')
+            ->assertJsonPath('pending_tasks_count', 1)
+            ->assertJsonPath('tasks.0.id', $task->id);
+
+        $task->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/logout')
+            ->assertOk()
+            ->assertJsonPath('message', 'Logged out successfully.');
+    }
+
+    public function test_wallet_transfer_can_target_selected_employee_user_and_returns_net_totals(): void
+    {
+        $actor = User::query()->create([
+            'name' => 'Wallet Admin',
+            'email' => 'wallet-admin@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'wallet' => 500,
+            'password' => Hash::make('password'),
+        ]);
+
+        $target = User::query()->create([
+            'name' => 'Wallet Employee',
+            'email' => 'wallet-employee@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $client = Client::query()->create([
+            'name' => 'Wallet Client',
+            'status' => 'active',
+        ]);
+
+        $project = Project::query()->create([
+            'name' => 'Wallet Project',
+            'project_code' => 'WAL-001',
+            'client_id' => $client->id,
+            'type' => 'residential',
+            'status' => 'active',
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $actor->email,
+            'password' => 'password',
+            'device_name' => 'Wallet Target Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        $payload = [
+            'user_id' => $target->id,
+            'client_id' => $client->id,
+            'project_id' => $project->id,
+            'payment_mode' => 1,
+            'current_date' => now()->toDateString(),
+            'time' => '09:30',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/wallet/transfer', $payload + [
+                'amount' => 1000,
+                'transfer_type' => 0,
+                'description' => 'Employee advance',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('wallet.user_id', $target->id)
+            ->assertJsonPath('wallet_balance', 1000);
+
+        $this->assertEquals(500.0, (float) $actor->fresh()->wallet);
+        $this->assertEquals(1000.0, (float) $target->fresh()->wallet);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/wallet/transfer', $payload + [
+                'amount' => 400,
+                'transfer_type' => 1,
+                'description' => 'Employee debit',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('wallet.user_id', $target->id)
+            ->assertJsonPath('wallet_balance', 600);
+
+        $this->withHeaders($headers)
+            ->getJson('/api/wallet?user_id=' . $target->id)
+            ->assertOk()
+            ->assertJsonPath('credit_total', 1000)
+            ->assertJsonPath('debit_total', 400)
+            ->assertJsonPath('net_total', 600)
+            ->assertJsonPath('total_amount', 600);
+    }
+
     public function test_mobile_api_module_routes_allow_employee_own_views_only(): void
     {
         $user = User::query()->create([

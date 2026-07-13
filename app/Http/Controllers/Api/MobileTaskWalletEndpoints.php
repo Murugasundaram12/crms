@@ -188,6 +188,8 @@ trait MobileTaskWalletEndpoints
         $validated = $request->validate([
             'client_id' => ['nullable', 'exists:clients,id'],
             'project_id' => ['nullable', 'exists:projects,id'],
+            'employee_id' => ['nullable', 'integer'],
+            'user_id' => ['nullable', 'exists:users,id'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
@@ -198,7 +200,13 @@ trait MobileTaskWalletEndpoints
             ->where('delete_status', 0)
             ->with(['user', 'client', 'project', 'stage'])
             ->when($validated['client_id'] ?? null, fn($q, $clientId) => $q->where('client_id', $clientId))
-            ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId));
+            ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId))
+            ->when($validated['user_id'] ?? null, fn($q, $userId) => $q->where('user_id', $userId));
+
+        if (! blank($validated['employee_id'] ?? null) && blank($validated['user_id'] ?? null)) {
+            $walletUser = $this->resolveWalletUser($validated, $request->user());
+            $query->where('user_id', $walletUser->id);
+        }
 
         if (! blank($validated['date_from'] ?? null)) {
             $query->whereDate('current_date', '>=', $request->date('date_from')->toDateString());
@@ -236,7 +244,9 @@ trait MobileTaskWalletEndpoints
             });
         }
 
-        $totalAmount = (clone $query)->sum('amount');
+        $creditTotal = (clone $query)->where('transfer_type', 0)->sum('amount');
+        $debitTotal = (clone $query)->where('transfer_type', 1)->sum('amount');
+        $netTotal = $creditTotal - $debitTotal;
         $wallets = $query
             ->latest('current_date')
             ->paginate((int) ($validated['per_page'] ?? 10));
@@ -244,7 +254,10 @@ trait MobileTaskWalletEndpoints
         $wallets->setCollection($wallets->getCollection()->map(fn(Wallet $wallet) => $this->walletPayload($wallet)));
 
         return response()->json([
-            'total_amount' => (int) $totalAmount,
+            'total_amount' => (int) $netTotal,
+            'credit_total' => (int) $creditTotal,
+            'debit_total' => (int) $debitTotal,
+            'net_total' => (int) $netTotal,
             ...$wallets->toArray(),
         ]);
     }
@@ -264,6 +277,10 @@ trait MobileTaskWalletEndpoints
                 ->whereIn('status', ['planning', 'active', 'on_hold'])
                 ->orderBy('name')
                 ->get(['id', 'client_id', 'name', 'status']),
+            'employees' => User::query()
+                ->where('status', '!=', 'inactive')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email', 'wallet']),
             'payment_modes' => self::PAYMENT_MODES,
             'stages' => PaymentStage::query()
                 ->orderBy('stage_name')
@@ -280,7 +297,7 @@ trait MobileTaskWalletEndpoints
 
         $validated = $this->validateWalletData($request);
         $amount = (int) $validated['amount'];
-        $user = $request->user();
+        $targetUser = $this->resolveWalletUser($validated, $request->user());
         $project = Project::query()->findOrFail((int) $validated['project_id']);
 
         if ((int) $project->client_id !== (int) $validated['client_id']) {
@@ -289,17 +306,17 @@ trait MobileTaskWalletEndpoints
             ]);
         }
 
-        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($user->wallet ?? 0)) {
+        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
             throw ValidationException::withMessages([
                 'amount' => 'Amount is insufficient',
             ]);
         }
 
-        $wallet = DB::transaction(function () use ($validated, $amount, $user) {
+        $wallet = DB::transaction(function () use ($validated, $amount, $targetUser) {
             $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
 
             $wallet = Wallet::query()->create([
-                'user_id' => $user->id,
+                'user_id' => $targetUser->id,
                 'client_id' => $validated['client_id'],
                 'project_id' => $validated['project_id'],
                 'amount' => $amount,
@@ -316,13 +333,13 @@ trait MobileTaskWalletEndpoints
 
             if ((int) $validated['transfer_type'] === 0) {
                 $balanceService->applyProjectIncome((int) $validated['project_id'], $amount);
-                $balanceService->adjustUserWallet((int) $user->id, $amount);
+                $balanceService->adjustUserWallet((int) $targetUser->id, $amount);
 
                 return $wallet;
             }
 
             $balanceService->reverseProjectIncome((int) $validated['project_id'], $amount);
-            $balanceService->adjustUserWallet((int) $user->id, -$amount);
+            $balanceService->adjustUserWallet((int) $targetUser->id, -$amount);
 
             return $wallet;
         });
@@ -330,7 +347,7 @@ trait MobileTaskWalletEndpoints
         return response()->json([
             'message' => 'Wallet entry saved successfully.',
             'wallet' => $this->walletPayload($wallet->load(['user', 'client', 'project', 'stage'])),
-            'wallet_balance' => (float) $user->fresh()->wallet,
+            'wallet_balance' => (float) $targetUser->fresh()->wallet,
         ], 201);
     }
 }

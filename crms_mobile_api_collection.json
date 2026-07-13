@@ -2674,7 +2674,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Advance payment credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
+              "raw": "{\n  \"user_id\": 1,\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Employee wallet advance credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/wallet/transfer",
@@ -2718,7 +2718,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Advance payment credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
+              "raw": "{\n  \"user_id\": 1,\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Employee wallet advance credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/wallet/store",
