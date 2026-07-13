@@ -144,7 +144,6 @@ trait MobileEmployeeRoleEndpoints
         return response()->json([
             'employees' => $employees,
             'roles' => Role::query()
-                ->with('permissions')
                 ->withCount('users')
                 ->orderBy('name')
                 ->get()
@@ -171,7 +170,7 @@ trait MobileEmployeeRoleEndpoints
 
         return response()->json([
             'message' => 'Employee created successfully.',
-            'employee' => $this->employeePayload($employee->fresh('roles.permissions')),
+            'employee' => $this->employeePayload($employee->fresh('roles')),
         ], 201);
     }
 
@@ -213,7 +212,7 @@ trait MobileEmployeeRoleEndpoints
 
         return response()->json([
             'message' => 'Employee updated successfully.',
-            'employee' => $this->employeePayload($employee->fresh('roles.permissions')),
+            'employee' => $this->employeePayload($employee->fresh('roles')),
         ]);
     }
 
@@ -248,7 +247,6 @@ trait MobileEmployeeRoleEndpoints
         }
 
         $roles = Role::query()
-            ->with('permissions')
             ->withCount('users')
             ->orderBy('name')
             ->get()

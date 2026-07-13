@@ -1,4 +1,4 @@
-{
+﻿{
   "info": {
     "_postman_id": "crms-mobile-api-collection",
     "name": "CRMS Mobile API Collection",
@@ -154,6 +154,42 @@
                 "crms",
                 "api",
                 "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/attendance/status",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "attendance",
+                "status"
               ]
             }
           },

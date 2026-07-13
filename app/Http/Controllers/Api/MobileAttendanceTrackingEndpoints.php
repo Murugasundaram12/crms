@@ -215,6 +215,47 @@ trait MobileAttendanceTrackingEndpoints
         return response()->json($attendances);
     }
 
+    public function attendanceStatus(Request $request)
+    {
+        $canViewAll = $this->canUseApiPermission($request->user(), 'attendance-list');
+
+        $validated = $request->validate([
+            'user_id' => ['nullable', 'exists:users,id'],
+            'date' => ['nullable', 'date'],
+        ]);
+
+        $userId = $request->user()->id;
+
+        if ($canViewAll && ! blank($validated['user_id'] ?? null)) {
+            $userId = (int) $validated['user_id'];
+        }
+
+        $date = ! blank($validated['date'] ?? null)
+            ? $request->date('date')->toDateString()
+            : now()->toDateString();
+
+        $latestAttendance = Attendance::query()
+            ->where('user_id', $userId)
+            ->whereDate('attendance_date', $date)
+            ->latest('check_in_at')
+            ->first();
+
+        $activeAttendance = $latestAttendance && ! $latestAttendance->check_out_at
+            ? $latestAttendance
+            : null;
+
+        return response()->json([
+            'user_id' => $userId,
+            'date' => $date,
+            'status' => $activeAttendance ? 'checked_in' : 'checked_out',
+            'is_checked_in' => (bool) $activeAttendance,
+            'can_check_in' => ! $activeAttendance,
+            'can_check_out' => (bool) $activeAttendance,
+            'active_attendance' => $activeAttendance ? $this->attendancePayload($activeAttendance) : null,
+            'latest_attendance' => $latestAttendance ? $this->attendancePayload($latestAttendance) : null,
+        ]);
+    }
+
     public function registerDevice(Request $request)
     {
         $validated = $request->validate([

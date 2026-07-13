@@ -631,7 +631,6 @@ class MobileApiController extends Controller
             'designation' => $user->designation,
             'role' => $user->role,
             'roles' => $this->userRolesPayload($user),
-            'permissions' => $this->userPermissionKeys($user),
             'status' => $user->status,
             'wallet' => (float) ($user->wallet ?? 0),
         ];
@@ -713,7 +712,17 @@ class MobileApiController extends Controller
 
     protected function userRolesPayload(User $user): array
     {
-        return $user->assignedRoles()
+        $roles = $user->relationLoaded('roles')
+            ? $user->roles
+            : $user->roles()->get();
+
+        if ($roles->isEmpty() && filled($user->role)) {
+            $roles = Role::query()
+                ->where('name', $user->role)
+                ->get();
+        }
+
+        return $roles
             ->map(fn(Role $role) => [
                 'id' => $role->id,
                 'name' => $role->name,
@@ -745,18 +754,23 @@ class MobileApiController extends Controller
             ->all();
     }
 
-    protected function rolePayload(Role $role): array
+    protected function rolePayload(Role $role, bool $withPermissions = false): array
     {
-        return [
+        $payload = [
             'id' => $role->id,
             'name' => $role->name,
             'description' => $role->description,
             'users_count' => $role->users_count ?? null,
-            'permissions' => $role->permissions
+        ];
+
+        if ($withPermissions) {
+            $payload['permissions'] = $role->permissions
                 ->map(fn(Permission $permission) => $this->permissionPayload($permission))
                 ->values()
-                ->all(),
-        ];
+                ->all();
+        }
+
+        return $payload;
     }
 
     protected function permissionPayload(Permission $permission): array

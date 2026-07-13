@@ -48,6 +48,10 @@ Authorization: Bearer token_here
 
 header send pannanum.
 
+### `POST /auth/login`
+
+Idhu `/login` API-ku same alias. Old/new mobile app builds rendu support panna keep pannirukkom. Function same: login panni token return pannum.
+
 ### `POST /logout`
 
 App logout panna token delete pannum.
@@ -75,6 +79,10 @@ Important fields:
 - `server_time`: backend current time.
 - `timezone`: time zone.
 
+### `GET /settings/app`
+
+Idhu authenticated alias for `/V1/getAppSettings`. Login apram app settings refresh panna use pannalam. Response concept same.
+
 ### `GET /V1/getModuleSettings`
 
 Mobile app-la modules enable/disable panna use.
@@ -95,6 +103,10 @@ Important fields:
 - `modules.wallet`: wallet module show ah.
 - `modules.leave_requests`: leave module show ah.
 
+### `GET /settings/modules`
+
+Idhu authenticated alias for `/V1/getModuleSettings`. Login apram module settings refresh panna use.
+
 ### `GET /V1/getMapSettings`
 
 Admin dashboard map view-ku use.
@@ -105,6 +117,30 @@ Fields:
 - `center_longitude`: map default center longitude.
 - `zoom_level`: map zoom.
 - `google_maps_api_key`: Google map load panna key.
+
+### `GET /settings/map`
+
+Idhu authenticated alias for `/V1/getMapSettings`. Admin dashboard/mobile dashboard login apram map setting fetch panna use.
+
+### `GET /dashboard`
+
+Mobile dashboard summary data fetch panna use. Login pannina user role/permission based-a dashboard-la show panna vendiya counts, summaries, attendance/task related quick data return pannum.
+
+Use:
+
+- Employee home screen summary.
+- Admin/Manager dashboard summary.
+- App open pannumbothu quick overview show panna.
+
+### `GET /options`
+
+Common app options/dropdowns fetch panna use. Mobile forms-la repeated-a dropdown data venumna this API help pannum.
+
+Use:
+
+- Status lists.
+- Common module options.
+- Form dropdown initial values.
 
 ## Attendance And Tracking Full Flow
 
@@ -153,6 +189,24 @@ Backend behavior:
 - Tracking entry save pannum.
 - Latest location device table-la update pannum.
 
+### `POST /register`
+
+Mobile device register/update panna use. App install/login apram device details backend-ku send panna. Idhu user device identify panna and later tracking/live status update panna helpful.
+
+Fields usually:
+
+- `device_id`: unique device id.
+- `device_name`: phone model/name.
+- `platform`: android/ios.
+- `app_version`: installed app version.
+- `fcm_token`: push notification token irundha.
+
+Use:
+
+- Device record maintain panna.
+- Same employee multiple devices use pannina identify panna.
+- Notification/tracking support panna.
+
 ### `POST /tracking/location`
 
 Employee checked-in apram app background-la interval basis call pannum.
@@ -185,6 +239,16 @@ Use:
 - Admin live map current marker update panna.
 - Employee latest battery/GPS/location status update panna.
 
+### `GET /settings/tracking`
+
+Tracking related settings mattum fetch panna use. App background service start panna before interval, GPS accuracy limit, mock location rule madhiri values check pannalam.
+
+Use:
+
+- Background tracking interval decide panna.
+- GPS accuracy validation app side-la show panna.
+- Tracking enable/disable status know panna.
+
 ### `POST /check_out`
 
 Employee work end panna use.
@@ -207,6 +271,24 @@ Query filters:
 - `from_date`, `to_date`: date range.
 - `employee_id`: admin/manager filter.
 - `per_page`: pagination count.
+
+### `GET /attendance/status`
+
+Employee current check-in/check-out status quickly check panna use. App home screen-la check-in button show pannanuma checkout button show pannanuma decide panna indha API use pannunga.
+
+Query:
+
+- `date`: optional. Default today.
+- `user_id`: optional. Admin/Manager permission irundha specific employee status check panna.
+
+Response fields:
+
+- `status`: `checked_in` or `checked_out`.
+- `is_checked_in`: true na employee currently checked-in.
+- `can_check_in`: true na check-in button show pannalam.
+- `can_check_out`: true na checkout button show pannalam.
+- `active_attendance`: current open attendance record.
+- `latest_attendance`: selected date latest attendance record.
 
 ## Live Map APIs
 
@@ -243,6 +325,16 @@ Filters:
 - `q`: name/email/phone/designation search.
 - `role`: role filter.
 - `per_page`: pagination.
+
+### `GET /employees/track`
+
+Employee tracking list/map support-ku use. Admin/Manager app-la employees tracking screen irundha employee list with tracking-related data fetch panna use.
+
+Use:
+
+- Track panna eligible employees list.
+- Employee current tracking status overview.
+- Map/filter screen-la employee dropdown.
 
 ### `POST /employees`
 
@@ -295,9 +387,24 @@ Employee hard delete illa. Status inactive pannum and token revoke pannum.
 
 Logged-in user-ku enna permissions irukku nu app-ku return pannum. Mobile app menu hide/show panna use.
 
+Important:
+
+- Normal list APIs-la full permissions return panna maatom.
+- App-la permission based menu venumna indha API call pannanum.
+- Response-la user basic details, roles basic list, permission keys varum.
+
 ### `GET /roles`
 
 Employee create/update screen-la role dropdown.
+
+Response basic role list mattum:
+
+- `id`
+- `name`
+- `description`
+- `users_count`
+
+Full permission keys venumna `/permissions` or `/me/permissions` use pannunga.
 
 ### `GET /permissions`
 
@@ -308,6 +415,7 @@ Concept:
 - Permission irundha only related API access.
 - Permission illa na `Forbidden` response.
 - App menu permission based-a show/hide pannalam.
+- List pages clean-a irukka roles basic details mattum return pannum; every list response-la permissions repeat panna maatom.
 
 ## Task APIs
 
@@ -608,11 +716,25 @@ Leave request delete.
 
 Dropdown data and common master data fetch panna use.
 
-- `GET /categories`: category dropdown.
-- `GET /main-categories`: main category dropdown.
-- `GET /vendors`: vendor dropdown.
-- `GET /labour-roles`: labour role dropdown.
-- `GET /labours`: labour dropdown.
+### `GET /categories`
+
+Expense/category dropdown. Expense create/update form-la category select panna use.
+
+### `GET /main-categories`
+
+Main category dropdown. Expense category grouping or material/category selection screens-la use.
+
+### `GET /vendors`
+
+Vendor dropdown. Expense create pannumbothu vendor select panna use.
+
+### `GET /labour-roles`
+
+Labour role dropdown. Labour module-la role/type select panna use.
+
+### `GET /labours`
+
+Labour dropdown. Labour expense or labour assignment form-la labour select panna use.
 
 ## Common Response Concepts
 
@@ -670,6 +792,86 @@ Other modules-la employee tasks, expenses, leave requests, clients, projects, pa
 Settings APIs app behavior control pannum. Tracking interval, offline tracking, geofence, QR/IP attendance, privacy URL, app version ellam backend settings-la irundhu app-ku pogum. App update pannanumna backend setting change pannina app behavior change aagum.
 
 Data safety-ku pagination, validation, permission checks, not found handling, active attendance checks implement pannirukkom. So invalid id, invalid leave type, permission missing, check-in illama tracking send panra cases ellam proper response return pannum.
+
+## Complete API Route Coverage
+
+Indha list `routes/api.php` actual routes based-a prepare pannathu. Oru route-um miss aagama coverage check panna use pannunga.
+
+| # | Method | API | Use |
+| --- | --- | --- | --- |
+| 1 | POST | `/login` | Login and token create. |
+| 2 | POST | `/auth/login` | Login alias, same as `/login`. |
+| 3 | GET | `/V1/getAppSettings` | Public app settings. |
+| 4 | GET | `/V1/getModuleSettings` | Public module settings. |
+| 5 | GET | `/V1/getMapSettings` | Public map settings. |
+| 6 | POST | `/logout` | Current token logout. |
+| 7 | GET | `/dashboard` | Mobile dashboard summary. |
+| 8 | GET | `/options` | Common app options/dropdowns. |
+| 9 | POST | `/register` | Mobile device registration/update. |
+| 10 | GET | `/attendance/status` | Current check-in/check-out status. |
+| 11 | GET | `/attendance` | Attendance list/history. |
+| 12 | POST | `/check_in` | Employee check-in. |
+| 13 | POST | `/check_out` | Employee check-out. |
+| 14 | POST | `/tracking/location` | Background tracking location save. |
+| 15 | POST | `/devices/live-status` | Latest device/live status update. |
+| 16 | GET | `/settings/tracking` | Tracking settings. |
+| 17 | GET | `/settings/app` | Authenticated app settings alias. |
+| 18 | GET | `/settings/modules` | Authenticated module settings alias. |
+| 19 | GET | `/settings/map` | Authenticated map settings alias. |
+| 20 | GET | `/admin/employees/live-locations` | Admin live map employee markers. |
+| 21 | GET | `/admin/employees/{employee}/timeline` | One employee location timeline. |
+| 22 | GET | `/employees/track` | Employee tracking list/status. |
+| 23 | GET | `/employees` | Employee list. |
+| 24 | POST | `/employees` | Employee create. |
+| 25 | GET | `/employees/profile` | Logged-in user profile. |
+| 26 | GET | `/employees/{employee}` | Employee detail. |
+| 27 | PUT | `/employees/{employee}` | Employee update. |
+| 28 | POST | `/employees/{employee}/update` | Employee update alias. |
+| 29 | DELETE | `/employees/{employee}` | Employee inactive/delete action. |
+| 30 | GET | `/me/permissions` | Logged-in user permissions. |
+| 31 | GET | `/roles` | Role list. |
+| 32 | GET | `/permissions` | Permission list. |
+| 33 | GET | `/tasks` | Task list. |
+| 34 | POST | `/tasks/assign` | Task create/assign. |
+| 35 | GET | `/tasks/{task}` | Task detail. |
+| 36 | PUT | `/tasks/{task}` | Task update. |
+| 37 | POST | `/tasks/{task}/update` | Task update alias. |
+| 38 | DELETE | `/tasks/{task}` | Task delete. |
+| 39 | GET | `/wallet` | Wallet/transfer history. |
+| 40 | GET | `/wallet/options` | Wallet dropdown options. |
+| 41 | POST | `/wallet/store` | Wallet transfer create alias. |
+| 42 | POST | `/wallet/transfer` | Wallet transfer create. |
+| 43 | GET | `/clients` | Client list. |
+| 44 | POST | `/clients` | Client create. |
+| 45 | GET | `/clients/{client}` | Client detail. |
+| 46 | PUT | `/clients/{client}` | Client update. |
+| 47 | DELETE | `/clients/{client}` | Client delete/block if related data. |
+| 48 | GET | `/projects/options` | Project dropdown options. |
+| 49 | GET | `/projects` | Project list. |
+| 50 | POST | `/projects` | Project create. |
+| 51 | GET | `/projects/{project}` | Project detail. |
+| 52 | PUT | `/projects/{project}` | Project update. |
+| 53 | DELETE | `/projects/{project}` | Project delete/block if related data. |
+| 54 | GET | `/expenses/options` | Expense dropdown options. |
+| 55 | GET | `/expenses` | Expense list. |
+| 56 | POST | `/expenses` | Expense create. |
+| 57 | GET | `/expenses/{expense}` | Expense detail. |
+| 58 | PUT | `/expenses/{expense}` | Expense update. |
+| 59 | DELETE | `/expenses/{expense}` | Expense delete. |
+| 60 | GET | `/payments/options` | Payment dropdown/filter options. |
+| 61 | GET | `/payments` | Payment list. |
+| 62 | GET | `/payments/{payment}` | Payment detail. |
+| 63 | GET | `/payment-stages` | Payment stage list. |
+| 64 | GET | `/leave-requests/options` | Leave dropdown/status options. |
+| 65 | GET | `/leave-requests` | Leave request list. |
+| 66 | POST | `/leave-requests` | Leave request create. |
+| 67 | POST | `/leave-requests/{leaveRequest}/action` | Leave approve/reject action. |
+| 68 | DELETE | `/leave-requests/{leaveRequest}` | Leave request delete. |
+| 69 | GET | `/categories` | Category dropdown. |
+| 70 | GET | `/main-categories` | Main category dropdown. |
+| 71 | GET | `/vendors` | Vendor dropdown. |
+| 72 | GET | `/labour-roles` | Labour role dropdown. |
+| 73 | GET | `/labours` | Labour dropdown. |
 
 ## Final End-To-End Flow
 

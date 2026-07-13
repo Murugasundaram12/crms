@@ -23,6 +23,7 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/dashboard', [MobileSettingsDashboardController::class, 'dashboard']);
     Route::get('/options', [MobileSettingsDashboardController::class, 'appOptions']);
     Route::post('/register', [MobileAttendanceTrackingController::class, 'registerDevice']);
+    Route::get('/check_status', [MobileAttendanceTrackingController::class, 'attendanceStatus']);
     Route::get('/attendance', [MobileAttendanceTrackingController::class, 'attendances']);
     Route::post('/check_in', [MobileAttendanceTrackingController::class, 'checkIn']);
     Route::post('/check_out', [MobileAttendanceTrackingController::class, 'checkOut']);

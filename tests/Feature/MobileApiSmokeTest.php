@@ -599,7 +599,7 @@ class MobileApiSmokeTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('user.roles.0.name', 'Super Admin')
-            ->assertJsonPath('user.permissions.0', 'permissions-list');
+            ->assertJsonMissingPath('user.permissions');
 
         $token = $loginResponse->json('token');
         $headers = ['Authorization' => 'Bearer ' . $token];
@@ -648,7 +648,7 @@ class MobileApiSmokeTest extends TestCase
             ->getJson('/api/roles')
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Super Admin')
-            ->assertJsonFragment(['key' => 'permissions-list']);
+            ->assertJsonMissingPath('data.0.permissions');
 
         $this->withHeaders($headers)
             ->getJson('/api/permissions')
@@ -775,6 +775,67 @@ class MobileApiSmokeTest extends TestCase
             ])
             ->assertStatus(409)
             ->assertJsonPath('message', 'No active attendance found. Tracking is allowed only after check-in and before check-out.');
+    }
+
+    public function test_attendance_status_api_reports_check_in_and_check_out_state(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Attendance Status User',
+            'email' => 'attendance-status@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Attendance Status Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        $this->withHeaders($headers)
+            ->getJson('/api/attendance/status')
+            ->assertOk()
+            ->assertJsonPath('status', 'checked_out')
+            ->assertJsonPath('is_checked_in', false)
+            ->assertJsonPath('can_check_in', true)
+            ->assertJsonPath('can_check_out', false);
+
+        $trackingPayload = [
+            'device_id' => 'attendance-status-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 12,
+            'isGpsOn' => true,
+            'isMock' => false,
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $trackingPayload)
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->getJson('/api/attendance/status')
+            ->assertOk()
+            ->assertJsonPath('status', 'checked_in')
+            ->assertJsonPath('is_checked_in', true)
+            ->assertJsonPath('can_check_in', false)
+            ->assertJsonPath('can_check_out', true);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_out', $trackingPayload)
+            ->assertOk();
+
+        $this->withHeaders($headers)
+            ->getJson('/api/attendance/status')
+            ->assertOk()
+            ->assertJsonPath('status', 'checked_out')
+            ->assertJsonPath('is_checked_in', false)
+            ->assertJsonPath('can_check_in', true)
+            ->assertJsonPath('can_check_out', false);
     }
 
     public function test_mobile_api_module_routes_allow_employee_own_views_only(): void
