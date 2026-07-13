@@ -876,7 +876,7 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->postJson('/api/logout')
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Today due tasks are not completed. Complete today tasks before logout.')
+            ->assertJsonPath('message', 'Due tasks are not completed. Complete due tasks before logout.')
             ->assertJsonPath('pending_tasks_count', 1)
             ->assertJsonPath('tasks.0.id', $task->id);
 
@@ -889,6 +889,81 @@ class MobileApiSmokeTest extends TestCase
             ->postJson('/api/logout')
             ->assertOk()
             ->assertJsonPath('message', 'Logged out successfully.');
+    }
+
+    public function test_check_out_is_blocked_only_for_incomplete_due_tasks_not_future_weekly_tasks(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Task Checkout User',
+            'email' => 'task-checkout@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $employee = Employee::query()->create([
+            'name' => $user->name,
+            'email' => $user->email,
+            'status' => 'active',
+        ]);
+
+        $todayTask = Task::query()->create([
+            'employee_id' => $employee->id,
+            'title' => 'Today task',
+            'description' => 'Must complete today',
+            'type' => 'general',
+            'priority' => 'high',
+            'status' => 'pending',
+            'due_date' => now()->toDateString(),
+        ]);
+
+        Task::query()->create([
+            'employee_id' => $employee->id,
+            'title' => 'Weekly task with time',
+            'description' => 'Can be completed later this week',
+            'type' => 'weekly',
+            'priority' => 'medium',
+            'status' => 'pending',
+            'due_date' => now()->addDays(3)->toDateString(),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Task Checkout Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $trackingPayload = [
+            'device_id' => 'task-checkout-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 12,
+            'isGpsOn' => true,
+            'isMock' => false,
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $trackingPayload)
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_out', $trackingPayload)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Due tasks are not completed. Complete due tasks before check-out.')
+            ->assertJsonPath('pending_tasks_count', 1)
+            ->assertJsonPath('tasks.0.id', $todayTask->id);
+
+        $todayTask->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_out', $trackingPayload)
+            ->assertOk()
+            ->assertJsonPath('message', 'Checked out successfully.');
     }
 
     public function test_wallet_transfer_can_target_selected_employee_user_and_returns_net_totals(): void

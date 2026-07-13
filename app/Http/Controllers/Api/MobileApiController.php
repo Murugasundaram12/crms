@@ -71,6 +71,43 @@ class MobileApiController extends Controller
             ->value('id');
     }
 
+    protected function incompleteDueTasksForUser(User $user)
+    {
+        $taskEmployeeId = $this->taskEmployeeIdFromUserId($user->id);
+
+        if (! $taskEmployeeId) {
+            return collect();
+        }
+
+        return Task::query()
+            ->with(['project', 'employee'])
+            ->where('employee_id', $taskEmployeeId)
+            ->whereNotNull('due_date')
+            ->whereDate('due_date', '<=', now()->toDateString())
+            ->where('status', '!=', 'completed')
+            ->orderByRaw('due_date asc')
+            ->orderByDesc('is_important')
+            ->orderBy('sort_order')
+            ->get();
+    }
+
+    protected function incompleteDueTasksBlockResponse(User $user, string $action): ?\Illuminate\Http\JsonResponse
+    {
+        $pendingTasks = $this->incompleteDueTasksForUser($user);
+
+        if ($pendingTasks->isEmpty()) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => "Due tasks are not completed. Complete due tasks before {$action}.",
+            'pending_tasks_count' => $pendingTasks->count(),
+            'tasks' => $pendingTasks
+                ->map(fn(Task $task) => $this->taskPayload($task))
+                ->values(),
+        ], 409);
+    }
+
     protected function resolveTaskEmployeeId(?int $employeeId, ?int $userId = null): ?int
     {
         if ($userId) {

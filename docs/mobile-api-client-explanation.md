@@ -58,15 +58,15 @@ App logout panna token delete pannum.
 
 Important logout rule:
 
-- Logged-in employee-ku today due task irundhu status `completed` illa na logout block aagum.
+- Logged-in employee-ku today/overdue due task irundhu status `completed` illa na logout block aagum.
 - Response status `409` varum.
-- App-la pending today tasks show panni, task complete pannitu logout retry panna sollanum.
+- App-la pending due tasks show panni, task complete pannitu logout retry panna sollanum.
 
 Example block response:
 
 ```json
 {
-  "message": "Today due tasks are not completed. Complete today tasks before logout.",
+  "message": "Due tasks are not completed. Complete due tasks before logout.",
   "pending_tasks_count": 1,
   "tasks": []
 }
@@ -271,6 +271,8 @@ Employee work end panna use.
 
 Backend behavior:
 
+- Today/overdue due task incomplete irundha checkout block aagum.
+- Weekly task due date future-la irundha incomplete-a irundhalum checkout allow aagum.
 - Active attendance record close pannum.
 - Checkout time update pannum.
 - GPS sent pannina final tracking entry `checked_out` type-la save aagum.

@@ -141,6 +141,10 @@ trait MobileAttendanceTrackingEndpoints
             ], 404);
         }
 
+        if ($blockResponse = $this->incompleteDueTasksBlockResponse($user, 'check-out')) {
+            return $blockResponse;
+        }
+
         $checkoutTime = now();
         $notes = trim(collect([$openAttendance->notes, $validated['notes'] ?? null])->filter()->implode("\n"));
 
