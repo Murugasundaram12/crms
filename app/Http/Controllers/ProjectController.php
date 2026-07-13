@@ -149,6 +149,8 @@ class ProjectController extends Controller
             'payments.client',
             'payments.stage',
             'expenses.employee',
+            'expenses.mainCategory',
+            'expenses.category',
             'quotations.items',
             'paymentStages.payments',
             'variations',

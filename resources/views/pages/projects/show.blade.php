@@ -279,13 +279,20 @@
                             </div>
                             <div class="card-body">
                                 @forelse ($project->expenses as $expense)
+                                    @php
+                                        $expenseTitle = $expense->description ?: ($expense->mainCategory?->name ?? 'Expense');
+                                        $expenseCategory = collect([
+                                            $expense->mainCategory?->name,
+                                            $expense->category?->name,
+                                        ])->filter()->implode(' - ') ?: 'General';
+                                    @endphp
                                     <div class="card border shadow-none mb-3">
                                         <div class="card-body pb-0">
                                             <div class="row align-items-center">
                                                 <div class="col-md-8">
                                                     <div class="mb-3">
-                                                        <h6 class="fw-semibold fs-14 mb-1">{{ $expense->title }}</h6>
-                                                        <p>{{ $expense->category }} expense logged by
+                                                        <h6 class="fw-semibold fs-14 mb-1">{{ $expenseTitle }}</h6>
+                                                        <p>{{ $expenseCategory }} expense logged by
                                                             {{ $expense->employee?->name ?? 'team' }}
                                                         </p>
                                                     </div>
@@ -293,7 +300,7 @@
                                                 <div class="col-md-4 text-md-end">
                                                     <div class="mb-3 d-inline-flex align-items-center">
                                                         <span
-                                                            class="badge badge-purple-light me-1">₹{{ number_format($expense->amount, 2) }}</span>
+                                                            class="badge badge-purple-light me-1">Rs {{ number_format($expense->amount, 2) }}</span>
                                                         <span
                                                             class="badge bg-success me-1">{{ optional($expense->expense_date)->format('d M Y') }}</span>
                                                     </div>
@@ -544,3 +551,4 @@
     <script src="{{ asset('assets/plugins/select2/js/select2.min.js') }}"></script>
     <script src="{{ asset('assets/plugins/choices.js/public/assets/scripts/choices.min.js') }}"></script>
 @endpush
+

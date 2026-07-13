@@ -3,37 +3,49 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\Attendance;
+use App\Models\Category;
 use App\Models\Employee;
 use App\Models\EmployeeDevice;
+use App\Models\Expense;
+use App\Models\Labour;
+use App\Models\LabourRole;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\LocationTracking;
+use App\Models\MainCategory;
 use App\Models\MobileApiToken;
 use App\Models\Client;
+use App\Models\Payment;
 use App\Models\PaymentStage;
 use App\Models\Permission;
 use App\Models\Project;
+use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class MobileApiController extends Controller
 {
-    private const TASK_TYPES = [
+    protected const TASK_TYPES = [
         'general',
         'daily',
         'weekly',
     ];
 
-    private const PAYMENT_MODES = [
+    protected const PAYMENT_MODES = [
         1 => 'Cash',
         2 => 'Bank Transfer',
         3 => 'UPI',
@@ -41,674 +53,7 @@ class MobileApiController extends Controller
         5 => 'Card',
     ];
 
-    public function login(Request $request)
-    {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string'],
-            'device_name' => ['nullable', 'string', 'max:100'],
-        ]);
-
-        $user = User::query()->where('email', $credentials['email'])->first();
-
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => 'The provided credentials do not match our records.',
-            ]);
-        }
-
-        if (($user->status ?? 'active') !== 'active') {
-            throw ValidationException::withMessages([
-                'email' => 'This account is inactive.',
-            ]);
-        }
-
-        $plainToken = Str::random(80);
-        $token = MobileApiToken::query()->create([
-            'user_id' => $user->id,
-            'name' => $credentials['device_name'] ?? 'mobile',
-            'token_hash' => hash('sha256', $plainToken),
-        ]);
-
-        return response()->json([
-            'message' => 'Login successful.',
-            'token' => $plainToken,
-            'token_type' => 'Bearer',
-            'user' => $this->userPayload($user),
-            'token_id' => $token->id,
-        ]);
-    }
-
-    public function logout(Request $request)
-    {
-        $plainToken = $request->bearerToken();
-
-        if ($plainToken) {
-            MobileApiToken::query()
-                ->where('token_hash', hash('sha256', $plainToken))
-                ->delete();
-        }
-
-        return response()->json([
-            'message' => 'Logged out successfully.',
-        ]);
-    }
-
-    public function checkIn(Request $request)
-    {
-        $validated = $request->validate([
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $user = $request->user();
-        $today = now()->toDateString();
-
-        $activeAttendance = $this->activeAttendance($user->id);
-
-        if ($activeAttendance) {
-            return response()->json([
-                'message' => 'You are already checked in.',
-                'attendance' => $this->attendancePayload($activeAttendance),
-            ], 409);
-        }
-
-        $attendance = Attendance::query()->create([
-            'user_id' => $user->id,
-            'attendance_date' => $today,
-            'check_in_at' => now(),
-            'status' => 'present',
-            'notes' => $validated['notes'] ?? null,
-        ]);
-
-        return response()->json([
-            'message' => 'Checked in successfully.',
-            'attendance' => $this->attendancePayload($attendance),
-        ], 201);
-    }
-
-    public function checkOut(Request $request)
-    {
-        $validated = $request->validate([
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $user = $request->user();
-
-        $openAttendance = $this->activeAttendance($user->id);
-
-        if (! $openAttendance) {
-            return response()->json([
-                'message' => 'No active check-in found.',
-            ], 404);
-        }
-
-        $checkoutTime = now();
-        $notes = trim(collect([$openAttendance->notes, $validated['notes'] ?? null])->filter()->implode("\n"));
-
-        $openAttendance->update([
-            'check_out_at' => $checkoutTime,
-            'worked_minutes' => $openAttendance->check_in_at->diffInMinutes($checkoutTime),
-            'notes' => $notes !== '' ? $notes : null,
-        ]);
-
-        return response()->json([
-            'message' => 'Checked out successfully.',
-            'attendance' => $this->attendancePayload($openAttendance->fresh()),
-        ]);
-    }
-
-    public function attendances(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'attendance-list')) {
-            return $forbidden;
-        }
-
-        $validated = $request->validate([
-            'user_id' => ['nullable', 'exists:users,id'],
-            'from_date' => ['nullable', 'date'],
-            'to_date' => ['nullable', 'date'],
-            'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
-
-        $query = Attendance::query()
-            ->with('user')
-            ->latest('attendance_date')
-            ->latest('check_in_at');
-
-        if (! blank($validated['user_id'] ?? null)) {
-            $query->where('user_id', $validated['user_id']);
-        }
-
-        if (! blank($validated['from_date'] ?? null)) {
-            $query->whereDate('attendance_date', '>=', $request->date('from_date')->toDateString());
-        }
-
-        if (! blank($validated['to_date'] ?? null)) {
-            $query->whereDate('attendance_date', '<=', $request->date('to_date')->toDateString());
-        }
-
-        if (($validated['status'] ?? null) === 'checked_out') {
-            $query->whereNotNull('check_out_at');
-        }
-
-        if (($validated['status'] ?? null) === 'checked_in') {
-            $query->whereNull('check_out_at');
-        }
-
-        $attendances = $query->paginate((int) ($validated['per_page'] ?? 15));
-        $attendances->setCollection($attendances->getCollection()->map(fn(Attendance $attendance) => [
-            ...$this->attendancePayload($attendance),
-            'user' => $this->userPayload($attendance->user),
-        ]));
-
-        return response()->json($attendances);
-    }
-
-    public function registerDevice(Request $request)
-    {
-        $validated = $request->validate([
-            'device_id' => ['required', 'string', 'max:255'],
-            'device_name' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $device = EmployeeDevice::query()->updateOrCreate(
-            [
-                'employee_id' => $request->user()->id,
-                'device_id' => $validated['device_id'],
-            ],
-            [
-                'device_name' => $validated['device_name'] ?? null,
-                'last_seen_at' => now(),
-            ]
-        );
-
-        return response()->json([
-            'message' => 'Device registered successfully.',
-            'device' => $this->devicePayload($device),
-        ], 201);
-    }
-
-    public function updateLocation(Request $request)
-    {
-        $validated = $this->validateTrackingPayload($request, 'travelling');
-        $user = $request->user();
-
-        $attendance = $this->activeAttendance($user->id);
-
-        if (! $attendance) {
-            return response()->json([
-                'message' => 'No active attendance found. Tracking is allowed only after check-in and before check-out.',
-            ], 409);
-        }
-
-        $tracking = DB::transaction(function () use ($user, $attendance, $validated) {
-            $this->upsertDeviceStatus($user->id, $validated);
-
-            return $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling');
-        });
-
-        return response()->json([
-            'message' => 'Location updated successfully.',
-            'tracking' => $this->trackingPayload($tracking),
-        ], 201);
-    }
-
-    public function liveStatus(Request $request)
-    {
-        $validated = $this->validateTrackingPayload($request, 'travelling');
-        $user = $request->user();
-
-        if (! $this->activeAttendance($user->id)) {
-            return response()->json([
-                'message' => 'No active attendance found. Tracking is allowed only after check-in and before check-out.',
-            ], 409);
-        }
-
-        $device = $this->upsertDeviceStatus($user->id, $validated);
-
-        return response()->json([
-            'message' => 'Live status updated successfully.',
-            'device' => $this->devicePayload($device),
-        ]);
-    }
-
-    public function trackingSettings()
-    {
-        return response()->json([
-            'tracking_interval_seconds' => 60,
-            'minimum_distance_meters' => 25,
-            'max_accuracy_meters' => 50,
-            'mock_location_allowed' => false,
-            'history_retention_days' => 90,
-        ]);
-    }
-
-    public function trackEmployees(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'employees-list')) {
-            return $forbidden;
-        }
-
-        $validated = $request->validate([
-            'status' => ['nullable', 'string'],
-            'q' => ['nullable', 'string', 'max:255'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
-
-        $employees = User::query()
-            ->with(['roles'])
-            ->when($validated['status'] ?? null, fn($query, $status) => $query->where('status', $status))
-            ->when($validated['q'] ?? null, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('designation', 'like', "%{$search}%");
-                });
-            })
-            ->orderBy('name')
-            ->paginate((int) ($validated['per_page'] ?? 25));
-
-        $userIds = $employees->getCollection()->pluck('id');
-        $attendanceByUser = Attendance::query()
-            ->whereIn('user_id', $userIds)
-            ->whereDate('attendance_date', now()->toDateString())
-            ->latest('check_in_at')
-            ->get()
-            ->unique('user_id')
-            ->keyBy('user_id');
-
-        $deviceByUser = EmployeeDevice::query()
-            ->whereIn('employee_id', $userIds)
-            ->latest('last_seen_at')
-            ->get()
-            ->unique('employee_id')
-            ->keyBy('employee_id');
-
-        $taskEmployeeIdsByEmail = Employee::query()
-            ->whereIn('email', $employees->getCollection()->pluck('email')->filter())
-            ->pluck('id', 'email');
-
-        $employees->setCollection($employees->getCollection()->map(function (User $user) use ($attendanceByUser, $deviceByUser, $taskEmployeeIdsByEmail) {
-            $attendance = $attendanceByUser->get($user->id);
-            $device = $deviceByUser->get($user->id);
-
-            return [
-                ...$this->userPayload($user),
-                'task_employee_id' => $taskEmployeeIdsByEmail->get($user->email),
-                'attendance_status' => $attendance && ! $attendance->check_out_at ? 'checked_in' : 'checked_out',
-                'today_attendance' => $attendance ? $this->attendancePayload($attendance) : null,
-                'latest_location' => $device ? $this->devicePayload($device) : null,
-            ];
-        }));
-
-        return response()->json($employees);
-    }
-
-    public function permissionContext(Request $request)
-    {
-        return response()->json([
-            'user' => $this->userPayload($request->user()),
-            'roles' => $this->userRolesPayload($request->user()),
-            'permissions' => $this->userPermissionKeys($request->user()),
-        ]);
-    }
-
-    public function roles(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'roles-list')) {
-            return $forbidden;
-        }
-
-        $roles = Role::query()
-            ->with('permissions')
-            ->withCount('users')
-            ->orderBy('name')
-            ->get()
-            ->map(fn(Role $role) => $this->rolePayload($role));
-
-        return response()->json(['data' => $roles]);
-    }
-
-    public function permissions(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'permissions-list')) {
-            return $forbidden;
-        }
-
-        $permissions = Permission::query()
-            ->orderBy('key')
-            ->get()
-            ->map(fn(Permission $permission) => $this->permissionPayload($permission));
-
-        return response()->json(['data' => $permissions]);
-    }
-
-    public function adminLiveLocations(Request $request)
-    {
-        if (! $this->canViewEmployeeTracking($request->user())) {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
-
-        $devices = EmployeeDevice::query()
-            ->with('employee')
-            ->latest('last_seen_at')
-            ->get()
-            ->map(function (EmployeeDevice $device) {
-                return [
-                    ...$this->devicePayload($device),
-                    'employee' => $this->userPayload($device->employee),
-                    'online_status' => $device->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120)) ? 'online' : 'offline',
-                ];
-            });
-
-        return response()->json(['data' => $devices]);
-    }
-
-    public function adminTimeline(Request $request, int $employeeId)
-    {
-        if (! $this->canViewEmployeeTracking($request->user())) {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
-
-        $validated = $request->validate([
-            'date' => ['required', 'date_format:Y-m-d'],
-        ]);
-
-        $date = Carbon::parse($validated['date'])->toDateString();
-
-        $attendance = Attendance::query()
-            ->where('user_id', $employeeId)
-            ->whereDate('attendance_date', $date)
-            ->latest('check_in_at')
-            ->first();
-
-        $trackings = LocationTracking::query()
-            ->where('employee_id', $employeeId)
-            ->whereDate('recorded_at', $date)
-            ->orderBy('recorded_at')
-            ->get()
-            ->map(fn(LocationTracking $tracking) => $this->trackingPayload($tracking));
-
-        return response()->json([
-            'employee' => $this->userPayload(User::query()->findOrFail($employeeId)),
-            'attendance' => $attendance ? $this->attendancePayload($attendance) : null,
-            'trackings' => $trackings,
-        ]);
-    }
-
-    public function assignTask(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'tasks-create')) {
-            return $forbidden;
-        }
-
-        $validated = $this->validateTaskData($request);
-
-        $task = Task::query()->create($validated);
-        $this->createNextRecurringTaskIfNeeded($task);
-        $task->load(['project', 'employee']);
-
-        return response()->json([
-            'message' => 'Task assigned successfully.',
-            'task' => $this->taskPayload($task),
-        ], 201);
-    }
-
-    public function tasks(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'tasks-list')) {
-            return $forbidden;
-        }
-
-        $validated = $request->validate([
-            'q' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['pending', 'in_progress', 'completed', 'blocked'])],
-            'priority' => ['nullable', Rule::in(['low', 'medium', 'high'])],
-            'project_id' => ['nullable', 'exists:projects,id'],
-            'employee_id' => ['nullable', 'exists:employees,id'],
-            'type' => ['nullable', Rule::in(self::TASK_TYPES)],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
-
-        $query = Task::query()->with(['project', 'employee']);
-
-        if (! blank($validated['q'] ?? null)) {
-            $search = $validated['q'];
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('type', 'like', "%{$search}%")
-                    ->orWhereHas('project', fn($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('employee', fn($employeeQuery) => $employeeQuery->where('name', 'like', "%{$search}%"));
-            });
-        }
-
-        foreach (['status', 'priority', 'project_id', 'employee_id', 'type'] as $filter) {
-            if (! blank($validated[$filter] ?? null)) {
-                $query->where($filter, $validated[$filter]);
-            }
-        }
-
-        if (! blank($validated['date_from'] ?? null)) {
-            $query->whereDate('due_date', '>=', $request->date('date_from')->toDateString());
-        }
-
-        if (! blank($validated['date_to'] ?? null)) {
-            $query->whereDate('due_date', '<=', $request->date('date_to')->toDateString());
-        }
-
-        $tasks = $query
-            ->orderByRaw('COALESCE(due_date, CURRENT_DATE) desc')
-            ->orderByDesc('is_important')
-            ->orderBy('sort_order')
-            ->paginate((int) ($validated['per_page'] ?? 25));
-
-        $tasks->setCollection($tasks->getCollection()->map(fn(Task $task) => $this->taskPayload($task)));
-
-        return response()->json($tasks);
-    }
-
-    public function showTask(Request $request, Task $task)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'tasks-list')) {
-            return $forbidden;
-        }
-
-        return response()->json([
-            'task' => $this->taskPayload($task->load(['project', 'employee'])),
-        ]);
-    }
-
-    public function updateTask(Request $request, Task $task)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'tasks-edit')) {
-            return $forbidden;
-        }
-
-        $validated = $this->validateTaskData($request);
-
-        $task->update($validated);
-        $this->createNextRecurringTaskIfNeeded($task->fresh());
-        $task->load(['project', 'employee']);
-
-        return response()->json([
-            'message' => 'Task updated successfully.',
-            'task' => $this->taskPayload($task->fresh(['project', 'employee'])),
-        ]);
-    }
-
-    public function deleteTask(Request $request, Task $task)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'tasks-delete')) {
-            return $forbidden;
-        }
-
-        $task->delete();
-
-        return response()->json([
-            'message' => 'Task deleted successfully.',
-        ]);
-    }
-
-    public function wallets(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'transfers-list')) {
-            return $forbidden;
-        }
-
-        $validated = $request->validate([
-            'client_id' => ['nullable', 'exists:clients,id'],
-            'project_id' => ['nullable', 'exists:projects,id'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
-            'search' => ['nullable', 'string', 'max:255'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
-
-        $query = Wallet::query()
-            ->where('delete_status', 0)
-            ->with(['user', 'client', 'project', 'stage'])
-            ->when($validated['client_id'] ?? null, fn($q, $clientId) => $q->where('client_id', $clientId))
-            ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId));
-
-        if (! blank($validated['date_from'] ?? null)) {
-            $query->whereDate('current_date', '>=', $request->date('date_from')->toDateString());
-        }
-
-        if (! blank($validated['date_to'] ?? null)) {
-            $query->whereDate('current_date', '<=', $request->date('date_to')->toDateString());
-        }
-
-        if (! blank($validated['search'] ?? null)) {
-            $search = $validated['search'];
-            $lower = strtolower($search);
-            $matchingPaymentModeIds = collect(self::PAYMENT_MODES)
-                ->filter(fn(string $label) => str_contains(strtolower($label), $lower))
-                ->keys()
-                ->all();
-
-            $query->where(function ($q) use ($search, $lower, $matchingPaymentModeIds) {
-                if (str_contains('credited', $lower)) {
-                    $q->orWhere('transfer_type', 0);
-                }
-                if (str_contains('debited', $lower)) {
-                    $q->orWhere('transfer_type', 1);
-                }
-                if ($matchingPaymentModeIds !== []) {
-                    $q->orWhereIn('payment_mode', $matchingPaymentModeIds);
-                }
-
-                $q->orWhere('amount', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhereHas('client', fn($clientQuery) => $clientQuery->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('project', fn($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('user', fn($userQuery) => $userQuery->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('stage', fn($stageQuery) => $stageQuery->where('stage_name', 'like', "%{$search}%"));
-            });
-        }
-
-        $totalAmount = (clone $query)->sum('amount');
-        $wallets = $query
-            ->latest('current_date')
-            ->paginate((int) ($validated['per_page'] ?? 10));
-
-        $wallets->setCollection($wallets->getCollection()->map(fn(Wallet $wallet) => $this->walletPayload($wallet)));
-
-        return response()->json([
-            'total_amount' => (int) $totalAmount,
-            ...$wallets->toArray(),
-        ]);
-    }
-
-    public function walletOptions(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'transfers-create')) {
-            return $forbidden;
-        }
-
-        return response()->json([
-            'clients' => Client::query()
-                ->where('status', '!=', 'inactive')
-                ->orderBy('name')
-                ->get(['id', 'name']),
-            'projects' => Project::query()
-                ->whereIn('status', ['planning', 'active', 'on_hold'])
-                ->orderBy('name')
-                ->get(['id', 'client_id', 'name', 'status']),
-            'payment_modes' => self::PAYMENT_MODES,
-            'stages' => PaymentStage::query()
-                ->orderBy('stage_name')
-                ->get(['id', 'stage_name']),
-            'wallet_balance' => (float) ($request->user()->wallet ?? 0),
-        ]);
-    }
-
-    public function transferWallet(Request $request)
-    {
-        if ($forbidden = $this->authorizeApiPermission($request, 'transfers-create')) {
-            return $forbidden;
-        }
-
-        $validated = $this->validateWalletData($request);
-        $amount = (int) $validated['amount'];
-        $user = $request->user();
-        $project = Project::query()->findOrFail((int) $validated['project_id']);
-
-        if ((int) $project->client_id !== (int) $validated['client_id']) {
-            throw ValidationException::withMessages([
-                'project_id' => 'Selected project does not belong to the selected client.',
-            ]);
-        }
-
-        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($user->wallet ?? 0)) {
-            throw ValidationException::withMessages([
-                'amount' => 'Amount is insufficient',
-            ]);
-        }
-
-        $wallet = DB::transaction(function () use ($validated, $amount, $user) {
-            $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
-
-            $wallet = Wallet::query()->create([
-                'user_id' => $user->id,
-                'client_id' => $validated['client_id'],
-                'project_id' => $validated['project_id'],
-                'amount' => $amount,
-                'payment_mode' => $validated['payment_mode'],
-                'transfer_type' => $validated['transfer_type'],
-                'stage_id' => $validated['stage_id'] ?? null,
-                'description' => $validated['description'] ?? null,
-                'current_date' => $dateTime,
-                'active_status' => 1,
-                'delete_status' => 0,
-            ]);
-
-            $balanceService = app(CrmBalanceService::class);
-
-            if ((int) $validated['transfer_type'] === 0) {
-                $balanceService->applyProjectIncome((int) $validated['project_id'], $amount);
-                $balanceService->adjustUserWallet((int) $user->id, $amount);
-
-                return $wallet;
-            }
-
-            $balanceService->reverseProjectIncome((int) $validated['project_id'], $amount);
-            $balanceService->adjustUserWallet((int) $user->id, -$amount);
-
-            return $wallet;
-        });
-
-        return response()->json([
-            'message' => 'Wallet entry saved successfully.',
-            'wallet' => $this->walletPayload($wallet->load(['user', 'client', 'project', 'stage'])),
-            'wallet_balance' => (float) $user->fresh()->wallet,
-        ], 201);
-    }
-
-    private function taskEmployeeIdFromUserId(?int $userId): ?int
+    protected function taskEmployeeIdFromUserId(?int $userId): ?int
     {
         if (! $userId) {
             return null;
@@ -722,15 +67,62 @@ class MobileApiController extends Controller
 
         return Employee::query()
             ->where('email', $user->email)
-            ->orWhereKey($user->id)
+            ->orWhere('id', $user->id)
             ->value('id');
     }
 
-    private function validateTaskData(Request $request): array
+    protected function resolveTaskEmployeeId(?int $employeeId, ?int $userId = null): ?int
+    {
+        if ($userId) {
+            return $this->taskEmployeeIdFromUserId($userId);
+        }
+
+        if (! $employeeId) {
+            return null;
+        }
+
+        if (Employee::query()->whereKey($employeeId)->exists()) {
+            return $employeeId;
+        }
+
+        return $this->taskEmployeeIdFromUserId($employeeId);
+    }
+
+    protected function syncTaskEmployeeRecord(User $user, ?string $previousEmail = null): Employee
+    {
+        $employee = Employee::query()->where('email', $user->email)->first();
+
+        if (! $employee && $previousEmail && $previousEmail !== $user->email) {
+            $employee = Employee::query()->where('email', $previousEmail)->first();
+        }
+
+        $employee ??= new Employee();
+
+        $employee->fill([
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'designation' => $user->designation,
+            'role' => $user->role,
+            'address' => $user->address,
+            'hourly_rate' => $user->hourly_rate ?? 0,
+            'hire_date' => $user->hire_date,
+            'status' => $user->status ?? 'active',
+            'avatar' => $user->avatar,
+            'password' => $user->password,
+        ]);
+
+        $employee->save();
+
+        return $employee;
+    }
+
+    protected function validateTaskData(Request $request): array
     {
         $validated = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'employee_id' => ['nullable', 'exists:employees,id'],
+            'employee_id' => ['nullable', 'integer'],
+            'user_id' => ['nullable', 'exists:users,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'type' => ['required', Rule::in(self::TASK_TYPES)],
@@ -744,6 +136,23 @@ class MobileApiController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
+        $taskEmployeeId = $this->resolveTaskEmployeeId(
+            isset($validated['employee_id']) ? (int) $validated['employee_id'] : null,
+            isset($validated['user_id']) ? (int) $validated['user_id'] : null,
+        );
+
+        if (($validated['employee_id'] ?? null) || ($validated['user_id'] ?? null)) {
+            if (! $taskEmployeeId) {
+                throw ValidationException::withMessages([
+                    'employee_id' => 'Selected employee could not be matched to the task employee records.',
+                ]);
+            }
+
+            $validated['employee_id'] = $taskEmployeeId;
+        }
+
+        unset($validated['user_id']);
+
         $validated['is_important'] = $request->boolean('is_important');
         $validated['auto_repeat'] = $request->boolean('auto_repeat');
         $validated['completed_at'] = $validated['status'] === 'completed' ? now() : null;
@@ -751,7 +160,177 @@ class MobileApiController extends Controller
         return $validated;
     }
 
-    private function validateWalletData(Request $request): array
+    protected function validateOwnTaskUpdateData(Request $request, Task $task): array
+    {
+        $validated = $request->validate([
+            'status' => ['sometimes', Rule::in(['pending', 'in_progress', 'completed', 'blocked'])],
+            'logged_hours' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+        ]);
+
+        if (array_key_exists('status', $validated)) {
+            $validated['completed_at'] = $validated['status'] === 'completed' ? now() : null;
+        } elseif ($task->status === 'completed') {
+            unset($validated['completed_at']);
+        }
+
+        return $validated;
+    }
+
+    protected function validateEmployeeData(Request $request, ?User $employee = null): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($employee?->id),
+            ],
+            'role' => ['required', 'string', Rule::exists('roles', 'name')],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'designation' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'hourly_rate' => ['nullable', 'numeric', 'min:0'],
+            'hire_date' => ['nullable', 'date'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
+            'avatar' => ['nullable', 'image', 'max:2048'],
+            'password' => [$employee ? 'nullable' : 'required', 'string', 'min:6', 'confirmed'],
+        ]);
+    }
+
+    protected function validateClientData(Request $request, ?Client $client = null): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'company_name' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('clients', 'email')->ignore($client?->id)],
+            'phone' => ['required', 'string', 'max:30'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'state' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'status' => ['required', Rule::in(['enquiry', 'active', 'inactive'])],
+            'notes' => ['nullable', 'string'],
+        ]);
+    }
+
+    protected function validateProjectData(Request $request, ?Project $project = null): array
+    {
+        return $request->validate([
+            'project_code' => ['required', 'string', 'max:50', Rule::unique('projects', 'project_code')->ignore($project?->id)],
+            'client_id' => ['required', 'exists:clients,id'],
+            'manager_id' => ['nullable', 'exists:employees,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'type' => ['required', 'string', 'max:255'],
+            'priority' => ['required', Rule::in(['low', 'medium', 'high'])],
+            'status' => ['required', Rule::in(['planning', 'active', 'on_hold', 'completed', 'cancelled'])],
+            'progress' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'location' => ['nullable', 'string', 'max:500'],
+        ]);
+    }
+
+    protected function validateExpenseData(Request $request): array
+    {
+        $request->merge([
+            'paid_amt' => $request->input('paid_amt', $request->input('paid_amount', 0)),
+            'current_date' => $request->input('current_date', $request->input('expense_date', now()->toDateString())),
+        ]);
+
+        return $request->validate([
+            'main_category_id' => ['nullable', 'integer', 'exists:main_categories,id'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'amount' => ['required', 'integer', 'min:0'],
+            'paid_amt' => ['required', 'integer', 'min:0'],
+            'current_date' => ['required', 'date'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+            'payment_mode' => ['nullable', 'integer'],
+            'description' => ['nullable', 'string'],
+        ]);
+    }
+
+    protected function authorizeRoleAssignment(User $actor, Role $role): void
+    {
+        if ($this->isSuperAdmin($actor)) {
+            return;
+        }
+
+        $protectedRoles = ['Super Admin', 'Manager'];
+
+        if (in_array($role->name, $protectedRoles, true)) {
+            throw ValidationException::withMessages([
+                'role' => 'You do not have permission to assign this role.',
+            ]);
+        }
+    }
+
+    protected function handleEmployeeAvatarUpload(Request $request, array $validated): array
+    {
+        if (! $request->hasFile('avatar')) {
+            unset($validated['avatar']);
+
+            return $validated;
+        }
+
+        $file = $request->file('avatar');
+        $fileName = now()->format('YmdHis') . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $destination = public_path('images');
+
+        if (! is_dir($destination)) {
+            mkdir($destination, 0755, true);
+        }
+
+        $file->move($destination, $fileName);
+        $validated['avatar'] = 'images/' . $fileName;
+
+        return $validated;
+    }
+
+    protected function normalizeOptionalTrackingPayload(array $validated, string $type): array
+    {
+        $isGpsOn = $validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true;
+        $isMock = $validated['is_mock_location'] ?? $validated['isMock'] ?? false;
+
+        if (! $isGpsOn) {
+            throw ValidationException::withMessages([
+                'is_gps_on' => 'GPS must be enabled.',
+            ]);
+        }
+
+        if ($isMock) {
+            throw ValidationException::withMessages([
+                'is_mock_location' => 'Mock location is not allowed.',
+            ]);
+        }
+
+        return [
+            'device_id' => $validated['device_id'] ?? 'default',
+            'device_name' => $validated['device_name'] ?? null,
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
+            'accuracy' => $validated['accuracy'] ?? 0,
+            'speed' => $validated['speed'] ?? null,
+            'activity' => $validated['activity'] ?? null,
+            'is_gps_on' => (bool) $isGpsOn,
+            'is_mock_location' => (bool) $isMock,
+            'battery_percentage' => $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null,
+            'recorded_at' => $validated['recorded_at'] ?? null,
+            'type' => $this->normalizeTrackingType($type),
+        ];
+    }
+
+    protected function normalizeTrackingType(string $type): string
+    {
+        return match ($type) {
+            'check_in' => 'checked_in',
+            'check_out' => 'checked_out',
+            default => $type,
+        };
+    }
+
+    protected function validateWalletData(Request $request): array
     {
         return $request->validate([
             'client_id' => ['required', 'exists:clients,id'],
@@ -766,7 +345,7 @@ class MobileApiController extends Controller
         ]);
     }
 
-    private function createNextRecurringTaskIfNeeded(Task $task): void
+    protected function createNextRecurringTaskIfNeeded(Task $task): void
     {
         if (! $task->auto_repeat || ! in_array($task->type, ['daily', 'weekly'], true) || $task->status !== 'completed') {
             return;
@@ -814,14 +393,16 @@ class MobileApiController extends Controller
         ]);
     }
 
-    private function validateTrackingPayload(Request $request, string $defaultType): array
+    protected function validateTrackingPayload(Request $request, string $defaultType): array
     {
+        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
+
         $validated = $request->validate([
             'device_id' => ['nullable', 'string', 'max:255'],
             'device_name' => ['nullable', 'string', 'max:255'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
-            'accuracy' => ['required', 'numeric', 'min:0', 'max:50'],
+            'accuracy' => ['required', 'numeric', 'min:0', 'max:' . $maxAccuracyMeters],
             'speed' => ['nullable', 'numeric', 'min:0'],
             'activity' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
@@ -831,7 +412,7 @@ class MobileApiController extends Controller
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
-            'type' => ['nullable', Rule::in(['check_in', 'travelling', 'still', 'check_out'])],
+            'type' => ['nullable', Rule::in(['checked_in', 'check_in', 'travelling', 'still', 'checked_out', 'check_out'])],
         ]);
 
         $isGpsOn = $validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true;
@@ -852,12 +433,12 @@ class MobileApiController extends Controller
         $validated['is_gps_on'] = (bool) $isGpsOn;
         $validated['is_mock_location'] = (bool) $isMock;
         $validated['battery_percentage'] = $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null;
-        $validated['type'] = $validated['type'] ?? $defaultType;
+        $validated['type'] = $this->normalizeTrackingType($validated['type'] ?? $defaultType);
 
         return $validated;
     }
 
-    private function activeAttendance(int $userId): ?Attendance
+    protected function activeAttendance(int $userId): ?Attendance
     {
         return Attendance::query()
             ->where('user_id', $userId)
@@ -866,7 +447,7 @@ class MobileApiController extends Controller
             ->first();
     }
 
-    private function upsertDeviceStatus(int $userId, array $payload): EmployeeDevice
+    protected function upsertDeviceStatus(int $userId, array $payload): EmployeeDevice
     {
         $deviceId = $payload['device_id'] ?? 'default';
 
@@ -890,7 +471,7 @@ class MobileApiController extends Controller
         );
     }
 
-    private function createTrackingPoint(Attendance $attendance, array $payload, string $type): LocationTracking
+    protected function createTrackingPoint(Attendance $attendance, array $payload, string $type): LocationTracking
     {
         return LocationTracking::query()->create([
             'attendance_id' => $attendance->id,
@@ -904,34 +485,139 @@ class MobileApiController extends Controller
             'is_gps_on' => $payload['is_gps_on'],
             'is_mock_location' => $payload['is_mock_location'],
             'battery_percentage' => $payload['battery_percentage'] ?? null,
-            'type' => $type,
+            'type' => $this->normalizeTrackingType($type),
             'recorded_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
         ]);
     }
 
-    private function canViewEmployeeTracking(User $user): bool
+    protected function canViewEmployeeTracking(User $user): bool
     {
         return $this->isSuperAdmin($user) || $user->hasPermission('employees-list');
     }
 
-    private function authorizeApiPermission(Request $request, string $permission): ?\Illuminate\Http\JsonResponse
+    protected function appSettingsPayload(): array
+    {
+        return [
+            'app_version' => $this->settingValue('app_version', '1.0.0'),
+            'minimum_supported_version' => $this->settingValue('minimum_supported_version', '1.0.0'),
+            'force_update' => $this->settingValue('force_update', false),
+            'privacy_policy_url' => $this->settingValue('privacy_policy_url', ''),
+            'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
+            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 25),
+            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+            'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+            'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
+            'attendance_time_type' => $this->settingValue('attendance_time_type', 'server_time'),
+            'server_time' => now()->toISOString(),
+            'timezone' => config('app.timezone'),
+        ];
+    }
+
+    protected function moduleSettingsPayload(): array
+    {
+        return [
+            'attendance' => [
+                'enabled' => $this->settingValue('attendance_enabled', true),
+                'check_in_enabled' => $this->settingValue('check_in_enabled', true),
+                'check_out_enabled' => $this->settingValue('check_out_enabled', true),
+                'time_type' => $this->settingValue('attendance_time_type', 'server_time'),
+                'geofence_enabled' => $this->settingValue('geofence_enabled', false),
+                'geofence_radius_meters' => $this->settingValue('geofence_radius_meters', 100),
+                'qr_attendance_enabled' => $this->settingValue('qr_attendance_enabled', false),
+                'ip_attendance_enabled' => $this->settingValue('ip_attendance_enabled', false),
+                'allowed_ips' => $this->settingValue('allowed_attendance_ips', []),
+            ],
+            'tracking' => [
+                'enabled' => $this->settingValue('tracking_enabled', true),
+                'background_tracking_enabled' => $this->settingValue('tracking_enabled', true),
+                'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
+                'interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
+                'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 25),
+                'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+                'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+            ],
+            'modules' => [
+                'tasks' => $this->settingValue('tasks_enabled', true),
+                'expenses' => $this->settingValue('expenses_enabled', true),
+                'wallet' => $this->settingValue('wallet_enabled', true),
+                'leave_requests' => $this->settingValue('leave_requests_enabled', true),
+            ],
+        ];
+    }
+
+    protected function mapSettingsPayload(): array
+    {
+        return [
+            'center_latitude' => $this->settingValue('map_center_latitude', 11.016844),
+            'center_longitude' => $this->settingValue('map_center_longitude', 76.955832),
+            'zoom_level' => $this->settingValue('map_zoom_level', 12),
+            'google_maps_api_key' => config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', '')),
+        ];
+    }
+
+    protected function settingValue(string $key, mixed $default): mixed
+    {
+        if (! Schema::hasTable('app_settings')) {
+            return $default;
+        }
+
+        $setting = AppSetting::query()
+            ->where('key', $key)
+            ->where('is_public', true)
+            ->first();
+
+        if (! $setting) {
+            return $default;
+        }
+
+        return $this->castSettingValue($setting->value, $setting->type, $default);
+    }
+
+    protected function castSettingValue(?string $value, string $type, mixed $default): mixed
+    {
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        return match ($type) {
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            'integer' => (int) $value,
+            'float' => (float) $value,
+            'json' => json_decode($value, true) ?? $default,
+            default => $value,
+        };
+    }
+
+    protected function canUseApiPermission(?User $user, string $permission): bool
+    {
+        return $user && ($this->isSuperAdmin($user) || $user->hasPermission($permission));
+    }
+
+    protected function isOwnTask(User $user, Task $task): bool
+    {
+        $taskEmployeeId = $this->taskEmployeeIdFromUserId($user->id);
+
+        return $taskEmployeeId !== null && (int) $task->employee_id === (int) $taskEmployeeId;
+    }
+
+    protected function authorizeApiPermission(Request $request, string $permission): ?\Illuminate\Http\JsonResponse
     {
         $user = $request->user();
 
-        if (! $user || (! $this->isSuperAdmin($user) && ! $user->hasPermission($permission))) {
+        if (! $this->canUseApiPermission($user, $permission)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         return null;
     }
 
-    private function isSuperAdmin(User $user): bool
+    protected function isSuperAdmin(User $user): bool
     {
         return ($user->role ?? null) === 'Super Admin'
             || $user->assignedRoles()->contains('name', 'Super Admin');
     }
 
-    private function userPayload(?User $user): ?array
+    protected function userPayload(?User $user): ?array
     {
         if (! $user) {
             return null;
@@ -951,7 +637,81 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function userRolesPayload(User $user): array
+    protected function employeePayload(User $user, ?int $taskEmployeeId = null): array
+    {
+        return [
+            ...$this->userPayload($user),
+            'task_employee_id' => $taskEmployeeId ?? $this->taskEmployeeIdFromUserId($user->id),
+            'address' => $user->address,
+            'hourly_rate' => $user->hourly_rate !== null ? (float) $user->hourly_rate : null,
+            'hire_date' => $user->hire_date?->toDateString(),
+            'avatar' => $user->avatar,
+            'created_at' => $user->created_at?->toISOString(),
+            'updated_at' => $user->updated_at?->toISOString(),
+        ];
+    }
+
+    protected function taskEmployeeIdsByUsers($users): array
+    {
+        $userIds = $users->pluck('id')->filter()->values();
+        $emails = $users->pluck('email')->filter()->values();
+
+        $byId = Employee::query()
+            ->whereIn('id', $userIds)
+            ->pluck('id', 'id');
+
+        $byEmail = Employee::query()
+            ->whereIn('email', $emails)
+            ->pluck('id', 'email');
+
+        return $users
+            ->mapWithKeys(fn(User $user) => [
+                $user->id => $byId->get($user->id) ?? $byEmail->get($user->email),
+            ])
+            ->all();
+    }
+
+    protected function employeeDetailPayload(User $employee): array
+    {
+        $employee->load('roles.permissions');
+        $expensesPerPage = max(1, min((int) request('expenses_per_page', 10), 100));
+        $attendancePerPage = max(1, min((int) request('attendance_per_page', 10), 100));
+
+        $expenses = Expense::query()
+            ->with(['project', 'mainCategory', 'category'])
+            ->where('user_id', $employee->id)
+            ->latest('current_date')
+            ->paginate($expensesPerPage, ['*'], 'expenses_page');
+
+        $expenses->setCollection($expenses->getCollection()->map(fn(Expense $expense) => $this->employeeExpensePayload($expense)));
+
+        $attendances = Attendance::query()
+            ->where('user_id', $employee->id)
+            ->latest('attendance_date')
+            ->paginate($attendancePerPage, ['*'], 'attendance_page');
+
+        $attendances->setCollection($attendances->getCollection()->map(fn(Attendance $attendance) => $this->attendancePayload($attendance)));
+
+        $workedMinutes = (int) Attendance::query()
+            ->where('user_id', $employee->id)
+            ->where('attendance_date', '>=', now()->subDays(30)->toDateString())
+            ->sum('worked_minutes');
+
+        return [
+            'employee' => $this->employeePayload($employee),
+            'expenses' => $expenses,
+            'attendances' => $attendances,
+            'stats' => [
+                'expense_total' => (float) Expense::query()->where('user_id', $employee->id)->sum('amount'),
+                'paid_total' => (float) Expense::query()->where('user_id', $employee->id)->sum('paid_amt'),
+                'unpaid_total' => (float) Expense::query()->where('user_id', $employee->id)->sum('unpaid_amt'),
+                'worked_hours' => intdiv($workedMinutes, 60),
+                'worked_minutes' => $workedMinutes % 60,
+            ],
+        ];
+    }
+
+    protected function userRolesPayload(User $user): array
     {
         return $user->assignedRoles()
             ->map(fn(Role $role) => [
@@ -963,7 +723,7 @@ class MobileApiController extends Controller
             ->all();
     }
 
-    private function userPermissionKeys(User $user): array
+    protected function userPermissionKeys(User $user): array
     {
         if ($this->isSuperAdmin($user)) {
             return Permission::query()
@@ -985,7 +745,7 @@ class MobileApiController extends Controller
             ->all();
     }
 
-    private function rolePayload(Role $role): array
+    protected function rolePayload(Role $role): array
     {
         return [
             'id' => $role->id,
@@ -999,7 +759,7 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function permissionPayload(Permission $permission): array
+    protected function permissionPayload(Permission $permission): array
     {
         return [
             'id' => $permission->id,
@@ -1008,7 +768,7 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function attendancePayload(Attendance $attendance): array
+    protected function attendancePayload(Attendance $attendance): array
     {
         return [
             'id' => $attendance->id,
@@ -1022,7 +782,195 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function devicePayload(EmployeeDevice $device): array
+    protected function employeeExpensePayload(Expense $expense): array
+    {
+        return [
+            'id' => $expense->id,
+            'user_id' => $expense->user_id,
+            'project_id' => $expense->project_id,
+            'project_name' => $expense->project?->name,
+            'main_category_id' => $expense->main_category_id,
+            'main_category_name' => $expense->mainCategory?->name,
+            'category_id' => $expense->category_id,
+            'category_name' => $expense->category?->name,
+            'amount' => (int) $expense->amount,
+            'paid_amt' => (int) $expense->paid_amt,
+            'unpaid_amt' => (int) $expense->unpaid_amt,
+            'extra_amt' => (int) $expense->extra_amt,
+            'payment_mode' => $expense->payment_mode,
+            'payment_mode_label' => $expense->payment_mode_label,
+            'description' => $expense->description,
+            'image' => $expense->image,
+            'current_date' => $expense->current_date?->toISOString(),
+        ];
+    }
+
+    protected function clientPayload(Client $client): array
+    {
+        return [
+            'id' => $client->id,
+            'name' => $client->name,
+            'company_name' => $client->company_name,
+            'email' => $client->email,
+            'phone' => $client->phone,
+            'address' => $client->address,
+            'city' => $client->city,
+            'state' => $client->state,
+            'country' => $client->country,
+            'status' => $client->status,
+            'notes' => $client->notes,
+            'projects_count' => $client->projects_count ?? null,
+            'payments_count' => $client->payments_count ?? null,
+            'created_at' => $client->created_at?->toISOString(),
+        ];
+    }
+
+    protected function projectPayload(Project $project, bool $withDetails = false): array
+    {
+        $payload = [
+            'id' => $project->id,
+            'project_code' => $project->project_code,
+            'client_id' => $project->client_id,
+            'client_name' => $project->client?->name,
+            'manager_id' => $project->manager_id,
+            'manager_name' => $project->manager?->name,
+            'name' => $project->name,
+            'description' => $project->description,
+            'type' => $project->type,
+            'priority' => $project->priority,
+            'status' => $project->status,
+            'progress' => (int) ($project->progress ?? 0),
+            'start_date' => $project->start_date?->toDateString(),
+            'end_date' => $project->end_date?->toDateString(),
+            'location' => $project->location,
+            'advance_amt' => (float) ($project->advance_amt ?? 0),
+            'profit' => (float) ($project->profit ?? 0),
+            'tasks_count' => $project->tasks_count ?? null,
+            'budget' => (float) $project->budget,
+            'spent' => (float) $project->spent,
+        ];
+
+        if ($withDetails) {
+            $payload['tasks'] = $project->tasks->map(fn(Task $task) => $this->taskPayload($task))->values();
+            $payload['payments'] = $project->payments->map(fn(Payment $payment) => $this->paymentPayload($payment))->values();
+            $payload['expenses'] = $project->expenses->map(fn(Expense $expense) => $this->employeeExpensePayload($expense))->values();
+        }
+
+        return $payload;
+    }
+
+    protected function paymentPayload(Payment $payment): array
+    {
+        return [
+            'id' => $payment->id,
+            'invoice_number' => $payment->invoice_number,
+            'payment_code' => $payment->payment_code,
+            'transaction_id' => $payment->transaction_id,
+            'client_id' => $payment->client_id,
+            'client_name' => $payment->client?->name,
+            'project_id' => $payment->project_id,
+            'project_name' => $payment->project?->name,
+            'quotation_id' => $payment->quotation_id,
+            'quotation_number' => $payment->quotation?->quotation_number,
+            'stage_id' => $payment->stage_id,
+            'stage_name' => $payment->stage?->stage_name,
+            'payment_method' => $payment->payment_method ?? $payment->method,
+            'amount' => (float) $payment->amount,
+            'due_date' => $payment->due_date?->toDateString(),
+            'payment_date' => $payment->payment_date?->toISOString(),
+            'status' => $payment->status,
+            'notes' => $payment->notes,
+        ];
+    }
+
+    protected function paymentStagePayload(PaymentStage $stage): array
+    {
+        return [
+            'id' => $stage->id,
+            'stage_name' => $stage->stage_name,
+            'project_id' => $stage->project_id,
+        ];
+    }
+
+    protected function leaveRequestPayload(LeaveRequest $leaveRequest): array
+    {
+        return [
+            'id' => $leaveRequest->id,
+            'user_id' => $leaveRequest->user_id,
+            'user_name' => $leaveRequest->user?->name,
+            'leave_type_id' => $leaveRequest->leave_type_id,
+            'leave_type_name' => $leaveRequest->leaveType?->name,
+            'from_date' => $leaveRequest->from_date?->toDateString(),
+            'to_date' => $leaveRequest->to_date?->toDateString(),
+            'remarks' => $leaveRequest->remarks,
+            'document' => $leaveRequest->document,
+            'status' => $leaveRequest->status,
+            'approved_by_id' => $leaveRequest->approved_by_id,
+            'approved_by_name' => $leaveRequest->approvedBy?->name,
+            'approved_at' => $leaveRequest->approved_at?->toISOString(),
+            'approver_remarks' => $leaveRequest->approver_remarks,
+        ];
+    }
+
+    protected function categoryPayload(Category $category): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'main_category_id' => $category->main_category_id,
+            'main_category_name' => $category->mainCategory?->name,
+        ];
+    }
+
+    protected function mainCategoryPayload(MainCategory $category): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'status' => $category->status,
+            'categories' => $category->relationLoaded('categories')
+                ? $category->categories->map(fn(Category $child) => ['id' => $child->id, 'name' => $child->name])->values()
+                : [],
+        ];
+    }
+
+    protected function vendorPayload(Vendor $vendor): array
+    {
+        return [
+            'id' => $vendor->id,
+            'name' => $vendor->name,
+            'address' => $vendor->address,
+            'phone' => $vendor->phone,
+            'advance_amount' => (float) ($vendor->advance_amount ?? $vendor->advance_amt ?? 0),
+        ];
+    }
+
+    protected function labourRolePayload(LabourRole $role): array
+    {
+        return [
+            'id' => $role->id,
+            'name' => $role->name,
+            'salary_type' => $role->salary_type,
+            'salary' => (float) ($role->salary ?? 0),
+        ];
+    }
+
+    protected function labourPayload(Labour $labour): array
+    {
+        return [
+            'id' => $labour->id,
+            'name' => $labour->name,
+            'job_title' => $labour->job_title,
+            'phone' => $labour->phone ?? $labour->phone_number,
+            'labour_role_id' => $labour->labour_role_id,
+            'labour_role_name' => $labour->labourRole?->name,
+            'gender' => $labour->gender,
+            'salary' => (float) ($labour->salary ?? 0),
+            'advance_amt' => (float) ($labour->advance_amt ?? 0),
+        ];
+    }
+
+    protected function devicePayload(EmployeeDevice $device): array
     {
         return [
             'id' => $device->id,
@@ -1041,7 +989,7 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function trackingPayload(LocationTracking $tracking): array
+    protected function trackingPayload(LocationTracking $tracking): array
     {
         return [
             'id' => $tracking->id,
@@ -1061,7 +1009,7 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function taskPayload(Task $task): array
+    protected function taskPayload(Task $task): array
     {
         return [
             'id' => $task->id,
@@ -1082,7 +1030,7 @@ class MobileApiController extends Controller
         ];
     }
 
-    private function walletPayload(Wallet $wallet): array
+    protected function walletPayload(Wallet $wallet): array
     {
         return [
             'id' => $wallet->id,
@@ -1106,3 +1054,4 @@ class MobileApiController extends Controller
         ];
     }
 }
+

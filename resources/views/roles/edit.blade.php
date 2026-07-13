@@ -5,8 +5,12 @@
 @section('content')
     @include('partials.alerts')
 
-    @php($selectedPermissions = old('permissions', $rolePermissions ?? []))
     @php
+        $selectedPermissions = old('permissions', $rolePermissions ?? []);
+        $selectedPermissions = is_array($selectedPermissions)
+            ? $selectedPermissions
+            : ($selectedPermissions ? [$selectedPermissions] : []);
+
         $grouped = $permissions->groupBy(function ($permission) {
             return str_contains($permission->key, '-')
                 ? \Illuminate\Support\Str::beforeLast($permission->key, '-')

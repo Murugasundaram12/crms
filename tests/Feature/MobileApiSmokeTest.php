@@ -26,6 +26,11 @@ class MobileApiSmokeTest extends TestCase
         foreach (
             [
                 'wallet',
+                'leave_requests',
+                'leave_types',
+                'payments',
+                'quotations',
+                'expenses',
                 'location_trackings',
                 'employee_devices',
                 'attendances',
@@ -39,6 +44,7 @@ class MobileApiSmokeTest extends TestCase
                 'role_permission',
                 'permissions',
                 'roles',
+                'app_settings',
                 'users',
             ] as $table
         ) {
@@ -141,6 +147,15 @@ class MobileApiSmokeTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('quotations', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('client_id')->nullable();
+            $table->foreignId('project_id')->nullable();
+            $table->string('quotation_number')->nullable();
+            $table->decimal('amount', 14, 2)->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('tasks', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('project_id')->nullable();
@@ -209,6 +224,42 @@ class MobileApiSmokeTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('expenses', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedInteger('project_id')->nullable();
+            $table->integer('amount')->default(0);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('payments', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedInteger('project_id')->nullable();
+            $table->unsignedInteger('client_id')->nullable();
+            $table->decimal('amount', 14, 2)->default(0);
+            $table->string('status')->default('pending');
+            $table->timestamps();
+        });
+
+        Schema::create('leave_requests', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedInteger('user_id')->nullable();
+            $table->unsignedInteger('leave_type_id')->nullable();
+            $table->date('from_date')->nullable();
+            $table->date('to_date')->nullable();
+            $table->text('remarks')->nullable();
+            $table->string('status')->default('pending');
+            $table->unsignedInteger('created_by_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('leave_types', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+
         Schema::create('wallet', function (Blueprint $table): void {
             $table->id();
             $table->integer('amount');
@@ -224,6 +275,268 @@ class MobileApiSmokeTest extends TestCase
             $table->integer('transfer_type')->default(0);
             $table->timestamps();
         });
+
+        Schema::create('app_settings', function (Blueprint $table): void {
+            $table->id();
+            $table->string('group')->index();
+            $table->string('key')->unique();
+            $table->text('value')->nullable();
+            $table->string('type')->default('string');
+            $table->text('description')->nullable();
+            $table->boolean('is_public')->default(true);
+            $table->timestamps();
+        });
+
+        DB::table('app_settings')->insert([
+            ['group' => 'mobile_app', 'key' => 'app_version', 'value' => '1.2.3', 'type' => 'string', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['group' => 'tracking', 'key' => 'tracking_interval_seconds', 'value' => '45', 'type' => 'integer', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['group' => 'tracking', 'key' => 'offline_tracking_enabled', 'value' => 'true', 'type' => 'boolean', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['group' => 'attendance', 'key' => 'geofence_enabled', 'value' => 'true', 'type' => 'boolean', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['group' => 'map', 'key' => 'map_center_latitude', 'value' => '10.5', 'type' => 'float', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['group' => 'map', 'key' => 'map_center_longitude', 'value' => '77.5', 'type' => 'float', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['group' => 'map', 'key' => 'map_zoom_level', 'value' => '14', 'type' => 'integer', 'is_public' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+    }
+
+    public function test_mobile_settings_routes_return_database_backed_values(): void
+    {
+        $this->getJson('/api/V1/getAppSettings')
+            ->assertOk()
+            ->assertJsonPath('data.app_version', '1.2.3')
+            ->assertJsonPath('data.tracking_interval_seconds', 45);
+
+        $this->getJson('/api/V1/getModuleSettings')
+            ->assertOk()
+            ->assertJsonPath('data.tracking.offline_tracking_enabled', true)
+            ->assertJsonPath('data.attendance.geofence_enabled', true);
+
+        $this->getJson('/api/V1/getMapSettings')
+            ->assertOk()
+            ->assertJsonPath('data.center_latitude', 10.5)
+            ->assertJsonPath('data.center_longitude', 77.5)
+            ->assertJsonPath('data.zoom_level', 14);
+    }
+
+    public function test_mobile_settings_are_enforced_by_attendance_and_tracking_apis(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Settings Guard User',
+            'email' => 'settings-guard@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Settings Guard Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $trackingPayload = [
+            'device_id' => 'settings-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 60,
+            'isGpsOn' => true,
+            'isMock' => false,
+        ];
+
+        DB::table('app_settings')->updateOrInsert(
+            ['key' => 'max_accuracy_meters'],
+            ['group' => 'tracking', 'value' => '75', 'type' => 'integer', 'is_public' => true, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $trackingPayload)
+            ->assertCreated()
+            ->assertJsonPath('tracking.accuracy', 60);
+
+        DB::table('app_settings')->updateOrInsert(
+            ['key' => 'tracking_enabled'],
+            ['group' => 'tracking', 'value' => 'false', 'type' => 'boolean', 'is_public' => true, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', $trackingPayload)
+            ->assertForbidden();
+
+        DB::table('app_settings')->updateOrInsert(
+            ['key' => 'check_out_enabled'],
+            ['group' => 'attendance', 'value' => 'false', 'type' => 'boolean', 'is_public' => true, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_out', $trackingPayload)
+            ->assertForbidden();
+    }
+
+    public function test_missing_api_model_returns_clean_json_message(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Missing Model User',
+            'email' => 'missing-model@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Missing Model Test',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->getJson('/api/clients/999')
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Client not found.');
+    }
+
+    public function test_all_missing_api_models_return_clean_json_messages(): void
+    {
+        $user = User::query()->create([
+            'name' => 'All Missing Models User',
+            'email' => 'all-missing-models@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'All Missing Models Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $cases = [
+            ['GET', '/api/clients/999', 'Client not found.'],
+            ['GET', '/api/projects/999', 'Project not found.'],
+            ['GET', '/api/expenses/999', 'Expense not found.'],
+            ['GET', '/api/payments/999', 'Payment not found.'],
+            ['GET', '/api/tasks/999', 'Task not found.'],
+            ['GET', '/api/employees/999', 'Employee not found.'],
+            ['GET', '/api/admin/employees/999/timeline?date=2026-07-13', 'Employee not found.'],
+            ['DELETE', '/api/leave-requests/999', 'LeaveRequest not found.'],
+        ];
+
+        foreach ($cases as [$method, $uri, $message]) {
+            $response = match ($method) {
+                'DELETE' => $this->withHeaders($headers)->deleteJson($uri),
+                default => $this->withHeaders($headers)->getJson($uri),
+            };
+
+            $response->assertNotFound()
+                ->assertJsonPath('message', $message);
+
+            $this->assertStringNotContainsString('No query results', (string) $response->getContent());
+        }
+    }
+
+    public function test_project_and_payment_options_work_when_quotations_total_amount_column_is_missing(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Quotation Fallback User',
+            'email' => 'quotation-fallback@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $client = Client::query()->create(['name' => 'Fallback Client', 'status' => 'active']);
+        $project = Project::query()->create([
+            'name' => 'Fallback Project',
+            'project_code' => 'QF-001',
+            'client_id' => $client->id,
+            'type' => 'residential',
+            'status' => 'active',
+            'advance_amt' => 0,
+            'profit' => 0,
+        ]);
+
+        DB::table('quotations')->insert([
+            'client_id' => $client->id,
+            'project_id' => $project->id,
+            'quotation_number' => 'QF-QUOTE-001',
+            'amount' => 12500,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Quotation Fallback Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        $this->withHeaders($headers)
+            ->getJson('/api/projects/' . $project->id)
+            ->assertOk()
+            ->assertJsonPath('project.budget', 12500);
+
+        $this->withHeaders($headers)
+            ->getJson('/api/payments/options')
+            ->assertOk()
+            ->assertJsonPath('quotations.0.amount', '12500.00');
+    }
+
+    public function test_leave_request_requires_active_leave_type_from_options(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Leave Type User',
+            'email' => 'leave-type@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        DB::table('leave_types')->insert([
+            ['id' => 1, 'name' => 'Inactive Leave', 'status' => 'inactive', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'name' => 'Casual Leave', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Leave Type Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        $this->withHeaders($headers)
+            ->getJson('/api/leave-requests/options')
+            ->assertOk()
+            ->assertJsonCount(1, 'leave_types')
+            ->assertJsonPath('leave_types.0.id', 2);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/leave-requests', [
+                'leave_type_id' => 1,
+                'from_date' => '2026-07-20',
+                'to_date' => '2026-07-21',
+                'remarks' => 'Personal leave',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.leave_type_id.0', 'Selected leave type is not available. Call /leave-requests/options and use an active leave type id.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/leave-requests', [
+                'leave_type_id' => 2,
+                'from_date' => '2026-07-20',
+                'to_date' => '2026-07-21',
+                'remarks' => 'Personal leave',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('leave_request.leave_type_id', 2);
     }
 
     public function test_mobile_api_routes_work_with_web_flow_payloads(): void
@@ -309,11 +622,13 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->postJson('/api/check_in', $trackingPayload + ['notes' => 'Check in'])
             ->assertCreated()
-            ->assertJsonPath('attendance.status', 'present');
+            ->assertJsonPath('attendance.status', 'present')
+            ->assertJsonPath('tracking.type', 'checked_in');
 
         $this->withHeaders($headers)
             ->postJson('/api/tracking/location', $trackingPayload + ['type' => 'still'])
-            ->assertCreated();
+            ->assertCreated()
+            ->assertJsonPath('tracking.type', 'still');
 
         $this->withHeaders($headers)
             ->postJson('/api/devices/live-status', $trackingPayload)
@@ -397,7 +712,8 @@ class MobileApiSmokeTest extends TestCase
 
         $this->withHeaders($headers)
             ->postJson('/api/check_out', $trackingPayload + ['notes' => 'Check out'])
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('tracking.type', 'checked_out');
 
         $this->withHeaders($headers)
             ->deleteJson('/api/tasks/' . $taskId)
@@ -408,6 +724,14 @@ class MobileApiSmokeTest extends TestCase
         $this->assertDatabaseHas('attendances', [
             'user_id' => $user->id,
             'status' => 'present',
+        ]);
+        $this->assertDatabaseHas('location_trackings', [
+            'employee_id' => $user->id,
+            'type' => 'checked_in',
+        ]);
+        $this->assertDatabaseHas('location_trackings', [
+            'employee_id' => $user->id,
+            'type' => 'checked_out',
         ]);
         $this->assertDatabaseHas('wallet', [
             'user_id' => $user->id,
@@ -453,7 +777,7 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('message', 'No active attendance found. Tracking is allowed only after check-in and before check-out.');
     }
 
-    public function test_mobile_api_module_routes_require_matching_web_permissions(): void
+    public function test_mobile_api_module_routes_allow_employee_own_views_only(): void
     {
         $user = User::query()->create([
             'name' => 'Restricted User',
@@ -472,6 +796,15 @@ class MobileApiSmokeTest extends TestCase
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $loginResponse->json('token')])
             ->getJson('/api/tasks')
+            ->assertOk()
+            ->assertJsonPath('data', []);
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $loginResponse->json('token')])
+            ->getJson('/api/attendance')
+            ->assertOk();
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $loginResponse->json('token')])
+            ->getJson('/api/employees')
             ->assertForbidden()
             ->assertJsonPath('message', 'Forbidden.');
     }

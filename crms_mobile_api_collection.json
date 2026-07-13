@@ -1,915 +1,2950 @@
 {
-	"info": {
-		"_postman_id": "crms-mobile-api-collection",
-		"name": "CRMS Mobile API Collection",
-		"description": "Collection of all CRMS Mobile API endpoints for testing and development in Bruno or Postman.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Authentication",
-			"item": [
-				{
-					"name": "Login",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"employee@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"Bruno Client\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/login",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Logout",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/logout",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"logout"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Device & Attendance",
-			"item": [
-				{
-					"name": "Register Device",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/register",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Check In",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"notes\": \"Checking in from location A\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/check_in",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"check_in"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Check Out",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"notes\": \"Work complete.\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/check_out",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"check_out"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Attendance Logs",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/attendance?status=checked_in&per_page=15",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"attendance"
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "checked_in"
-								},
-								{
-									"key": "per_page",
-									"value": "15"
-								}
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Tracking & Live Location",
-			"item": [
-				{
-					"name": "Update Location Tracking",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\",\n  \"latitude\": 11.016844,\n  \"longitude\": 76.955832,\n  \"accuracy\": 12,\n  \"speed\": 1.2,\n  \"activity\": \"walking\",\n  \"is_gps_on\": true,\n  \"is_mock_location\": false,\n  \"battery_percentage\": 80,\n  \"type\": \"travelling\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/tracking/location",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"tracking",
-								"location"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Live Status",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\",\n  \"latitude\": 11.016844,\n  \"longitude\": 76.955832,\n  \"accuracy\": 12,\n  \"speed\": 1.2,\n  \"activity\": \"walking\",\n  \"isGpsOn\": true,\n  \"isMock\": false,\n  \"batteryPercentage\": 80\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/devices/live-status",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"devices",
-								"live-status"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Tracking Settings",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/settings/tracking",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"settings",
-								"tracking"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Admin Live Locations",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/admin/employees/live-locations",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"admin",
-								"employees",
-								"live-locations"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Admin Timeline",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/admin/employees/{{employee_id}}/timeline?date=2026-07-10",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"admin",
-								"employees",
-								"{{employee_id}}",
-								"timeline"
-							],
-							"query": [
-								{
-									"key": "date",
-									"value": "2026-07-10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Track Employees",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/employees/track?status=active",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"employees",
-								"track"
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "active"
-								}
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Roles & Permissions",
-			"item": [
-				{
-					"name": "My Permission Context",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/me/permissions",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"me",
-								"permissions"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Roles",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/roles",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"roles"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Permissions",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/permissions",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"permissions"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Tasks",
-			"item": [
-				{
-					"name": "Get Tasks List",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/tasks?status=pending&priority=high",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"tasks"
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "pending"
-								},
-								{
-									"key": "priority",
-									"value": "high"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Assign Task",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"project_id\": 1,\n  \"employee_id\": 1,\n  \"title\": \"Fix foundation leaks\",\n  \"description\": \"Repair cracks in basement layout.\",\n  \"type\": \"general\",\n  \"priority\": \"high\",\n  \"status\": \"pending\",\n  \"due_date\": \"2026-07-15\",\n  \"estimated_hours\": 4,\n  \"is_important\": true\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/tasks/assign",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"tasks",
-								"assign"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Show Task Details",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/tasks/{{task_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"tasks",
-								"{{task_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Task Details",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"project_id\": 1,\n  \"employee_id\": 1,\n  \"title\": \"Fix foundation leaks - Completed\",\n  \"description\": \"Crack sealing is done.\",\n  \"type\": \"general\",\n  \"priority\": \"high\",\n  \"status\": \"completed\",\n  \"due_date\": \"2026-07-15\",\n  \"estimated_hours\": 4,\n  \"logged_hours\": 3.5,\n  \"is_important\": true\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/tasks/{{task_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"tasks",
-								"{{task_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Delete Task",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/tasks/{{task_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"tasks",
-								"{{task_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Wallet",
-			"item": [
-				{
-					"name": "Get Wallets List",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/wallet?per_page=10",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"wallet"
-							],
-							"query": [
-								{
-									"key": "per_page",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Wallet Options",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/wallet/options",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"wallet",
-								"options"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Wallet Transfer",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Advance payment credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/wallet/transfer",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"wallet",
-								"transfer"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		}
-	],
-	"event": [],
-	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://localhost/api",
-			"type": "string"
-		},
-		{
-			"key": "token",
-			"value": "insert_bearer_token_here",
-			"type": "string"
-		},
-		{
-			"key": "task_id",
-			"value": "1",
-			"type": "string"
-		},
-		{
-			"key": "employee_id",
-			"value": "1",
-			"type": "string"
-		}
-	]
+  "info": {
+    "_postman_id": "crms-mobile-api-collection",
+    "name": "CRMS Mobile API Collection",
+    "description": "Collection of all CRMS Mobile API endpoints for testing and development in Bruno or Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"employee@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"Bruno Client\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/logout",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Alias (/auth/login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"Android App\"\n}"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Device & Attendance",
+      "item": [
+        {
+          "name": "Register Device",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/register",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check In",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Checking in from site\",\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\",\n  \"latitude\": 11.016844,\n  \"longitude\": 76.955832,\n  \"accuracy\": 12,\n  \"speed\": 0,\n  \"activity\": \"still\",\n  \"is_gps_on\": true,\n  \"is_mock_location\": false,\n  \"battery_percentage\": 80,\n  \"recorded_at\": \"2026-07-13T09:00:00+05:30\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/check_in",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "check_in"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Out",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Work complete.\",\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\",\n  \"latitude\": 11.017001,\n  \"longitude\": 76.956001,\n  \"accuracy\": 10,\n  \"speed\": 0,\n  \"activity\": \"still\",\n  \"is_gps_on\": true,\n  \"is_mock_location\": false,\n  \"battery_percentage\": 65,\n  \"recorded_at\": \"2026-07-13T18:00:00+05:30\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/check_out",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "check_out"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance Logs",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/attendance?status=checked_in&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "attendance"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "checked_in"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Summary",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/dashboard",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "dashboard"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "App Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "item": [
+        {
+          "name": "Get Clients",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/clients?status=active&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "clients"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Client",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/clients",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "clients"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Client\",\n  \"company_name\": \"Demo Company\",\n  \"email\": \"client@example.com\",\n  \"phone\": \"9876543210\",\n  \"address\": \"Coimbatore\",\n  \"city\": \"Coimbatore\",\n  \"state\": \"TN\",\n  \"country\": \"India\",\n  \"status\": \"active\",\n  \"notes\": \"Created from API\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Client",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/clients/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "clients",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Client",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/clients/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "clients",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Client Updated\",\n  \"company_name\": \"Demo Company\",\n  \"email\": \"client@example.com\",\n  \"phone\": \"9876543210\",\n  \"address\": \"Coimbatore\",\n  \"city\": \"Coimbatore\",\n  \"state\": \"TN\",\n  \"country\": \"India\",\n  \"status\": \"active\",\n  \"notes\": \"Updated from API\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Client",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/clients/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "clients",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Project Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/projects/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "projects",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Projects",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/projects?status=active&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/projects",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "projects"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_code\": \"PRJ-DEMO-001\",\n  \"client_id\": 1,\n  \"manager_id\": null,\n  \"name\": \"Demo Project\",\n  \"description\": \"Created from API\",\n  \"type\": \"Residential\",\n  \"priority\": \"medium\",\n  \"status\": \"planning\",\n  \"progress\": 0,\n  \"start_date\": \"2026-07-13\",\n  \"end_date\": \"2026-08-13\",\n  \"location\": \"Coimbatore\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Project",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/projects/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "projects",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/projects/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "projects",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_code\": \"PRJ-DEMO-001\",\n  \"client_id\": 1,\n  \"manager_id\": null,\n  \"name\": \"Demo Project Updated\",\n  \"description\": \"Updated from API\",\n  \"type\": \"Residential\",\n  \"priority\": \"high\",\n  \"status\": \"active\",\n  \"progress\": 25,\n  \"start_date\": \"2026-07-13\",\n  \"end_date\": \"2026-08-13\",\n  \"location\": \"Coimbatore\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/projects/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "projects",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Expenses API",
+      "item": [
+        {
+          "name": "Expense Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/expenses/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "expenses",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expenses",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/expenses?per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "expenses"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Expense",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/expenses",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "expenses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 1,\n  \"main_category_id\": 1,\n  \"category_id\": 1,\n  \"amount\": 1000,\n  \"paid_amt\": 500,\n  \"current_date\": \"2026-07-13\",\n  \"payment_mode\": 1,\n  \"description\": \"Demo expense\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Expense",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/expenses/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "expenses",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/expenses/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "expenses",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 1,\n  \"main_category_id\": 1,\n  \"category_id\": 1,\n  \"amount\": 1000,\n  \"paid_amt\": 1000,\n  \"current_date\": \"2026-07-13\",\n  \"payment_mode\": 1,\n  \"description\": \"Updated expense\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/expenses/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "expenses",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Payment Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/payments/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "payments",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payments",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/payments?per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Payment",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/payments/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "payments",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Payment Stages",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/payment-stages",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "payment-stages"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Leave Requests",
+      "item": [
+        {
+          "name": "Leave Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/leave-requests/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "leave-requests",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Leave Requests",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/leave-requests?per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "leave-requests"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Leave Request",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/leave-requests",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "leave-requests"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": 1,\n  \"from_date\": \"2026-07-20\",\n  \"to_date\": \"2026-07-21\",\n  \"remarks\": \"Personal leave\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve/Reject Leave Request",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/leave-requests/1/action",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "leave-requests",
+                "1",
+                "action"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\",\n  \"approver_remarks\": \"Approved\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Leave Request",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/leave-requests/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "leave-requests",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Master Data",
+      "item": [
+        {
+          "name": "Categories",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/categories",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Main Categories",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/main-categories",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "main-categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Vendors",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/vendors",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "vendors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Labour Roles",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/labour-roles",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "labour-roles"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Labours",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/labours",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "labours"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tracking & Live Location",
+      "item": [
+        {
+          "name": "Update Location Tracking",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\",\n  \"latitude\": 11.016844,\n  \"longitude\": 76.955832,\n  \"accuracy\": 12,\n  \"speed\": 1.2,\n  \"activity\": \"walking\",\n  \"is_gps_on\": true,\n  \"is_mock_location\": false,\n  \"battery_percentage\": 80,\n  \"type\": \"travelling\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/tracking/location",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tracking",
+                "location"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Live Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_id\": \"device_uuid_123\",\n  \"device_name\": \"Google Pixel 8\",\n  \"latitude\": 11.016844,\n  \"longitude\": 76.955832,\n  \"accuracy\": 12,\n  \"speed\": 1.2,\n  \"activity\": \"walking\",\n  \"isGpsOn\": true,\n  \"isMock\": false,\n  \"batteryPercentage\": 80\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/devices/live-status",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "devices",
+                "live-status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tracking Settings",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/settings/tracking",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "settings",
+                "tracking"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Live Locations",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/admin/employees/live-locations",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "admin",
+                "employees",
+                "live-locations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Timeline",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/admin/employees/1/timeline?date=2026-07-10",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "admin",
+                "employees",
+                "1",
+                "timeline"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-07-10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Track Employees",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/employees/track?status=active",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees",
+                "track"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "Get Employees List With Roles",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/employees?status=active&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "My Employee Profile",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/employees/profile",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Employee\",\n  \"email\": \"demo.employee@example.com\",\n  \"phone\": \"9876543210\",\n  \"designation\": \"Site Engineer\",\n  \"role\": \"Employee\",\n  \"address\": \"Coimbatore\",\n  \"hourly_rate\": 250,\n  \"hire_date\": \"2026-07-13\",\n  \"status\": \"active\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/employees",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Employee Detail",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/employees/1?expenses_page=1&attendance_page=1&expenses_per_page=10&attendance_per_page=10",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees",
+                "1"
+              ],
+              "query": [
+                {
+                  "key": "expenses_page",
+                  "value": "1"
+                },
+                {
+                  "key": "attendance_page",
+                  "value": "1"
+                },
+                {
+                  "key": "expenses_per_page",
+                  "value": "10"
+                },
+                {
+                  "key": "attendance_per_page",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Employee Updated\",\n  \"email\": \"demo.employee@example.com\",\n  \"phone\": \"9876543210\",\n  \"designation\": \"Senior Site Engineer\",\n  \"role\": \"Employee\",\n  \"address\": \"Coimbatore\",\n  \"hourly_rate\": 300,\n  \"hire_date\": \"2026-07-13\",\n  \"status\": \"active\",\n  \"password\": \"\",\n  \"password_confirmation\": \"\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/employees/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Employee",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/employees/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Employee (POST fallback)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Employee Updated\",\n  \"email\": \"demo.employee@example.com\",\n  \"phone\": \"9876543210\",\n  \"designation\": \"Senior Site Engineer\",\n  \"role\": \"Employee\",\n  \"address\": \"Coimbatore\",\n  \"hourly_rate\": 300,\n  \"hire_date\": \"2026-07-13\",\n  \"status\": \"active\",\n  \"password\": \"\",\n  \"password_confirmation\": \"\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/employees/1/update",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "employees",
+                "1",
+                "update"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "Get Roles",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/roles",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "roles"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Permissions",
+      "item": [
+        {
+          "name": "My Permission Context",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/me/permissions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "me",
+                "permissions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Permissions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/permissions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "permissions"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Get Tasks List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tasks?status=pending&priority=high",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                },
+                {
+                  "key": "priority",
+                  "value": "high"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Task",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 1,\n  \"user_id\": 1,\n  \"title\": \"Fix foundation leaks\",\n  \"description\": \"Repair cracks in basement layout.\",\n  \"type\": \"general\",\n  \"priority\": \"high\",\n  \"status\": \"pending\",\n  \"due_date\": \"2026-07-15\",\n  \"estimated_hours\": 4,\n  \"is_important\": true\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/tasks/assign",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tasks",
+                "assign"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Task Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tasks/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tasks",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 1,\n  \"employee_id\": 1,\n  \"title\": \"Fix foundation leaks - Completed\",\n  \"description\": \"Crack sealing is done.\",\n  \"type\": \"general\",\n  \"priority\": \"high\",\n  \"status\": \"completed\",\n  \"due_date\": \"2026-07-15\",\n  \"estimated_hours\": 4,\n  \"logged_hours\": 3.5,\n  \"is_important\": true\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/tasks/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tasks",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tasks/1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tasks",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task Details (POST fallback)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 1,\n  \"employee_id\": 1,\n  \"title\": \"Fix foundation leaks - Completed\",\n  \"description\": \"Crack sealing is done.\",\n  \"type\": \"general\",\n  \"priority\": \"high\",\n  \"status\": \"completed\",\n  \"due_date\": \"2026-07-15\",\n  \"estimated_hours\": 4,\n  \"logged_hours\": 3.5,\n  \"is_important\": true\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/tasks/1/update",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tasks",
+                "1",
+                "update"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "item": [
+        {
+          "name": "Get Wallets List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/wallet?per_page=10",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "wallet"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Wallet Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/wallet/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "wallet",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Wallet Transfer",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Advance payment credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/wallet/transfer",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "wallet",
+                "transfer"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Wallet Transfer Legacy (/wallet/store)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Advance payment credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/wallet/store",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "wallet",
+                "store"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Mobile Settings",
+      "item": [
+        {
+          "name": "Get App Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/V1/getAppSettings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "V1",
+                "getAppSettings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Module Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/V1/getModuleSettings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "V1",
+                "getModuleSettings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get App Settings (auth alias)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/settings/app",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "settings",
+                "app"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Module Settings (auth alias)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/settings/modules",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "settings",
+                "modules"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Map Settings",
+      "item": [
+        {
+          "name": "Get Map Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/V1/getMapSettings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "V1",
+                "getMapSettings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Map Settings (auth alias)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/settings/map",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "settings",
+                "map"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/crms/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "insert_bearer_token_here",
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "employee_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "client_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "expense_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "payment_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "leave_request_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
 }

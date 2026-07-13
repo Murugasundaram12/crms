@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Quotation;
 use App\Models\PaymentStage;
 use App\Models\Variation;
+use Illuminate\Support\Facades\Schema;
 
 class Project extends Model
 {
@@ -85,7 +86,7 @@ class Project extends Model
     public function getFinalBillAttribute(): float
     {
         $quotation = $this->quotations()->latest('created_at')->first();
-        $quotationTotal = $quotation?->total_amount ?? 0.0;
+        $quotationTotal = $quotation ? $this->quotationTotalValue($quotation) : 0.0;
 
         $variationsNet = $this->variations()
             ->where('status', 'approved')
@@ -108,10 +109,18 @@ class Project extends Model
         }
 
         if ($this->relationLoaded('quotations')) {
-            return (float) ($this->quotations->sortByDesc('created_at')->first()?->total_amount ?? 0);
+            $quotation = $this->quotations->sortByDesc('created_at')->first();
+
+            return $quotation ? $this->quotationTotalValue($quotation) : 0.0;
         }
 
-        return (float) ($this->quotations()->latest('created_at')->value('total_amount') ?? 0);
+        $column = $this->quotationTotalColumn();
+
+        if (! $column) {
+            return 0.0;
+        }
+
+        return (float) ($this->quotations()->latest('created_at')->value($column) ?? 0);
     }
 
     public function getSpentAttribute(): float
@@ -125,5 +134,31 @@ class Project extends Model
         }
 
         return (float) $this->expenses()->sum('amount');
+    }
+
+    private function quotationTotalValue(Quotation $quotation): float
+    {
+        if (Schema::hasColumn('quotations', 'total_amount')) {
+            return (float) ($quotation->total_amount ?? 0);
+        }
+
+        if (Schema::hasColumn('quotations', 'amount')) {
+            return (float) ($quotation->amount ?? 0);
+        }
+
+        return 0.0;
+    }
+
+    private function quotationTotalColumn(): ?string
+    {
+        if (Schema::hasColumn('quotations', 'total_amount')) {
+            return 'total_amount';
+        }
+
+        if (Schema::hasColumn('quotations', 'amount')) {
+            return 'amount';
+        }
+
+        return null;
     }
 }
