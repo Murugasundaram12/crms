@@ -30,15 +30,25 @@ class CrmBalanceService
         DB::table('users')->where('id', $userId)->update([
             'wallet' => $wallet - $amount,
         ]);
+
+        $this->syncEmployeeWalletFromUser($userId);
     }
 
     public function creditUserWallet(int $userId, float $amount, string $description, string $referenceType, int $referenceId): void
     {
         $this->adjustColumn('users', $userId, 'wallet', $amount);
+        $this->syncEmployeeWalletFromUser($userId);
     }
 
     public function adjustEmployeeWallet(int $employeeId, float $amount): void
     {
+        $userId = $this->userIdFromEmployeeId($employeeId);
+
+        if ($userId) {
+            $this->adjustUserWallet($userId, $amount);
+            return;
+        }
+
         $this->adjustColumn('employees', $employeeId, 'wallet', $amount);
     }
 
@@ -50,6 +60,45 @@ class CrmBalanceService
         }
 
         $this->adjustColumn('users', $userId, 'wallet', $amount);
+        $this->syncEmployeeWalletFromUser($userId);
+    }
+
+    private function syncEmployeeWalletFromUser(int $userId): void
+    {
+        if (! Schema::hasColumn('users', 'wallet') || ! Schema::hasColumn('employees', 'wallet')) {
+            return;
+        }
+
+        $user = DB::table('users')->where('id', $userId)->first(['id', 'email', 'wallet']);
+
+        if (! $user) {
+            return;
+        }
+
+        DB::table('employees')
+            ->where('id', $user->id)
+            ->when($user->email, fn($query) => $query->orWhere('email', $user->email))
+            ->update(['wallet' => $user->wallet]);
+    }
+
+    private function userIdFromEmployeeId(int $employeeId): ?int
+    {
+        if (! Schema::hasTable('employees')) {
+            return null;
+        }
+
+        $employee = DB::table('employees')->where('id', $employeeId)->first(['id', 'email']);
+
+        if (! $employee) {
+            return null;
+        }
+
+        $user = DB::table('users')
+            ->where('id', $employee->id)
+            ->when($employee->email, fn($query) => $query->orWhere('email', $employee->email))
+            ->first(['id']);
+
+        return $user ? (int) $user->id : null;
     }
 
     public function adjustVendorAdvance(int $vendorId, float $amount): void

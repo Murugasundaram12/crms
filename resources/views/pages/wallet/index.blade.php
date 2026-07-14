@@ -58,6 +58,15 @@
             <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
         </div>
         <div class="col-md-2">
+            <label class="form-label mb-1">Member</label>
+            <select name="user_id" class="form-select">
+                <option value="">All</option>
+                @foreach($users as $user)
+                    <option value="{{ $user->id }}" @selected((string) request('user_id') === (string) $user->id)>{{ $user->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-2">
             <label class="form-label mb-1">Client</label>
             <select name="client_id" class="form-select">
                 <option value="">All</option>

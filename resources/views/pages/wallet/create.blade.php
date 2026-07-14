@@ -23,10 +23,23 @@
     <form method="POST" action="{{ route('wallet.store') }}" id="walletForm">
         @csrf
         <input type="hidden" id="wallet-balance" value="{{ $walletBalance }}">
+        <input type="hidden" id="wallet-user-id" value="{{ auth()->id() }}">
 
         <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Member Name</label>
+                        <select name="user_id" id="walletUserId" class="form-select">
+                            <option value="" data-wallet="{{ $walletBalance }}">Current User</option>
+                            @foreach($users as $user)
+                                <option value="{{ $user->id }}" data-wallet="{{ $user->wallet }}" @selected((string) old('user_id') === (string) $user->id)>
+                                    {{ $user->name }} ({{ $user->email }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="col-md-6">
                         <label class="form-label">Client Name</label>
                         <select name="client_id" id="clientId" class="form-select" required>
@@ -132,12 +145,16 @@
         syncProjectOptions();
 
         document.getElementById('walletForm').addEventListener('submit', function (event) {
+            const userSelect = document.getElementById('walletUserId');
+            const selectedUserId = userSelect.value;
             const type = document.getElementById('transferType').value;
             const amount = Number(document.getElementById('walletAmount').value || 0);
-            const balance = Number(document.getElementById('wallet-balance').value || 0);
+            const actorBalance = Number(document.getElementById('wallet-balance').value || 0);
+            const selectedBalance = Number(userSelect.selectedOptions[0]?.dataset.wallet || actorBalance);
             const error = document.getElementById('walletAmountError');
+            const sourceBalance = type === '1' ? selectedBalance : Number.POSITIVE_INFINITY;
 
-            if (type === '1' && amount > balance) {
+            if (amount > sourceBalance) {
                 event.preventDefault();
                 error.classList.remove('d-none');
                 return;

@@ -42,9 +42,16 @@ class RecalculateBalanceFields extends Command
 
             if (Schema::hasColumn('employees', 'wallet')) {
                 DB::table('employees')->update(['wallet' => 0]);
-                foreach ($userBalances as $userId => $balance) {
-                    DB::table('employees')->where('id', $userId)->update(['wallet' => $balance]);
-                }
+                DB::table('users')
+                    ->select(['id', 'email', 'wallet'])
+                    ->orderBy('id')
+                    ->get()
+                    ->each(function ($user) {
+                        DB::table('employees')
+                            ->where('id', $user->id)
+                            ->when($user->email, fn($query) => $query->orWhere('email', $user->email))
+                            ->update(['wallet' => $user->wallet]);
+                    });
             }
 
             if (Schema::hasColumn('projects', 'advance_amt') && Schema::hasColumn('projects', 'profit')) {

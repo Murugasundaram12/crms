@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\PaymentStage;
 use App\Models\Project;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use Carbon\Carbon;
@@ -29,6 +30,7 @@ class WalletController extends Controller
         $query = Wallet::query()
             ->where('delete_status', 0)
             ->with(['user', 'client', 'project', 'stage'])
+            ->when($request->filled('user_id'), fn($q) => $q->where('user_id', $request->integer('user_id')))
             ->when($request->filled('client_id'), fn($q) => $q->where('client_id', $request->integer('client_id')))
             ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
             ->when($request->filled('date_from'), fn($q) => $q->whereDate('current_date', '>=', $request->date('date_from')->toDateString()))
@@ -74,7 +76,9 @@ class WalletController extends Controller
                 });
             });
 
-        $totalAmount = (clone $query)->sum('amount');
+        $creditTotal = (clone $query)->where('transfer_type', 0)->sum('amount');
+        $debitTotal = (clone $query)->where('transfer_type', 1)->sum('amount');
+        $totalAmount = $creditTotal - $debitTotal;
         $wallets = $query
             ->latest('current_date')
             ->paginate((int) $request->get('paginate', 10))
@@ -84,6 +88,11 @@ class WalletController extends Controller
             'wallets' => $wallets,
             'clients' => Client::query()->orderBy('name')->get(),
             'projects' => Project::query()->orderBy('name')->get(),
+            'users' => User::query()
+                ->where('status', '!=', 'inactive')
+                ->whereKeyNot(Auth::id())
+                ->orderBy('name')
+                ->get(['id', 'name', 'email', 'wallet']),
             'paymentModes' => self::PAYMENT_MODES,
             'totalAmount' => $totalAmount,
         ]);
@@ -94,6 +103,7 @@ class WalletController extends Controller
         return view('pages.wallet.create', [
             'clients' => Client::query()->where('status', '!=', 'inactive')->orderBy('name')->get(),
             'projects' => Project::query()->whereIn('status', ['planning', 'active', 'on_hold'])->orderBy('name')->get(),
+            'users' => User::query()->where('status', '!=', 'inactive')->orderBy('name')->get(['id', 'name', 'email', 'wallet']),
             'paymentModes' => self::PAYMENT_MODES,
             'stages' => PaymentStage::query()->orderBy('stage_name')->get(),
             'walletBalance' => (float) (Auth::user()->wallet ?? 0),
@@ -103,6 +113,7 @@ class WalletController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'user_id' => ['nullable', 'exists:users,id'],
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
             'amount' => ['required', 'integer', 'min:1'],
@@ -115,7 +126,10 @@ class WalletController extends Controller
         ]);
 
         $amount = (int) $validated['amount'];
-        $user = Auth::user();
+        $actor = Auth::user();
+        $targetUser = ! blank($validated['user_id'] ?? null)
+            ? User::query()->findOrFail((int) $validated['user_id'])
+            : $actor;
         $project = Project::query()->findOrFail((int) $validated['project_id']);
 
         if ((int) $project->client_id !== (int) $validated['client_id']) {
@@ -124,24 +138,25 @@ class WalletController extends Controller
             ]);
         }
 
-        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($user->wallet ?? 0)) {
+        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
             throw ValidationException::withMessages([
                 'amount' => 'Amount is insufficient',
             ]);
         }
 
-        DB::transaction(function () use ($validated, $amount, $user) {
+        DB::transaction(function () use ($validated, $amount, $targetUser) {
             $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
+            $description = $validated['description'] ?? null;
 
-            Wallet::create([
-                'user_id' => $user->id,
+            Wallet::query()->create([
+                'user_id' => $targetUser->id,
                 'client_id' => $validated['client_id'],
                 'project_id' => $validated['project_id'],
                 'amount' => $amount,
                 'payment_mode' => $validated['payment_mode'],
                 'transfer_type' => $validated['transfer_type'],
                 'stage_id' => $validated['stage_id'] ?? null,
-                'description' => $validated['description'] ?? null,
+                'description' => $description,
                 'current_date' => $dateTime,
                 'active_status' => 1,
                 'delete_status' => 0,
@@ -151,12 +166,12 @@ class WalletController extends Controller
 
             if ((int) $validated['transfer_type'] === 0) {
                 $balanceService->applyProjectIncome((int) $validated['project_id'], $amount);
-                $balanceService->adjustUserWallet((int) $user->id, $amount);
+                $balanceService->adjustUserWallet((int) $targetUser->id, $amount);
                 return;
             }
 
             $balanceService->reverseProjectIncome((int) $validated['project_id'], $amount);
-            $balanceService->adjustUserWallet((int) $user->id, -$amount);
+            $balanceService->adjustUserWallet((int) $targetUser->id, -$amount);
         });
 
         return redirect()->route('wallet.index')->with('success', 'Wallet entry saved successfully.');
