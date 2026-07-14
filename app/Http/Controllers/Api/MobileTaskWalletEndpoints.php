@@ -59,8 +59,7 @@ trait MobileTaskWalletEndpoints
 
     public function tasks(Request $request)
     {
-        $canListAll = $this->canUseApiPermission($request->user(), 'tasks-list');
-        $ownTaskEmployeeId = $canListAll ? null : $this->taskEmployeeIdFromUserId($request->user()->id);
+        $ownTaskEmployeeId = $this->taskEmployeeIdFromUserId($request->user()->id);
 
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
@@ -76,17 +75,15 @@ trait MobileTaskWalletEndpoints
 
         $query = Task::query()->with(['project', 'employee']);
 
-        if (! $canListAll) {
-            if (! $ownTaskEmployeeId) {
-                $emptyTasks = Task::query()
-                    ->whereRaw('1 = 0')
-                    ->paginate((int) ($validated['per_page'] ?? 25));
+        if (! $ownTaskEmployeeId) {
+            $emptyTasks = Task::query()
+                ->whereRaw('1 = 0')
+                ->paginate((int) ($validated['per_page'] ?? 25));
 
-                return response()->json($emptyTasks);
-            }
-
-            $query->where('employee_id', $ownTaskEmployeeId);
+            return response()->json($emptyTasks);
         }
+
+        $query->where('employee_id', $ownTaskEmployeeId);
 
         if (! blank($validated['q'] ?? null)) {
             $search = $validated['q'];
@@ -100,7 +97,7 @@ trait MobileTaskWalletEndpoints
 
         foreach (['status', 'priority', 'project_id', 'employee_id', 'type'] as $filter) {
             if (! blank($validated[$filter] ?? null)) {
-                if (! $canListAll && $filter === 'employee_id') {
+                if ($filter === 'employee_id') {
                     continue;
                 }
 

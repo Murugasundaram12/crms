@@ -28,7 +28,7 @@ return new class extends Migration
             ['group' => 'mobile_app', 'key' => 'privacy_policy_url', 'value' => '', 'type' => 'string', 'description' => 'Privacy policy URL shown in mobile app.'],
             ['group' => 'mobile_app', 'key' => 'attendance_time_type', 'value' => 'server_time', 'type' => 'string', 'description' => 'server_time or device_time.'],
             ['group' => 'tracking', 'key' => 'tracking_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable employee location tracking.'],
-            ['group' => 'tracking', 'key' => 'tracking_interval_seconds', 'value' => '60', 'type' => 'integer', 'description' => 'Background location update interval.'],
+            ['group' => 'tracking', 'key' => 'tracking_interval_seconds', 'value' => '3', 'type' => 'integer', 'description' => 'Background location update interval.'],
             ['group' => 'tracking', 'key' => 'minimum_distance_meters', 'value' => '25', 'type' => 'integer', 'description' => 'Minimum distance before saving a new point.'],
             ['group' => 'tracking', 'key' => 'max_accuracy_meters', 'value' => '50', 'type' => 'integer', 'description' => 'Maximum accepted GPS accuracy.'],
             ['group' => 'tracking', 'key' => 'mock_location_allowed', 'value' => 'false', 'type' => 'boolean', 'description' => 'Allow mock locations.'],

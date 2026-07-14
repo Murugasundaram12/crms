@@ -177,11 +177,24 @@ trait MobileAttendanceTrackingEndpoints
 
         $validated = $request->validate([
             'user_id' => ['nullable', 'exists:users,id'],
+            'employee_id' => ['nullable', 'integer'],
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
+
+        $requestedUserId = $validated['user_id'] ?? null;
+
+        if (blank($requestedUserId) && ! blank($validated['employee_id'] ?? null)) {
+            $requestedUserId = $this->userIdFromEmployeeId((int) $validated['employee_id']);
+
+            if (! $requestedUserId) {
+                throw ValidationException::withMessages([
+                    'employee_id' => 'Selected employee could not be matched to a user attendance record.',
+                ]);
+            }
+        }
 
         $query = Attendance::query()
             ->with('user')
@@ -190,9 +203,49 @@ trait MobileAttendanceTrackingEndpoints
 
         if (! $canListAll) {
             $query->where('user_id', $request->user()->id);
-        } elseif (! blank($validated['user_id'] ?? null)) {
-            $query->where('user_id', $validated['user_id']);
+        } elseif (! blank($requestedUserId)) {
+            $query->where('user_id', $requestedUserId);
         }
+
+        if (! blank($validated['from_date'] ?? null)) {
+            $query->whereDate('attendance_date', '>=', $request->date('from_date')->toDateString());
+        }
+
+        if (! blank($validated['to_date'] ?? null)) {
+            $query->whereDate('attendance_date', '<=', $request->date('to_date')->toDateString());
+        }
+
+        if (($validated['status'] ?? null) === 'checked_out') {
+            $query->whereNotNull('check_out_at');
+        }
+
+        if (($validated['status'] ?? null) === 'checked_in') {
+            $query->whereNull('check_out_at');
+        }
+
+        $attendances = $query->paginate((int) ($validated['per_page'] ?? 15));
+        $attendances->setCollection($attendances->getCollection()->map(fn(Attendance $attendance) => [
+            ...$this->attendancePayload($attendance),
+            'user' => $this->userPayload($attendance->user),
+        ]));
+
+        return response()->json($attendances);
+    }
+
+    public function myAttendances(Request $request)
+    {
+        $validated = $request->validate([
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
+            'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = Attendance::query()
+            ->with('user')
+            ->where('user_id', $request->user()->id)
+            ->latest('attendance_date')
+            ->latest('check_in_at');
 
         if (! blank($validated['from_date'] ?? null)) {
             $query->whereDate('attendance_date', '>=', $request->date('from_date')->toDateString());

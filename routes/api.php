@@ -26,6 +26,8 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/check_status', [MobileAttendanceTrackingController::class, 'attendanceStatus']);
     Route::get('/attendance/status', [MobileAttendanceTrackingController::class, 'attendanceStatus']);
     Route::get('/attendance', [MobileAttendanceTrackingController::class, 'attendances']);
+    Route::get('/attendance/my', [MobileAttendanceTrackingController::class, 'myAttendances']);
+    Route::get('/me/attendance', [MobileAttendanceTrackingController::class, 'myAttendances']);
     Route::post('/check_in', [MobileAttendanceTrackingController::class, 'checkIn']);
     Route::post('/check_out', [MobileAttendanceTrackingController::class, 'checkOut']);
     Route::post('/tracking/location', [MobileAttendanceTrackingController::class, 'updateLocation']);

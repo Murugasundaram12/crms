@@ -71,6 +71,27 @@ class MobileApiController extends Controller
             ->value('id');
     }
 
+    protected function userIdFromEmployeeId(?int $employeeId): ?int
+    {
+        if (! $employeeId) {
+            return null;
+        }
+
+        $user = User::query()->find($employeeId);
+
+        if ($user) {
+            return $user->id;
+        }
+
+        $employee = Employee::query()->find($employeeId);
+
+        if ($employee && filled($employee->email)) {
+            return User::query()->where('email', $employee->email)->value('id');
+        }
+
+        return null;
+    }
+
     protected function incompleteDueTasksForUser(User $user)
     {
         $taskEmployeeId = $this->taskEmployeeIdFromUserId($user->id);
