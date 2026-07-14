@@ -75,13 +75,21 @@ class TaskController extends Controller
 
     public function update(Request $request, Task $task)
     {
+        $wasCompleted = $task->status === 'completed';
+
         // Validate the form before updating the task.
         $validatedData = $this->validateTaskData($request);
+
+        if ($wasCompleted && $validatedData['status'] === 'completed') {
+            unset($validatedData['completed_at']);
+        }
 
         // Save the updated task.
         $task->update($validatedData);
 
-        $this->createNextRecurringTaskIfNeeded($task->fresh());
+        if (! $wasCompleted && $task->fresh()->status === 'completed') {
+            $this->createNextRecurringTaskIfNeeded($task->fresh());
+        }
 
         return redirect()->route('tasks.index')->with('success', 'Task updated successfully.');
     }
@@ -187,9 +195,16 @@ class TaskController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
+        if ($request->boolean('auto_repeat') && ! in_array($validatedData['type'], ['daily', 'weekly'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'auto_repeat' => 'Auto repeat is available only for daily or weekly tasks.',
+            ]);
+        }
+
         // Normalize checkbox and completion values before saving.
         $validatedData['is_important'] = $request->boolean('is_important');
-        $validatedData['auto_repeat'] = $request->boolean('auto_repeat');
+        $validatedData['auto_repeat'] = in_array($validatedData['type'], ['daily', 'weekly'], true)
+            && $request->boolean('auto_repeat');
         $validatedData['completed_at'] = $validatedData['status'] === 'completed' ? now() : null;
 
         return $validatedData;

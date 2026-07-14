@@ -154,24 +154,34 @@ class MobileApiController extends Controller
         return $employee;
     }
 
-    protected function validateTaskData(Request $request): array
+    protected function validateTaskData(Request $request, ?Task $task = null): array
     {
+        $required = $task ? 'sometimes' : 'required';
+
         $validated = $request->validate([
-            'project_id' => ['required', 'exists:projects,id'],
+            'project_id' => [$required, 'exists:projects,id'],
             'employee_id' => ['nullable', 'integer'],
             'user_id' => ['nullable', 'exists:users,id'],
-            'title' => ['required', 'string', 'max:255'],
+            'title' => [$required, 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'type' => ['required', Rule::in(self::TASK_TYPES)],
+            'type' => [$required, Rule::in(self::TASK_TYPES)],
             'auto_repeat' => ['nullable', 'boolean'],
-            'priority' => ['required', Rule::in(['low', 'medium', 'high'])],
-            'status' => ['required', Rule::in(['pending', 'in_progress', 'completed', 'blocked'])],
+            'priority' => [$required, Rule::in(['low', 'medium', 'high'])],
+            'status' => [$required, Rule::in(['pending', 'in_progress', 'completed', 'blocked'])],
             'due_date' => ['nullable', 'date'],
             'estimated_hours' => ['nullable', 'numeric', 'min:0'],
             'logged_hours' => ['nullable', 'numeric', 'min:0'],
             'is_important' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $taskType = $validated['type'] ?? $task?->type;
+
+        if ($request->boolean('auto_repeat') && ! in_array($taskType, ['daily', 'weekly'], true)) {
+            throw ValidationException::withMessages([
+                'auto_repeat' => 'Auto repeat is available only for daily or weekly tasks.',
+            ]);
+        }
 
         $taskEmployeeId = $this->resolveTaskEmployeeId(
             isset($validated['employee_id']) ? (int) $validated['employee_id'] : null,
@@ -190,9 +200,18 @@ class MobileApiController extends Controller
 
         unset($validated['user_id']);
 
-        $validated['is_important'] = $request->boolean('is_important');
-        $validated['auto_repeat'] = $request->boolean('auto_repeat');
-        $validated['completed_at'] = $validated['status'] === 'completed' ? now() : null;
+        if (! $task || $request->has('is_important')) {
+            $validated['is_important'] = $request->boolean('is_important');
+        }
+
+        if (! $task || $request->has('auto_repeat') || array_key_exists('type', $validated)) {
+            $validated['auto_repeat'] = in_array($taskType, ['daily', 'weekly'], true)
+                && ($request->has('auto_repeat') ? $request->boolean('auto_repeat') : (bool) $task?->auto_repeat);
+        }
+
+        if (array_key_exists('status', $validated)) {
+            $validated['completed_at'] = $validated['status'] === 'completed' ? now() : null;
+        }
 
         return $validated;
     }
@@ -205,7 +224,13 @@ class MobileApiController extends Controller
         ]);
 
         if (array_key_exists('status', $validated)) {
-            $validated['completed_at'] = $validated['status'] === 'completed' ? now() : null;
+            if ($validated['status'] === 'completed') {
+                if ($task->status !== 'completed') {
+                    $validated['completed_at'] = now();
+                }
+            } else {
+                $validated['completed_at'] = null;
+            }
         } elseif ($task->status === 'completed') {
             unset($validated['completed_at']);
         }
@@ -1097,6 +1122,8 @@ class MobileApiController extends Controller
 
     protected function taskPayload(Task $task): array
     {
+        $autoRepeat = (bool) $task->auto_repeat && in_array($task->type, ['daily', 'weekly'], true);
+
         return [
             'id' => $task->id,
             'project_id' => $task->project_id,
@@ -1106,6 +1133,8 @@ class MobileApiController extends Controller
             'title' => $task->title,
             'description' => $task->description,
             'type' => $task->type,
+            'auto_repeat' => $autoRepeat,
+            'recurring_source_id' => $task->recurring_source_id,
             'priority' => $task->priority,
             'status' => $task->status,
             'due_date' => $task->due_date?->toDateString(),

@@ -140,6 +140,8 @@ trait MobileTaskWalletEndpoints
 
     public function updateTask(Request $request, Task $task)
     {
+        $wasCompleted = $task->status === 'completed';
+
         if (! $this->canUseApiPermission($request->user(), 'tasks-edit')) {
             if (! $this->isOwnTask($request->user(), $task)) {
                 return response()->json(['message' => 'Forbidden.'], 403);
@@ -147,22 +149,34 @@ trait MobileTaskWalletEndpoints
 
             $validated = $this->validateOwnTaskUpdateData($request, $task);
             $task->update($validated);
+            $freshTask = $task->fresh(['project', 'employee']);
+
+            if (! $wasCompleted && $freshTask->status === 'completed') {
+                $this->createNextRecurringTaskIfNeeded($freshTask);
+            }
 
             return response()->json([
                 'message' => 'Task updated successfully.',
-                'task' => $this->taskPayload($task->fresh(['project', 'employee'])),
+                'task' => $this->taskPayload($freshTask),
             ]);
         }
 
-        $validated = $this->validateTaskData($request);
+        $validated = $this->validateTaskData($request, $task);
+
+        if ($wasCompleted && ($validated['status'] ?? $task->status) === 'completed') {
+            unset($validated['completed_at']);
+        }
 
         $task->update($validated);
-        $this->createNextRecurringTaskIfNeeded($task->fresh());
-        $task->load(['project', 'employee']);
+        $freshTask = $task->fresh(['project', 'employee']);
+
+        if (! $wasCompleted && $freshTask->status === 'completed') {
+            $this->createNextRecurringTaskIfNeeded($freshTask);
+        }
 
         return response()->json([
             'message' => 'Task updated successfully.',
-            'task' => $this->taskPayload($task->fresh(['project', 'employee'])),
+            'task' => $this->taskPayload($freshTask),
         ]);
     }
 

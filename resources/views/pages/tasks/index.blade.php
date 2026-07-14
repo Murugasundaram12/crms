@@ -139,7 +139,7 @@
                                                 {{ $task->title }}</h6>
                                             <span class="badge badge-soft-info border-0 me-2"><i
                                                     class="ti ti-subtask me-1"></i>{{ $taskTypes[$task->type] ?? ucfirst($task->type) }}</span>
-                                            @if ($task->auto_repeat)
+                                            @if ($task->auto_repeat && in_array($task->type, ['daily', 'weekly'], true))
                                                 <span class="badge badge-soft-primary me-2">Auto Repeat</span>
                                             @endif
                                             <span
@@ -313,7 +313,7 @@
                                 </div>
                                 <div class="col-12">
                                     <div class="form-check"><input class="form-check-input" type="checkbox" name="auto_repeat"
-                                            value="1" id="auto_repeat_{{ $task->id }}" @checked($task->auto_repeat)><label
+                                            value="1" id="auto_repeat_{{ $task->id }}" @checked($task->auto_repeat && in_array($task->type, ['daily', 'weekly'], true))><label
                                             class="form-check-label" for="auto_repeat_{{ $task->id }}">Enable auto-repeat for daily/weekly tasks</label></div>
                                 </div>
                                 <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
