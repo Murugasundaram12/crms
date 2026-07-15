@@ -669,7 +669,10 @@ class MobileApiController extends Controller
             'center_latitude' => $this->settingValue('map_center_latitude', 11.016844),
             'center_longitude' => $this->settingValue('map_center_longitude', 76.955832),
             'zoom_level' => $this->settingValue('map_zoom_level', 12),
-            'google_maps_api_key' => config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', '')),
+            'google_maps_api_key' => $this->settingValue(
+                'google_maps_api_key',
+                config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
+            ),
         ];
     }
 
@@ -1240,4 +1243,3 @@ class MobileApiController extends Controller
         ];
     }
 }
-
