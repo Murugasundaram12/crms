@@ -902,16 +902,37 @@ class MobileApiController extends Controller
 
     protected function attendancePayload(Attendance $attendance): array
     {
+        $workedMinutes = $attendance->worked_minutes;
+
         return [
             'id' => $attendance->id,
             'user_id' => $attendance->user_id,
             'attendance_date' => $attendance->attendance_date?->toDateString(),
             'check_in_at' => $attendance->check_in_at?->toISOString(),
             'check_out_at' => $attendance->check_out_at?->toISOString(),
-            'worked_minutes' => $attendance->worked_minutes,
+            'worked_minutes' => $workedMinutes,
+            'worked_hours' => $workedMinutes === null ? null : intdiv((int) $workedMinutes, 60),
+            'worked_remaining_minutes' => $workedMinutes === null ? null : (int) $workedMinutes % 60,
+            'worked_duration' => $workedMinutes === null ? null : $this->formatWorkedDuration((int) $workedMinutes),
             'status' => $attendance->status,
             'notes' => $attendance->notes,
         ];
+    }
+
+    protected function formatWorkedDuration(int $workedMinutes): string
+    {
+        $hours = intdiv($workedMinutes, 60);
+        $minutes = $workedMinutes % 60;
+
+        if ($hours > 0 && $minutes > 0) {
+            return "{$hours}h {$minutes}m";
+        }
+
+        if ($hours > 0) {
+            return "{$hours}h";
+        }
+
+        return "{$minutes}m";
     }
 
     protected function employeeExpensePayload(Expense $expense): array
