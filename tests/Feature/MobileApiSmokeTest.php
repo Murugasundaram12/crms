@@ -488,6 +488,41 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('quotations.0.amount', '12500.00');
     }
 
+    public function test_wallet_options_are_available_to_transfer_list_users(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Wallet Options User',
+            'email' => 'wallet-options@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $permission = Permission::query()->create([
+            'name' => 'List Transfers',
+            'key' => 'transfers-list',
+        ]);
+
+        $role = Role::query()->create([
+            'name' => 'Wallet Viewer',
+            'description' => 'Can view wallet data',
+        ]);
+        $role->permissions()->sync([$permission->id]);
+        $user->roles()->sync([$role->id]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Wallet Options Test',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->getJson('/api/wallet/options')
+            ->assertOk()
+            ->assertJsonPath('wallet_balance', 0);
+    }
+
     public function test_leave_request_requires_active_leave_type_from_options(): void
     {
         $user = User::query()->create([
