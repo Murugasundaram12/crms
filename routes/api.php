@@ -37,6 +37,8 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/settings/modules', [MobileSettingsDashboardController::class, 'getModuleSettings']);
     Route::get('/settings/map', [MobileSettingsDashboardController::class, 'getMapSettings']);
     Route::get('/admin/employees/live-locations', [MobileAttendanceTrackingController::class, 'adminLiveLocations']);
+    Route::get('/admin/employees/card-view', [MobileAttendanceTrackingController::class, 'adminCardView']);
+    Route::post('/admin/employees/timeline', [MobileAttendanceTrackingController::class, 'adminTimelineModule']);
     Route::get('/admin/employees/{employee}/timeline', [MobileAttendanceTrackingController::class, 'adminTimeline'])->whereNumber('employee');
     Route::get('/employees/track', [MobileEmployeeRoleController::class, 'trackEmployees']);
     Route::get('/employees', [MobileEmployeeRoleController::class, 'employees']);

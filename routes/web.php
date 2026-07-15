@@ -5,6 +5,7 @@ use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeTrackingController;
 use App\Http\Controllers\EmployeeSalaryController;
 use App\Http\Controllers\ExpensesController;
 use App\Http\Controllers\LabourExpensesController;
@@ -58,6 +59,24 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [EmployeeController::class, 'profile'])
         ->name('profile.show');
+
+    Route::prefix('employee-tracking')->name('tracking.')->middleware('permission:employees-list')->group(function () {
+        Route::get('/', [EmployeeTrackingController::class, 'index'])->name('index');
+        Route::get('/live-location', [EmployeeTrackingController::class, 'liveMap'])->name('live-map');
+        Route::get('/live', [EmployeeTrackingController::class, 'liveLocations'])->name('live');
+        Route::get('/card-view', [EmployeeTrackingController::class, 'cardView'])->name('card-view');
+        Route::get('/card-view/data', [EmployeeTrackingController::class, 'cardViewData'])->name('card-view.data');
+        Route::get('/timeline/{employee}', [EmployeeTrackingController::class, 'timeline'])->whereNumber('employee')->name('timeline');
+    });
+
+    Route::middleware('permission:employees-list')->group(function () {
+        Route::get('/liveLocation', [EmployeeTrackingController::class, 'liveMap'])->name('liveLocation');
+        Route::get('/liveLocationAjax', [EmployeeTrackingController::class, 'liveLocationAjax'])->name('liveLocationAjax');
+        Route::get('/cardView', [EmployeeTrackingController::class, 'cardView'])->name('cardView');
+        Route::get('/dashboard/cardViewAjax', [EmployeeTrackingController::class, 'cardViewData'])->name('dashboard/cardViewAjax');
+        Route::get('/timeLine', [EmployeeTrackingController::class, 'index'])->name('timeLine');
+        Route::post('/dashboard/getTimeLineAjax', [EmployeeTrackingController::class, 'getTimeLineAjax'])->name('dashboard.getTimeLineAjax');
+    });
 
     Route::get('/home', [DashboardController::class, 'index'])
         ->name('home');

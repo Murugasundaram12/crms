@@ -276,10 +276,8 @@ trait MobileTaskWalletEndpoints
     public function walletOptions(Request $request)
     {
         $user = $request->user();
-
-        if (! $this->canUseApiPermission($user, 'transfers-list') && ! $this->canUseApiPermission($user, 'transfers-create')) {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
+        $canViewTransfers = $this->canUseApiPermission($user, 'transfers-list');
+        $canCreateTransfers = $this->canUseApiPermission($user, 'transfers-create');
 
         return response()->json([
             'clients' => Client::query()
@@ -299,6 +297,8 @@ trait MobileTaskWalletEndpoints
                 ->orderBy('stage_name')
                 ->get(['id', 'stage_name']),
             'wallet_balance' => (float) ($request->user()->wallet ?? 0),
+            'can_view_transfers' => $canViewTransfers,
+            'can_create_transfer' => $canCreateTransfers,
         ]);
     }
 
@@ -326,11 +326,20 @@ trait MobileTaskWalletEndpoints
             ]);
         }
 
-        $counterWallet = null;
+        if (
+            (int) $validated['transfer_type'] === 0
+            && (int) $targetUser->id !== (int) $actor->id
+            && $amount > (float) ($actor->wallet ?? 0)
+        ) {
+            throw ValidationException::withMessages([
+                'amount' => 'Amount is insufficient',
+            ]);
+        }
 
-        $wallet = DB::transaction(function () use ($validated, $amount, $targetUser) {
+        [$wallet, $counterWallet] = DB::transaction(function () use ($validated, $amount, $targetUser, $actor) {
             $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
             $description = $validated['description'] ?? null;
+            $transferType = (int) $validated['transfer_type'];
 
             $wallet = Wallet::query()->create([
                 'user_id' => $targetUser->id,
@@ -338,7 +347,7 @@ trait MobileTaskWalletEndpoints
                 'project_id' => $validated['project_id'],
                 'amount' => $amount,
                 'payment_mode' => $validated['payment_mode'],
-                'transfer_type' => $validated['transfer_type'],
+                'transfer_type' => $transferType,
                 'stage_id' => $validated['stage_id'] ?? null,
                 'description' => $description,
                 'current_date' => $dateTime,
@@ -347,18 +356,53 @@ trait MobileTaskWalletEndpoints
             ]);
 
             $balanceService = app(CrmBalanceService::class);
+            $counterWallet = null;
 
-            if ((int) $validated['transfer_type'] === 0) {
+            if ($transferType === 0) {
                 $balanceService->applyProjectIncome((int) $validated['project_id'], $amount);
                 $balanceService->adjustUserWallet((int) $targetUser->id, $amount);
 
-                return $wallet;
+                if ((int) $targetUser->id !== (int) $actor->id) {
+                    $balanceService->adjustUserWallet((int) $actor->id, -$amount);
+                    $counterWallet = Wallet::query()->create([
+                        'user_id' => $actor->id,
+                        'client_id' => $validated['client_id'],
+                        'project_id' => $validated['project_id'],
+                        'amount' => $amount,
+                        'payment_mode' => $validated['payment_mode'],
+                        'transfer_type' => 1,
+                        'stage_id' => $validated['stage_id'] ?? null,
+                        'description' => $description,
+                        'current_date' => $dateTime,
+                        'active_status' => 1,
+                        'delete_status' => 0,
+                    ]);
+                }
+
+                return [$wallet, $counterWallet];
             }
 
             $balanceService->reverseProjectIncome((int) $validated['project_id'], $amount);
             $balanceService->adjustUserWallet((int) $targetUser->id, -$amount);
 
-            return $wallet;
+            if ((int) $targetUser->id !== (int) $actor->id) {
+                $balanceService->adjustUserWallet((int) $actor->id, $amount);
+                $counterWallet = Wallet::query()->create([
+                    'user_id' => $actor->id,
+                    'client_id' => $validated['client_id'],
+                    'project_id' => $validated['project_id'],
+                    'amount' => $amount,
+                    'payment_mode' => $validated['payment_mode'],
+                    'transfer_type' => 0,
+                    'stage_id' => $validated['stage_id'] ?? null,
+                    'description' => $description,
+                    'current_date' => $dateTime,
+                    'active_status' => 1,
+                    'delete_status' => 0,
+                ]);
+            }
+
+            return [$wallet, $counterWallet];
         });
 
         return response()->json([

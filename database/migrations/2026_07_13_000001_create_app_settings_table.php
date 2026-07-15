@@ -49,6 +49,7 @@ return new class extends Migration
             ['group' => 'map', 'key' => 'map_center_latitude', 'value' => '11.016844', 'type' => 'float', 'description' => 'Dashboard map center latitude.'],
             ['group' => 'map', 'key' => 'map_center_longitude', 'value' => '76.955832', 'type' => 'float', 'description' => 'Dashboard map center longitude.'],
             ['group' => 'map', 'key' => 'map_zoom_level', 'value' => '12', 'type' => 'integer', 'description' => 'Dashboard map zoom level.'],
+            ['group' => 'map', 'key' => 'google_maps_api_key', 'value' => 'AIzaSyDNZMjI6BykptQrTCZJiPX2iEwBmd9UZUU', 'type' => 'string', 'description' => 'Google Maps JavaScript API key.'],
         ];
 
         DB::table('app_settings')->insert(array_map(

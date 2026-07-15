@@ -78,6 +78,19 @@ trait MobileAttendanceTrackingEndpoints
             ], 409);
         }
 
+        $todayAttendance = Attendance::query()
+            ->where('user_id', $user->id)
+            ->whereDate('attendance_date', $today)
+            ->latest('check_in_at')
+            ->first();
+
+        if ($todayAttendance) {
+            return response()->json([
+                'message' => 'You have already checked in today.',
+                'attendance' => $this->attendancePayload($todayAttendance),
+            ], 409);
+        }
+
         $attendance = Attendance::query()->create([
             'user_id' => $user->id,
             'attendance_date' => $today,
@@ -90,6 +103,7 @@ trait MobileAttendanceTrackingEndpoints
 
         if (! blank($validated['latitude'] ?? null) && ! blank($validated['longitude'] ?? null)) {
             $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_in');
+            $trackingPayload['recorded_at'] = $attendance->check_in_at;
 
             DB::transaction(function () use ($user, $attendance, $trackingPayload, &$tracking) {
                 $this->upsertDeviceStatus($user->id, $trackingPayload);
@@ -159,6 +173,7 @@ trait MobileAttendanceTrackingEndpoints
 
             if (! blank($validated['latitude'] ?? null) && ! blank($validated['longitude'] ?? null)) {
                 $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_out');
+                $trackingPayload['recorded_at'] = $checkoutTime;
                 $this->upsertDeviceStatus($user->id, $trackingPayload);
                 $tracking = $this->createTrackingPoint($openAttendance, $trackingPayload, 'checked_out');
             }
@@ -413,6 +428,7 @@ trait MobileAttendanceTrackingEndpoints
 
         $devices = EmployeeDevice::query()
             ->with('employee')
+            ->where('employee_id', '!=', $request->user()->id)
             ->latest('last_seen_at')
             ->get()
             ->map(function (EmployeeDevice $device) {
@@ -444,18 +460,264 @@ trait MobileAttendanceTrackingEndpoints
             ->latest('check_in_at')
             ->first();
 
-        $trackings = LocationTracking::query()
+        $employee = User::query()->findOrFail($employeeId);
+        $device = EmployeeDevice::query()
             ->where('employee_id', $employeeId)
-            ->whereDate('recorded_at', $date)
+            ->latest('last_seen_at')
+            ->first();
+
+        $trackings = LocationTracking::query()
+            ->when(
+                $attendance,
+                fn ($query) => $query->where('attendance_id', $attendance->id),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
             ->orderBy('recorded_at')
-            ->get()
-            ->map(fn(LocationTracking $tracking) => $this->trackingPayload($tracking));
+            ->get();
+
+        $moduleItems = $this->timelineModuleItems($trackings);
+
+        $items = $trackings
+            ->map(function (LocationTracking $tracking, int $index) use ($trackings) {
+                $nextTracking = $trackings->get($index + 1);
+
+                return [
+                    ...$this->trackingPayload($tracking),
+                    'tracking_type' => $tracking->type,
+                    'type_label' => $this->trackingTypeLabel($tracking),
+                    'start_time' => $tracking->recorded_at?->format('h:i A'),
+                    'end_time' => $nextTracking?->recorded_at?->format('h:i A') ?? $tracking->recorded_at?->format('h:i A'),
+                    'elapsed_seconds' => $nextTracking && $tracking->recorded_at
+                        ? $tracking->recorded_at->diffInSeconds($nextTracking->recorded_at)
+                        : 0,
+                ];
+            })
+            ->values();
+
+        $totalTrackedSeconds = $items->sum('elapsed_seconds');
+        $attendanceSeconds = $attendance && $attendance->check_in_at
+            ? $attendance->check_in_at->diffInSeconds($attendance->check_out_at ?? now())
+            : 0;
 
         return response()->json([
-            'employee' => $this->userPayload(User::query()->findOrFail($employeeId)),
+            'employee' => $this->userPayload($employee),
             'attendance' => $attendance ? $this->attendancePayload($attendance) : null,
-            'trackings' => $trackings,
+            'summary' => [
+                'points_count' => $items->count(),
+                'total_tracked_seconds' => $totalTrackedSeconds,
+                'total_attendance_minutes' => $attendance?->worked_minutes ?? null,
+                'total_attendance_duration' => $attendance?->worked_minutes === null
+                    ? null
+                    : $this->formatWorkedDuration((int) $attendance->worked_minutes),
+            ],
+            'trackings' => $items,
+            'employeeId' => $employee->id,
+            'employeeName' => $employee->name,
+            'attendanceId' => $attendance?->id,
+            'totalTrackedTime' => $this->formatSecondsAsClock($totalTrackedSeconds),
+            'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
+            'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
+            'totalKM' => round((float) $moduleItems->sum('distance'), 2),
+            'timeLineItems' => $moduleItems,
         ]);
+    }
+
+    public function adminTimelineModule(Request $request)
+    {
+        if (! $this->canViewEmployeeTracking($request->user())) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $validated = $request->validate([
+            'userId' => ['required', 'integer', 'exists:users,id'],
+            'date' => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        return $this->adminTimeline($request, (int) $validated['userId']);
+    }
+
+    public function adminCardView(Request $request)
+    {
+        if (! $this->canViewEmployeeTracking($request->user())) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $todayAttendances = Attendance::query()
+            ->with('user')
+            ->whereDate('attendance_date', now()->toDateString())
+            ->latest('check_in_at')
+            ->get()
+            ->unique('user_id');
+
+        $devicesByUser = EmployeeDevice::query()
+            ->whereIn('employee_id', $todayAttendances->pluck('user_id'))
+            ->latest('last_seen_at')
+            ->get()
+            ->unique('employee_id')
+            ->keyBy('employee_id');
+
+        $cards = $todayAttendances
+            ->map(function (Attendance $attendance) use ($devicesByUser) {
+                $device = $devicesByUser->get($attendance->user_id);
+                $isOnline = $device?->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120));
+
+                return [
+                    'id' => $attendance->user_id,
+                    'name' => $attendance->user?->name ?? 'Unknown',
+                    'phoneNumber' => $attendance->user?->phone,
+                    'designation' => $attendance->user?->designation,
+                    'batteryLevel' => $device?->battery_percentage,
+                    'isGpsOn' => (bool) ($device?->is_gps_on ?? false),
+                    'isWifiOn' => null,
+                    'updatedAt' => $device?->last_seen_at?->diffForHumans(),
+                    'isOnline' => (bool) $isOnline,
+                    'attendanceInAt' => $attendance->check_in_at?->format('h:i A') ?? '',
+                    'attendanceOutAt' => $attendance->check_out_at?->format('h:i A') ?? '',
+                    'latitude' => $device?->latitude !== null ? (float) $device->latitude : null,
+                    'longitude' => $device?->longitude !== null ? (float) $device->longitude : null,
+                    'accuracy' => $device?->accuracy !== null ? (float) $device->accuracy : null,
+                    'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
+                    'attendance' => $this->attendancePayload($attendance),
+                    'latest_location' => $device ? $this->devicePayload($device) : null,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'data' => $cards,
+            'summary' => [
+                'all' => $cards->count(),
+                'on_duty' => $cards->where('isOnline', true)->where('attendanceOutAt', '')->count(),
+                'inactive' => $cards->where('isOnline', false)->where('attendanceOutAt', '')->filter(fn(array $card) => filled($card['attendanceInAt']))->count(),
+                'off_duty' => $cards->filter(fn(array $card) => filled($card['attendanceOutAt']) || blank($card['attendanceInAt']))->count(),
+            ],
+        ]);
+    }
+
+    protected function timelineModuleItems($trackings)
+    {
+        $filteredTrackings = $this->filterTimelineTrackings($trackings);
+
+        return collect($filteredTrackings)
+            ->map(function (LocationTracking $tracking, int $index) use ($filteredTrackings) {
+                $nextTracking = $filteredTrackings[$index + 1] ?? null;
+                $distance = $nextTracking
+                    ? $this->distanceInKm(
+                        (float) $tracking->latitude,
+                        (float) $tracking->longitude,
+                        (float) $nextTracking->latitude,
+                        (float) $nextTracking->longitude
+                    )
+                    : 0;
+
+                $type = $this->timelineModuleType($tracking);
+
+                return [
+                    'id' => $tracking->id,
+                    'type' => $type,
+                    'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : 0,
+                    'activity' => $tracking->activity,
+                    'batteryPercentage' => $tracking->battery_percentage,
+                    'isGPSOn' => (bool) $tracking->is_gps_on,
+                    'isWifiOn' => false,
+                    'latitude' => (float) $tracking->latitude,
+                    'longitude' => (float) $tracking->longitude,
+                    'address' => null,
+                    'signalStrength' => null,
+                    'trackingType' => $tracking->type,
+                    'startTime' => $tracking->recorded_at?->format('h:i A'),
+                    'endTime' => $nextTracking?->recorded_at?->format('h:i A') ?? $tracking->recorded_at?->format('h:i A'),
+                    'elapseTime' => $nextTracking && $tracking->recorded_at
+                        ? $this->formatSecondsAsClock($tracking->recorded_at->diffInSeconds($nextTracking->recorded_at))
+                        : '00:00:00',
+                    'distance' => $type === 'vehicle' ? round($distance, 2) : 0,
+                ];
+            })
+            ->values();
+    }
+
+    protected function filterTimelineTrackings($trackings): array
+    {
+        if ($trackings->count() === 0) {
+            return [];
+        }
+
+        $filtered = [];
+
+        foreach ($trackings as $tracking) {
+            if (in_array($tracking->type, ['checked_in', 'checked_out'], true)) {
+                $filtered[] = $tracking;
+                continue;
+            }
+
+            if (count($filtered) === 0) {
+                $filtered[] = $tracking;
+                continue;
+            }
+
+            $lastTracking = $filtered[count($filtered) - 1];
+            $distance = $this->distanceInKm(
+                (float) $lastTracking->latitude,
+                (float) $lastTracking->longitude,
+                (float) $tracking->latitude,
+                (float) $tracking->longitude
+            );
+
+            if ($distance < 0.5) {
+                continue;
+            }
+
+            if ($distance < 15 && $tracking->activity === 'ActivityType.IN_VEHICLE') {
+                continue;
+            }
+
+            $filtered[] = $tracking;
+        }
+
+        return array_slice($filtered, 0, 24);
+    }
+
+    protected function timelineModuleType(LocationTracking $tracking): string
+    {
+        if ($tracking->type === 'checked_in') {
+            return 'checkIn';
+        }
+
+        if ($tracking->type === 'checked_out') {
+            return 'checkOut';
+        }
+
+        $activity = strtolower((string) $tracking->activity);
+
+        return match (true) {
+            in_array($activity, ['activitytype.still', 'still'], true) => 'still',
+            in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
+            default => 'vehicle',
+        };
+    }
+
+    protected function distanceInKm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $earthRadius = 6371;
+        $latDistance = deg2rad($lat2 - $lat1);
+        $lonDistance = deg2rad($lon2 - $lon1);
+        $a = sin($latDistance / 2) * sin($latDistance / 2)
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($lonDistance / 2) * sin($lonDistance / 2);
+
+        return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
+    }
+
+    protected function formatSecondsAsClock(int|float $seconds): string
+    {
+        $seconds = max(0, (int) $seconds);
+
+        return sprintf(
+            '%02d:%02d:%02d',
+            intdiv($seconds, 3600),
+            intdiv($seconds % 3600, 60),
+            $seconds % 60
+        );
     }
 }
 

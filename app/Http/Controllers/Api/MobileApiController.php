@@ -908,8 +908,10 @@ class MobileApiController extends Controller
             'id' => $attendance->id,
             'user_id' => $attendance->user_id,
             'attendance_date' => $attendance->attendance_date?->toDateString(),
-            'check_in_at' => $attendance->check_in_at?->toISOString(),
-            'check_out_at' => $attendance->check_out_at?->toISOString(),
+            'check_in_at' => $this->localDateTimePayload($attendance->check_in_at),
+            'check_out_at' => $this->localDateTimePayload($attendance->check_out_at),
+            'check_in_time' => $attendance->check_in_at?->copy()->timezone(config('app.timezone'))->format('h:i A'),
+            'check_out_time' => $attendance->check_out_at?->copy()->timezone(config('app.timezone'))->format('h:i A'),
             'worked_minutes' => $workedMinutes,
             'worked_hours' => $workedMinutes === null ? null : intdiv((int) $workedMinutes, 60),
             'worked_remaining_minutes' => $workedMinutes === null ? null : (int) $workedMinutes % 60,
@@ -933,6 +935,11 @@ class MobileApiController extends Controller
         }
 
         return "{$minutes}m";
+    }
+
+    protected function localDateTimePayload($dateTime): ?string
+    {
+        return $dateTime?->copy()->timezone(config('app.timezone'))->toIso8601String();
     }
 
     protected function employeeExpensePayload(Expense $expense): array
@@ -1160,6 +1167,17 @@ class MobileApiController extends Controller
             'type' => $tracking->type,
             'recorded_at' => $tracking->recorded_at?->toISOString(),
         ];
+    }
+
+    protected function trackingTypeLabel(LocationTracking $tracking): string
+    {
+        return match ($tracking->type) {
+            'checked_in' => 'Check In',
+            'checked_out' => 'Check Out',
+            'still' => 'Still',
+            'travelling' => 'Travelling',
+            default => filled($tracking->activity) ? (string) $tracking->activity : ucfirst((string) $tracking->type),
+        };
     }
 
     protected function taskPayload(Task $task): array

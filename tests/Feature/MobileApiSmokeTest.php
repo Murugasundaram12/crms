@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Attendance;
 use App\Models\Client;
 use App\Models\Employee;
+use App\Models\LocationTracking;
 use App\Models\PaymentStage;
 use App\Models\Permission;
 use App\Models\Project;
@@ -12,6 +13,7 @@ use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -520,7 +522,33 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->getJson('/api/wallet/options')
             ->assertOk()
-            ->assertJsonPath('wallet_balance', 0);
+            ->assertJsonPath('wallet_balance', 0)
+            ->assertJsonPath('can_view_transfers', true);
+    }
+
+    public function test_wallet_options_are_available_to_authenticated_mobile_users(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Wallet Options Basic User',
+            'email' => 'wallet-options-basic@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 250,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Wallet Options Basic Test',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->getJson('/api/wallet/options')
+            ->assertOk()
+            ->assertJsonPath('wallet_balance', 250)
+            ->assertJsonPath('can_view_transfers', false)
+            ->assertJsonPath('can_create_transfer', false);
     }
 
     public function test_leave_request_requires_active_leave_type_from_options(): void
@@ -846,23 +874,55 @@ class MobileApiSmokeTest extends TestCase
             'accuracy' => 12,
             'isGpsOn' => true,
             'isMock' => false,
+            'recorded_at' => '2026-07-13T03:30:00Z',
         ];
 
-        $this->withHeaders($headers)
-            ->postJson('/api/check_in', $trackingPayload)
-            ->assertCreated();
+        Carbon::setTestNow(Carbon::parse('2026-07-15 11:36:00', 'Asia/Kolkata'));
 
-        $this->withHeaders($headers)
-            ->getJson('/api/attendance/status')
-            ->assertOk()
-            ->assertJsonPath('status', 'checked_in')
-            ->assertJsonPath('is_checked_in', true)
-            ->assertJsonPath('can_check_in', false)
-            ->assertJsonPath('can_check_out', true);
+        try {
+            $checkInResponse = $this->withHeaders($headers)
+                ->postJson('/api/check_in', $trackingPayload)
+                ->assertCreated()
+                ->assertJsonPath('attendance.check_in_time', '11:36 AM');
 
-        $this->withHeaders($headers)
-            ->postJson('/api/check_out', $trackingPayload)
-            ->assertOk();
+            $checkInTracking = LocationTracking::query()->find($checkInResponse->json('tracking.id'));
+            $this->assertSame(
+                '2026-07-15 11:36:00',
+                $checkInTracking?->recorded_at?->copy()->timezone('Asia/Kolkata')->format('Y-m-d H:i:s')
+            );
+
+            $this->withHeaders($headers)
+                ->getJson('/api/attendance/status')
+                ->assertOk()
+                ->assertJsonPath('status', 'checked_in')
+                ->assertJsonPath('is_checked_in', true)
+                ->assertJsonPath('can_check_in', false)
+                ->assertJsonPath('can_check_out', true);
+
+            Carbon::setTestNow(Carbon::parse('2026-07-15 11:38:00', 'Asia/Kolkata'));
+
+            $this->withHeaders($headers)
+                ->postJson('/api/check_out', $trackingPayload)
+                ->assertOk()
+                ->assertJsonPath('attendance.check_in_time', '11:36 AM')
+                ->assertJsonPath('attendance.check_out_time', '11:38 AM')
+                ->assertJsonPath('attendance.worked_minutes', 2)
+                ->assertJsonPath('attendance.worked_duration', '2m');
+
+            $this->withHeaders($headers)
+                ->postJson('/api/check_in', $trackingPayload)
+                ->assertStatus(409)
+                ->assertJsonPath('message', 'You have already checked in today.');
+
+            Carbon::setTestNow(Carbon::parse('2026-07-16 09:00:00', 'Asia/Kolkata'));
+
+            $this->withHeaders($headers)
+                ->postJson('/api/check_in', $trackingPayload)
+                ->assertCreated()
+                ->assertJsonPath('attendance.attendance_date', '2026-07-16');
+        } finally {
+            Carbon::setTestNow();
+        }
 
         $this->withHeaders($headers)
             ->getJson('/api/attendance/status')

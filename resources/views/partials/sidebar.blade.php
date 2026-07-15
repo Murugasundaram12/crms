@@ -8,6 +8,7 @@
     @php($isLabourExpensesMenuActive = request()->routeIs('labour-expenses.*'))
     @php($isVendorExpensesMenuActive = request()->routeIs('vendor-expenses.*'))
     @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('vendor-expenses.history'))
+    @php($isTrackingMenuActive = request()->routeIs('tracking.*'))
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -89,6 +90,23 @@
                         @if($currentUser && $currentUser->hasPermission('attendance-list'))
                             <li><a href="{{ route('attendance.index') }}"><i
                                         class="ti ti-clock"></i><span>Attendance</span></a></li>
+                        @endif
+
+                        @if($currentUser && $currentUser->hasPermission('employees-list'))
+                            <li class="submenu {{ $isTrackingMenuActive ? 'active' : '' }}">
+                                <a href="javascript:void(0);"
+                                    class="{{ $isTrackingMenuActive ? 'subdrop active' : '' }}">
+                                    <i class="ti ti-map-pin"></i><span>Employee Tracking</span><span class="menu-arrow"></span>
+                                </a>
+                                <ul style="{{ $isTrackingMenuActive ? 'display: block;' : 'display: none;' }}">
+                                    <li><a class="{{ request()->routeIs('tracking.index') ? 'active' : '' }}"
+                                            href="{{ route('tracking.index') }}">Timeline</a></li>
+                                    <li><a class="{{ request()->routeIs('tracking.live-map') ? 'active' : '' }}"
+                                            href="{{ route('tracking.live-map') }}">Live Location</a></li>
+                                    <li><a class="{{ request()->routeIs('tracking.card-view') ? 'active' : '' }}"
+                                            href="{{ route('tracking.card-view') }}">Card View</a></li>
+                                </ul>
+                            </li>
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('labour-roles-list'))
