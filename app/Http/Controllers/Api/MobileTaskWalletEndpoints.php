@@ -275,8 +275,10 @@ trait MobileTaskWalletEndpoints
 
     public function walletOptions(Request $request)
     {
-        if ($forbidden = $this->authorizeApiPermission($request, 'transfers-create')) {
-            return $forbidden;
+        $user = $request->user();
+
+        if (! $this->canUseApiPermission($user, 'transfers-list') && ! $this->canUseApiPermission($user, 'transfers-create')) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         return response()->json([
@@ -368,4 +370,3 @@ trait MobileTaskWalletEndpoints
         ], 201);
     }
 }
-
