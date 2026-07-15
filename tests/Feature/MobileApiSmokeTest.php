@@ -1250,6 +1250,41 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('data.0.user_id', $actor->id);
     }
 
+    public function test_attendance_history_displays_check_in_from_checkout_and_worked_minutes(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Attendance Time User',
+            'email' => 'attendance-time@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        Attendance::query()->create([
+            'user_id' => $user->id,
+            'attendance_date' => '2026-07-15',
+            'check_in_at' => Carbon::parse('2026-07-15 10:38:19', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-15 16:08:19', 'Asia/Kolkata'),
+            'worked_minutes' => 2,
+            'status' => 'present',
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Attendance Time Test',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->getJson('/api/attendance?page=1&per_page=10')
+            ->assertOk()
+            ->assertJsonPath('data.0.check_in_time', '04:06 PM')
+            ->assertJsonPath('data.0.check_out_time', '04:08 PM')
+            ->assertJsonPath('data.0.worked_minutes', 2)
+            ->assertJsonPath('data.0.worked_duration', '2m');
+    }
+
     private function assertSoftDeletedOrMissingTask(int $taskId): void
     {
         $this->assertFalse(Task::query()->whereKey($taskId)->exists());

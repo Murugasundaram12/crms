@@ -903,15 +903,17 @@ class MobileApiController extends Controller
     protected function attendancePayload(Attendance $attendance): array
     {
         $workedMinutes = $attendance->worked_minutes;
+        $checkInAt = $this->attendanceCheckInDisplayAt($attendance);
+        $checkOutAt = $attendance->check_out_at?->copy();
 
         return [
             'id' => $attendance->id,
             'user_id' => $attendance->user_id,
             'attendance_date' => $attendance->attendance_date?->toDateString(),
-            'check_in_at' => $this->localDateTimePayload($attendance->check_in_at),
-            'check_out_at' => $this->localDateTimePayload($attendance->check_out_at),
-            'check_in_time' => $attendance->check_in_at?->copy()->timezone(config('app.timezone'))->format('h:i A'),
-            'check_out_time' => $attendance->check_out_at?->copy()->timezone(config('app.timezone'))->format('h:i A'),
+            'check_in_at' => $this->localDateTimePayload($checkInAt),
+            'check_out_at' => $this->localDateTimePayload($checkOutAt),
+            'check_in_time' => $checkInAt?->copy()->timezone(config('app.timezone'))->format('h:i A'),
+            'check_out_time' => $checkOutAt?->copy()->timezone(config('app.timezone'))->format('h:i A'),
             'worked_minutes' => $workedMinutes,
             'worked_hours' => $workedMinutes === null ? null : intdiv((int) $workedMinutes, 60),
             'worked_remaining_minutes' => $workedMinutes === null ? null : (int) $workedMinutes % 60,
@@ -940,6 +942,15 @@ class MobileApiController extends Controller
     protected function localDateTimePayload($dateTime): ?string
     {
         return $dateTime?->copy()->timezone(config('app.timezone'))->toIso8601String();
+    }
+
+    protected function attendanceCheckInDisplayAt(Attendance $attendance)
+    {
+        if ($attendance->check_out_at && $attendance->worked_minutes !== null) {
+            return $attendance->check_out_at->copy()->subMinutes((int) $attendance->worked_minutes);
+        }
+
+        return $attendance->check_in_at?->copy();
     }
 
     protected function employeeExpensePayload(Expense $expense): array
