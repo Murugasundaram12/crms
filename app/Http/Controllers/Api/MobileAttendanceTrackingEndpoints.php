@@ -188,39 +188,18 @@ trait MobileAttendanceTrackingEndpoints
 
     public function attendances(Request $request)
     {
-        $canListAll = $this->canUseApiPermission($request->user(), 'attendance-list');
-
         $validated = $request->validate([
-            'user_id' => ['nullable', 'exists:users,id'],
-            'employee_id' => ['nullable', 'integer'],
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $requestedUserId = $validated['user_id'] ?? null;
-
-        if (blank($requestedUserId) && ! blank($validated['employee_id'] ?? null)) {
-            $requestedUserId = $this->userIdFromEmployeeId((int) $validated['employee_id']);
-
-            if (! $requestedUserId) {
-                throw ValidationException::withMessages([
-                    'employee_id' => 'Selected employee could not be matched to a user attendance record.',
-                ]);
-            }
-        }
-
         $query = Attendance::query()
             ->with('user')
+            ->where('user_id', $request->user()->id)
             ->latest('attendance_date')
             ->latest('check_in_at');
-
-        if (! $canListAll) {
-            $query->where('user_id', $request->user()->id);
-        } elseif (! blank($requestedUserId)) {
-            $query->where('user_id', $requestedUserId);
-        }
 
         if (! blank($validated['from_date'] ?? null)) {
             $query->whereDate('attendance_date', '>=', $request->date('from_date')->toDateString());

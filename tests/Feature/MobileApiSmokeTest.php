@@ -1187,6 +1187,69 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('message', 'Forbidden.');
     }
 
+    public function test_attendance_history_returns_only_logged_in_employee_records(): void
+    {
+        $actor = User::query()->create([
+            'name' => 'Attendance Owner',
+            'email' => 'attendance-owner@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $other = User::query()->create([
+            'name' => 'Other Attendance User',
+            'email' => 'other-attendance@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $permission = Permission::query()->create([
+            'name' => 'List Attendance',
+            'key' => 'attendance-list',
+        ]);
+
+        $role = Role::query()->create([
+            'name' => 'Attendance Admin',
+            'description' => 'Can list attendance',
+        ]);
+        $role->permissions()->sync([$permission->id]);
+        $actor->roles()->sync([$role->id]);
+
+        Attendance::query()->create([
+            'user_id' => $actor->id,
+            'attendance_date' => now()->toDateString(),
+            'check_in_at' => now()->subHours(2),
+            'check_out_at' => now()->subHour(),
+            'worked_minutes' => 60,
+            'status' => 'present',
+        ]);
+
+        Attendance::query()->create([
+            'user_id' => $other->id,
+            'attendance_date' => now()->toDateString(),
+            'check_in_at' => now()->subHours(3),
+            'check_out_at' => now()->subHours(2),
+            'worked_minutes' => 60,
+            'status' => 'present',
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $actor->email,
+            'password' => 'password',
+            'device_name' => 'Attendance History Test',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->getJson('/api/attendance?page=1&per_page=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.user_id', $actor->id);
+    }
+
     private function assertSoftDeletedOrMissingTask(int $taskId): void
     {
         $this->assertFalse(Task::query()->whereKey($taskId)->exists());
