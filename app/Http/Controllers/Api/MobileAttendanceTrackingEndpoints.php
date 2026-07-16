@@ -193,15 +193,23 @@ trait MobileAttendanceTrackingEndpoints
             'to' => ['nullable', 'date'],
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date'],
+            'user_id' => ['nullable', 'exists:users,id'],
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $query = Attendance::query()
             ->with('user')
-            ->where('user_id', $request->user()->id)
             ->latest('attendance_date')
             ->latest('check_in_at');
+
+        if ($this->canViewAllAppData($request->user())) {
+            if (! blank($validated['user_id'] ?? null)) {
+                $query->where('user_id', (int) $validated['user_id']);
+            }
+        } else {
+            $query->where('user_id', $request->user()->id);
+        }
 
         $fromDate = $validated['from_date'] ?? $validated['from'] ?? null;
         $toDate = $validated['to_date'] ?? $validated['to'] ?? null;

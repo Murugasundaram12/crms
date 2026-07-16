@@ -49,7 +49,7 @@ trait MobileLeaveMasterEndpoints
 
     public function leaveRequests(Request $request)
     {
-        $canListAll = $this->canUseApiPermission($request->user(), 'leave-requests-list');
+        $canListAll = $this->canViewAllAppData($request->user());
 
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],

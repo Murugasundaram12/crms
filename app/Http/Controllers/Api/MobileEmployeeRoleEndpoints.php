@@ -53,6 +53,7 @@ trait MobileEmployeeRoleEndpoints
 
         $employees = User::query()
             ->with(['roles'])
+            ->when(! $this->canViewAllAppData($request->user()), fn($query) => $query->whereKey($request->user()->id))
             ->when($validated['status'] ?? null, fn($query, $status) => $query->where('status', $status))
             ->when($validated['q'] ?? null, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
@@ -118,6 +119,7 @@ trait MobileEmployeeRoleEndpoints
 
         $employees = User::query()
             ->with('roles')
+            ->when(! $this->canViewAllAppData($request->user()), fn($query) => $query->whereKey($request->user()->id))
             ->when($validated['q'] ?? null, function ($query, string $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -178,6 +180,10 @@ trait MobileEmployeeRoleEndpoints
     {
         if ($forbidden = $this->authorizeApiPermission($request, 'employees-list')) {
             return $forbidden;
+        }
+
+        if (! $this->canViewAllAppData($request->user()) && (int) $employee->id !== (int) $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         return response()->json($this->employeeDetailPayload($employee));

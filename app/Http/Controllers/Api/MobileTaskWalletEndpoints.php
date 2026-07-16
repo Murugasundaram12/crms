@@ -60,6 +60,7 @@ trait MobileTaskWalletEndpoints
     public function tasks(Request $request)
     {
         $ownTaskEmployeeId = $this->taskEmployeeIdFromUserId($request->user()->id);
+        $canViewAll = $this->canViewAllAppData($request->user());
 
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
@@ -77,7 +78,7 @@ trait MobileTaskWalletEndpoints
 
         $query = Task::query()->with(['project', 'employee']);
 
-        if (! $ownTaskEmployeeId) {
+        if (! $canViewAll && ! $ownTaskEmployeeId) {
             $emptyTasks = Task::query()
                 ->whereRaw('1 = 0')
                 ->paginate((int) ($validated['per_page'] ?? 25));
@@ -85,7 +86,9 @@ trait MobileTaskWalletEndpoints
             return response()->json($emptyTasks);
         }
 
-        $query->where('employee_id', $ownTaskEmployeeId);
+        if (! $canViewAll) {
+            $query->where('employee_id', $ownTaskEmployeeId);
+        }
 
         if (! blank($validated['q'] ?? null)) {
             $search = $validated['q'];
@@ -99,7 +102,7 @@ trait MobileTaskWalletEndpoints
 
         foreach (['status', 'priority', 'project_id', 'employee_id', 'type'] as $filter) {
             if (! blank($validated[$filter] ?? null)) {
-                if ($filter === 'employee_id') {
+                if ($filter === 'employee_id' && ! $canViewAll) {
                     continue;
                 }
 
@@ -131,7 +134,7 @@ trait MobileTaskWalletEndpoints
 
     public function showTask(Request $request, Task $task)
     {
-        if (! $this->canUseApiPermission($request->user(), 'tasks-list') && ! $this->isOwnTask($request->user(), $task)) {
+        if (! $this->canViewAllAppData($request->user()) && ! $this->isOwnTask($request->user(), $task)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -210,10 +213,20 @@ trait MobileTaskWalletEndpoints
 
         $query = Wallet::query()
             ->where('delete_status', 0)
-            ->where('user_id', $request->user()->id)
             ->with(['user', 'client', 'project', 'stage'])
             ->when($validated['client_id'] ?? null, fn($q, $clientId) => $q->where('client_id', $clientId))
             ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId));
+
+        if ($this->canViewAllAppData($request->user())) {
+            if (! blank($validated['user_id'] ?? null)) {
+                $query->where('user_id', (int) $validated['user_id']);
+            } elseif (! blank($validated['employee_id'] ?? null)) {
+                $walletUserId = $this->userIdFromEmployeeId((int) $validated['employee_id']);
+                $query->where('user_id', $walletUserId ?: 0);
+            }
+        } else {
+            $query->where('user_id', $request->user()->id);
+        }
 
         if (! blank($validated['date_from'] ?? null)) {
             $query->whereDate('current_date', '>=', $request->date('date_from')->toDateString());
@@ -276,15 +289,16 @@ trait MobileTaskWalletEndpoints
         $canCreateTransfers = $this->canUseApiPermission($user, 'transfers-create');
 
         return response()->json([
-            'clients' => Client::query()
+            'clients' => $this->scopeClientsForAppUser(Client::query(), $user)
                 ->where('status', '!=', 'inactive')
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'projects' => Project::query()
+            'projects' => $this->scopeProjectsForAppUser(Project::query(), $user)
                 ->whereIn('status', ['planning', 'active', 'on_hold'])
                 ->orderBy('name')
                 ->get(['id', 'client_id', 'name', 'status']),
             'employees' => User::query()
+                ->when(! $this->canViewAllAppData($user), fn($query) => $query->whereKey($user->id))
                 ->where('status', '!=', 'inactive')
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'wallet']),
