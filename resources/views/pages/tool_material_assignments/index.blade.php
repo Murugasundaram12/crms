@@ -22,9 +22,28 @@
         @endcan
     </div>
 
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Transactions</span><h4 class="mb-0">{{ $summary['transactions'] }}</h4></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Completed</span><h4 class="mb-0">{{ $summary['completed'] }}</h4></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Material Value</span><h4 class="mb-0">Rs {{ number_format($summary['amount'], 2) }}</h4></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Vendor Returns</span><h4 class="mb-0">Rs {{ number_format($summary['vendor_returns'], 2) }}</h4></div></div>
+        </div>
+    </div>
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('tools-material-assignments.index') }}" method="GET" class="row g-3 align-items-end m-0">
+                <div class="col-12 col-md-6 col-xl-2">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="q" class="form-control" placeholder="Ref / receiver / vehicle" value="{{ request('q') }}">
+                </div>
                 <div class="col-12 col-md-6 col-xl-2">
                     <label class="form-label">Tool Name</label>
                     <select name="tool_material_id" class="form-select">
@@ -53,6 +72,15 @@
                     </select>
                 </div>
                 <div class="col-12 col-md-6 col-xl-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All</option>
+                        @foreach($statuses as $value => $label)
+                            <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-xl-2">
                     <label class="form-label">From</label>
                     <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
                 </div>
@@ -74,20 +102,55 @@
                 <table class="table table-hover table-nowrap align-middle mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th>Ref No</th>
                             <th>Tool Name</th>
+                            <th>Status</th>
                             <th>Transaction</th>
                             <th>From</th>
                             <th>To</th>
                             <th>Qty</th>
                             <th>Amount</th>
+                            <th>Receiver</th>
+                            <th>Vehicle</th>
+                            <th>Handled By</th>
                             <th>Date & Time</th>
                             <th class="text-end">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($assignments as $assignment)
+                            @php
+                                $currentSiteId = null;
+                                $currentSiteName = null;
+                                $siteBalance = 0.0;
+                                $canShowMoveActions = false;
+
+                                if ($assignment->destination_type === 'site' && $assignment->to_project_id) {
+                                    $currentSiteId = $assignment->to_project_id;
+                                    $currentSiteName = $assignment->toProject?->name;
+                                } elseif ($assignment->source_type === 'site' && $assignment->from_project_id) {
+                                    $currentSiteId = $assignment->from_project_id;
+                                    $currentSiteName = $assignment->fromProject?->name;
+                                }
+
+                                if ($assignment->status === 'completed' && $currentSiteId && $assignment->toolMaterial) {
+                                    $siteBalance = (float) ($assignment->toolMaterial->stockBalances()['site:' . $currentSiteId]['quantity'] ?? 0);
+                                    $canShowMoveActions = true;
+                                }
+
+                                $moveQuantity = $siteBalance > 0
+                                    ? min(max((float) $assignment->quantity, 1), $siteBalance)
+                                    : max((float) $assignment->quantity, 1);
+                                $moveAmount = round($moveQuantity * (float) $assignment->rate, 2);
+                            @endphp
                             <tr>
+                                <td class="fw-semibold">{{ $assignment->reference_no }}</td>
                                 <td class="fw-semibold">{{ $assignment->toolMaterial?->name ?? '-' }}</td>
+                                <td>
+                                    <span class="badge {{ $assignment->status === 'completed' ? 'bg-success' : ($assignment->status === 'cancelled' ? 'bg-danger' : 'bg-secondary') }}">
+                                        {{ $assignment->statusLabel() }}
+                                    </span>
+                                </td>
                                 <td>
                                     <span class="badge bg-soft-info text-info">
                                         {{ $assignment->transactionLabel() }}
@@ -105,8 +168,41 @@
                                 </td>
                                 <td>{{ number_format((float) $assignment->quantity, 2) }} {{ $assignment->unit }}</td>
                                 <td>Rs {{ number_format((float) $assignment->amount, 2) }}</td>
+                                <td>{{ $assignment->receiver_name ?: '-' }}</td>
+                                <td>{{ $assignment->vehicle_no ?: '-' }}</td>
+                                <td>{{ $assignment->handler?->name ?? '-' }}</td>
                                 <td>{{ $assignment->transferred_at?->format('d M Y h:i A') ?: '-' }}</td>
                                 <td class="text-end">
+                                    @if(auth()->user()?->hasPermission('tools-materials-create') && $canShowMoveActions)
+                                        <div class="d-inline-flex gap-1 me-1">
+                                            <a class="btn btn-sm btn-outline-success" href="{{ route('tools-material-assignments.create', [
+                                                'tool_material_id' => $assignment->tool_material_id,
+                                                'transaction_type' => 'return_to_office',
+                                                'source_type' => 'site',
+                                                'destination_type' => 'office',
+                                                'from_project_id' => $currentSiteId,
+                                                'quantity' => $moveQuantity,
+                                                'rate' => $assignment->rate,
+                                                'amount' => $moveAmount,
+                                                'purpose' => 'Return from ' . ($currentSiteName ?? 'site'),
+                                            ]) }}">
+                                                Return
+                                            </a>
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('tools-material-assignments.create', [
+                                                'tool_material_id' => $assignment->tool_material_id,
+                                                'transaction_type' => 'site_to_site',
+                                                'source_type' => 'site',
+                                                'destination_type' => 'site',
+                                                'from_project_id' => $currentSiteId,
+                                                'quantity' => $moveQuantity,
+                                                'rate' => $assignment->rate,
+                                                'amount' => $moveAmount,
+                                                'purpose' => 'Transfer from ' . ($currentSiteName ?? 'site'),
+                                            ]) }}">
+                                                Transfer
+                                            </a>
+                                        </div>
+                                    @endif
                                     <x-action-dropdown
                                         :editRoute="route('tools-material-assignments.edit', $assignment)"
                                         editPermission="tools-materials-edit"
@@ -119,7 +215,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No transfer records found.</td>
+                                <td colspan="13" class="text-center text-muted py-4">No transfer records found.</td>
                             </tr>
                         @endforelse
                     </tbody>

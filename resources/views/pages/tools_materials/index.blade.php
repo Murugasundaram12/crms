@@ -22,6 +22,21 @@
         @endcan
     </div>
 
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Items</span><h4 class="mb-0">{{ $summary['items'] }}</h4></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Tools / Materials</span><h4 class="mb-0">{{ $summary['tools'] }} / {{ $summary['materials'] }}</h4></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Stock Value</span><h4 class="mb-0">Rs {{ number_format($summary['stock_value'], 2) }}</h4></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body"><span class="text-muted">Low Stock</span><h4 class="mb-0 text-danger">{{ $summary['low_stock'] }}</h4></div></div>
+        </div>
+    </div>
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
             <form action="{{ route('tools-materials.index') }}" method="GET" class="row g-3 align-items-end m-0">
@@ -55,11 +70,16 @@
                     <thead class="table-light">
                         <tr>
                             <th>Image</th>
+                            <th>Type</th>
+                            <th>SKU</th>
                             <th>Name</th>
                             <th>Unit</th>
                             <th>Opening</th>
+                            <th>Office</th>
+                            <th>Sites</th>
                             <th>Balance</th>
                             <th>Value</th>
+                            <th>Status</th>
                             <th>Date</th>
                             <th class="text-end">Action</th>
                         </tr>
@@ -74,11 +94,24 @@
                                         <span class="avatar bg-light text-muted"><i class="ti ti-photo"></i></span>
                                     @endif
                                 </td>
+                                <td><span class="badge bg-light text-dark">{{ ucfirst($item->item_type) }}</span></td>
+                                <td>{{ $item->sku ?: '-' }}</td>
                                 <td class="fw-semibold">{{ $item->name }}</td>
                                 <td>{{ $item->unit }}</td>
                                 <td>{{ number_format((float) $item->opening_quantity, 2) }} {{ $item->unit }}</td>
+                                <td>{{ number_format($item->office_stock_quantity, 2) }} {{ $item->unit }}</td>
+                                <td>{{ number_format($item->site_stock_quantity, 2) }} {{ $item->unit }}</td>
                                 <td class="fw-semibold">{{ number_format($item->stock_quantity, 2) }} {{ $item->unit }}</td>
                                 <td>Rs {{ number_format($item->stock_amount, 2) }}</td>
+                                <td>
+                                    @if(!$item->active_status)
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    @elseif($item->is_low_stock)
+                                        <span class="badge bg-danger">Low Stock</span>
+                                    @else
+                                        <span class="badge bg-success">Active</span>
+                                    @endif
+                                </td>
                                 <td>{{ $item->date?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
                                     <x-action-dropdown
@@ -93,7 +126,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No tools or materials found.</td>
+                                <td colspan="13" class="text-center text-muted py-4">No tools or materials found.</td>
                             </tr>
                         @endforelse
                     </tbody>

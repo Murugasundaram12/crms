@@ -1,16 +1,36 @@
-@php($selectedTransactionType = old('transaction_type', $assignment?->transaction_type ?? 'issue_to_site'))
-@php($selectedSourceType = old('source_type', $assignment?->source_type ?? 'office'))
-@php($selectedDestinationType = old('destination_type', $assignment?->destination_type ?? 'site'))
+@php($prefill = $prefill ?? [])
+@php($selectedTransactionType = old('transaction_type', $assignment?->transaction_type ?? ($prefill['transaction_type'] ?? 'issue_to_site')))
+@php($selectedSourceType = old('source_type', $assignment?->source_type ?? ($prefill['source_type'] ?? 'office')))
+@php($selectedDestinationType = old('destination_type', $assignment?->destination_type ?? ($prefill['destination_type'] ?? 'site')))
+@php($selectedToolMaterialId = old('tool_material_id', $assignment?->tool_material_id ?? ($selectedToolMaterialId ?? null)))
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6">
+                <label class="form-label">Reference No</label>
+                <input type="text" name="reference_no" class="form-control" value="{{ old('reference_no', $assignment?->reference_no) }}" placeholder="Auto generated if empty">
+                @error('reference_no')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select" required>
+                    @foreach($statuses as $value => $label)
+                        <option value="{{ $value }}" @selected(old('status', $assignment?->status ?? 'completed') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                @error('status')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-6">
                 <label class="form-label">Tool Name</label>
                 <select name="tool_material_id" class="form-select" required>
                     <option value="">Select Tool</option>
                     @foreach($toolsMaterials as $tool)
-                        <option value="{{ $tool->id }}" @selected((string) old('tool_material_id', $assignment?->tool_material_id) === (string) $tool->id)>{{ $tool->name }}</option>
+                        <option value="{{ $tool->id }}" @selected((string) $selectedToolMaterialId === (string) $tool->id)>
+                            {{ $tool->name }} - Balance {{ number_format($tool->stock_quantity, 2) }} {{ $tool->unit }}
+                        </option>
                     @endforeach
                 </select>
                 @error('tool_material_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
@@ -21,7 +41,7 @@
                 <select name="from_project_id" class="form-select">
                     <option value="">Select From Site</option>
                     @foreach($projects as $project)
-                        <option value="{{ $project->id }}" @selected((string) old('from_project_id', $assignment?->from_project_id) === (string) $project->id)>
+                        <option value="{{ $project->id }}" @selected((string) old('from_project_id', $assignment?->from_project_id ?? ($prefill['from_project_id'] ?? null)) === (string) $project->id)>
                             {{ $project->name }}
                         </option>
                     @endforeach
@@ -62,7 +82,7 @@
                 <select name="to_project_id" class="form-select">
                     <option value="">Select To Site</option>
                     @foreach($projects as $project)
-                        <option value="{{ $project->id }}" @selected((string) old('to_project_id', $assignment?->to_project_id) === (string) $project->id)>
+                        <option value="{{ $project->id }}" @selected((string) old('to_project_id', $assignment?->to_project_id ?? ($prefill['to_project_id'] ?? null)) === (string) $project->id)>
                             {{ $project->name }}
                         </option>
                     @endforeach
@@ -75,7 +95,7 @@
                 <select name="vendor_id" class="form-select">
                     <option value="">Select Vendor</option>
                     @foreach($vendors as $vendor)
-                        <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', $assignment?->vendor_id) === (string) $vendor->id)>{{ $vendor->name }}</option>
+                        <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', $assignment?->vendor_id ?? ($prefill['vendor_id'] ?? null)) === (string) $vendor->id)>{{ $vendor->name }}</option>
                     @endforeach
                 </select>
                 @error('vendor_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
@@ -83,20 +103,38 @@
 
             <div class="col-md-4">
                 <label class="form-label">Quantity</label>
-                <input type="number" step="0.01" name="quantity" id="toolQuantity" class="form-control" value="{{ old('quantity', $assignment?->quantity ?? 1) }}" required>
+                <input type="number" step="0.01" name="quantity" id="toolQuantity" class="form-control" value="{{ old('quantity', $assignment?->quantity ?? ($prefill['quantity'] ?? 1)) }}" required>
                 @error('quantity')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Rate</label>
-                <input type="number" step="0.01" name="rate" id="toolRate" class="form-control" value="{{ old('rate', $assignment?->rate ?? 0) }}" required>
+                <input type="number" step="0.01" name="rate" id="toolRate" class="form-control" value="{{ old('rate', $assignment?->rate ?? ($prefill['rate'] ?? 0)) }}" required>
                 @error('rate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Amount</label>
-                <input type="number" step="0.01" name="amount" id="toolAmount" class="form-control" value="{{ old('amount', $assignment?->amount ?? 0) }}">
+                <input type="number" step="0.01" name="amount" id="toolAmount" class="form-control" value="{{ old('amount', $assignment?->amount ?? ($prefill['amount'] ?? 0)) }}">
                 @error('amount')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Receiver Name</label>
+                <input type="text" name="receiver_name" class="form-control" value="{{ old('receiver_name', $assignment?->receiver_name ?? ($prefill['receiver_name'] ?? null)) }}">
+                @error('receiver_name')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Vehicle No</label>
+                <input type="text" name="vehicle_no" class="form-control" value="{{ old('vehicle_no', $assignment?->vehicle_no ?? ($prefill['vehicle_no'] ?? null)) }}">
+                @error('vehicle_no')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Purpose</label>
+                <input type="text" name="purpose" class="form-control" value="{{ old('purpose', $assignment?->purpose ?? ($prefill['purpose'] ?? null)) }}">
+                @error('purpose')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-6">
@@ -108,7 +146,7 @@
 
             <div class="col-md-6">
                 <label class="form-label">Notes</label>
-                <textarea name="notes" class="form-control" rows="2">{{ old('notes', $assignment?->notes) }}</textarea>
+                <textarea name="notes" class="form-control" rows="2">{{ old('notes', $assignment?->notes ?? ($prefill['notes'] ?? null)) }}</textarea>
                 @error('notes')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
@@ -153,9 +191,11 @@
                 if (vendorField) vendorField.style.display = vendorVisible ? '' : 'none';
             }
 
+            let amountTouched = false;
+
             function syncAmount() {
                 const calculated = (Number(quantity?.value || 0) * Number(rate?.value || 0)).toFixed(2);
-                if (amount && (amount.value === '' || Number(amount.value) === 0)) {
+                if (amount && !amountTouched) {
                     amount.value = calculated;
                 }
             }
@@ -165,7 +205,11 @@
             destinationType?.addEventListener('change', syncTransactionFields);
             quantity?.addEventListener('input', syncAmount);
             rate?.addEventListener('input', syncAmount);
+            amount?.addEventListener('input', function () {
+                amountTouched = true;
+            });
             syncTransactionFields();
+            syncAmount();
         });
     </script>
 @endpush
