@@ -9,6 +9,7 @@ use App\Models\LocationTracking;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
 class EmployeeTrackingController extends Controller
@@ -230,6 +231,31 @@ class EmployeeTrackingController extends Controller
         ]);
     }
 
+    public function snapTimeLineRoute(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'points' => ['required', 'array', 'min:2', 'max:300'],
+            'points.*.lat' => ['required', 'numeric', 'between:-90,90'],
+            'points.*.lng' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $googleMapsKey = (string) $this->settingValue(
+            'google_maps_api_key',
+            config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
+        );
+
+        if ($googleMapsKey === '') {
+            return response()->json(['snapped' => false, 'points' => []]);
+        }
+
+        $snappedPoints = $this->snapPointsToRoads($validated['points'], $googleMapsKey);
+
+        return response()->json([
+            'snapped' => count($snappedPoints) >= 2,
+            'points' => $snappedPoints,
+        ]);
+    }
+
     private function mapSettings(): array
     {
         return [
@@ -357,10 +383,76 @@ class EmployeeTrackingController extends Controller
                 continue;
             }
 
+            if ($this->isUnrealisticTimelineJump($lastTracking, $tracking, $distance)) {
+                continue;
+            }
+
             $filtered[] = $tracking;
         }
 
-        return array_slice($filtered, 0, 200);
+        return array_slice($filtered, 0, 500);
+    }
+
+    private function isUnrealisticTimelineJump(LocationTracking $previous, LocationTracking $current, float $distanceKm): bool
+    {
+        if (! $previous->recorded_at || ! $current->recorded_at) {
+            return false;
+        }
+
+        $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+        $speedKmh = ($distanceKm / $seconds) * 3600;
+
+        return $speedKmh > 120;
+    }
+
+    private function snapPointsToRoads(array $points, string $googleMapsKey): array
+    {
+        $snappedPoints = [];
+        $count = count($points);
+
+        for ($offset = 0; $offset < $count - 1; $offset += 99) {
+            $chunk = array_slice($points, $offset, 100);
+
+            if (count($chunk) < 2) {
+                continue;
+            }
+
+            $path = collect($chunk)
+                ->map(fn (array $point) => $point['lat'] . ',' . $point['lng'])
+                ->implode('|');
+
+            $response = Http::timeout(10)->get('https://roads.googleapis.com/v1/snapToRoads', [
+                'path' => $path,
+                'interpolate' => 'true',
+                'key' => $googleMapsKey,
+            ]);
+
+            if (! $response->ok()) {
+                return [];
+            }
+
+            foreach ($response->json('snappedPoints', []) as $snappedPoint) {
+                $location = $snappedPoint['location'] ?? null;
+
+                if (! isset($location['latitude'], $location['longitude'])) {
+                    continue;
+                }
+
+                $point = [
+                    'lat' => (float) $location['latitude'],
+                    'lng' => (float) $location['longitude'],
+                ];
+                $previous = $snappedPoints[count($snappedPoints) - 1] ?? null;
+
+                if ($previous && $previous['lat'] === $point['lat'] && $previous['lng'] === $point['lng']) {
+                    continue;
+                }
+
+                $snappedPoints[] = $point;
+            }
+        }
+
+        return $snappedPoints;
     }
 
     private function timelineModuleType(LocationTracking $tracking): string

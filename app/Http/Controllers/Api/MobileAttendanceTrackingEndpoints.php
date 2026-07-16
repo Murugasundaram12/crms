@@ -649,10 +649,26 @@ trait MobileAttendanceTrackingEndpoints
                 continue;
             }
 
+            if ($this->isUnrealisticTimelineJump($lastTracking, $tracking, $distance)) {
+                continue;
+            }
+
             $filtered[] = $tracking;
         }
 
-        return array_slice($filtered, 0, 200);
+        return array_slice($filtered, 0, 500);
+    }
+
+    protected function isUnrealisticTimelineJump(LocationTracking $previous, LocationTracking $current, float $distanceKm): bool
+    {
+        if (! $previous->recorded_at || ! $current->recorded_at) {
+            return false;
+        }
+
+        $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+        $speedKmh = ($distanceKm / $seconds) * 3600;
+
+        return $speedKmh > 120;
     }
 
     protected function timelineModuleType(LocationTracking $tracking): string
@@ -698,4 +714,3 @@ trait MobileAttendanceTrackingEndpoints
         );
     }
 }
-
