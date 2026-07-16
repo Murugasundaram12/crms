@@ -927,10 +927,52 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->getJson('/api/attendance/status')
             ->assertOk()
-            ->assertJsonPath('status', 'checked_out')
-            ->assertJsonPath('is_checked_in', false)
-            ->assertJsonPath('can_check_in', true)
-            ->assertJsonPath('can_check_out', false);
+            ->assertJsonPath('status', 'checked_in')
+            ->assertJsonPath('is_checked_in', true)
+            ->assertJsonPath('can_check_in', false)
+            ->assertJsonPath('can_check_out', true);
+    }
+
+    public function test_attendance_status_reports_previous_day_open_check_in_as_active(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Overnight Attendance User',
+            'email' => 'overnight-attendance@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        Attendance::query()->create([
+            'user_id' => $user->id,
+            'attendance_date' => '2026-07-15',
+            'check_in_at' => Carbon::parse('2026-07-15 18:38:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Overnight Attendance Test',
+        ])->json('token');
+
+        Carbon::setTestNow(Carbon::parse('2026-07-16 09:19:00', 'Asia/Kolkata'));
+
+        try {
+            $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+                ->getJson('/api/attendance/status')
+                ->assertOk()
+                ->assertJsonPath('date', '2026-07-16')
+                ->assertJsonPath('status', 'checked_in')
+                ->assertJsonPath('is_checked_in', true)
+                ->assertJsonPath('can_check_in', false)
+                ->assertJsonPath('can_check_out', true)
+                ->assertJsonPath('active_attendance.attendance_date', '2026-07-15')
+                ->assertJsonPath('active_attendance.check_in_time', '06:38 PM');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_logout_is_blocked_when_today_due_task_is_not_completed(): void

@@ -285,15 +285,17 @@ trait MobileAttendanceTrackingEndpoints
             ? $request->date('date')->toDateString()
             : now()->toDateString();
 
+        $activeAttendance = $this->activeAttendance($userId);
+
         $latestAttendance = Attendance::query()
             ->where('user_id', $userId)
             ->whereDate('attendance_date', $date)
             ->latest('check_in_at')
             ->first();
 
-        $activeAttendance = $latestAttendance && ! $latestAttendance->check_out_at
-            ? $latestAttendance
-            : null;
+        if (! $latestAttendance && $activeAttendance) {
+            $latestAttendance = $activeAttendance;
+        }
 
         return response()->json([
             'user_id' => $userId,
@@ -622,6 +624,7 @@ trait MobileAttendanceTrackingEndpoints
         }
 
         $filtered = [];
+        $minimumDistanceKm = max(0.01, ((float) $this->settingValue('minimum_distance_meters', 25)) / 1000);
 
         foreach ($trackings as $tracking) {
             if (in_array($tracking->type, ['checked_in', 'checked_out'], true)) {
@@ -642,18 +645,14 @@ trait MobileAttendanceTrackingEndpoints
                 (float) $tracking->longitude
             );
 
-            if ($distance < 0.5) {
-                continue;
-            }
-
-            if ($distance < 15 && $tracking->activity === 'ActivityType.IN_VEHICLE') {
+            if ($distance < $minimumDistanceKm) {
                 continue;
             }
 
             $filtered[] = $tracking;
         }
 
-        return array_slice($filtered, 0, 24);
+        return array_slice($filtered, 0, 200);
     }
 
     protected function timelineModuleType(LocationTracking $tracking): string

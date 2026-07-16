@@ -169,7 +169,6 @@
         let timelineMap;
         let timelineMarkers = [];
         let timelinePolyline = null;
-        let directionsService;
 
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('trackingEmployee')?.addEventListener('change', loadTimelineData);
@@ -193,8 +192,6 @@
                 mapTypeId: google.maps.MapTypeId.ROADMAP,
                 gestureHandling: 'greedy',
             });
-
-            directionsService = new google.maps.DirectionsService();
 
             if (document.getElementById('trackingEmployee').value && document.getElementById('trackingDate').value) {
                 loadTimelineData();
@@ -243,7 +240,6 @@
             let contents = '';
             let finalDistance = '- KM';
             const latLngs = [];
-            const waypoints = [];
             const addressLookups = [];
             let hasTravelPoint = false;
             let attendanceCard = '';
@@ -257,7 +253,6 @@
 
                     if (Number.isFinite(latitude) && Number.isFinite(longitude) && latitude !== 0) {
                         const position = new google.maps.LatLng(latitude, longitude);
-                        waypoints.push({location: position, stopover: false});
                         latLngs.push(position);
 
                         const trackingType = item.trackingType;
@@ -332,7 +327,7 @@
                 attendanceCard = attendanceSessionCard(items);
                 contents = `${attendanceCard}${contents}`;
 
-                drawTimelineRoute(items, waypoints, latLngs, hasTravelPoint);
+                drawTimelineRoute(items, latLngs, hasTravelPoint);
 
                 if (data.totalKM !== undefined && data.totalKM !== null) {
                     finalDistance = `${Number(data.totalKM).toFixed(2)} KM`;
@@ -418,7 +413,7 @@
             return 'Unknown address!';
         }
 
-        function drawTimelineRoute(items, waypoints, latLngs, hasTravelPoint) {
+        function drawTimelineRoute(items, latLngs, hasTravelPoint) {
             if (!latLngs.length) {
                 return;
             }
@@ -429,48 +424,16 @@
                 return;
             }
 
-            const firstItem = items[0];
-            const lastItem = items[items.length - 1];
             const middle = items[Math.round((items.length - 1) / 2)];
             timelineMap.setCenter(new google.maps.LatLng(Number(middle.latitude), Number(middle.longitude)));
             timelineMap.setZoom(11);
 
-            const polyline = new google.maps.Polyline({
-                path: [],
+            timelinePolyline = new google.maps.Polyline({
+                path: latLngs,
+                geodesic: true,
                 strokeColor: '#0000FF',
                 strokeWeight: 3,
-            });
-
-            directionsService.route({
-                origin: new google.maps.LatLng(Number(firstItem.latitude), Number(firstItem.longitude)),
-                destination: new google.maps.LatLng(Number(lastItem.latitude), Number(lastItem.longitude)),
-                waypoints,
-                optimizeWaypoints: true,
-                travelMode: google.maps.TravelMode.DRIVING,
-            }, function (response, status) {
-                if (status === google.maps.DirectionsStatus.OK) {
-                    const legs = response.routes[0].legs;
-                    for (let i = 0; i < legs.length; i++) {
-                        const steps = legs[i].steps;
-                        for (let j = 0; j < steps.length; j++) {
-                            const nextSegment = steps[j].path;
-                            for (let k = 0; k < nextSegment.length; k++) {
-                                polyline.getPath().push(nextSegment[k]);
-                            }
-                        }
-                    }
-                    polyline.setMap(timelineMap);
-                    timelinePolyline = polyline;
-                    return;
-                }
-
-                timelinePolyline = new google.maps.Polyline({
-                    path: latLngs,
-                    geodesic: true,
-                    strokeColor: '#0000FF',
-                    strokeWeight: 3,
-                    map: timelineMap,
-                });
+                map: timelineMap,
             });
         }
 

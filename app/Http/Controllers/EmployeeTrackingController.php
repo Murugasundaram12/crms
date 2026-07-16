@@ -337,6 +337,7 @@ class EmployeeTrackingController extends Controller
         }
 
         $filtered = [];
+        $minimumDistanceKm = max(0.01, ((float) $this->settingValue('minimum_distance_meters', 25)) / 1000);
 
         foreach ($trackings as $tracking) {
             if (in_array($tracking->type, ['checked_in', 'checked_out'], true) || count($filtered) === 0) {
@@ -352,18 +353,14 @@ class EmployeeTrackingController extends Controller
                 (float) $tracking->longitude
             );
 
-            if ($distance < 0.5) {
-                continue;
-            }
-
-            if ($distance < 15 && $tracking->activity === 'ActivityType.IN_VEHICLE') {
+            if ($distance < $minimumDistanceKm) {
                 continue;
             }
 
             $filtered[] = $tracking;
         }
 
-        return array_slice($filtered, 0, 24);
+        return array_slice($filtered, 0, 200);
     }
 
     private function timelineModuleType(LocationTracking $tracking): string
