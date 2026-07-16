@@ -12,7 +12,7 @@ class ToolMaterialController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = ToolMaterial::query();
+        $query = ToolMaterial::query()->with('assignments');
 
         if ($request->filled('q')) {
             $search = $request->string('q')->toString();
@@ -43,6 +43,9 @@ class ToolMaterialController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateToolMaterial($request);
+        $validated['opening_quantity'] = (float) ($validated['opening_quantity'] ?? 0);
+        $validated['opening_rate'] = (float) ($validated['opening_rate'] ?? 0);
+        $validated['opening_amount'] = round($validated['opening_quantity'] * $validated['opening_rate'], 2);
 
         if ($request->hasFile('image')) {
             $validated['image_path'] = $request->file('image')->store('tools-materials', 'public');
@@ -61,6 +64,9 @@ class ToolMaterialController extends Controller
     public function update(Request $request, ToolMaterial $toolsMaterial): RedirectResponse
     {
         $validated = $this->validateToolMaterial($request);
+        $validated['opening_quantity'] = (float) ($validated['opening_quantity'] ?? 0);
+        $validated['opening_rate'] = (float) ($validated['opening_rate'] ?? 0);
+        $validated['opening_amount'] = round($validated['opening_quantity'] * $validated['opening_rate'], 2);
 
         if ($request->hasFile('image')) {
             if ($toolsMaterial->image_path) {
@@ -90,8 +96,11 @@ class ToolMaterialController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'unit' => ['required', 'string', 'max:50'],
             'image' => ['nullable', 'image', 'max:2048'],
             'date' => ['required', 'date'],
+            'opening_quantity' => ['nullable', 'numeric', 'min:0'],
+            'opening_rate' => ['nullable', 'numeric', 'min:0'],
         ]);
     }
 }

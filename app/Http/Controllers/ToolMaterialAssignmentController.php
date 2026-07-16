@@ -5,18 +5,30 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\ToolMaterial;
 use App\Models\ToolMaterialAssignment;
+use App\Models\Vendor;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ToolMaterialAssignmentController extends Controller
 {
+    private const TRANSACTION_TYPES = [
+        'purchase' => 'Purchase',
+        'issue_to_site' => 'Issue to Site',
+        'return_to_office' => 'Return to Office',
+        'site_to_site' => 'Site to Site',
+        'return_to_vendor' => 'Return to Vendor',
+        'damage_wastage' => 'Damage / Wastage',
+    ];
+
     public function index(Request $request): View
     {
         $query = ToolMaterialAssignment::query()
-            ->with(['toolMaterial', 'fromProject', 'toProject']);
+            ->with(['toolMaterial', 'fromProject', 'toProject', 'vendor']);
 
         if ($request->filled('tool_material_id')) {
             $query->where('tool_material_id', $request->integer('tool_material_id'));
@@ -31,8 +43,8 @@ class ToolMaterialAssignmentController extends Controller
             });
         }
 
-        if ($request->filled('transfer_type')) {
-            $query->where('transfer_type', $request->string('transfer_type')->toString());
+        if ($request->filled('transaction_type')) {
+            $query->where('transaction_type', $request->string('transaction_type')->toString());
         }
 
         if ($request->filled('date_from')) {
@@ -51,6 +63,7 @@ class ToolMaterialAssignmentController extends Controller
             'assignments' => $assignments,
             'toolsMaterials' => $this->toolsMaterials(),
             'projects' => $this->projects(),
+            'transactionTypes' => self::TRANSACTION_TYPES,
         ]);
     }
 
@@ -59,12 +72,19 @@ class ToolMaterialAssignmentController extends Controller
         return view('pages.tool_material_assignments.create', [
             'toolsMaterials' => $this->toolsMaterials(),
             'projects' => $this->projects(),
+            'vendors' => $this->vendors(),
+            'transactionTypes' => self::TRANSACTION_TYPES,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        ToolMaterialAssignment::query()->create($this->validateAssignment($request));
+        $validated = $this->validateAssignment($request);
+
+        DB::transaction(function () use ($validated) {
+            $assignment = ToolMaterialAssignment::query()->create($validated);
+            $this->applyVendorReturnBalance($assignment, 1);
+        });
 
         return redirect()->route('tools-material-assignments.index')->with('success', 'Tool / material transfer saved successfully.');
     }
@@ -75,19 +95,30 @@ class ToolMaterialAssignmentController extends Controller
             'assignment' => $toolsMaterialAssignment,
             'toolsMaterials' => $this->toolsMaterials(),
             'projects' => $this->projects(),
+            'vendors' => $this->vendors(),
+            'transactionTypes' => self::TRANSACTION_TYPES,
         ]);
     }
 
     public function update(Request $request, ToolMaterialAssignment $toolsMaterialAssignment): RedirectResponse
     {
-        $toolsMaterialAssignment->update($this->validateAssignment($request));
+        $validated = $this->validateAssignment($request);
+
+        DB::transaction(function () use ($toolsMaterialAssignment, $validated) {
+            $this->applyVendorReturnBalance($toolsMaterialAssignment, -1);
+            $toolsMaterialAssignment->update($validated);
+            $this->applyVendorReturnBalance($toolsMaterialAssignment->fresh(), 1);
+        });
 
         return redirect()->route('tools-material-assignments.index')->with('success', 'Tool / material transfer updated successfully.');
     }
 
     public function destroy(ToolMaterialAssignment $toolsMaterialAssignment): RedirectResponse
     {
-        $toolsMaterialAssignment->delete();
+        DB::transaction(function () use ($toolsMaterialAssignment) {
+            $this->applyVendorReturnBalance($toolsMaterialAssignment, -1);
+            $toolsMaterialAssignment->delete();
+        });
 
         return redirect()->route('tools-material-assignments.index')->with('success', 'Tool / material transfer deleted successfully.');
     }
@@ -96,36 +127,128 @@ class ToolMaterialAssignmentController extends Controller
     {
         $validated = $request->validate([
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
-            'from_project_id' => ['required', 'exists:projects,id'],
+            'from_project_id' => ['nullable', 'exists:projects,id'],
             'to_project_id' => ['nullable', 'exists:projects,id'],
-            'transfer_type' => ['required', Rule::in(['site_to_office', 'site_to_site'])],
+            'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'transaction_type' => ['required', Rule::in(array_keys(self::TRANSACTION_TYPES))],
+            'source_type' => ['nullable', Rule::in(['office', 'site', 'vendor'])],
+            'destination_type' => ['nullable', Rule::in(['office', 'site', 'vendor', 'wastage'])],
+            'quantity' => ['required', 'numeric', 'min:0.01'],
+            'rate' => ['required', 'numeric', 'min:0'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
             'transferred_at' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:1000'],
         ], [], [
             'tool_material_id' => 'tool name',
             'from_project_id' => 'site name',
             'to_project_id' => 'to site',
+            'vendor_id' => 'vendor',
+            'transaction_type' => 'transaction type',
             'transferred_at' => 'date and time',
         ]);
 
-        if ($validated['transfer_type'] === 'site_to_site') {
-            if (empty($validated['to_project_id'])) {
-                throw ValidationException::withMessages([
-                    'to_project_id' => 'To site is required for site to site transfer.',
-                ]);
-            }
+        $validated['amount'] = round((float) ($validated['amount'] ?? ((float) $validated['quantity'] * (float) $validated['rate'])), 2);
+        $validated['unit'] = ToolMaterial::query()->whereKey($validated['tool_material_id'])->value('unit') ?: 'Nos';
+        $validated['transfer_type'] = $validated['transaction_type'];
 
-            if ((int) $validated['from_project_id'] === (int) $validated['to_project_id']) {
-                throw ValidationException::withMessages([
-                    'to_project_id' => 'To site must be different from site name.',
-                ]);
-            }
-        }
-
-        if ($validated['transfer_type'] === 'site_to_office') {
-            $validated['to_project_id'] = null;
-        }
+        $this->normalizeTransactionLocations($validated);
 
         return $validated;
+    }
+
+    private function normalizeTransactionLocations(array &$validated): void
+    {
+        match ($validated['transaction_type']) {
+            'purchase' => $this->normalizePurchase($validated),
+            'issue_to_site' => $this->normalizeIssueToSite($validated),
+            'return_to_office' => $this->normalizeReturnToOffice($validated),
+            'site_to_site' => $this->normalizeSiteToSite($validated),
+            'return_to_vendor' => $this->normalizeReturnToVendor($validated),
+            'damage_wastage' => $this->normalizeDamageWastage($validated),
+        };
+    }
+
+    private function normalizePurchase(array &$validated): void
+    {
+        $validated['source_type'] = 'vendor';
+        $validated['destination_type'] = $validated['destination_type'] === 'site' ? 'site' : 'office';
+        $validated['from_project_id'] = null;
+
+        if ($validated['destination_type'] === 'site' && empty($validated['to_project_id'])) {
+            throw ValidationException::withMessages(['to_project_id' => 'Site is required when purchase is directly added to site.']);
+        }
+    }
+
+    private function normalizeIssueToSite(array &$validated): void
+    {
+        $validated['source_type'] = 'office';
+        $validated['destination_type'] = 'site';
+        $validated['from_project_id'] = null;
+
+        if (empty($validated['to_project_id'])) {
+            throw ValidationException::withMessages(['to_project_id' => 'Site is required for issue to site.']);
+        }
+    }
+
+    private function normalizeReturnToOffice(array &$validated): void
+    {
+        $validated['source_type'] = 'site';
+        $validated['destination_type'] = 'office';
+        $validated['to_project_id'] = null;
+
+        if (empty($validated['from_project_id'])) {
+            throw ValidationException::withMessages(['from_project_id' => 'Site is required for return to office.']);
+        }
+    }
+
+    private function normalizeSiteToSite(array &$validated): void
+    {
+        $validated['source_type'] = 'site';
+        $validated['destination_type'] = 'site';
+
+        if (empty($validated['from_project_id']) || empty($validated['to_project_id'])) {
+            throw ValidationException::withMessages(['to_project_id' => 'From site and to site are required for site to site transfer.']);
+        }
+
+        if ((int) $validated['from_project_id'] === (int) $validated['to_project_id']) {
+            throw ValidationException::withMessages(['to_project_id' => 'To site must be different from from site.']);
+        }
+    }
+
+    private function normalizeReturnToVendor(array &$validated): void
+    {
+        $validated['source_type'] = $validated['source_type'] === 'site' ? 'site' : 'office';
+        $validated['destination_type'] = 'vendor';
+        $validated['to_project_id'] = null;
+
+        if (empty($validated['vendor_id'])) {
+            throw ValidationException::withMessages(['vendor_id' => 'Vendor is required for return to vendor.']);
+        }
+
+        if ($validated['source_type'] === 'site' && empty($validated['from_project_id'])) {
+            throw ValidationException::withMessages(['from_project_id' => 'Site is required when returning to vendor from site.']);
+        }
+    }
+
+    private function normalizeDamageWastage(array &$validated): void
+    {
+        $validated['source_type'] = $validated['source_type'] === 'site' ? 'site' : 'office';
+        $validated['destination_type'] = 'wastage';
+        $validated['to_project_id'] = null;
+        $validated['vendor_id'] = null;
+
+        if ($validated['source_type'] === 'site' && empty($validated['from_project_id'])) {
+            throw ValidationException::withMessages(['from_project_id' => 'Site is required for site damage / wastage.']);
+        }
+    }
+
+    private function applyVendorReturnBalance(ToolMaterialAssignment $assignment, int $direction): void
+    {
+        if ($assignment->transaction_type !== 'return_to_vendor' || ! $assignment->vendor_id || (float) $assignment->amount <= 0) {
+            return;
+        }
+
+        app(CrmBalanceService::class)->adjustVendorAdvance((int) $assignment->vendor_id, (float) $assignment->amount * $direction);
     }
 
     private function toolsMaterials()
@@ -136,5 +259,10 @@ class ToolMaterialAssignmentController extends Controller
     private function projects()
     {
         return Project::query()->orderBy('name')->get(['id', 'name', 'project_code']);
+    }
+
+    private function vendors()
+    {
+        return Vendor::query()->orderBy('name')->get(['id', 'name']);
     }
 }

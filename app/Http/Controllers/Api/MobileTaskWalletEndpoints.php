@@ -197,10 +197,6 @@ trait MobileTaskWalletEndpoints
 
     public function wallets(Request $request)
     {
-        if ($forbidden = $this->authorizeApiPermission($request, 'transfers-list')) {
-            return $forbidden;
-        }
-
         $validated = $request->validate([
             'client_id' => ['nullable', 'exists:clients,id'],
             'project_id' => ['nullable', 'exists:projects,id'],
@@ -214,15 +210,10 @@ trait MobileTaskWalletEndpoints
 
         $query = Wallet::query()
             ->where('delete_status', 0)
+            ->where('user_id', $request->user()->id)
             ->with(['user', 'client', 'project', 'stage'])
             ->when($validated['client_id'] ?? null, fn($q, $clientId) => $q->where('client_id', $clientId))
-            ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId))
-            ->when($validated['user_id'] ?? null, fn($q, $userId) => $q->where('user_id', $userId));
-
-        if (! blank($validated['employee_id'] ?? null) && blank($validated['user_id'] ?? null)) {
-            $walletUser = $this->resolveWalletUser($validated, $request->user());
-            $query->where('user_id', $walletUser->id);
-        }
+            ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId));
 
         if (! blank($validated['date_from'] ?? null)) {
             $query->whereDate('current_date', '>=', $request->date('date_from')->toDateString());

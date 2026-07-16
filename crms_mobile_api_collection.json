@@ -119,6 +119,7 @@
         {
           "name": "Register Device",
           "request": {
+            "description": "device_id is required and must be 2-255 characters. device_name is optional, but when sent must be 2-255 characters.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -302,7 +303,7 @@
               }
             ],
             "url": {
-              "raw": "http://localhost/crms/api/attendance?status=checked_in&per_page=15",
+              "raw": "http://localhost/crms/api/attendance?status=checked_in&from=2026-07-01&to=2026-07-31&per_page=15",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -316,6 +317,14 @@
                 {
                   "key": "status",
                   "value": "checked_in"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-07-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-07-31"
                 },
                 {
                   "key": "per_page",
@@ -2337,7 +2346,7 @@
               }
             ],
             "url": {
-              "raw": "http://localhost/crms/api/tasks?status=pending&priority=high",
+              "raw": "http://localhost/crms/api/tasks?status=pending&priority=high&from=2026-07-01&to=2026-07-31",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -2355,6 +2364,14 @@
                 {
                   "key": "priority",
                   "value": "high"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-07-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-07-31"
                 }
               ]
             }
@@ -2574,6 +2591,7 @@
         {
           "name": "Get Wallets List",
           "request": {
+            "description": "Returns only the authenticated employee/user wallet history. user_id and employee_id filters are ignored for this list endpoint.",
             "auth": {
               "type": "bearer",
               "bearer": [

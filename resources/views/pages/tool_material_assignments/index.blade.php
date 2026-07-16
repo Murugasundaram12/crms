@@ -44,11 +44,12 @@
                     </select>
                 </div>
                 <div class="col-12 col-md-6 col-xl-2">
-                    <label class="form-label">Transfer</label>
-                    <select name="transfer_type" class="form-select">
+                    <label class="form-label">Transaction</label>
+                    <select name="transaction_type" class="form-select">
                         <option value="">All</option>
-                        <option value="site_to_office" @selected(request('transfer_type') === 'site_to_office')>Site to Office</option>
-                        <option value="site_to_site" @selected(request('transfer_type') === 'site_to_site')>Site to Site</option>
+                        @foreach($transactionTypes as $value => $label)
+                            <option value="{{ $value }}" @selected(request('transaction_type') === $value)>{{ $label }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-12 col-md-6 col-xl-2">
@@ -74,9 +75,11 @@
                     <thead class="table-light">
                         <tr>
                             <th>Tool Name</th>
-                            <th>Site Name</th>
-                            <th>Transfer</th>
+                            <th>Transaction</th>
+                            <th>From</th>
                             <th>To</th>
+                            <th>Qty</th>
+                            <th>Amount</th>
                             <th>Date & Time</th>
                             <th class="text-end">Action</th>
                         </tr>
@@ -85,13 +88,23 @@
                         @forelse ($assignments as $assignment)
                             <tr>
                                 <td class="fw-semibold">{{ $assignment->toolMaterial?->name ?? '-' }}</td>
-                                <td>{{ $assignment->fromProject?->name ?? '-' }}</td>
                                 <td>
                                     <span class="badge bg-soft-info text-info">
-                                        {{ $assignment->transfer_type === 'site_to_site' ? 'Site to Site' : 'Site to Office' }}
+                                        {{ $assignment->transactionLabel() }}
                                     </span>
                                 </td>
-                                <td>{{ $assignment->transfer_type === 'site_to_site' ? ($assignment->toProject?->name ?? '-') : 'Office' }}</td>
+                                <td>{{ $assignment->source_type === 'site' ? ($assignment->fromProject?->name ?? '-') : ucfirst((string) $assignment->source_type) }}</td>
+                                <td>
+                                    @if($assignment->destination_type === 'site')
+                                        {{ $assignment->toProject?->name ?? '-' }}
+                                    @elseif($assignment->destination_type === 'vendor')
+                                        {{ $assignment->vendor?->name ?? 'Vendor' }}
+                                    @else
+                                        {{ ucfirst((string) $assignment->destination_type) }}
+                                    @endif
+                                </td>
+                                <td>{{ number_format((float) $assignment->quantity, 2) }} {{ $assignment->unit }}</td>
+                                <td>Rs {{ number_format((float) $assignment->amount, 2) }}</td>
                                 <td>{{ $assignment->transferred_at?->format('d M Y h:i A') ?: '-' }}</td>
                                 <td class="text-end">
                                     <x-action-dropdown
@@ -106,7 +119,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No transfer records found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No transfer records found.</td>
                             </tr>
                         @endforelse
                     </tbody>

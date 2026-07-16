@@ -25,6 +25,21 @@
                         <input type="date" name="date" class="form-control" value="{{ old('date', now()->toDateString()) }}" required>
                         @error('date')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Unit</label>
+                        <input type="text" name="unit" class="form-control" value="{{ old('unit', 'Nos') }}" required>
+                        @error('unit')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Opening Quantity</label>
+                        <input type="number" step="0.01" name="opening_quantity" class="form-control" value="{{ old('opening_quantity', 0) }}">
+                        @error('opening_quantity')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Opening Rate</label>
+                        <input type="number" step="0.01" name="opening_rate" class="form-control" value="{{ old('opening_rate', 0) }}">
+                        @error('opening_rate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                    </div>
                     <div class="col-md-6">
                         <label class="form-label">Image</label>
                         <input type="file" name="image" class="form-control" accept="image/*">

@@ -56,8 +56,11 @@
                         <tr>
                             <th>Image</th>
                             <th>Name</th>
+                            <th>Unit</th>
+                            <th>Opening</th>
+                            <th>Balance</th>
+                            <th>Value</th>
                             <th>Date</th>
-                            <th>Created At</th>
                             <th class="text-end">Action</th>
                         </tr>
                     </thead>
@@ -72,8 +75,11 @@
                                     @endif
                                 </td>
                                 <td class="fw-semibold">{{ $item->name }}</td>
+                                <td>{{ $item->unit }}</td>
+                                <td>{{ number_format((float) $item->opening_quantity, 2) }} {{ $item->unit }}</td>
+                                <td class="fw-semibold">{{ number_format($item->stock_quantity, 2) }} {{ $item->unit }}</td>
+                                <td>Rs {{ number_format($item->stock_amount, 2) }}</td>
                                 <td>{{ $item->date?->format('d M Y') ?: '-' }}</td>
-                                <td>{{ $item->created_at?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
                                     <x-action-dropdown
                                         :editRoute="route('tools-materials.edit', $item)"
@@ -87,7 +93,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">No tools or materials found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No tools or materials found.</td>
                             </tr>
                         @endforelse
                     </tbody>

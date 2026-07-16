@@ -1103,7 +1103,7 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('message', 'Checked out successfully.');
     }
 
-    public function test_wallet_transfer_can_target_selected_employee_user_and_returns_net_totals(): void
+    public function test_wallet_transfer_can_target_selected_employee_but_wallet_list_returns_logged_in_user_only(): void
     {
         $actor = User::query()->create([
             'name' => 'Wallet Admin',
@@ -1182,10 +1182,10 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->getJson('/api/wallet?user_id=' . $target->id)
             ->assertOk()
-            ->assertJsonPath('credit_total', 1000)
-            ->assertJsonPath('debit_total', 400)
-            ->assertJsonPath('net_total', 600)
-            ->assertJsonPath('total_amount', 600);
+            ->assertJsonPath('credit_total', 400)
+            ->assertJsonPath('debit_total', 1000)
+            ->assertJsonPath('net_total', -600)
+            ->assertJsonPath('total_amount', -600);
 
         $this->withHeaders($headers)
             ->postJson('/api/wallet/transfer', $payload + [
