@@ -610,7 +610,7 @@ class MobileApiController extends Controller
 
     protected function canViewEmployeeTracking(User $user): bool
     {
-        return $this->isSuperAdmin($user) || $user->hasPermission('employees-list');
+        return $this->canViewAllAppData($user);
     }
 
     protected function appSettingsPayload(): array
@@ -712,6 +712,111 @@ class MobileApiController extends Controller
     protected function canUseApiPermission(?User $user, string $permission): bool
     {
         return $user && ($this->isSuperAdmin($user) || $user->hasPermission($permission));
+    }
+
+    protected function canViewAllAppData(?User $user): bool
+    {
+        return $user instanceof User && $this->isSuperAdmin($user);
+    }
+
+    protected function ownedProjectIdsForUser(User $user): array
+    {
+        $taskEmployeeId = $this->taskEmployeeIdFromUserId($user->id);
+
+        if (! $taskEmployeeId) {
+            return [];
+        }
+
+        $managedProjectIds = Schema::hasColumn('projects', 'manager_id')
+            ? Project::query()
+                ->where('manager_id', $taskEmployeeId)
+                ->pluck('id')
+            : collect();
+
+        $taskProjectIds = Task::query()
+            ->where('employee_id', $taskEmployeeId)
+            ->whereNotNull('project_id')
+            ->pluck('project_id');
+
+        return $managedProjectIds
+            ->merge($taskProjectIds)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function canAccessProject(User $user, Project $project): bool
+    {
+        if ($this->canViewAllAppData($user)) {
+            return true;
+        }
+
+        return in_array((int) $project->id, array_map('intval', $this->ownedProjectIdsForUser($user)), true);
+    }
+
+    protected function canAccessClient(User $user, Client $client): bool
+    {
+        if ($this->canViewAllAppData($user)) {
+            return true;
+        }
+
+        $projectIds = $this->ownedProjectIdsForUser($user);
+
+        return $projectIds !== []
+            && Project::query()
+                ->whereIn('id', $projectIds)
+                ->where('client_id', $client->id)
+                ->exists();
+    }
+
+    protected function canAccessPayment(User $user, Payment $payment): bool
+    {
+        if ($this->canViewAllAppData($user)) {
+            return true;
+        }
+
+        return $payment->project_id
+            && in_array((int) $payment->project_id, array_map('intval', $this->ownedProjectIdsForUser($user)), true);
+    }
+
+    protected function scopeProjectsForAppUser($query, User $user)
+    {
+        if ($this->canViewAllAppData($user)) {
+            return $query;
+        }
+
+        $projectIds = $this->ownedProjectIdsForUser($user);
+
+        return $projectIds === []
+            ? $query->whereRaw('1 = 0')
+            : $query->whereIn('id', $projectIds);
+    }
+
+    protected function scopeClientsForAppUser($query, User $user)
+    {
+        if ($this->canViewAllAppData($user)) {
+            return $query;
+        }
+
+        $projectIds = $this->ownedProjectIdsForUser($user);
+
+        return $projectIds === []
+            ? $query->whereRaw('1 = 0')
+            : $query->whereHas('projects', fn($projectQuery) => $projectQuery->whereIn('id', $projectIds));
+    }
+
+    protected function scopePaymentsForAppUser($query, User $user)
+    {
+        if ($this->canViewAllAppData($user)) {
+            return $query;
+        }
+
+        $projectIds = $this->ownedProjectIdsForUser($user);
+
+        return $projectIds === []
+            ? $query->whereRaw('1 = 0')
+            : $query->whereIn('project_id', $projectIds);
     }
 
     protected function isOwnTask(User $user, Task $task): bool

@@ -1103,7 +1103,7 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('message', 'Checked out successfully.');
     }
 
-    public function test_wallet_transfer_can_target_selected_employee_but_wallet_list_returns_logged_in_user_only(): void
+    public function test_wallet_transfer_scopes_super_admin_and_employee_wallet_lists(): void
     {
         $actor = User::query()->create([
             'name' => 'Wallet Admin',
@@ -1182,10 +1182,24 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->getJson('/api/wallet?user_id=' . $target->id)
             ->assertOk()
-            ->assertJsonPath('credit_total', 400)
-            ->assertJsonPath('debit_total', 1000)
-            ->assertJsonPath('net_total', -600)
-            ->assertJsonPath('total_amount', -600);
+            ->assertJsonPath('credit_total', 1000)
+            ->assertJsonPath('debit_total', 400)
+            ->assertJsonPath('net_total', 600)
+            ->assertJsonPath('total_amount', 600);
+
+        $targetToken = $this->postJson('/api/login', [
+            'email' => $target->email,
+            'password' => 'password',
+            'device_name' => 'Wallet Employee Test',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $targetToken])
+            ->getJson('/api/wallet?user_id=' . $actor->id)
+            ->assertOk()
+            ->assertJsonPath('credit_total', 1000)
+            ->assertJsonPath('debit_total', 400)
+            ->assertJsonPath('net_total', 600)
+            ->assertJsonPath('total_amount', 600);
 
         $this->withHeaders($headers)
             ->postJson('/api/wallet/transfer', $payload + [
@@ -1227,6 +1241,131 @@ class MobileApiSmokeTest extends TestCase
             ->getJson('/api/employees')
             ->assertForbidden()
             ->assertJsonPath('message', 'Forbidden.');
+    }
+
+    public function test_super_admin_sees_all_app_data_but_other_roles_are_scoped_to_own_data(): void
+    {
+        $admin = User::query()->create([
+            'name' => 'Scope Admin',
+            'email' => 'scope-admin@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'password' => Hash::make('password'),
+        ]);
+
+        $manager = User::query()->create([
+            'name' => 'Scope Manager',
+            'email' => 'scope-manager@example.com',
+            'role' => 'Manager',
+            'status' => 'active',
+            'password' => Hash::make('password'),
+        ]);
+
+        $employee = User::query()->create([
+            'name' => 'Scope Employee',
+            'email' => 'scope-employee@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'password' => Hash::make('password'),
+        ]);
+
+        $managerEmployee = Employee::query()->create([
+            'id' => $manager->id,
+            'name' => $manager->name,
+            'email' => $manager->email,
+            'role' => 'Manager',
+            'status' => 'active',
+        ]);
+
+        $employeeRecord = Employee::query()->create([
+            'id' => $employee->id,
+            'name' => $employee->name,
+            'email' => $employee->email,
+            'role' => 'Employee',
+            'status' => 'active',
+        ]);
+
+        $client = Client::query()->create(['name' => 'Scope Client', 'status' => 'active']);
+        $managerProject = Project::query()->create([
+            'name' => 'Manager Project',
+            'project_code' => 'MAN-SCOPE',
+            'client_id' => $client->id,
+            'type' => 'residential',
+            'status' => 'active',
+        ]);
+        $employeeProject = Project::query()->create([
+            'name' => 'Employee Project',
+            'project_code' => 'EMP-SCOPE',
+            'client_id' => $client->id,
+            'type' => 'residential',
+            'status' => 'active',
+        ]);
+
+        Task::query()->create([
+            'project_id' => $managerProject->id,
+            'employee_id' => $managerEmployee->id,
+            'title' => 'Manager Task',
+            'type' => 'daily',
+            'priority' => 'medium',
+            'status' => 'pending',
+        ]);
+
+        Task::query()->create([
+            'project_id' => $employeeProject->id,
+            'employee_id' => $employeeRecord->id,
+            'title' => 'Employee Task',
+            'type' => 'daily',
+            'priority' => 'medium',
+            'status' => 'pending',
+        ]);
+
+        Attendance::query()->create([
+            'user_id' => $manager->id,
+            'attendance_date' => '2026-07-16',
+            'check_in_at' => '2026-07-16 09:00:00',
+            'status' => 'present',
+        ]);
+
+        Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-16',
+            'check_in_at' => '2026-07-16 09:30:00',
+            'status' => 'present',
+        ]);
+
+        $adminToken = $this->postJson('/api/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+            'device_name' => 'Scope Admin',
+        ])->json('token');
+
+        $managerToken = $this->postJson('/api/login', [
+            'email' => $manager->email,
+            'password' => 'password',
+            'device_name' => 'Scope Manager',
+        ])->json('token');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->getJson('/api/tasks')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->getJson('/api/attendance')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $managerToken])
+            ->getJson('/api/tasks?employee_id=' . $employeeRecord->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.employee_id', $managerEmployee->id);
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $managerToken])
+            ->getJson('/api/attendance?user_id=' . $employee->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.user_id', $manager->id);
     }
 
     public function test_attendance_history_returns_only_logged_in_employee_records(): void

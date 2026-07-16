@@ -46,7 +46,7 @@ trait MobileExpensePaymentEndpoints
         }
 
         return response()->json([
-            'projects' => Project::query()->orderBy('name')->get(['id', 'name', 'client_id', 'status']),
+            'projects' => $this->scopeProjectsForAppUser(Project::query(), $request->user())->orderBy('name')->get(['id', 'name', 'client_id', 'status']),
             'main_categories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'main_category_id']),
             'payment_modes' => self::PAYMENT_MODES,
@@ -55,7 +55,7 @@ trait MobileExpensePaymentEndpoints
 
     public function expenses(Request $request)
     {
-        $canListAll = $this->canUseApiPermission($request->user(), 'expenses-list');
+        $canListAll = $this->canViewAllAppData($request->user());
 
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
@@ -128,7 +128,7 @@ trait MobileExpensePaymentEndpoints
 
     public function showExpense(Request $request, Expense $expense)
     {
-        if (! $this->canUseApiPermission($request->user(), 'expenses-list') && (int) $expense->user_id !== (int) $request->user()->id) {
+        if (! $this->canViewAllAppData($request->user()) && (int) $expense->user_id !== (int) $request->user()->id) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -182,10 +182,28 @@ trait MobileExpensePaymentEndpoints
         }
 
         return response()->json([
-            'clients' => Client::query()->orderBy('name')->get(['id', 'name']),
-            'projects' => Project::query()->orderBy('name')->get(['id', 'client_id', 'name']),
-            'quotations' => Quotation::query()->orderByDesc('id')->get($quotationColumns),
-            'stages' => PaymentStage::query()->orderBy('stage_name')->get(['id', 'stage_name']),
+            'clients' => $this->scopeClientsForAppUser(Client::query(), $request->user())->orderBy('name')->get(['id', 'name']),
+            'projects' => $this->scopeProjectsForAppUser(Project::query(), $request->user())->orderBy('name')->get(['id', 'client_id', 'name']),
+            'quotations' => Quotation::query()
+                ->when(! $this->canViewAllAppData($request->user()), function ($query) use ($request) {
+                    $projectIds = $this->ownedProjectIdsForUser($request->user());
+
+                    $projectIds === []
+                        ? $query->whereRaw('1 = 0')
+                        : $query->whereIn('project_id', $projectIds);
+                })
+                ->orderByDesc('id')
+                ->get($quotationColumns),
+            'stages' => PaymentStage::query()
+                ->when(! $this->canViewAllAppData($request->user()), function ($query) use ($request) {
+                    $projectIds = $this->ownedProjectIdsForUser($request->user());
+
+                    $projectIds === []
+                        ? $query->whereRaw('1 = 0')
+                        : $query->whereIn('project_id', $projectIds);
+                })
+                ->orderBy('stage_name')
+                ->get(['id', 'stage_name']),
             'methods' => ['cash', 'bank_transfer'],
             'statuses' => ['pending', 'paid', 'overdue', 'partial'],
         ]);
@@ -205,7 +223,7 @@ trait MobileExpensePaymentEndpoints
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $payments = Payment::query()
+        $payments = $this->scopePaymentsForAppUser(Payment::query(), $request->user())
             ->with(['client', 'project', 'quotation', 'stage'])
             ->when($validated['q'] ?? null, function ($query, string $search) {
                 $query->where(function ($q) use ($search) {
@@ -230,6 +248,10 @@ trait MobileExpensePaymentEndpoints
     {
         if ($forbidden = $this->authorizeApiPermission($request, 'payments-list')) {
             return $forbidden;
+        }
+
+        if (! $this->canAccessPayment($request->user(), $payment)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         return response()->json(['payment' => $this->paymentPayload($payment->load(['client', 'project', 'quotation', 'stage']))]);

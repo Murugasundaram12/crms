@@ -84,10 +84,10 @@ trait MobileSettingsDashboardEndpoints
                 'completed' => $taskEmployeeId ? Task::query()->where('employee_id', $taskEmployeeId)->where('status', 'completed')->count() : 0,
             ],
             'admin_counts' => [
-                'clients' => $this->canUseApiPermission($user, 'clients-list') ? Client::query()->count() : null,
-                'projects' => $this->canUseApiPermission($user, 'projects-list') ? Project::query()->count() : null,
-                'employees' => $this->canUseApiPermission($user, 'employees-list') ? User::query()->count() : null,
-                'expenses_total' => $this->canUseApiPermission($user, 'expenses-list') ? (float) Expense::query()->sum('amount') : null,
+                'clients' => $this->canViewAllAppData($user) ? Client::query()->count() : null,
+                'projects' => $this->canViewAllAppData($user) ? Project::query()->count() : null,
+                'employees' => $this->canViewAllAppData($user) ? User::query()->count() : null,
+                'expenses_total' => $this->canViewAllAppData($user) ? (float) Expense::query()->sum('amount') : null,
             ],
             'map_settings' => $this->mapSettingsPayload(),
         ]);

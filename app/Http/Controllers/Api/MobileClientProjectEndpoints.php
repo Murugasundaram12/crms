@@ -51,7 +51,7 @@ trait MobileClientProjectEndpoints
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $clients = Client::query()
+        $clients = $this->scopeClientsForAppUser(Client::query(), $request->user())
             ->withCount(['projects', 'payments'])
             ->when($validated['q'] ?? null, function ($query, string $search) {
                 $query->where(function ($q) use ($search) {
@@ -88,6 +88,10 @@ trait MobileClientProjectEndpoints
     {
         if ($forbidden = $this->authorizeApiPermission($request, 'clients-list')) {
             return $forbidden;
+        }
+
+        if (! $this->canAccessClient($request->user(), $client)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         return response()->json(['client' => $this->clientPayload($client->loadCount(['projects', 'payments']))]);
@@ -129,8 +133,15 @@ trait MobileClientProjectEndpoints
         }
 
         return response()->json([
-            'clients' => Client::query()->orderBy('name')->get(['id', 'name', 'status']),
-            'employees' => Employee::query()->orderBy('name')->get(['id', 'name', 'email']),
+            'clients' => $this->scopeClientsForAppUser(Client::query(), $request->user())->orderBy('name')->get(['id', 'name', 'status']),
+            'employees' => Employee::query()
+                ->when(! $this->canViewAllAppData($request->user()), function ($query) use ($request) {
+                    $taskEmployeeId = $this->taskEmployeeIdFromUserId($request->user()->id);
+
+                    $taskEmployeeId ? $query->whereKey($taskEmployeeId) : $query->whereRaw('1 = 0');
+                })
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
             'statuses' => ['planning', 'active', 'on_hold', 'completed', 'cancelled'],
             'priorities' => ['low', 'medium', 'high'],
         ]);
@@ -150,7 +161,7 @@ trait MobileClientProjectEndpoints
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $projects = Project::query()
+        $projects = $this->scopeProjectsForAppUser(Project::query(), $request->user())
             ->with(['client', 'manager'])
             ->withCount('tasks')
             ->when($validated['q'] ?? null, function ($query, string $search) {
@@ -191,6 +202,10 @@ trait MobileClientProjectEndpoints
     {
         if ($forbidden = $this->authorizeApiPermission($request, 'projects-list')) {
             return $forbidden;
+        }
+
+        if (! $this->canAccessProject($request->user(), $project)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         $project->load(['client', 'manager', 'tasks.employee', 'payments.stage', 'expenses.mainCategory', 'expenses.category']);
