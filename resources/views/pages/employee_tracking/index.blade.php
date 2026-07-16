@@ -160,6 +160,7 @@
             centerLongitude: Number(@json($mapSettings['center_longitude'])),
             zoom: Number(@json($mapSettings['zoom_level'])),
             timelineUrl: @json(route('dashboard.getTimeLineAjax')),
+            snapRouteUrl: @json(route('dashboard.snapTimeLineRoute')),
             csrfToken: @json(csrf_token()),
             iconBase: @json(asset('img/map') . '/'),
             selectedEmployee: @json(request('employee')),
@@ -168,7 +169,8 @@
 
         let timelineMap;
         let timelineMarkers = [];
-        let timelinePolyline = null;
+        let timelinePolylines = [];
+        let timelineRenderToken = 0;
 
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('trackingEmployee')?.addEventListener('change', loadTimelineData);
@@ -236,6 +238,7 @@
         function renderTimeline(data) {
             const items = data.timeLineItems || [];
             clearTimelineMap();
+            const renderToken = ++timelineRenderToken;
 
             let contents = '';
             let finalDistance = '- KM';
@@ -256,22 +259,15 @@
                         latLngs.push(position);
 
                         const trackingType = item.trackingType;
-                        const markerIcon = {
-                            url: timelineConfig.iconBase + (trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out'
-                                ? 'location_pin_blue.png'
-                                : 'location_pin.png'),
-                            scaledSize: trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out'
-                                ? new google.maps.Size(34, 34)
-                                : new google.maps.Size(42, 42),
-                            labelOrigin: trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out'
-                                ? new google.maps.Point(15, 11)
-                                : new google.maps.Point(21, 22),
-                        };
-
+                        const isAttendancePoint = trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out';
                         const marker = new google.maps.Marker({
                             position,
                             map: timelineMap,
-                            icon: markerIcon,
+                            icon: {
+                                url: timelineConfig.iconBase + (isAttendancePoint ? 'location_pin_blue.png' : 'location_pin.png'),
+                                scaledSize: isAttendancePoint ? new google.maps.Size(34, 34) : new google.maps.Size(42, 42),
+                                labelOrigin: isAttendancePoint ? new google.maps.Point(15, 11) : new google.maps.Point(21, 22),
+                            },
                             label: {
                                 text: String(index + 1),
                                 color: '#1F1C1C',
@@ -327,7 +323,7 @@
                 attendanceCard = attendanceSessionCard(items);
                 contents = `${attendanceCard}${contents}`;
 
-                drawTimelineRoute(items, latLngs, hasTravelPoint);
+                drawTimelineRoute(items, latLngs, buildMovementPaths(items), hasTravelPoint, renderToken);
 
                 if (data.totalKM !== undefined && data.totalKM !== null) {
                     finalDistance = `${Number(data.totalKM).toFixed(2)} KM`;
@@ -413,7 +409,7 @@
             return 'Unknown address!';
         }
 
-        function drawTimelineRoute(items, latLngs, hasTravelPoint) {
+        async function drawTimelineRoute(items, latLngs, movementPaths, hasTravelPoint, renderToken) {
             if (!latLngs.length) {
                 return;
             }
@@ -424,17 +420,93 @@
                 return;
             }
 
-            const middle = items[Math.round((items.length - 1) / 2)];
-            timelineMap.setCenter(new google.maps.LatLng(Number(middle.latitude), Number(middle.longitude)));
-            timelineMap.setZoom(11);
+            const bounds = new google.maps.LatLngBounds();
+            latLngs.forEach((point) => bounds.extend(point));
+            timelineMap.fitBounds(bounds);
 
-            timelinePolyline = new google.maps.Polyline({
+            for (const routePath of movementPaths) {
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+
+                await drawSnappedRoute(routePath, renderToken);
+                await wait(120);
+            }
+        }
+
+        function buildMovementPaths(items) {
+            const path = items
+                .map((item) => itemLatLng(item))
+                .filter(Boolean);
+
+            return path.length >= 2 ? [path] : [];
+        }
+
+        function itemLatLng(item) {
+            const latitude = Number(item.latitude);
+            const longitude = Number(item.longitude);
+
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude === 0) {
+                return null;
+            }
+
+            return new google.maps.LatLng(latitude, longitude);
+        }
+        async function drawSnappedRoute(routePath, renderToken) {
+            if (routePath.length < 2) {
+                return;
+            }
+
+            try {
+                const response = await fetch(timelineConfig.snapRouteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        points: routePath.map((point) => ({
+                            lat: point.lat(),
+                            lng: point.lng(),
+                        })),
+                    }),
+                });
+
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+
+                if (!response.ok) {
+                    drawRoutePolyline(routePath);
+                    return;
+                }
+
+                const data = await response.json();
+                const snappedPath = (data.points || [])
+                    .map((point) => new google.maps.LatLng(Number(point.lat), Number(point.lng)))
+                    .filter((point) => Number.isFinite(point.lat()) && Number.isFinite(point.lng()));
+
+                drawRoutePolyline(data.snapped && snappedPath.length >= 2 ? snappedPath : routePath);
+            } catch (error) {
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+
+                drawRoutePolyline(routePath);
+            }
+        }
+
+        function drawRoutePolyline(latLngs) {
+            const polyline = new google.maps.Polyline({
                 path: latLngs,
-                geodesic: true,
+                geodesic: false,
                 strokeColor: '#0000FF',
                 strokeWeight: 3,
                 map: timelineMap,
             });
+
+            timelinePolylines.push(polyline);
         }
 
         function resolveMissingAddresses(addressLookups) {
@@ -487,15 +559,20 @@
         }
 
         function clearTimelineMap() {
+            timelineRenderToken++;
             timelineMarkers.forEach(function (marker) {
                 marker.setMap(null);
             });
             timelineMarkers = [];
 
-            if (timelinePolyline) {
-                timelinePolyline.setMap(null);
-                timelinePolyline = null;
-            }
+            timelinePolylines.forEach(function (polyline) {
+                polyline.setMap(null);
+            });
+            timelinePolylines = [];
+        }
+
+        function wait(milliseconds) {
+            return new Promise((resolve) => setTimeout(resolve, milliseconds));
         }
 
         function focusTimelinePoint(latitude, longitude) {

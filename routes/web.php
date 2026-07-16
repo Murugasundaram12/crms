@@ -78,6 +78,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard/cardViewAjax', [EmployeeTrackingController::class, 'cardViewData'])->name('dashboard/cardViewAjax');
         Route::get('/timeLine', [EmployeeTrackingController::class, 'index'])->name('timeLine');
         Route::post('/dashboard/getTimeLineAjax', [EmployeeTrackingController::class, 'getTimeLineAjax'])->name('dashboard.getTimeLineAjax');
+        Route::post('/dashboard/snapTimeLineRoute', [EmployeeTrackingController::class, 'snapTimeLineRoute'])->name('dashboard.snapTimeLineRoute');
     });
 
     Route::get('/home', [DashboardController::class, 'index'])
