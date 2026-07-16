@@ -16,6 +16,8 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Reports\ExpenseReportController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\ToolMaterialAssignmentController;
+use App\Http\Controllers\ToolMaterialController;
 use App\Http\Controllers\UnpaidExpensesController;
 use App\Http\Controllers\VendorExpensesController;
 use App\Http\Controllers\WalletController;
@@ -383,6 +385,40 @@ Route::middleware('auth')->group(function () {
         });
         Route::middleware('permission:tasks-delete')->group(function () {
             Route::delete('/{task}', [TaskController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    Route::prefix('tools-materials')->name('tools-materials.')->group(function () {
+        Route::middleware('permission:tools-materials-list')->group(function () {
+            Route::get('/', [ToolMaterialController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:tools-materials-create')->group(function () {
+            Route::get('/create', [ToolMaterialController::class, 'create'])->name('create');
+            Route::post('/store', [ToolMaterialController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:tools-materials-edit')->group(function () {
+            Route::get('/{toolsMaterial}/edit', [ToolMaterialController::class, 'edit'])->name('edit');
+            Route::put('/{toolsMaterial}/update', [ToolMaterialController::class, 'update'])->name('update');
+        });
+        Route::middleware('permission:tools-materials-delete')->group(function () {
+            Route::delete('/{toolsMaterial}', [ToolMaterialController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    Route::prefix('tools-material-assignments')->name('tools-material-assignments.')->group(function () {
+        Route::middleware('permission:tools-materials-list')->group(function () {
+            Route::get('/', [ToolMaterialAssignmentController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:tools-materials-create')->group(function () {
+            Route::get('/create', [ToolMaterialAssignmentController::class, 'create'])->name('create');
+            Route::post('/store', [ToolMaterialAssignmentController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:tools-materials-edit')->group(function () {
+            Route::get('/{toolsMaterialAssignment}/edit', [ToolMaterialAssignmentController::class, 'edit'])->name('edit');
+            Route::put('/{toolsMaterialAssignment}/update', [ToolMaterialAssignmentController::class, 'update'])->name('update');
+        });
+        Route::middleware('permission:tools-materials-delete')->group(function () {
+            Route::delete('/{toolsMaterialAssignment}', [ToolMaterialAssignmentController::class, 'destroy'])->name('destroy');
         });
     });
 

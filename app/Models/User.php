@@ -122,6 +122,10 @@ class User extends Authenticatable
 
     public function hasPermission(string $key): bool
     {
+        if (($this->role ?? null) === 'Super Admin' || $this->assignedRoles()->contains('name', 'Super Admin')) {
+            return true;
+        }
+
         if (is_array($this->resolvedPermissionKeys)) {
             return in_array($key, $this->resolvedPermissionKeys, true);
         }

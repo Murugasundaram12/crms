@@ -189,6 +189,8 @@ trait MobileAttendanceTrackingEndpoints
     public function attendances(Request $request)
     {
         $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
@@ -201,12 +203,15 @@ trait MobileAttendanceTrackingEndpoints
             ->latest('attendance_date')
             ->latest('check_in_at');
 
-        if (! blank($validated['from_date'] ?? null)) {
-            $query->whereDate('attendance_date', '>=', $request->date('from_date')->toDateString());
+        $fromDate = $validated['from_date'] ?? $validated['from'] ?? null;
+        $toDate = $validated['to_date'] ?? $validated['to'] ?? null;
+
+        if (! blank($fromDate)) {
+            $query->whereDate('attendance_date', '>=', Carbon::parse($fromDate)->toDateString());
         }
 
-        if (! blank($validated['to_date'] ?? null)) {
-            $query->whereDate('attendance_date', '<=', $request->date('to_date')->toDateString());
+        if (! blank($toDate)) {
+            $query->whereDate('attendance_date', '<=', Carbon::parse($toDate)->toDateString());
         }
 
         if (($validated['status'] ?? null) === 'checked_out') {
@@ -229,6 +234,8 @@ trait MobileAttendanceTrackingEndpoints
     public function myAttendances(Request $request)
     {
         $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
@@ -241,12 +248,15 @@ trait MobileAttendanceTrackingEndpoints
             ->latest('attendance_date')
             ->latest('check_in_at');
 
-        if (! blank($validated['from_date'] ?? null)) {
-            $query->whereDate('attendance_date', '>=', $request->date('from_date')->toDateString());
+        $fromDate = $validated['from_date'] ?? $validated['from'] ?? null;
+        $toDate = $validated['to_date'] ?? $validated['to'] ?? null;
+
+        if (! blank($fromDate)) {
+            $query->whereDate('attendance_date', '>=', Carbon::parse($fromDate)->toDateString());
         }
 
-        if (! blank($validated['to_date'] ?? null)) {
-            $query->whereDate('attendance_date', '<=', $request->date('to_date')->toDateString());
+        if (! blank($toDate)) {
+            $query->whereDate('attendance_date', '<=', Carbon::parse($toDate)->toDateString());
         }
 
         if (($validated['status'] ?? null) === 'checked_out') {
@@ -312,8 +322,8 @@ trait MobileAttendanceTrackingEndpoints
     public function registerDevice(Request $request)
     {
         $validated = $request->validate([
-            'device_id' => ['required', 'string', 'max:255'],
-            'device_name' => ['nullable', 'string', 'max:255'],
+            'device_id' => ['required', 'string', 'min:2', 'max:255'],
+            'device_name' => ['nullable', 'string', 'min:2', 'max:255'],
         ]);
 
         $device = EmployeeDevice::query()->updateOrCreate(

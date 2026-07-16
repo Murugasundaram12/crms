@@ -15,6 +15,7 @@ class PermissionSeeder extends Seeder
         'projects' => 'Projects',
         'employees' => 'Employees',
         'tasks' => 'Tasks',
+        'tools-materials' => 'Tools & Materials',
         'payments' => 'Payments',
         'payment-stages' => 'Payment Stages',
         'variations' => 'Variations',

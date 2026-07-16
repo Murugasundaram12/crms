@@ -9,6 +9,7 @@
     @php($isVendorExpensesMenuActive = request()->routeIs('vendor-expenses.*'))
     @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('vendor-expenses.history'))
     @php($isTrackingMenuActive = request()->routeIs('tracking.*'))
+    @php($isToolsMaterialsMenuActive = request()->routeIs('tools-materials.*') || request()->routeIs('tools-material-assignments.*'))
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -61,6 +62,21 @@
 
                         @if($currentUser && $currentUser->hasPermission('tasks-list'))
                             <li><a href="{{ route('tasks.index') }}"><i class="ti ti-list-check"></i><span>Tasks</span></a>
+                            </li>
+                        @endif
+
+                        @if($currentUser && $currentUser->hasPermission('tools-materials-list'))
+                            <li class="submenu {{ $isToolsMaterialsMenuActive ? 'active' : '' }}">
+                                <a href="javascript:void(0);"
+                                    class="{{ $isToolsMaterialsMenuActive ? 'subdrop active' : '' }}">
+                                    <i class="ti ti-tool"></i><span>Tools & Materials</span><span class="menu-arrow"></span>
+                                </a>
+                                <ul style="{{ $isToolsMaterialsMenuActive ? 'display: block;' : 'display: none;' }}">
+                                    <li><a class="{{ request()->routeIs('tools-materials.*') ? 'active' : '' }}"
+                                            href="{{ route('tools-materials.index') }}">List</a></li>
+                                    <li><a class="{{ request()->routeIs('tools-material-assignments.*') ? 'active' : '' }}"
+                                            href="{{ route('tools-material-assignments.index') }}">Assign / Transfer</a></li>
+                                </ul>
                             </li>
                         @endif
 

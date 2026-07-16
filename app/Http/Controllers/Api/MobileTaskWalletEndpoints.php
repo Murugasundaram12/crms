@@ -68,6 +68,8 @@ trait MobileTaskWalletEndpoints
             'project_id' => ['nullable', 'exists:projects,id'],
             'employee_id' => ['nullable', 'exists:employees,id'],
             'type' => ['nullable', Rule::in(self::TASK_TYPES)],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -105,12 +107,15 @@ trait MobileTaskWalletEndpoints
             }
         }
 
-        if (! blank($validated['date_from'] ?? null)) {
-            $query->whereDate('due_date', '>=', $request->date('date_from')->toDateString());
+        $fromDate = $validated['date_from'] ?? $validated['from'] ?? null;
+        $toDate = $validated['date_to'] ?? $validated['to'] ?? null;
+
+        if (! blank($fromDate)) {
+            $query->whereDate('due_date', '>=', Carbon::parse($fromDate)->toDateString());
         }
 
-        if (! blank($validated['date_to'] ?? null)) {
-            $query->whereDate('due_date', '<=', $request->date('date_to')->toDateString());
+        if (! blank($toDate)) {
+            $query->whereDate('due_date', '<=', Carbon::parse($toDate)->toDateString());
         }
 
         $tasks = $query
