@@ -34,6 +34,7 @@ return new class extends Migration
             ['group' => 'tracking', 'key' => 'mock_location_allowed', 'value' => 'false', 'type' => 'boolean', 'description' => 'Allow mock locations.'],
             ['group' => 'tracking', 'key' => 'history_retention_days', 'value' => '90', 'type' => 'integer', 'description' => 'Tracking history retention days.'],
             ['group' => 'tracking', 'key' => 'offline_tracking_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Allow offline queue and sync.'],
+            ['group' => 'tracking', 'key' => 'online_threshold_seconds', 'value' => '1800', 'type' => 'integer', 'description' => 'Seconds since last device update before an employee is shown as offline.'],
             ['group' => 'attendance', 'key' => 'attendance_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable attendance module.'],
             ['group' => 'attendance', 'key' => 'check_in_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable check-in.'],
             ['group' => 'attendance', 'key' => 'check_out_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable check-out.'],

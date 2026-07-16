@@ -625,6 +625,7 @@ class MobileApiController extends Controller
             'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
+            'online_threshold_seconds' => $this->onlineThresholdSeconds(),
             'attendance_time_type' => $this->settingValue('attendance_time_type', 'server_time'),
             'server_time' => now()->toISOString(),
             'timezone' => config('app.timezone'),
@@ -653,6 +654,7 @@ class MobileApiController extends Controller
                 'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 25),
                 'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
                 'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+                'online_threshold_seconds' => $this->onlineThresholdSeconds(),
             ],
             'modules' => [
                 'tasks' => $this->settingValue('tasks_enabled', true),
@@ -707,6 +709,17 @@ class MobileApiController extends Controller
             'json' => json_decode($value, true) ?? $default,
             default => $value,
         };
+    }
+
+    protected function onlineThresholdSeconds(): int
+    {
+        return max(60, (int) $this->settingValue('online_threshold_seconds', 1800));
+    }
+
+    protected function isDeviceOnline(EmployeeDevice $device, ?int $thresholdSeconds = null): bool
+    {
+        return $device->last_seen_at
+            && $device->last_seen_at->gt(now()->subSeconds($thresholdSeconds ?? $this->onlineThresholdSeconds()));
     }
 
     protected function canUseApiPermission(?User $user, string $permission): bool

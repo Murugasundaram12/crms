@@ -408,6 +408,7 @@ trait MobileAttendanceTrackingEndpoints
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'history_retention_days' => $this->settingValue('history_retention_days', 90),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
+            'online_threshold_seconds' => $this->onlineThresholdSeconds(),
         ]);
     }
 
@@ -423,10 +424,13 @@ trait MobileAttendanceTrackingEndpoints
             ->latest('last_seen_at')
             ->get()
             ->map(function (EmployeeDevice $device) {
+                $onlineStatus = $this->isDeviceOnline($device) ? 'online' : 'offline';
+
                 return [
                     ...$this->devicePayload($device),
                     'employee' => $this->userPayload($device->employee),
-                    'online_status' => $device->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120)) ? 'online' : 'offline',
+                    'online_status' => $onlineStatus,
+                    'status' => $onlineStatus,
                 ];
             });
 
@@ -550,7 +554,7 @@ trait MobileAttendanceTrackingEndpoints
         $cards = $todayAttendances
             ->map(function (Attendance $attendance) use ($devicesByUser) {
                 $device = $devicesByUser->get($attendance->user_id);
-                $isOnline = $device?->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120));
+                $isOnline = $device && $this->isDeviceOnline($device);
 
                 return [
                     'id' => $attendance->user_id,

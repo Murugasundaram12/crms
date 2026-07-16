@@ -45,6 +45,7 @@ class EmployeeTrackingController extends Controller
     private function liveLocationItems()
     {
         $currentUserId = auth()->id();
+        $onlineThresholdSeconds = $this->onlineThresholdSeconds();
 
         return EmployeeDevice::query()
             ->with('employee:id,name,email,phone,status')
@@ -53,7 +54,9 @@ class EmployeeTrackingController extends Controller
             ->when($currentUserId, fn ($query) => $query->where('employee_id', '!=', $currentUserId))
             ->latest('last_seen_at')
             ->get()
-            ->map(function (EmployeeDevice $device) {
+            ->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds) {
+                $onlineStatus = $this->isDeviceOnline($device, $onlineThresholdSeconds) ? 'online' : 'offline';
+
                 return [
                     'employee_id' => $device->employee_id,
                     'id' => $device->employee_id,
@@ -72,8 +75,8 @@ class EmployeeTrackingController extends Controller
                     'is_mock_location' => (bool) $device->is_mock_location,
                     'battery_percentage' => $device->battery_percentage,
                     'last_seen_at' => $device->last_seen_at?->toISOString(),
-                    'online_status' => $device->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120)) ? 'online' : 'offline',
-                    'status' => $device->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120)) ? 'online' : 'offline',
+                    'online_status' => $onlineStatus,
+                    'status' => $onlineStatus,
                     'updatedAt' => $device->last_seen_at?->diffForHumans(),
                 ];
             })
@@ -271,6 +274,8 @@ class EmployeeTrackingController extends Controller
 
     private function trackingCardItems()
     {
+        $onlineThresholdSeconds = $this->onlineThresholdSeconds();
+
         $todayAttendances = Attendance::query()
             ->with('user:id,name,email,phone,designation,status')
             ->whereDate('attendance_date', now()->toDateString())
@@ -286,9 +291,9 @@ class EmployeeTrackingController extends Controller
             ->keyBy('employee_id');
 
         return $todayAttendances
-            ->map(function (Attendance $attendance) use ($devicesByUser) {
+            ->map(function (Attendance $attendance) use ($devicesByUser, $onlineThresholdSeconds) {
                 $device = $devicesByUser->get($attendance->user_id);
-                $isOnline = $device?->last_seen_at && $device->last_seen_at->gt(now()->subSeconds(120));
+                $isOnline = $device && $this->isDeviceOnline($device, $onlineThresholdSeconds);
 
                 return [
                     'id' => $attendance->user_id,
@@ -313,6 +318,17 @@ class EmployeeTrackingController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function onlineThresholdSeconds(): int
+    {
+        return max(60, (int) $this->settingValue('online_threshold_seconds', 1800));
+    }
+
+    private function isDeviceOnline(EmployeeDevice $device, int $thresholdSeconds): bool
+    {
+        return $device->last_seen_at
+            && $device->last_seen_at->gt(now()->subSeconds($thresholdSeconds));
     }
 
     private function timelineModuleItems($trackings)
