@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\ToolMaterial;
 use App\Models\ToolMaterialAssignment;
+use App\Models\User;
 use App\Models\Vendor;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
@@ -128,6 +129,7 @@ class ToolMaterialAssignmentController extends Controller
             'toolsMaterials' => $this->toolsMaterials($selectedToolMaterialId),
             'projects' => $this->projects(),
             'vendors' => $this->vendors(),
+            'employees' => User::query()->orderBy('name')->get(['id', 'name']),
             'transactionTypes' => self::TRANSACTION_TYPES,
             'statuses' => self::STATUSES,
             'selectedToolMaterialId' => $selectedToolMaterialId,
@@ -154,6 +156,7 @@ class ToolMaterialAssignmentController extends Controller
             'toolsMaterials' => $this->toolsMaterials((int) $toolsMaterialAssignment->tool_material_id),
             'projects' => $this->projects(),
             'vendors' => $this->vendors(),
+            'employees' => User::query()->orderBy('name')->get(['id', 'name']),
             'transactionTypes' => self::TRANSACTION_TYPES,
             'statuses' => self::STATUSES,
             'selectedToolMaterialId' => null,

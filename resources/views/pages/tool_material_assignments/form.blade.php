@@ -38,19 +38,6 @@
             </div>
 
             <div class="col-md-6">
-                <label class="form-label">From Site</label>
-                <select name="from_project_id" class="form-select">
-                    <option value="">Select From Site</option>
-                    @foreach($projects as $project)
-                        <option value="{{ $project->id }}" @selected((string) old('from_project_id', $assignment?->from_project_id ?? ($prefill['from_project_id'] ?? null)) === (string) $project->id)>
-                            {{ $project->name }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('from_project_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-            </div>
-
-            <div class="col-md-6">
                 <label class="form-label">Transaction</label>
                 @if($lockTransaction)
                     <input type="hidden" name="transaction_type" value="{{ $selectedTransactionType }}">
@@ -61,6 +48,19 @@
                     @endforeach
                 </select>
                 @error('transaction_type')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-6" id="fromProjectField">
+                <label class="form-label">From Site</label>
+                <select name="from_project_id" class="form-select">
+                    <option value="">Select From Site</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}" @selected((string) old('from_project_id', $assignment?->from_project_id ?? ($prefill['from_project_id'] ?? null)) === (string) $project->id)>
+                            {{ $project->name }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('from_project_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-6" id="sourceTypeField">
@@ -125,7 +125,17 @@
 
             <div class="col-md-4">
                 <label class="form-label">Receiver Name</label>
-                <input type="text" name="receiver_name" class="form-control" value="{{ old('receiver_name', $assignment?->receiver_name ?? ($prefill['receiver_name'] ?? null)) }}">
+                <select name="receiver_name" class="form-select">
+                    <option value="">Select Employee</option>
+                    @foreach($employees as $employee)
+                        <option value="{{ $employee->name }}" @selected((string) old('receiver_name', $assignment?->receiver_name ?? ($prefill['receiver_name'] ?? null)) === (string) $employee->name)>
+                            {{ $employee->name }}
+                        </option>
+                    @endforeach
+                    @if($assignment?->receiver_name && !$employees->contains('name', $assignment->receiver_name))
+                        <option value="{{ $assignment->receiver_name }}" selected>{{ $assignment->receiver_name }}</option>
+                    @endif
+                </select>
                 @error('receiver_name')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
@@ -169,7 +179,7 @@
             const destinationType = document.getElementById('toolDestinationType');
             const sourceTypeField = document.getElementById('sourceTypeField');
             const destinationTypeField = document.getElementById('destinationTypeField');
-            const fromProjectField = document.querySelector('[name="from_project_id"]')?.closest('.col-md-6');
+            const fromProjectField = document.getElementById('fromProjectField');
             const toProjectField = document.getElementById('toProjectField');
             const vendorField = document.getElementById('vendorField');
             const quantity = document.getElementById('toolQuantity');
