@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileClientProjectController;
 use App\Http\Controllers\Api\MobileEmployeeRoleController;
 use App\Http\Controllers\Api\MobileExpensePaymentController;
+use App\Http\Controllers\Api\MobileInventoryController;
 use App\Http\Controllers\Api\MobileLeaveMasterController;
 use App\Http\Controllers\Api\MobileSettingsDashboardController;
 use App\Http\Controllers\Api\MobileTaskWalletController;
@@ -86,6 +87,12 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/payments', [MobileExpensePaymentController::class, 'payments']);
     Route::get('/payments/{payment}', [MobileExpensePaymentController::class, 'showPayment'])->whereNumber('payment');
     Route::get('/payment-stages', [MobileExpensePaymentController::class, 'paymentStages']);
+
+    Route::get('/inventory/options', [MobileInventoryController::class, 'inventoryOptions']);
+    Route::get('/inventory/items', [MobileInventoryController::class, 'inventoryItems']);
+    Route::get('/inventory/transactions', [MobileInventoryController::class, 'inventoryTransactions']);
+    Route::post('/inventory/transactions', [MobileInventoryController::class, 'storeInventoryTransaction']);
+    Route::get('/inventory/transactions/{assignment}', [MobileInventoryController::class, 'showInventoryTransaction'])->whereNumber('assignment');
 
     Route::get('/leave-requests/options', [MobileLeaveMasterController::class, 'leaveOptions']);
     Route::get('/leave-requests', [MobileLeaveMasterController::class, 'leaveRequests']);

@@ -8,6 +8,8 @@ use App\Models\Payment;
 use App\Models\Project;
 use App\Models\PaymentStage;
 use App\Models\Quotation;
+use App\Models\Wallet;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
@@ -40,9 +42,11 @@ class PaymentController extends Controller
             ->pluck('paid_total', 'quotation_id');
 
         $payments->getCollection()->transform(function ($payment) use ($paidSumsByQuotation) {
-            $quotationTotal = (float) ($payment->quotation?->total_amount ?? $payment->quotation?->amount ?? 0);
+            $quotationTotal = $this->quotationAmount($payment->quotation);
             $paid = (float) ($paidSumsByQuotation[$payment->quotation_id] ?? 0);
+            $currentAmount = in_array($payment->status, self::BALANCE_AFFECTING_STATUSES, true) ? (float) $payment->amount : 0.0;
             $payment->is_fully_paid_quotation = $quotationTotal > 0 && $paid >= $quotationTotal;
+            $payment->remaining_amount_for_edit = max($quotationTotal - $paid + $currentAmount, 0);
             return $payment;
         });
 
@@ -96,8 +100,14 @@ class PaymentController extends Controller
         }
 
         try {
+            $columns = ['id', 'quotation_number as number'];
+            $columns[] = Schema::hasColumn('quotations', 'amount') ? 'amount' : DB::raw('0 as amount');
+            if (Schema::hasColumn('quotations', 'total_amount')) {
+                $columns[] = 'total_amount';
+            }
+
             $quotations = Quotation::where('project_id', $projectId)
-                ->select('id', 'quotation_number as number', 'amount')
+                ->select($columns)
                 ->orderBy('id', 'desc')
                 ->get();
 
@@ -110,14 +120,14 @@ class PaymentController extends Controller
                 ->pluck('paid_total', 'quotation_id');
 
             $payload = $quotations->map(function ($quotation) use ($paidSums) {
-                $quotationTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
+                $quotationTotal = $this->quotationAmount($quotation);
                 $paidTotal = (float) ($paidSums[$quotation->id] ?? 0);
                 $remainingAmount = max($quotationTotal - $paidTotal, 0);
 
                 return [
                     'id' => $quotation->id,
                     'number' => $quotation->number,
-                    'total_amount' => $remainingAmount,
+                    'total_amount' => $quotationTotal,
                     'remaining_amount' => $remainingAmount,
                     'is_fully_paid' => $remainingAmount <= 0,
                 ];
@@ -142,8 +152,14 @@ class PaymentController extends Controller
         }
 
         try {
+            $columns = ['id', 'quotation_number as number'];
+            $columns[] = Schema::hasColumn('quotations', 'amount') ? 'amount' : DB::raw('0 as amount');
+            if (Schema::hasColumn('quotations', 'total_amount')) {
+                $columns[] = 'total_amount';
+            }
+
             $quotations = Quotation::where('client_id', $clientId)
-                ->select('id', 'quotation_number as number', 'amount')
+                ->select($columns)
                 ->orderBy('id', 'desc')
                 ->get();
 
@@ -156,14 +172,14 @@ class PaymentController extends Controller
                 ->pluck('paid_total', 'quotation_id');
 
             $payload = $quotations->map(function ($quotation) use ($paidSums) {
-                $quotationTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
+                $quotationTotal = $this->quotationAmount($quotation);
                 $paidTotal = (float) ($paidSums[$quotation->id] ?? 0);
                 $remainingAmount = max($quotationTotal - $paidTotal, 0);
 
                 return [
                     'id' => $quotation->id,
                     'number' => $quotation->number,
-                    'total_amount' => $remainingAmount,
+                    'total_amount' => $quotationTotal,
                     'remaining_amount' => $remainingAmount,
                     'is_fully_paid' => $remainingAmount <= 0,
                 ];
@@ -181,9 +197,15 @@ class PaymentController extends Controller
      */
     public function quotationTotal($id)
     {
-        $quotation = \App\Models\Quotation::select('id', 'amount')->findOrFail($id);
+        $columns = ['id'];
+        $columns[] = Schema::hasColumn('quotations', 'amount') ? 'amount' : DB::raw('0 as amount');
+        if (Schema::hasColumn('quotations', 'total_amount')) {
+            $columns[] = 'total_amount';
+        }
 
-        $quotationTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
+        $quotation = \App\Models\Quotation::select($columns)->findOrFail($id);
+
+        $quotationTotal = $this->quotationAmount($quotation);
         $paidTotal = (float) Payment::where('quotation_id', $quotation->id)
             ->whereIn('status', self::BALANCE_AFFECTING_STATUSES)
             ->sum('amount');
@@ -330,6 +352,7 @@ class PaymentController extends Controller
             'project_id' => ['required', 'exists:projects,id'],
 
             'transaction_id' => [
+                'required_if:method,bank_transfer',
                 'nullable',
                 'string',
                 'max:255',
@@ -365,7 +388,7 @@ class PaymentController extends Controller
                 'quotation_id' => 'Selected quotation does not belong to the selected project.',
             ]);
         }
-        $quotationTotal = (float) ($quotation->total_amount ?? $quotation->amount ?? 0);
+        $quotationTotal = $this->quotationAmount($quotation);
 
         $paidQuery = Payment::where('quotation_id', $validated['quotation_id'])
             ->whereIn('status', self::BALANCE_AFFECTING_STATUSES);
@@ -381,14 +404,18 @@ class PaymentController extends Controller
             ]);
         }
 
-        if ((float) $validated['amount'] > $remainingAmount) {
+        if (round((float) $validated['amount'], 2) > round($remainingAmount, 2)) {
             throw ValidationException::withMessages([
-                'amount' => 'Amount cannot exceed remaining amount: ' . number_format($remainingAmount, 2),
+                'amount' => 'Amount cannot exceed remaining quotation amount.',
             ]);
         }
 
         if (($validated['status'] ?? null) === 'partial') {
-            $totalStages = PaymentStage::count();
+            $stageQuery = PaymentStage::query();
+            if (Schema::hasColumn('payment_stages', 'project_id')) {
+                $stageQuery->where('project_id', $validated['project_id']);
+            }
+            $totalStages = $stageQuery->count();
             $usedStageCount = Payment::where('quotation_id', $validated['quotation_id'])
                 ->when($payment, fn ($query) => $query->where('id', '!=', $payment->id))
                 ->distinct('stage_id')
@@ -465,8 +492,43 @@ class PaymentController extends Controller
         $referenceId = (int) $payment->id;
         if ($amount > 0) {
             $balanceService->creditUserWallet((int) Auth::id(), $amount, 'Payment income credit', 'payment', $referenceId);
+            $this->recordWalletHistory($payment, (int) Auth::id(), $amount, 0, 'Payment income credit');
         } elseif ($amount < 0) {
             $balanceService->debitUserWallet((int) Auth::id(), abs($amount), 'Payment income rollback debit', 'payment', $referenceId);
+            $this->recordWalletHistory($payment, (int) Auth::id(), abs($amount), 1, 'Payment income rollback debit');
         }
+    }
+
+    private function quotationAmount(?Quotation $quotation): float
+    {
+        if (! $quotation) {
+            return 0.0;
+        }
+
+        $totalAmount = (float) ($quotation->total_amount ?? 0);
+        $amount = (float) ($quotation->amount ?? 0);
+
+        return $totalAmount > 0 ? $totalAmount : $amount;
+    }
+
+    private function recordWalletHistory(Payment $payment, int $userId, float $amount, int $transferType, string $description): void
+    {
+        if ($amount <= 0 || ! Schema::hasTable('wallet')) {
+            return;
+        }
+
+        Wallet::query()->create([
+            'user_id' => $userId,
+            'client_id' => (int) $payment->client_id,
+            'project_id' => (int) $payment->project_id,
+            'amount' => (int) round($amount),
+            'payment_mode' => $payment->payment_method === 'bank_transfer' ? 2 : 1,
+            'transfer_type' => $transferType,
+            'stage_id' => $payment->stage_id,
+            'description' => $description . ' - ' . ($payment->quotation?->quotation_number ?? $payment->payment_code ?? $payment->id),
+            'current_date' => $payment->payment_date ?? Carbon::now(),
+            'active_status' => 1,
+            'delete_status' => 0,
+        ]);
     }
 }

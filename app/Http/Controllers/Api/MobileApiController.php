@@ -270,7 +270,7 @@ class MobileApiController extends Controller
                 Rule::unique('users', 'email')->ignore($employee?->id),
             ],
             'role' => ['required', 'string', Rule::exists('roles', 'name')],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'regex:/^[6-9]\d{9}$/'],
             'designation' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
@@ -278,6 +278,8 @@ class MobileApiController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'password' => [$employee ? 'nullable' : 'required', 'string', 'min:6', 'confirmed'],
+        ], [
+            'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
     }
 
@@ -287,13 +289,15 @@ class MobileApiController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('clients', 'email')->ignore($client?->id)],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['required', 'regex:/^[6-9]\d{9}$/'],
             'address' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:100'],
             'state' => ['nullable', 'string', 'max:100'],
             'country' => ['nullable', 'string', 'max:100'],
             'status' => ['required', Rule::in(['enquiry', 'active', 'inactive'])],
             'notes' => ['nullable', 'string'],
+        ], [
+            'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
     }
 
@@ -659,6 +663,7 @@ class MobileApiController extends Controller
             'modules' => [
                 'tasks' => $this->settingValue('tasks_enabled', true),
                 'expenses' => $this->settingValue('expenses_enabled', true),
+                'inventory' => $this->settingValue('inventory_enabled', true),
                 'wallet' => $this->settingValue('wallet_enabled', true),
                 'leave_requests' => $this->settingValue('leave_requests_enabled', true),
             ],

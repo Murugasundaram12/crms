@@ -80,7 +80,7 @@
     <div class="row">
         @forelse ($projects as $project)
             <div class="col-xxl-3 col-xl-4 col-md-6">
-                <div class="card border-0 shadow-sm h-100">
+                <div class="card border-0 shadow-sm h-100 project-grid-card">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center">
@@ -95,7 +95,7 @@
                                 <i class="ti ti-star-filled text-warning"></i>
                             </span>
                         </div>
-                        <div class="d-flex align-items-center justify-content-between bg-light rounded p-2 mb-3">
+                        <div class="d-flex align-items-center justify-content-between bg-light rounded p-2 mb-3 project-card-main">
                             <div class="d-flex align-items-center">
                                 <a href="{{ route('projects.show', $project) }}"
                                     class="avatar border rounded-circle bg-white flex-shrink-0 me-2">
@@ -108,29 +108,24 @@
                                     <p class="fs-13 mb-0">{{ $project->type }}</p>
                                 </div>
                             </div>
-                            <div class="dropdown table-action">
-                                <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="ti ti-dots-vertical"></i>
-                                </a>
-                                <div class="dropdown-menu dropdown-menu-right">
-                                    @can('projects-edit')
-                                        <a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                            data-bs-target="#edit_project_{{ $project->id }}"><i class="ti ti-edit text-blue"></i>
-                                            Edit</a>
-                                    @endcan
-                                    <a class="dropdown-item" href="{{ route('projects.show', $project) }}"><i
-                                            class="ti ti-eye text-blue"></i> View Details</a>
-                                    @can('projects-delete')
-                                        <button type="button" class="dropdown-item crm-delete-trigger" data-bs-toggle="modal"
-                                            data-bs-target="#crmDeleteModal"
-                                            data-delete-action="{{ route('projects.destroy', $project) }}"
-                                            data-delete-title="Delete Project"
-                                            data-delete-message="Are you sure you want to delete project '{{ $project->name }}'?">
-                                            <i class="ti ti-trash"></i> Delete
-                                        </button>
-                                    @endcan
-                                </div>
+                            <div class="project-card-actions table-action d-inline-flex align-items-center gap-1">
+                                <a class="btn btn-sm btn-outline-info" href="{{ route('projects.show', $project) }}"
+                                    title="View" aria-label="View project"><i class="ti ti-eye"></i></a>
+                                @can('projects-edit')
+                                    <a class="btn btn-sm btn-outline-primary" href="#" data-bs-toggle="modal"
+                                        data-bs-target="#edit_project_{{ $project->id }}" title="Edit"
+                                        aria-label="Edit project"><i class="ti ti-edit"></i></a>
+                                @endcan
+                                @can('projects-delete')
+                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger" data-bs-toggle="modal"
+                                        data-bs-target="#crmDeleteModal"
+                                        data-delete-action="{{ route('projects.destroy', $project) }}"
+                                        data-delete-title="Delete Project"
+                                        data-delete-message="Are you sure you want to delete project '{{ $project->name }}'?"
+                                        title="Delete" aria-label="Delete project">
+                                        <i class="ti ti-trash"></i>
+                                    </button>
+                                @endcan
                             </div>
                         </div>
                         <div class="d-block">
@@ -177,8 +172,10 @@
                     <div class="card-body text-center py-5">
                         <h5 class="mb-2">No projects created yet</h5>
                         <p class="text-muted mb-3">Start by creating your first construction project.</p>
-                        <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                            data-bs-target="#offcanvas_add">Add New Project</a>
+                        @can('projects-create')
+                            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvas_add">Add New Project</a>
+                        @endcan
                     </div>
                 </div>
             </div>
@@ -189,6 +186,7 @@
         {{ $projects->links() }}
     </div>
 
+    @can('projects-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add New Project</h5>
@@ -269,7 +267,9 @@
             </form>
         </div>
     </div>
+    @endcan
 
+    @can('projects-edit')
     @foreach ($projects as $project)
         <div class="modal fade" id="edit_project_{{ $project->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -366,6 +366,7 @@
             </div>
         </div>
     @endforeach
+    @endcan
 @endsection
 
 @push('styles')

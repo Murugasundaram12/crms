@@ -56,6 +56,10 @@
     $currentTerms = old('terms', isset($quotation)
         ? $quotation->terms->pluck('term_text')->implode("\n")
         : '');
+    $unitOptions = ($units ?? collect())->map(fn($unit) => [
+        'code' => $unit->code,
+        'label' => $unit->display_name,
+    ])->values();
 @endphp
 
 <div class="row g-4">
@@ -103,7 +107,7 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Quotation Date <span class="text-danger">*</span></label>
+                        <label class="form-label">Quotation Create Date <span class="text-danger">*</span></label>
                         <input type="date" name="quotation_date"
                             class="form-control @error('quotation_date') is-invalid @enderror"
                             value="{{ old('quotation_date', optional($quotation->quotation_date ?? now())->format('Y-m-d')) }}"
@@ -114,7 +118,7 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Validity Days</label>
+                        <label class="form-label">Quote Validity (Days)</label>
                         <input type="number" name="validity_days"
                             class="form-control @error('validity_days') is-invalid @enderror"
                             value="{{ old('validity_days', $quotation->validity_days ?? 30) }}" min="1" max="365">
@@ -173,7 +177,7 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Start Date</label>
+                        <label class="form-label">Work Start Date</label>
                         <input type="date" name="start_date"
                             class="form-control @error('start_date') is-invalid @enderror"
                             value="{{ old('start_date', optional($quotation->start_date ?? null)->format('Y-m-d')) }}">
@@ -183,7 +187,7 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Duration (Days)</label>
+                        <label class="form-label">Work Duration (Days)</label>
                         <input type="number" name="duration_days"
                             class="form-control @error('duration_days') is-invalid @enderror"
                             value="{{ old('duration_days', $quotation->duration_days ?? 1) }}" min="1">
@@ -344,6 +348,31 @@
                 price: row.price ?? row.rate ?? '',
                 amount: row.amount ?? '',
             });
+            const unitOptions = @json($unitOptions);
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+            const buildUnitOptions = (selectedUnit = '') => {
+                const selected = String(selectedUnit || '');
+                let hasSelected = selected === '';
+                const options = ['<option value="">Select Unit</option>'];
+
+                unitOptions.forEach((unit) => {
+                    const code = String(unit.code || '');
+                    const isSelected = selected === code;
+                    hasSelected = hasSelected || isSelected;
+                    options.push(`<option value="${escapeHtml(code)}" ${isSelected ? 'selected' : ''}>${escapeHtml(unit.label || code)}</option>`);
+                });
+
+                if (selected && !hasSelected) {
+                    options.push(`<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>`);
+                }
+
+                return options.join('');
+            };
 
             const groupsState = initialGroups.length
                 ? initialGroups.map((group) => ({
@@ -388,16 +417,7 @@
                             <div class="col-md-2">
                                 <label class="form-label">Unit</label>
                                 <select name="items[${groupIndex}][rows][${rowIndex}][unit]" class="form-control">
-                                    <option value="">Select Unit</option>
-                                    <option value="sft" ${row.unit === 'sft' ? 'selected' : ''}>sft (Square Feet)</option>
-                                    <option value="cft" ${row.unit === 'cft' ? 'selected' : ''}>cft (Cubic Feet)</option>
-                                    <option value="nos" ${row.unit === 'nos' ? 'selected' : ''}>nos (Numbers)</option>
-                                    <option value="m.sq" ${row.unit === 'm.sq' ? 'selected' : ''}>m.sq (Square Meter)</option>
-                                    <option value="Sqm" ${row.unit === 'Sqm' ? 'selected' : ''}>Sqm (Square Meter)</option>
-                                    <option value="Cum" ${row.unit === 'Cum' ? 'selected' : ''}>Cum (Cubic Meter)</option>
-                                    <option value="m" ${row.unit === 'm' ? 'selected' : ''}>m (Meter)</option>
-                                    <option value="ft" ${row.unit === 'ft' ? 'selected' : ''}>ft (Feet)</option>
-                                    <option value="pcs" ${row.unit === 'pcs' ? 'selected' : ''}>pcs (Pieces)</option>
+                                    ${buildUnitOptions(row.unit)}
                                 </select>
                             </div>
                             <div class="col-md-2">

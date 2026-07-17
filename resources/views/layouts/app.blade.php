@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="{{ asset('assets/plugins/daterangepicker/daterangepicker.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="app-style">
     <link rel="stylesheet" href="{{ asset('assets/css/crm-list-ui.css') }}">
+    @include('partials.required-field-stars')
 
     @stack('styles')
 </head>
@@ -46,6 +47,7 @@
     <script src="{{ asset('assets/plugins/daterangepicker/daterangepicker.js') }}"></script>
     <script src="{{ asset('assets/js/script.js') }}"></script>
     <script src="{{ asset('assets/js/laravel-active-menu.js') }}"></script>
+    @include('partials.form-ux-guards')
     @auth
     <script>
         window.crmPermissionContext = @json($permissionUiContext ?? ['userPermissions' => [], 'permissionRoutes' => []]);
@@ -169,6 +171,19 @@
                 const permission = requiredPermission(path, 'GET');
                 if (permission && !allowed.has(permission)) {
                     hideElement(anchor);
+                }
+            });
+
+            document.querySelectorAll('[data-delete-action]').forEach(function (trigger) {
+                const action = trigger.getAttribute('data-delete-action') || '';
+                const path = normalizePath(action);
+                if (path === null) {
+                    return;
+                }
+
+                const permission = requiredPermission(path, 'DELETE');
+                if (permission && !allowed.has(permission)) {
+                    hideElement(trigger);
                 }
             });
 

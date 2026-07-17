@@ -94,29 +94,23 @@
                             <div class="d-flex align-items-center">
                                 <span class="badge badge-tag badge-soft-info">{{ $tx->payment_mode }}</span>
                             </div>
-                            <div class="dropdown">
-                                <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                    data-bs-toggle="dropdown">
-                                    <i class="ti ti-dots-vertical"></i>
-                                </a>
-                                <div class="dropdown-menu dropdown-menu-end">
-                                    @can('expenses-edit')
-                                        <a class="dropdown-item" href="{{ route('expense-transactions.edit', $tx) }}">
-                                            <i class="ti ti-edit text-blue"></i> Edit
-                                        </a>
-                                    @endcan
+                            <div class="table-action d-inline-flex align-items-center gap-1 flex-wrap">
+                                @can('expenses-edit')
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('expense-transactions.edit', $tx) }}">
+                                        <i class="ti ti-edit me-1"></i>Edit
+                                    </a>
+                                @endcan
 
-                                    @can('expenses-delete')
-                                        <button type="button" class="dropdown-item text-danger crm-delete-trigger"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#crmDeleteModal"
-                                            data-delete-action="{{ route('expense-transactions.destroy', $tx) }}"
-                                            data-delete-title="Delete Expense"
-                                            data-delete-message="Are you sure you want to delete this expense?">
-                                            <i class="ti ti-trash me-1"></i> Delete
-                                        </button>
-                                    @endcan
-                                </div>
+                                @can('expenses-delete')
+                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#crmDeleteModal"
+                                        data-delete-action="{{ route('expense-transactions.destroy', $tx) }}"
+                                        data-delete-title="Delete Expense"
+                                        data-delete-message="Are you sure you want to delete this expense?">
+                                        <i class="ti ti-trash me-1"></i>Delete
+                                    </button>
+                                @endcan
                             </div>
                         </div>
 

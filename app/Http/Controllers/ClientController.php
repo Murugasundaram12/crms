@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -66,7 +67,18 @@ class ClientController extends Controller
 
     public function destroy(Client $client)
     {
-        // Delete the selected client record.
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($client->id, [
+            ['table' => 'projects', 'column' => 'client_id', 'label' => 'projects'],
+            ['table' => 'quotations', 'column' => 'client_id', 'label' => 'quotations'],
+            ['table' => 'payments', 'column' => 'client_id', 'label' => 'payments'],
+            ['table' => 'wallet', 'column' => 'client_id', 'label' => 'wallet transfers'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('clients.index')
+                ->with('error', DeleteDependencyGuard::message('Client', $blockedBy['label']));
+        }
+
         $client->delete();
 
         return redirect()->route('clients.index')->with('success', 'Client deleted successfully.');
@@ -123,13 +135,15 @@ class ClientController extends Controller
                 'max:255',
                 Rule::unique('clients', 'email')->ignore($client?->id),
             ],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['required', 'regex:/^[6-9]\d{9}$/'],
             'address' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:100'],
             'state' => ['nullable', 'string', 'max:100'],
             'country' => ['nullable', 'string', 'max:100'],
             'status' => ['required', Rule::in(['enquiry', 'active', 'inactive'])],
             'notes' => ['nullable', 'string'],
+        ], [
+            'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
     }
 }

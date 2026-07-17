@@ -12,9 +12,11 @@
                     </ol>
                 </nav>
             </div>
-            <a href="{{ route('transfers.create') }}" class="btn btn-primary shadow-sm">
-                <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Transfer
-            </a>
+            @can('transfers-create')
+                <a href="{{ route('transfers.create') }}" class="btn btn-primary shadow-sm">
+                    <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Transfer
+                </a>
+            @endcan
         </div>
 
         @if(session('success'))
@@ -94,19 +96,23 @@
                             <td>{{ $transfer->description ?? '-' }}</td>
                             <td>
                                 <div class="d-flex gap-2">
-                                    <a href="{{ route('transfers.edit', $transfer->id) }}"
-                                        class="btn btn-sm btn-outline-primary" title="Edit">
-                                        <i class="ti ti-edit"></i>
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
-                                        title="Delete"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#crmDeleteModal"
-                                        data-delete-action="{{ route('transfers.destroy', $transfer->id) }}"
-                                        data-delete-title="Delete Transfer"
-                                        data-delete-message="Are you sure you want to delete this transfer?">
-                                        <i class="ti ti-trash"></i>
-                                    </button>
+                                    @can('transfers-edit')
+                                        <a href="{{ route('transfers.edit', $transfer->id) }}"
+                                            class="btn btn-sm btn-outline-primary" title="Edit">
+                                            <i class="ti ti-edit"></i>
+                                        </a>
+                                    @endcan
+                                    @can('transfers-delete')
+                                        <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
+                                            title="Delete"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#crmDeleteModal"
+                                            data-delete-action="{{ route('transfers.destroy', $transfer->id) }}"
+                                            data-delete-title="Delete Transfer"
+                                            data-delete-message="Are you sure you want to delete this transfer?">
+                                            <i class="ti ti-trash"></i>
+                                        </button>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>

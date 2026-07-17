@@ -11,7 +11,7 @@ return new class extends Migration
     {
         Schema::table('tool_material_assignments', function (Blueprint $table) {
             $table->string('reference_no')->nullable()->unique()->after('id');
-            $table->string('status', 30)->default('completed')->after('reference_no');
+            $table->string('status', 30)->default('draft')->after('reference_no');
             $table->foreignId('handled_by')->nullable()->after('vendor_id')->constrained('users')->nullOnDelete();
             $table->string('receiver_name')->nullable()->after('amount');
             $table->string('vehicle_no')->nullable()->after('receiver_name');

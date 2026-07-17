@@ -150,10 +150,10 @@
                                         class="ti ti-list-details"></i><span>Categories</span></a></li>
                         @endif
 
-
-
-
-
+                        @if($currentUser && $currentUser->hasPermission('units-list'))
+                            <li><a href="{{ route('units.index') }}"><i
+                                        class="ti ti-ruler-measure"></i><span>Unit Master</span></a></li>
+                        @endif
 
                         @if($currentUser && $currentUser->hasPermission('quotations-list'))
                             <li><a href="{{ route('quotations.list') }}"><i

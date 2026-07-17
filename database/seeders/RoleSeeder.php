@@ -86,6 +86,10 @@ class RoleSeeder extends Seeder
             'categories-create',
             'categories-edit',
             'categories-delete',
+            'units-list',
+            'units-create',
+            'units-edit',
+            'units-delete',
         ],
         'Employee' => [
             'projects-list',

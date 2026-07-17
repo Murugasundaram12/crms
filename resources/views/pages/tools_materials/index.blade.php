@@ -16,9 +16,17 @@
             </nav>
         </div>
         @can('tools-materials-create')
-            <a href="{{ route('tools-materials.create') }}" class="btn btn-primary shadow-sm">
-                <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Tool / Material
-            </a>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route('tools-material-assignments.create', ['transaction_type' => 'purchase', 'destination_type' => 'office', 'lock_transaction' => 1]) }}" class="btn btn-success shadow-sm">
+                    <i class="ti ti-shopping-cart-plus me-1"></i>Purchase Stock
+                </a>
+                <a href="{{ route('tools-material-assignments.create', ['transaction_type' => 'issue_to_site', 'lock_transaction' => 1]) }}" class="btn btn-outline-primary shadow-sm">
+                    <i class="ti ti-truck-delivery me-1"></i>Issue to Site
+                </a>
+                <a href="{{ route('tools-materials.create') }}" class="btn btn-primary shadow-sm">
+                    <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Tool / Material
+                </a>
+            </div>
         @endcan
     </div>
 
@@ -56,8 +64,8 @@
                     <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                 </div>
                 <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary w-100 shadow-sm">Filter</button>
-                    <a href="{{ route('tools-materials.index') }}" class="btn btn-outline-secondary w-100 shadow-sm">Reset</a>
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="ti ti-filter me-1"></i>Filter</button>
+                    <a href="{{ route('tools-materials.index') }}" class="btn btn-outline-secondary w-100 shadow-sm"><i class="ti ti-refresh me-1"></i>Reset</a>
                 </div>
             </form>
         </div>
@@ -114,14 +122,37 @@
                                 </td>
                                 <td>{{ $item->date?->format('d M Y') ?: '-' }}</td>
                                 <td class="text-end">
-                                    <x-action-dropdown
-                                        :editRoute="route('tools-materials.edit', $item)"
-                                        editPermission="tools-materials-edit"
-                                        :deleteRoute="route('tools-materials.destroy', $item)"
-                                        deleteTitle="Delete Tool / Material"
-                                        :deleteMessage="'Are you sure you want to delete \'' . $item->name . '\'?'"
-                                        deletePermission="tools-materials-delete"
-                                    />
+                                    <div class="d-inline-flex align-items-center justify-content-end gap-1 flex-nowrap tm-stock-actions">
+                                        @can('tools-materials-create')
+                                            <a class="btn btn-sm btn-light-success tm-stock-action-btn" title="Purchase Stock" href="{{ route('tools-material-assignments.create', [
+                                                'tool_material_id' => $item->id,
+                                                'transaction_type' => 'purchase',
+                                                'destination_type' => 'office',
+                                                'lock_transaction' => 1,
+                                            ]) }}">
+                                                <i class="ti ti-shopping-cart-plus"></i>
+                                                <span>Buy</span>
+                                            </a>
+                                            <a class="btn btn-sm btn-light-primary tm-stock-action-btn" title="Issue to Site" href="{{ route('tools-material-assignments.create', [
+                                                'tool_material_id' => $item->id,
+                                                'transaction_type' => 'issue_to_site',
+                                                'quantity' => $item->office_stock_quantity > 0 ? min((float) $item->office_stock_quantity, 1) : 1,
+                                                'rate' => $item->opening_rate,
+                                                'lock_transaction' => 1,
+                                            ]) }}">
+                                                <i class="ti ti-truck-delivery"></i>
+                                                <span>Issue</span>
+                                            </a>
+                                        @endcan
+                                        <x-action-dropdown
+                                            :editRoute="route('tools-materials.edit', $item)"
+                                            editPermission="tools-materials-edit"
+                                            :deleteRoute="route('tools-materials.destroy', $item)"
+                                            deleteTitle="Delete Tool / Material"
+                                            :deleteMessage="'Are you sure you want to delete \'' . $item->name . '\'?'"
+                                            deletePermission="tools-materials-delete"
+                                        />
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -139,4 +170,49 @@
             </div>
         @endif
     </div>
+
+    @push('styles')
+        <style>
+            .tm-stock-actions {
+                min-width: max-content;
+            }
+
+            .tm-stock-action-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                border: 0;
+                border-radius: 6px;
+                font-weight: 600;
+                line-height: 1;
+                padding: 7px 9px;
+                white-space: nowrap;
+            }
+
+            .tm-stock-action-btn i {
+                font-size: 15px;
+                line-height: 1;
+            }
+
+            .btn-light-success.tm-stock-action-btn {
+                background: #eaf8ef;
+                color: #1e7e43;
+            }
+
+            .btn-light-success.tm-stock-action-btn:hover {
+                background: #d8f1e2;
+                color: #176b37;
+            }
+
+            .btn-light-primary.tm-stock-action-btn {
+                background: #edf4ff;
+                color: #1f5fbf;
+            }
+
+            .btn-light-primary.tm-stock-action-btn:hover {
+                background: #dbeaff;
+                color: #184f9f;
+            }
+        </style>
+    @endpush
 @endsection

@@ -17,8 +17,10 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add New Task</a>
+            @can('tasks-create')
+                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add New Task</a>
+            @endcan
         </div>
     </div>
 
@@ -160,22 +162,21 @@
                                                 <img src="{{ asset($task->employee?->avatar ?: 'assets/img/profiles/avatar-01.jpg') }}"
                                                     alt="img">
                                             </div>
-                                            <div class="dropdown table-action">
-                                                <a href="#" class="action-icon btn btn-xs shadow btn-icon btn-outline-light"
-                                                    data-bs-toggle="dropdown" aria-expanded="false"><i
-                                                        class="ti ti-dots-vertical"></i></a>
-                                                <div class="dropdown-menu dropdown-menu-right">
-                                                    <a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                            <div class="table-action d-inline-flex align-items-center gap-1 flex-wrap">
+                                                @can('tasks-edit')
+                                                    <a class="btn btn-sm btn-outline-primary" href="#" data-bs-toggle="modal"
                                                         data-bs-target="#edit_task_{{ $task->id }}"><i
-                                                            class="ti ti-edit text-blue"></i> Edit</a>
-                                                    <button type="button" class="dropdown-item crm-delete-trigger"
+                                                            class="ti ti-edit me-1"></i>Edit</a>
+                                                @endcan
+                                                @can('tasks-delete')
+                                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
                                                         data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
                                                         data-delete-action="{{ route('tasks.destroy', $task) }}"
                                                         data-delete-title="Delete Task"
                                                         data-delete-message="Are you sure you want to delete task '{{ $task->title }}'?">
-                                                        <i class="ti ti-trash"></i> Delete
+                                                        <i class="ti ti-trash me-1"></i>Delete
                                                     </button>
-                                                </div>
+                                                @endcan
                                             </div>
                                         </div>
                                     </div>
@@ -191,13 +192,16 @@
                 <div class="text-center py-5">
                     <h5 class="mb-2">No tasks found</h5>
                     <p class="text-muted mb-3">Create the first work item for your construction workflow.</p>
-                    <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                        data-bs-target="#offcanvas_add">Add New Task</a>
+                    @can('tasks-create')
+                        <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                            data-bs-target="#offcanvas_add">Add New Task</a>
+                    @endcan
                 </div>
             @endforelse
         </div>
     </div>
 
+    @can('tasks-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add New Task</h5><button type="button" class="btn-close"
@@ -257,7 +261,9 @@
             </form>
         </div>
     </div>
+    @endcan
 
+    @can('tasks-edit')
     @foreach ($groupedTasks as $tasks)
         @foreach ($tasks as $task)
             <div class="modal fade" id="edit_task_{{ $task->id }}" tabindex="-1" aria-hidden="true">
@@ -326,4 +332,5 @@
             </div>
         @endforeach
     @endforeach
+    @endcan
 @endsection

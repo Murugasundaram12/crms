@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\DeleteDependencyGuard;
 use App\Models\PaymentStage;
 use App\Models\Project;
 use Illuminate\Http\Request;
@@ -59,7 +60,16 @@ class PaymentStageController extends Controller
 
     public function destroy(PaymentStage $paymentStage)
     {
-        // Delete the selected payment stage.
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($paymentStage->id, [
+            ['table' => 'payments', 'column' => 'stage_id', 'label' => 'payments'],
+            ['table' => 'wallet', 'column' => 'stage_id', 'label' => 'wallet transfers'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('payment-stages.index')
+                ->with('error', DeleteDependencyGuard::message('Payment stage', $blockedBy['label']));
+        }
+
         $paymentStage->delete();
 
         return redirect()->route('payment-stages.index')->with('success', 'Payment stage deleted successfully.');

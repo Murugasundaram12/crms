@@ -202,6 +202,50 @@ class RolePermissionAccessTest extends TestCase
             ->assertSee('>-<', false);
     }
 
+    public function test_payment_stage_used_by_payment_cannot_be_deleted(): void
+    {
+        $user = User::factory()->create(['role' => 'Super Admin']);
+
+        Schema::dropIfExists('payments');
+        Schema::dropIfExists('payment_stages');
+
+        Schema::create('payment_stages', function (Blueprint $table): void {
+            $table->id();
+            $table->string('stage_name');
+            $table->timestamps();
+        });
+
+        Schema::create('payments', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('stage_id')->nullable();
+            $table->decimal('amount', 12, 2)->default(0);
+            $table->timestamps();
+        });
+
+        $stageId = DB::table('payment_stages')->insertGetId([
+            'stage_name' => 'Foundation',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payments')->insert([
+            'stage_id' => $stageId,
+            'amount' => 25000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('payment-stages.destroy', $stageId))
+            ->assertRedirect(route('payment-stages.index'))
+            ->assertSessionHas('error', 'Payment stage is already used in payments and cannot be deleted.');
+
+        $this->assertDatabaseHas('payment_stages', [
+            'id' => $stageId,
+            'stage_name' => 'Foundation',
+        ]);
+    }
+
     private function permissionContextFromResponse(string $html): array
     {
         preg_match('/window\.crmPermissionContext = (.*?);/s', $html, $matches);

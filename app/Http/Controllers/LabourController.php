@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Labour;
 use App\Models\LabourRole;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -82,6 +83,16 @@ class LabourController extends Controller
     {
         // Load the labour record before deleting it.
         $labour = Labour::findOrFail($id);
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($labour->id, [
+            ['table' => 'labour_expense_transactions', 'column' => 'labour_id', 'label' => 'labour expenses'],
+            ['table' => 'expenses', 'column' => 'labour_id', 'label' => 'expenses'],
+            ['table' => 'advance_history', 'column' => 'labour_id', 'label' => 'advance history'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('labours.index')
+                ->with('error', DeleteDependencyGuard::message('Labour', $blockedBy['label']));
+        }
 
         // Delete the stored government photo when it exists.
         if ($labour->government_photo) {
@@ -154,12 +165,14 @@ class LabourController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'job_title' => ['nullable', 'string', 'max:255'],
-            'phone_number' => ['required', 'string', 'max:30'],
+            'phone_number' => ['required', 'regex:/^[6-9]\d{9}$/'],
             'labour_role_id' => ['required', 'exists:labour_roles,id'],
             'gender' => ['required', Rule::in(['male', 'female', 'other'])],
             'salary' => ['required', 'numeric'],
             'advance_amt' => ['nullable', 'numeric', 'min:0'],
             'government_photo' => ['nullable', 'image', 'max:2048'],
+        ], [
+            'phone_number.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
     }
 

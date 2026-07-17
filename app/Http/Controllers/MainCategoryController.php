@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MainCategory;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -68,15 +69,18 @@ class MainCategoryController extends Controller
     public function destroy($id)
     {
         $mainCategory = MainCategory::findOrFail($id);
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($mainCategory->id, [
+            ['table' => 'categories', 'column' => 'main_category_id', 'label' => 'categories'],
+            ['table' => 'category_main_category', 'column' => 'main_category_id', 'label' => 'categories'],
+            ['table' => 'expenses', 'column' => 'main_category_id', 'label' => 'expenses'],
+            ['table' => 'expense_transactions', 'column' => 'main_category_id', 'label' => 'expenses'],
+            ['table' => 'labour_expense_transactions', 'column' => 'main_category_id', 'label' => 'labour expenses'],
+            ['table' => 'vendor_expense_transactions', 'column' => 'main_category_id', 'label' => 'vendor expenses'],
+        ]);
 
-        $isInUse = DB::table('expenses')->where('main_category_id', $mainCategory->id)->exists()
-            || DB::table('expense_transactions')->where('main_category_id', $mainCategory->id)->exists()
-            || DB::table('labour_expense_transactions')->where('main_category_id', $mainCategory->id)->exists()
-            || DB::table('vendor_expense_transactions')->where('main_category_id', $mainCategory->id)->exists();
-
-        if ($isInUse) {
+        if ($blockedBy['blocked']) {
             return redirect()->route('main_categories.index')
-                ->with('error', 'Main category is used in transactions and cannot be deleted.');
+                ->with('error', DeleteDependencyGuard::message('Main category', $blockedBy['label']));
         }
 
         $mainCategory->categories()->detach();

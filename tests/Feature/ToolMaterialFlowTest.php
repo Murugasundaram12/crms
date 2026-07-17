@@ -7,6 +7,7 @@ use App\Models\ToolMaterialAssignment;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -34,6 +35,7 @@ class ToolMaterialFlowTest extends TestCase
             'role_permission',
             'permissions',
             'roles',
+            'mobile_api_tokens',
             'users',
         ] as $table) {
             Schema::dropIfExists($table);
@@ -55,6 +57,16 @@ class ToolMaterialFlowTest extends TestCase
             $table->string('avatar')->nullable();
             $table->string('password');
             $table->rememberToken();
+            $table->timestamps();
+        });
+
+        Schema::create('mobile_api_tokens', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('name')->default('mobile');
+            $table->string('token_hash', 64)->unique();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
             $table->timestamps();
         });
 
@@ -137,7 +149,7 @@ class ToolMaterialFlowTest extends TestCase
         Schema::create('tool_material_assignments', function (Blueprint $table): void {
             $table->id();
             $table->string('reference_no')->nullable()->unique();
-            $table->string('status', 30)->default('completed');
+            $table->string('status', 30)->default('draft');
             $table->foreignId('tool_material_id');
             $table->foreignId('from_project_id')->nullable();
             $table->foreignId('to_project_id')->nullable();
@@ -159,7 +171,7 @@ class ToolMaterialFlowTest extends TestCase
             $table->timestamps();
         });
 
-        $this->admin = User::factory()->create(['role' => 'Super Admin']);
+        $this->admin = User::factory()->create(['role' => 'Super Admin', 'password' => Hash::make('password')]);
         $clientId = DB::table('clients')->insertGetId(['name' => 'Client', 'created_at' => now(), 'updated_at' => now()]);
         $this->siteA = DB::table('projects')->insertGetId([
             'name' => 'Site A',
@@ -245,6 +257,27 @@ class ToolMaterialFlowTest extends TestCase
         $material = $material->fresh(['assignments.fromProject', 'assignments.toProject']);
         $this->assertSame(60.0, $material->office_stock_quantity);
         $this->assertSame(40.0, $material->stockBalances()['site:' . $this->siteA]['quantity']);
+    }
+
+    public function test_new_tool_material_assignment_defaults_to_draft(): void
+    {
+        $material = $this->createMaterial();
+
+        $this->actingAs($this->admin)
+            ->post(route('tools-material-assignments.store'), $this->payload($material, [
+                'status' => 'draft',
+                'transaction_type' => 'issue_to_site',
+                'to_project_id' => $this->siteA,
+                'quantity' => 20,
+            ]))
+            ->assertRedirect(route('tools-material-assignments.index'));
+
+        $this->assertDatabaseHas('tool_material_assignments', [
+            'tool_material_id' => $material->id,
+            'transaction_type' => 'issue_to_site',
+            'status' => 'draft',
+        ]);
+        $this->assertSame(100.0, $material->fresh(['assignments'])->office_stock_quantity);
     }
 
     public function test_vendor_return_adjusts_advance_and_reverses_on_update_and_delete(): void
@@ -357,15 +390,110 @@ class ToolMaterialFlowTest extends TestCase
                 'rate' => 7,
                 'amount' => 84,
                 'purpose' => 'Transfer from Site A',
+                'lock_transaction' => 1,
             ]))
             ->assertOk()
             ->assertSee('value="' . $material->id . '" selected', false)
+            ->assertSee('name="transaction_type" value="site_to_site"', false)
+            ->assertSee('name="_transaction_type_display"', false)
+            ->assertSee('disabled', false)
             ->assertSee('value="site_to_site" selected', false)
             ->assertSee('value="' . $this->siteA . '" selected', false)
             ->assertSee('value="12"', false)
             ->assertSee('value="7"', false)
             ->assertSee('value="84"', false)
             ->assertSee('Transfer from Site A');
+    }
+
+    public function test_assignment_form_rejects_invalid_transaction_location_combinations(): void
+    {
+        $material = $this->createMaterial();
+
+        $this->actingAs($this->admin)
+            ->post(route('tools-material-assignments.store'), $this->payload($material, [
+                'transaction_type' => 'purchase',
+                'vendor_id' => null,
+            ]))
+            ->assertSessionHasErrors('vendor_id');
+
+        $this->actingAs($this->admin)
+            ->post(route('tools-material-assignments.store'), $this->payload($material, [
+                'transaction_type' => 'issue_to_site',
+                'to_project_id' => null,
+            ]))
+            ->assertSessionHasErrors('to_project_id');
+
+        $this->actingAs($this->admin)
+            ->post(route('tools-material-assignments.store'), $this->payload($material, [
+                'transaction_type' => 'site_to_site',
+                'from_project_id' => $this->siteA,
+                'to_project_id' => $this->siteA,
+            ]))
+            ->assertSessionHasErrors('to_project_id');
+
+        $this->actingAs($this->admin)
+            ->post(route('tools-material-assignments.store'), $this->payload($material, [
+                'transaction_type' => 'return_to_vendor',
+                'source_type' => 'site',
+                'from_project_id' => null,
+                'vendor_id' => $this->vendorId,
+            ]))
+            ->assertSessionHasErrors('from_project_id');
+    }
+
+    public function test_mobile_inventory_api_creates_purchase_and_blocks_over_issue(): void
+    {
+        $material = $this->createMaterial(['opening_quantity' => 0, 'opening_amount' => 0]);
+        $token = $this->postJson('/api/login', [
+            'email' => $this->admin->email,
+            'password' => 'password',
+            'device_name' => 'Inventory Flow Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/inventory/transactions', [
+                'tool_material_id' => $material->id,
+                'transaction_type' => 'purchase',
+                'status' => 'transferred',
+                'destination_type' => 'office',
+                'vendor_id' => $this->vendorId,
+                'quantity' => 25,
+                'rate' => 12,
+                'transferred_at' => '2026-07-16 10:00:00',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('transaction.transaction_type', 'purchase')
+            ->assertJsonPath('transaction.amount', 300);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/inventory/transactions', [
+                'tool_material_id' => $material->id,
+                'transaction_type' => 'issue_to_site',
+                'status' => 'transferred',
+                'to_project_id' => $this->siteA,
+                'quantity' => 30,
+                'rate' => 12,
+                'transferred_at' => '2026-07-16 11:00:00',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.quantity.0', 'Insufficient stock. Available quantity is 25.00 CFT.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/inventory/transactions', [
+                'tool_material_id' => $material->id,
+                'transaction_type' => 'issue_to_site',
+                'status' => 'transferred',
+                'to_project_id' => $this->siteA,
+                'quantity' => 10,
+                'rate' => 12,
+                'transferred_at' => '2026-07-16 11:30:00',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('transaction.to_project.id', $this->siteA)
+            ->assertJsonPath('transaction.tool_material.office_stock_quantity', 15)
+            ->assertJsonPath('transaction.tool_material.site_stock_quantity', 10);
     }
 
     private function createMaterial(array $overrides = []): ToolMaterial
@@ -392,7 +520,7 @@ class ToolMaterialFlowTest extends TestCase
 
     private function payload(ToolMaterial $material, array $overrides = []): array
     {
-        return array_merge([
+        $payload = array_merge([
             'tool_material_id' => $material->id,
             'reference_no' => null,
             'status' => 'completed',
@@ -411,5 +539,11 @@ class ToolMaterialFlowTest extends TestCase
             'notes' => null,
             'transferred_at' => '2026-07-16 10:00:00',
         ], $overrides);
+
+        if (($payload['transaction_type'] ?? null) === 'purchase' && ! array_key_exists('vendor_id', $overrides)) {
+            $payload['vendor_id'] = $this->vendorId;
+        }
+
+        return $payload;
     }
 }

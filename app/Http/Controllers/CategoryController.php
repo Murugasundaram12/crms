@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\MainCategory;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -104,15 +105,16 @@ class CategoryController extends Controller
     public function destroy($id)
     {
         $category = Category::findOrFail($id);
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($category->id, [
+            ['table' => 'expenses', 'column' => 'category_id', 'label' => 'expenses'],
+            ['table' => 'expense_transactions', 'column' => 'category_id', 'label' => 'expenses'],
+            ['table' => 'labour_expense_transactions', 'column' => 'category_id', 'label' => 'labour expenses'],
+            ['table' => 'vendor_expense_transactions', 'column' => 'category_id', 'label' => 'vendor expenses'],
+        ]);
 
-        $isInUse = DB::table('expenses')->where('category_id', $category->id)->exists()
-            || DB::table('expense_transactions')->where('category_id', $category->id)->exists()
-            || DB::table('labour_expense_transactions')->where('category_id', $category->id)->exists()
-            || DB::table('vendor_expense_transactions')->where('category_id', $category->id)->exists();
-
-        if ($isInUse) {
+        if ($blockedBy['blocked']) {
             return redirect()->route("categories.index")
-                ->with("error", "Category is used in transactions and cannot be deleted.");
+                ->with("error", DeleteDependencyGuard::message('Category', $blockedBy['label']));
         }
 
         $category->mainCategories()->detach();

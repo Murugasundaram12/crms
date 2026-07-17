@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\LabourRole;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -61,8 +62,16 @@ class LabourRoleController extends Controller
 
     public function destroy($id)
     {
-        // Delete the selected labour role.
         $labourRole = LabourRole::findOrFail($id);
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($labourRole->id, [
+            ['table' => 'labours', 'column' => 'labour_role_id', 'label' => 'labours'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('labour_roles.index')
+                ->with('error', DeleteDependencyGuard::message('Labour role', $blockedBy['label']));
+        }
+
         $labourRole->delete();
 
         return redirect()->route('labour_roles.index')->with('success', 'Labour role deleted successfully.');

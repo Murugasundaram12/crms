@@ -28,8 +28,8 @@ class ToolMaterialAssignmentController extends Controller
 
     private const STATUSES = [
         'draft' => 'Draft',
-        'completed' => 'Completed',
-        'cancelled' => 'Cancelled',
+        'transferred' => 'Transferred',
+        'returned' => 'Returned',
     ];
 
     public function index(Request $request): View
@@ -68,7 +68,8 @@ class ToolMaterialAssignmentController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
+            $status = $request->string('status')->toString();
+            $query->whereIn('status', $status === 'returned' ? ['returned', 'completed'] : [$status]);
         }
 
         if ($request->filled('date_from')) {
@@ -94,10 +95,10 @@ class ToolMaterialAssignmentController extends Controller
             'statuses' => self::STATUSES,
             'summary' => [
                 'transactions' => $summaryItems->count(),
-                'completed' => $summaryItems->where('status', 'completed')->count(),
-                'quantity' => $summaryItems->where('status', 'completed')->sum('quantity'),
-                'amount' => $summaryItems->where('status', 'completed')->sum('amount'),
-                'vendor_returns' => $summaryItems->where('status', 'completed')->where('transaction_type', 'return_to_vendor')->sum('amount'),
+                'completed' => $summaryItems->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->count(),
+                'quantity' => $summaryItems->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->sum('quantity'),
+                'amount' => $summaryItems->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->sum('amount'),
+                'vendor_returns' => $summaryItems->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->where('transaction_type', 'return_to_vendor')->sum('amount'),
             ],
         ]);
     }
@@ -119,6 +120,8 @@ class ToolMaterialAssignmentController extends Controller
             'vehicle_no',
             'purpose',
             'notes',
+            'lock_transaction',
+            'status',
         ]);
 
         return view('pages.tool_material_assignments.create', [
@@ -186,7 +189,7 @@ class ToolMaterialAssignmentController extends Controller
         $validated = $request->validate([
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'reference_no' => ['nullable', 'string', 'max:100', Rule::unique('tool_material_assignments', 'reference_no')->ignore($request->route('toolsMaterialAssignment')?->id)],
-            'status' => ['required', Rule::in(array_keys(self::STATUSES))],
+            'status' => ['required', Rule::in([...array_keys(self::STATUSES), 'completed'])],
             'from_project_id' => ['nullable', 'exists:projects,id'],
             'to_project_id' => ['nullable', 'exists:projects,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
@@ -225,7 +228,7 @@ class ToolMaterialAssignmentController extends Controller
         $validated['transfer_type'] = $validated['transaction_type'];
 
         $this->normalizeTransactionLocations($validated);
-        if ($validated['status'] === 'completed') {
+        if (ToolMaterialAssignment::isStockEffectiveStatus($validated['status'])) {
             $this->ensureStockAvailable($validated, $request->route('toolsMaterialAssignment'));
         }
 
@@ -249,6 +252,10 @@ class ToolMaterialAssignmentController extends Controller
         $validated['source_type'] = 'vendor';
         $validated['destination_type'] = $validated['destination_type'] === 'site' ? 'site' : 'office';
         $validated['from_project_id'] = null;
+
+        if (empty($validated['vendor_id'])) {
+            throw ValidationException::withMessages(['vendor_id' => 'Vendor is required for purchase.']);
+        }
 
         if ($validated['destination_type'] === 'site' && empty($validated['to_project_id'])) {
             throw ValidationException::withMessages(['to_project_id' => 'Site is required when purchase is directly added to site.']);
@@ -320,7 +327,7 @@ class ToolMaterialAssignmentController extends Controller
 
     private function applyVendorReturnBalance(ToolMaterialAssignment $assignment, int $direction): void
     {
-        if ($assignment->status !== 'completed' || $assignment->transaction_type !== 'return_to_vendor' || ! $assignment->vendor_id || (float) $assignment->amount <= 0) {
+        if (! ToolMaterialAssignment::isStockEffectiveStatus($assignment->status) || $assignment->transaction_type !== 'return_to_vendor' || ! $assignment->vendor_id || (float) $assignment->amount <= 0) {
             return;
         }
 

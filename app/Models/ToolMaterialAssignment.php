@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ToolMaterialAssignment extends Model
 {
+    public const STOCK_EFFECTIVE_STATUSES = ['transferred', 'returned', 'completed'];
+
     protected $fillable = [
         'reference_no',
         'status',
@@ -64,7 +66,7 @@ class ToolMaterialAssignment extends Model
 
     public function stockEffectQuantity(): float
     {
-        if ($this->status !== 'completed') {
+        if (! self::isStockEffectiveStatus($this->status)) {
             return 0.0;
         }
 
@@ -77,7 +79,7 @@ class ToolMaterialAssignment extends Model
 
     public function locationEffects(): array
     {
-        if ($this->status !== 'completed') {
+        if (! self::isStockEffectiveStatus($this->status)) {
             return [];
         }
 
@@ -140,7 +142,7 @@ class ToolMaterialAssignment extends Model
 
     public function stockEffectAmount(): float
     {
-        if ($this->status !== 'completed') {
+        if (! self::isStockEffectiveStatus($this->status)) {
             return 0.0;
         }
 
@@ -166,6 +168,15 @@ class ToolMaterialAssignment extends Model
 
     public function statusLabel(): string
     {
-        return ucfirst((string) $this->status);
+        return match ($this->status) {
+            'transferred' => 'Transferred',
+            'returned', 'completed' => 'Returned',
+            default => ucfirst((string) $this->status),
+        };
+    }
+
+    public static function isStockEffectiveStatus(?string $status): bool
+    {
+        return in_array((string) $status, self::STOCK_EFFECTIVE_STATUSES, true);
     }
 }

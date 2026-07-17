@@ -96,9 +96,9 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Current Date (dd/mm/yyyy)</label>
-                            <input type="text" name="current_date" class="form-control form-control-sm"
-                                value="{{ \Carbon\Carbon::parse($transfer->current_date)->format('d/m/Y') }}" />
+                            <label class="form-label">Current Date</label>
+                            <input type="date" name="current_date" class="form-control form-control-sm"
+                                value="{{ old('current_date', $transfer->current_date ? \Carbon\Carbon::parse($transfer->current_date)->format('Y-m-d') : now()->format('Y-m-d')) }}" />
                             @error('current_date')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror

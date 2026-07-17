@@ -3,6 +3,7 @@
 @php($selectedSourceType = old('source_type', $assignment?->source_type ?? ($prefill['source_type'] ?? 'office')))
 @php($selectedDestinationType = old('destination_type', $assignment?->destination_type ?? ($prefill['destination_type'] ?? 'site')))
 @php($selectedToolMaterialId = old('tool_material_id', $assignment?->tool_material_id ?? ($selectedToolMaterialId ?? null)))
+@php($lockTransaction = filter_var($prefill['lock_transaction'] ?? false, FILTER_VALIDATE_BOOLEAN))
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
@@ -17,16 +18,16 @@
                 <label class="form-label">Status</label>
                 <select name="status" class="form-select" required>
                     @foreach($statuses as $value => $label)
-                        <option value="{{ $value }}" @selected(old('status', $assignment?->status ?? 'completed') === $value)>{{ $label }}</option>
+                        <option value="{{ $value }}" @selected(old('status', $assignment?->status ?? ($prefill['status'] ?? 'draft')) === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
                 @error('status')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-6">
-                <label class="form-label">Tool Name</label>
+                <label class="form-label">Tool / Material</label>
                 <select name="tool_material_id" class="form-select" required>
-                    <option value="">Select Tool</option>
+                    <option value="">Select Tool / Material</option>
                     @foreach($toolsMaterials as $tool)
                         <option value="{{ $tool->id }}" @selected((string) $selectedToolMaterialId === (string) $tool->id)>
                             {{ $tool->name }} - Balance {{ number_format($tool->stock_quantity, 2) }} {{ $tool->unit }}
@@ -51,7 +52,10 @@
 
             <div class="col-md-6">
                 <label class="form-label">Transaction</label>
-                <select name="transaction_type" id="toolTransactionType" class="form-select" required>
+                @if($lockTransaction)
+                    <input type="hidden" name="transaction_type" value="{{ $selectedTransactionType }}">
+                @endif
+                <select name="{{ $lockTransaction ? '_transaction_type_display' : 'transaction_type' }}" id="toolTransactionType" class="form-select" required @disabled($lockTransaction)>
                     @foreach($transactionTypes as $value => $label)
                         <option value="{{ $value }}" @selected($selectedTransactionType === $value)>{{ $label }}</option>
                     @endforeach

@@ -435,11 +435,33 @@
         }
 
         function buildMovementPaths(items) {
-            const path = items
-                .map((item) => itemLatLng(item))
-                .filter(Boolean);
+            const paths = [];
+            let currentPath = [];
+            let previousPoint = null;
 
-            return path.length >= 2 ? [path] : [];
+            items.forEach((item) => {
+                const point = itemLatLng(item);
+
+                if (!point) {
+                    return;
+                }
+
+                if (item.segmentBreakBefore && currentPath.length >= 2) {
+                    paths.push(currentPath);
+                    currentPath = previousPoint ? [previousPoint] : [];
+                } else if (item.segmentBreakBefore) {
+                    currentPath = previousPoint ? [previousPoint] : [];
+                }
+
+                currentPath.push(point);
+                previousPoint = point;
+            });
+
+            if (currentPath.length >= 2) {
+                paths.push(currentPath);
+            }
+
+            return paths;
         }
 
         function itemLatLng(item) {

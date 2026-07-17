@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ToolMaterial;
+use App\Models\Unit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -47,16 +48,15 @@ class ToolMaterialController extends Controller
 
     public function create(): View
     {
-        return view('pages.tools_materials.create');
+        $units = Unit::query()->active()->orderBy('name')->get();
+
+        return view('pages.tools_materials.create', compact('units'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateToolMaterial($request);
-        $validated['opening_quantity'] = (float) ($validated['opening_quantity'] ?? 0);
-        $validated['opening_rate'] = (float) ($validated['opening_rate'] ?? 0);
-        $validated['opening_amount'] = round($validated['opening_quantity'] * $validated['opening_rate'], 2);
-        $validated['reorder_level'] = (float) ($validated['reorder_level'] ?? 0);
+        $validated = $this->normalizeToolMaterialStockFields($validated);
         $validated['active_status'] = $request->boolean('active_status', true);
 
         if ($request->hasFile('image')) {
@@ -70,16 +70,19 @@ class ToolMaterialController extends Controller
 
     public function edit(ToolMaterial $toolsMaterial): View
     {
-        return view('pages.tools_materials.edit', compact('toolsMaterial'));
+        $units = Unit::query()
+            ->where('active_status', true)
+            ->orWhere('code', $toolsMaterial->unit)
+            ->orderBy('name')
+            ->get();
+
+        return view('pages.tools_materials.edit', compact('toolsMaterial', 'units'));
     }
 
     public function update(Request $request, ToolMaterial $toolsMaterial): RedirectResponse
     {
         $validated = $this->validateToolMaterial($request);
-        $validated['opening_quantity'] = (float) ($validated['opening_quantity'] ?? 0);
-        $validated['opening_rate'] = (float) ($validated['opening_rate'] ?? 0);
-        $validated['opening_amount'] = round($validated['opening_quantity'] * $validated['opening_rate'], 2);
-        $validated['reorder_level'] = (float) ($validated['reorder_level'] ?? 0);
+        $validated = $this->normalizeToolMaterialStockFields($validated);
         $validated['active_status'] = $request->boolean('active_status', true);
 
         if ($request->hasFile('image')) {
@@ -116,14 +119,28 @@ class ToolMaterialController extends Controller
             'item_type' => ['required', Rule::in(['tool', 'material'])],
             'sku' => ['nullable', 'string', 'max:100'],
             'name' => ['required', 'string', 'max:255'],
-            'unit' => ['required', 'string', 'max:50'],
+            'unit' => ['required_if:item_type,material', 'nullable', 'string', 'max:50'],
             'image' => ['nullable', 'image', 'max:2048'],
             'description' => ['nullable', 'string', 'max:1000'],
             'date' => ['required', 'date'],
-            'opening_quantity' => ['nullable', 'numeric', 'min:0'],
-            'opening_rate' => ['nullable', 'numeric', 'min:0'],
+            'opening_quantity' => ['required_if:item_type,material', 'nullable', 'numeric', 'min:0'],
+            'opening_rate' => ['required_if:item_type,material', 'nullable', 'numeric', 'min:0'],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'active_status' => ['nullable', 'boolean'],
         ]);
+    }
+
+    private function normalizeToolMaterialStockFields(array $validated): array
+    {
+        if (($validated['item_type'] ?? null) === 'tool') {
+            $validated['unit'] = 'Nos';
+        }
+
+        $validated['opening_quantity'] = (float) ($validated['opening_quantity'] ?? 0);
+        $validated['opening_rate'] = (float) ($validated['opening_rate'] ?? 0);
+        $validated['opening_amount'] = round($validated['opening_quantity'] * $validated['opening_rate'], 2);
+        $validated['reorder_level'] = (float) ($validated['reorder_level'] ?? 0);
+
+        return $validated;
     }
 }

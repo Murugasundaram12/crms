@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Vendor;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -55,6 +56,19 @@ class VendorController extends Controller
     public function destroy($id)
     {
         $vendor = Vendor::findOrFail($id);
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($vendor->id, [
+            ['table' => 'vendor_expense_transactions', 'column' => 'vendor_id', 'label' => 'vendor expenses'],
+            ['table' => 'expenses', 'column' => 'vendor_id', 'label' => 'expenses'],
+            ['table' => 'transfer_details', 'column' => 'vendor_id', 'label' => 'wallet transfers'],
+            ['table' => 'tool_material_assignments', 'column' => 'vendor_id', 'label' => 'tool/material purchases'],
+            ['table' => 'advance_history', 'column' => 'vendor_id', 'label' => 'advance history'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('vendors.index')
+                ->with('error', DeleteDependencyGuard::message('Vendor', $blockedBy['label']));
+        }
+
         $vendor->delete();
 
         return redirect()->route('vendors.index')->with('success', 'Vendor deleted successfully.');
@@ -92,8 +106,10 @@ class VendorController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('vendors', 'name')->ignore($vendor?->id)],
             'address' => ['nullable', 'string', 'max:1000'],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'regex:/^[6-9]\d{9}$/'],
             'advance_amount' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
     }
 

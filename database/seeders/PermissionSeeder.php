@@ -26,6 +26,7 @@ class PermissionSeeder extends Seeder
         'vendors' => 'Vendors',
         'main-categories' => 'Main Categories',
         'categories' => 'Categories',
+        'units' => 'Units',
         'employees-salary' => 'Employee Salary',
         'attendance' => 'Attendance',
         'reports' => 'Reports',

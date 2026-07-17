@@ -17,10 +17,12 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvas_add">
-                <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Payment
-            </a>
+            @can('payments-create')
+                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvas_add">
+                    <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Payment
+                </a>
+            @endcan
         </div>
     </div>
 
@@ -109,9 +111,10 @@
                             <td class="text-end">
                                 <x-action-dropdown :editRoute="in_array($payment->status, ['pending', 'partial', 'overdue']) ? '#' : null" :editAttributes="in_array($payment->status, ['pending', 'partial', 'overdue']) ? ['data-bs-toggle' => 'modal', 'data-bs-target' => '#edit_payment_' . $payment->id] : []"
                                     :deleteRoute="route('payments.destroy', $payment)" deleteTitle="Delete Payment"
+                                    editPermission="payments-edit" deletePermission="payments-delete"
                                     :deleteMessage="'Are you sure you want to delete payment for quotation \'' . ($payment->quotation?->quotation_number ?? $payment->id) . '\'?'">
-                                    <a class="dropdown-item" href="{{ route('payments.show', $payment) }}">
-                                        <i class="ti ti-eye me-1 text-info"></i> Show
+                                    <a class="btn btn-sm btn-outline-info" href="{{ route('payments.show', $payment) }}" title="Show">
+                                        <i class="ti ti-eye me-1"></i>Show
                                     </a>
                                 </x-action-dropdown>
                             </td>
@@ -171,6 +174,7 @@
     </div> --}}
 
     <!-- Add Payment Offcanvas -->
+    @can('payments-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add Payment</h5>
@@ -202,10 +206,11 @@
                         <option value="">Select Quotation</option>
                     </select>
                 </div>
-                <div class="col-12">
+                <div class="col-md-6">
                     <label class="form-label">Total Amount</label>
-                    <input type="number" id="total_amount" class="form-control" readonly>
+                    <input type="number" step="0.01" id="total_amount" class="form-control" readonly>
                 </div>
+                <input type="hidden" id="remaining_amount" class="payment-remaining-amount">
                 <div class="col-md-6">
                     <label class="form-label">Status</label>
                     <select name="status" id="status" class="form-select" required>
@@ -228,27 +233,23 @@
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Amount <span class="text-danger">*</span> (<= Remaining)</label>
-                            <input type="number" step="0.01" id="amount" name="amount" class="form-control" min="0" required
-                                readonly>
+                    <label class="form-label">Amount <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" id="amount" name="amount" class="form-control" min="0.01" required readonly>
+                    <div class="invalid-feedback payment-amount-error">Amount cannot exceed remaining quotation amount.</div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                    <select name="method" class="form-select" required>
+                    <select name="method" class="form-select payment-method-select" required>
                         <option value="">Select</option>
                         <option value="cash">Cash</option>
                         <option value="bank_transfer">Bank Transfer</option>
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Due Date</label>
-                    <input type="date" name="due_date" class="form-control">
-                </div>
-                <div class="col-md-6">
                     <label class="form-label">Paid At</label>
-                    <input type="datetime-local" name="paid_at" class="form-control">
+                    <input type="datetime-local" name="paid_at" class="form-control" value="{{ now()->format('Y-m-d\TH:i') }}">
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-6 transaction-id-field d-none">
                     <label class="form-label">Transaction ID</label>
                     <input type="text" name="transaction_id" class="form-control">
                 </div>
@@ -263,7 +264,9 @@
             </form>
         </div>
     </div>
+    @endcan
 
+    @can('payments-edit')
     @foreach ($payments as $payment)
         <div class="modal fade" id="edit_payment_{{ $payment->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -301,16 +304,21 @@
                                 <select id="edit_quotation_id_{{ $payment->id }}" name="quotation_id" class="form-select"
                                     data-selected="{{ $payment->quotation_id }}" required>
                                     <option value="{{ $payment->quotation_id }}"
-                                        data-remaining="{{ $payment->quotation?->total_amount ?? $payment->quotation?->amount ?? 0 }}"
+                                        data-total="{{ (float) ($payment->quotation?->total_amount ?? 0) > 0 ? $payment->quotation?->total_amount : ($payment->quotation?->amount ?? 0) }}"
+                                        data-remaining="{{ $payment->remaining_amount_for_edit ?? ($payment->quotation?->total_amount ?? $payment->quotation?->amount ?? 0) }}"
                                         selected>
                                         {{ $payment->quotation?->quotation_number ?? 'Selected Quotation' }}
                                     </option>
                                 </select>
                             </div>
-                            <div class="col-12">
+                            <div class="col-md-6">
                                 <label class="form-label">Total Amount</label>
-                                <input type="number" id="edit_total_amount_{{ $payment->id }}" class="form-control" readonly>
+                                <input type="number" step="0.01" id="edit_total_amount_{{ $payment->id }}"
+                                    class="form-control"
+                                    value="{{ (float) ($payment->quotation?->total_amount ?? 0) > 0 ? $payment->quotation?->total_amount : ($payment->quotation?->amount ?? 0) }}"
+                                    readonly>
                             </div>
+                            <input type="hidden" id="edit_remaining_amount_{{ $payment->id }}" class="payment-remaining-amount">
                             <div class="col-12">
                                 <label class="form-label">Stage <span class="text-danger">*</span></label>
                                 <select name="stage_id" class="form-select" required>
@@ -324,12 +332,13 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Amount</label>
-                                <input type="number" step="0.01" name="amount" class="form-control"
+                                <input type="number" step="0.01" name="amount" class="form-control" min="0.01"
                                     value="{{ $payment->amount }}" required>
+                                <div class="invalid-feedback payment-amount-error">Amount cannot exceed remaining quotation amount.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Payment Method</label>
-                                <select name="method" class="form-select" required>
+                                <select name="method" class="form-select payment-method-select" required>
                                     <option value="">Select</option>
                                     <option value="cash" {{ $payment->method == 'cash' ? 'selected' : '' }}>Cash</option>
                                     <option value="bank_transfer" {{ $payment->method == 'bank_transfer' ? 'selected' : '' }}>Bank
@@ -337,16 +346,11 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Due Date</label>
-                                <input type="date" name="due_date" class="form-control"
-                                    value="{{ optional($payment->due_date)->format('Y-m-d') }}">
-                            </div>
-                            <div class="col-md-6">
                                 <label class="form-label">Paid At</label>
                                 <input type="datetime-local" name="paid_at" class="form-control"
                                     value="{{ optional($payment->payment_date)->format('Y-m-d\TH:i') }}">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-6 transaction-id-field {{ $payment->method === 'bank_transfer' ? '' : 'd-none' }}">
                                 <label class="form-label">Transaction ID</label>
                                 <input type="text" name="transaction_id" class="form-control"
                                     value="{{ $payment->transaction_id }}">
@@ -374,27 +378,58 @@
             </div>
         </div>
     @endforeach
+    @endcan
 @endsection
 
 @push('scripts')
     <script>
         $(document).ready(function () {
-            function applyAmountRules(statusSelector, amountSelector, totalSelector) {
-                var status = $(statusSelector).val();
-                var total = parseFloat($(totalSelector).val() || 0);
-                var $amount = $(amountSelector);
+            function validatePaymentAmount($amount) {
+                var max = parseFloat($amount.attr('max') || 0);
+                var value = parseFloat($amount.val() || 0);
+                var isInvalid = max > 0 && value > max;
+                var $form = $amount.closest('form');
 
-                if (status === 'paid') {
-                    $amount.val(total > 0 ? total : '').prop('readonly', true);
+                $amount.toggleClass('is-invalid', isInvalid);
+                $form.find('.payment-amount-error').toggle(isInvalid);
+                $form.find('button[type="submit"]').prop('disabled', isInvalid);
+
+                return !isInvalid;
+            }
+
+            function syncPaymentMethodFields($form) {
+                var method = $form.find('.payment-method-select').val();
+                var $field = $form.find('.transaction-id-field');
+                var $input = $field.find('input[name="transaction_id"]');
+
+                if (method === 'bank_transfer') {
+                    $field.removeClass('d-none');
+                    $input.prop('required', true);
                     return;
                 }
 
-                if (status === 'pending' || status === 'partial') {
+                $field.addClass('d-none');
+                $input.prop('required', false).val('');
+            }
+
+            function applyAmountRules(statusSelector, amountSelector, remainingSelector) {
+                var status = $(statusSelector).val();
+                var remaining = parseFloat($(remainingSelector).val() || 0);
+                var $amount = $(amountSelector);
+                if (remaining > 0) {
+                    $amount.attr('max', remaining);
+                } else {
+                    $amount.removeAttr('max');
+                }
+
+                if (status) {
                     $amount.prop('readonly', false);
+                    validatePaymentAmount($amount);
                     return;
                 }
 
                 $amount.val('').prop('readonly', true);
+                validatePaymentAmount($amount);
             }
 
             function loadProjects(clientId, projectSelector, selectedProjectId) {
@@ -436,7 +471,7 @@
                         var selected = selectedQuotationId && String(selectedQuotationId) === String(q.id) ? 'selected' : '';
                         var fullyPaidText = q.is_fully_paid ? ' (Fully Paid)' : '';
                         $quotation.append(
-                            `<option value="${q.id}" data-remaining="${q.remaining_amount}" ${selected}>${q.number} - Remaining: Rs ${parseFloat(q.remaining_amount).toLocaleString()}${fullyPaidText}</option>`
+                            `<option value="${q.id}" data-total="${q.total_amount}" data-remaining="${q.remaining_amount}" ${selected}>${q.number}${fullyPaidText}</option>`
                         );
                     });
 
@@ -449,6 +484,7 @@
             $('#client_id').on('change', function () {
                 var clientId = $(this).val();
                 $('#total_amount').val('');
+                $('#remaining_amount').val('');
                 $('#status').val('');
                 $('#amount').val('').prop('readonly', true);
                 $('#quotation_id').empty().append('<option value="">Select Quotation</option>');
@@ -458,6 +494,7 @@
             $('#project_id').on('change', function () {
                 var projectId = $(this).val();
                 $('#total_amount').val('');
+                $('#remaining_amount').val('');
                 $('#amount').val('').prop('readonly', true);
                 loadQuotations(projectId, '#quotation_id', null);
             });
@@ -475,27 +512,53 @@
 
                 $('#edit_client_id_{{ $payment->id }}').on('change', function () {
                     var clientId = $(this).val();
+                    $('#edit_total_amount_{{ $payment->id }}').val('');
+                    $('#edit_remaining_amount_{{ $payment->id }}').val('');
                     loadProjects(clientId, '#edit_project_id_{{ $payment->id }}', null);
                     $('#edit_quotation_id_{{ $payment->id }}').empty().append('<option value="">Select Quotation</option>');
                 });
 
                 $('#edit_project_id_{{ $payment->id }}').on('change', function () {
                     var projectId = $(this).val();
+                    $('#edit_total_amount_{{ $payment->id }}').val('');
+                    $('#edit_remaining_amount_{{ $payment->id }}').val('');
                     loadQuotations(projectId, '#edit_quotation_id_{{ $payment->id }}', null);
                 });
             @endforeach
 
             $(document).on('change', '#quotation_id, [id^=edit_quotation_id_]', function () {
                 var remaining = $(this).find(':selected').data('remaining') || 0;
-                var totalFieldId = $(this).attr('id').replace('quotation_id', 'total_amount');
-                $('#' + totalFieldId).val(remaining);
+                var total = $(this).find(':selected').data('total') || '';
+                var $form = $(this).closest('form');
+                var $formAmount = $form.find('input[name="amount"]');
+                $form.find('input[id="total_amount"], input[id^="edit_total_amount_"]').val(total);
+                $form.find('.payment-remaining-amount').val(remaining);
+                if (remaining > 0) {
+                    $formAmount.attr('max', remaining);
+                } else {
+                    $formAmount.removeAttr('max');
+                }
+                validatePaymentAmount($formAmount);
                 if ($(this).attr('id') === 'quotation_id') {
-                    applyAmountRules('#status', '#amount', '#total_amount');
+                    applyAmountRules('#status', '#amount', '#remaining_amount');
                 }
             });
 
             $('#status').on('change', function () {
-                applyAmountRules('#status', '#amount', '#total_amount');
+                applyAmountRules('#status', '#amount', '#remaining_amount');
+            });
+
+            $(document).on('input', '#amount, input[name="amount"]', function () {
+                validatePaymentAmount($(this));
+            });
+
+            $(document).on('change', '.payment-method-select', function () {
+                syncPaymentMethodFields($(this).closest('form'));
+            });
+
+            $('form').each(function () {
+                syncPaymentMethodFields($(this));
+                $(this).find('.payment-amount-error').hide();
             });
         });
     </script>

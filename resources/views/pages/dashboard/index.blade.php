@@ -37,9 +37,15 @@
                 <i class="ti ti-calendar text-dark me-2"></i>
                 <span class="reportrange-picker-field text-dark">Construction Overview</span>
             </div>
-            <a href="{{ route('projects.index') }}" class="btn btn-outline-light shadow"><i class="ti ti-atom-2 me-1"></i>Projects</a>
-            <a href="{{ route('tasks.index') }}" class="btn btn-outline-light shadow"><i class="ti ti-list-check me-1"></i>Tasks</a>
-            <a href="{{ route('payments.index') }}" class="btn btn-primary shadow"><i class="ti ti-report-money me-1"></i>Payments</a>
+            @if($can['projects'])
+                <a href="{{ route('projects.index') }}" class="btn btn-outline-light shadow"><i class="ti ti-atom-2 me-1"></i>Projects</a>
+            @endif
+            @if($can['tasks'])
+                <a href="{{ route('tasks.index') }}" class="btn btn-outline-light shadow"><i class="ti ti-list-check me-1"></i>Tasks</a>
+            @endif
+            @if($can['payments'])
+                <a href="{{ route('payments.index') }}" class="btn btn-primary shadow"><i class="ti ti-report-money me-1"></i>Payments</a>
+            @endif
         </div>
     </div>
 
@@ -94,7 +100,9 @@
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                         <h5 class="mb-0 fs-16 fw-bold d-inline-flex items-center"><span
                                 class="line-title d-block me-2"></span>Revenue Analytics</h5>
-                        <a href="{{ route('projects.index') }}" class="btn btn-outline-light shadow">Project Reports</a>
+                        @if($can['projects'])
+                            <a href="{{ route('projects.index') }}" class="btn btn-outline-light shadow">Project Reports</a>
+                        @endif
                     </div>
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <div class="d-flex align-items-center flex-wrap gap-2">
@@ -138,25 +146,33 @@
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
                         <h5 class="mb-0 fs-16 fw-bold d-inline-flex items-center"><span
                                 class="line-title d-block me-2"></span>Operations Snapshot</h5>
-                        <a href="{{ route('projects.index') }}" class="btn btn-sm btn-icon btn-outline-light"><i
-                                class="ti ti-arrow-right"></i></a>
+                        @if($can['projects'])
+                            <a href="{{ route('projects.index') }}" class="btn btn-sm btn-icon btn-outline-light"><i
+                                    class="ti ti-arrow-right"></i></a>
+                        @endif
                     </div>
                     <div id="traffic-sources-chart" class="py-3">
-                        <div class="px-0 py-2 d-flex align-items-center justify-content-between border-bottom">
-                            <p class="text-dark d-flex align-items-center mb-0"><i
-                                    class="ti ti-circle-filled text-success fs-8 me-1"></i>Projects</p>
-                            <p class="text-dark fw-semibold mb-0">{{ $summary['projectCount'] }}</p>
-                        </div>
-                        <div class="px-0 py-2 d-flex align-items-center justify-content-between border-bottom">
-                            <p class="text-dark d-flex align-items-center mb-0"><i
-                                    class="ti ti-circle-filled text-info fs-8 me-1"></i>Clients</p>
-                            <p class="text-dark fw-semibold mb-0">{{ $summary['clientCount'] }}</p>
-                        </div>
-                        <div class="px-0 py-2 d-flex align-items-center justify-content-between border-bottom">
-                            <p class="text-dark d-flex align-items-center mb-0"><i
-                                    class="ti ti-circle-filled text-warning fs-8 me-1"></i>Employees</p>
-                            <p class="text-dark fw-semibold mb-0">{{ $summary['employeeCount'] }}</p>
-                        </div>
+                        @if($can['projects'])
+                            <div class="px-0 py-2 d-flex align-items-center justify-content-between border-bottom">
+                                <p class="text-dark d-flex align-items-center mb-0"><i
+                                        class="ti ti-circle-filled text-success fs-8 me-1"></i>Projects</p>
+                                <p class="text-dark fw-semibold mb-0">{{ $summary['projectCount'] }}</p>
+                            </div>
+                        @endif
+                        @if($can['clients'])
+                            <div class="px-0 py-2 d-flex align-items-center justify-content-between border-bottom">
+                                <p class="text-dark d-flex align-items-center mb-0"><i
+                                        class="ti ti-circle-filled text-info fs-8 me-1"></i>Clients</p>
+                                <p class="text-dark fw-semibold mb-0">{{ $summary['clientCount'] }}</p>
+                            </div>
+                        @endif
+                        @if($can['employees'])
+                            <div class="px-0 py-2 d-flex align-items-center justify-content-between border-bottom">
+                                <p class="text-dark d-flex align-items-center mb-0"><i
+                                        class="ti ti-circle-filled text-warning fs-8 me-1"></i>Employees</p>
+                                <p class="text-dark fw-semibold mb-0">{{ $summary['employeeCount'] }}</p>
+                            </div>
+                        @endif
                         <div class="px-0 pt-2 pb-3 d-flex align-items-center justify-content-between">
                             <p class="text-dark d-flex align-items-center mb-0"><i
                                     class="ti ti-circle-filled text-purple fs-8 me-1"></i>Task Completion</p>
@@ -169,6 +185,7 @@
     </div>
 
     <div class="row">
+        @if($can['payments'] && $can['expenses'])
         <div class="col-xl-3 col-sm-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
@@ -188,7 +205,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($can['projects'])
         <div class="col-xl-3 col-sm-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
@@ -208,7 +227,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($can['expenses'])
         <div class="col-xl-3 col-sm-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
@@ -233,7 +254,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($can['tasks'])
         <div class="col-xl-3 col-sm-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
@@ -253,9 +276,12 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 
+    @if($can['projects'] || $can['tasks'])
     <div class="row">
+        @if($can['projects'])
         <div class="col-xxl-6 col-xl-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body">
@@ -302,7 +328,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($can['tasks'])
         <div class="col-xxl-6 col-xl-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body">
@@ -348,7 +376,9 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
+    @endif
 @endsection
 
 @push('styles')

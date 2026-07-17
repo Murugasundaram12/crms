@@ -152,7 +152,7 @@ class TransferDetailsController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_mode' => ['required', 'in:' . implode(',', $paymentModes)],
             'description' => ['nullable', 'string', 'max:1000'],
-            'current_date' => ['required', 'date_format:d/m/Y'],
+            'current_date' => ['required', 'date_format:Y-m-d'],
             'current_time' => ['required', 'string', 'max:20'],
         ], [], [
             'employee_id' => 'Employee',

@@ -5,7 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Variation;
 use App\Models\Project;
 use App\Models\Employee;
+use App\Models\User;
+use App\Models\Wallet;
+use App\Services\CrmBalanceService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class VariationController extends Controller
@@ -39,8 +45,10 @@ class VariationController extends Controller
         // Validate the form before creating a variation.
         $validatedData = $this->validateVariationData($request);
 
-        // Save the new variation.
-        Variation::create($validatedData);
+        DB::transaction(function () use ($validatedData): void {
+            $variation = Variation::create($validatedData);
+            $this->applyVariationWallet($variation, 1);
+        });
 
         return redirect()->route('variations.index', ['project_id' => $validatedData['project_id']])->with('success', 'Variation created successfully.');
     }
@@ -61,16 +69,21 @@ class VariationController extends Controller
         // Validate the form before updating the variation.
         $validatedData = $this->validateVariationData($request, $variation);
 
-        // Save the updated variation values.
-        $variation->update($validatedData);
+        DB::transaction(function () use ($variation, $validatedData): void {
+            $this->applyVariationWallet($variation, -1);
+            $variation->update($validatedData);
+            $this->applyVariationWallet($variation->fresh(), 1);
+        });
 
         return redirect()->route('variations.index', ['project_id' => $validatedData['project_id']])->with('success', 'Variation updated successfully.');
     }
 
     public function destroy(Variation $variation)
     {
-        // Delete the selected variation.
-        $variation->delete();
+        DB::transaction(function () use ($variation): void {
+            $this->applyVariationWallet($variation, -1);
+            $variation->delete();
+        });
 
         return redirect()->route('variations.index')->with('success', 'Variation deleted successfully.');
     }
@@ -147,6 +160,68 @@ class VariationController extends Controller
             'date' => ['required', 'date'],
             'approved_by' => ['nullable', 'exists:employees,id'],
             'status' => ['required', Rule::in(['pending', 'approved', 'rejected'])],
+        ]);
+    }
+
+    private function applyVariationWallet(Variation $variation, int $direction): void
+    {
+        if ($variation->status !== 'approved' || ! $variation->approved_by || (float) $variation->amount <= 0) {
+            return;
+        }
+
+        $userId = $this->userIdForEmployee((int) $variation->approved_by);
+        if (! $userId) {
+            return;
+        }
+
+        $signedAmount = (float) $variation->amount;
+        if ($variation->type === 'deduction') {
+            $signedAmount *= -1;
+        }
+        $signedAmount *= $direction;
+
+        app(CrmBalanceService::class)->adjustUserWallet($userId, $signedAmount);
+        $this->recordVariationWalletHistory($variation, $userId, abs($signedAmount), $signedAmount >= 0 ? 0 : 1);
+    }
+
+    private function userIdForEmployee(int $employeeId): ?int
+    {
+        $employee = Employee::query()->find($employeeId);
+        if (! $employee) {
+            return null;
+        }
+
+        $user = User::query()
+            ->whereKey($employee->id)
+            ->when($employee->email, fn ($query) => $query->orWhere('email', $employee->email))
+            ->first(['id']);
+
+        return $user?->id;
+    }
+
+    private function recordVariationWalletHistory(Variation $variation, int $userId, float $amount, int $transferType): void
+    {
+        if ($amount <= 0 || ! Schema::hasTable('wallet')) {
+            return;
+        }
+
+        $project = $variation->project;
+        if (! $project?->client_id) {
+            return;
+        }
+
+        Wallet::query()->create([
+            'user_id' => $userId,
+            'client_id' => (int) $project->client_id,
+            'project_id' => (int) $variation->project_id,
+            'amount' => (int) round($amount),
+            'payment_mode' => 1,
+            'transfer_type' => $transferType,
+            'stage_id' => null,
+            'description' => 'Variation ' . ($variation->type === 'deduction' ? 'deduction' : 'addition') . ' - ' . $variation->description,
+            'current_date' => $variation->date ? Carbon::parse($variation->date) : Carbon::now(),
+            'active_status' => 1,
+            'delete_status' => 0,
         ]);
     }
 }

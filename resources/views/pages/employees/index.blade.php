@@ -17,8 +17,10 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <a href="javascript:void(0);" class="btn btn-primary shadow-sm" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add User</a>
+            @can('employees-create')
+                <a href="javascript:void(0);" class="btn btn-primary shadow-sm" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add User</a>
+            @endcan
         </div>
     </div>
 
@@ -100,24 +102,23 @@
                                 </td>
 
                                 <td class="text-end">
-                                    <div class="dropdown table-action">
-                                        <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                            data-bs-toggle="dropdown" aria-expanded="false"><i
-                                                class="ti ti-dots-vertical"></i></a>
-                                        <div class="dropdown-menu dropdown-menu-right">
-                                            <a class="dropdown-item" href="{{ route('employees.show', $employee) }}"><i
-                                                    class="ti ti-eye text-info"></i> View</a>
-                                            <a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                    <div class="table-action d-inline-flex align-items-center justify-content-end gap-1 flex-wrap">
+                                        <a class="btn btn-sm btn-outline-info" href="{{ route('employees.show', $employee) }}"><i
+                                                class="ti ti-eye me-1"></i>View</a>
+                                        @can('employees-edit')
+                                            <a class="btn btn-sm btn-outline-primary" href="#" data-bs-toggle="modal"
                                                 data-bs-target="#edit_employee_{{ $employee->id }}"><i
-                                                    class="ti ti-edit text-blue"></i> Edit</a>
-                                            <button type="button" class="dropdown-item text-danger crm-delete-trigger"
+                                                    class="ti ti-edit me-1"></i>Edit</a>
+                                        @endcan
+                                        @can('employees-delete')
+                                            <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
                                                 data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
                                                 data-delete-action="{{ route('employees.destroy', $employee) }}"
                                                 data-delete-title="Delete User"
                                                 data-delete-message="Are you sure you want to delete user '{{ $employee->name }}'?">
                                                 <i class="ti ti-trash me-1"></i>Delete
                                             </button>
-                                        </div>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -134,6 +135,7 @@
             <div class="card-footer bg-white d-flex justify-content-end">{{ $users->withQueryString()->links() }}</div>
         @endif
     </div>
+    @can('employees-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add User</h5><button type="button" class="btn-close"
@@ -183,7 +185,9 @@
             </form>
         </div>
     </div>
+    @endcan
 
+    @can('employees-edit')
     @foreach ($users as $employee)
         <div class="modal fade" id="edit_employee_{{ $employee->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -243,4 +247,5 @@
             </div>
         </div>
     @endforeach
+    @endcan
 @endsection

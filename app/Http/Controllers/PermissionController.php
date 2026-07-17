@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Permission;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -74,7 +75,17 @@ class PermissionController extends Controller
 
     public function destroy(Permission $permission)
     {
-        // Delete the selected permission.
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($permission->id, [
+            ['table' => 'role_permission', 'column' => 'permission_id', 'label' => 'roles'],
+            ['table' => 'role_has_permissions', 'column' => 'permission_id', 'label' => 'roles'],
+            ['table' => 'model_has_permissions', 'column' => 'permission_id', 'label' => 'users'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('permissions.index')
+                ->with('error', DeleteDependencyGuard::message('Permission', $blockedBy['label']));
+        }
+
         $permission->delete();
 
         return redirect()->route('permissions.index')

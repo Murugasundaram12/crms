@@ -31,7 +31,7 @@
                     <div class="fw-semibold">{{ $quotation->client?->name ?? '-' }}</div>
                 </div>
                 <div class="col-md-4">
-                    <div class="text-muted mb-1">Quotation Date</div>
+                    <div class="text-muted mb-1">Quotation Create Date</div>
                     <div class="fw-semibold">{{ optional($quotation->quotation_date)->format('d M Y') ?? '-' }}</div>
                 </div>
                 <div class="col-md-4">

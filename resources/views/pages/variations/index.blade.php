@@ -17,8 +17,10 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add Variation</a>
+            @can('variations-create')
+                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add Variation</a>
+            @endcan
         </div>
     </div>
 
@@ -146,18 +148,22 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
-                                        <button type="button" class="btn btn-icon btn-sm btn-outline-success" data-bs-toggle="modal"
-                                            data-bs-target="#edit_variation_{{ $variation->id }}" title="Edit">
-                                            <i class="ti ti-edit"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-icon btn-sm btn-outline-danger crm-delete-trigger"
-                                            data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
-                                            data-delete-action="{{ route('variations.destroy', $variation) }}"
-                                            data-delete-title="Delete Variation"
-                                            data-delete-message="Are you sure you want to delete this variation?"
-                                            title="Delete">
-                                            <i class="ti ti-trash"></i>
-                                        </button>
+                                        @can('variations-edit')
+                                            <button type="button" class="btn btn-icon btn-sm btn-outline-success" data-bs-toggle="modal"
+                                                data-bs-target="#edit_variation_{{ $variation->id }}" title="Edit">
+                                                <i class="ti ti-edit"></i>
+                                            </button>
+                                        @endcan
+                                        @can('variations-delete')
+                                            <button type="button" class="btn btn-icon btn-sm btn-outline-danger crm-delete-trigger"
+                                                data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
+                                                data-delete-action="{{ route('variations.destroy', $variation) }}"
+                                                data-delete-title="Delete Variation"
+                                                data-delete-message="Are you sure you want to delete this variation?"
+                                                title="Delete">
+                                                <i class="ti ti-trash"></i>
+                                            </button>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -175,6 +181,7 @@
 
     <!-- Offcanvas Add and Edit Modals similar to payment-stages, omitted for brevity -->
     <!-- Offcanvas Add -->
+    @can('variations-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add Variation</h5><button type="button" class="btn-close"
@@ -236,8 +243,10 @@
             </form>
         </div>
     </div>
+    @endcan
 
     <!-- Edit Modals -->
+    @can('variations-edit')
     @foreach ($variations as $variation)
         <div class="modal fade" id="edit_variation_{{ $variation->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -309,4 +318,5 @@
             </div>
         </div>
     @endforeach
+    @endcan
 @endsection

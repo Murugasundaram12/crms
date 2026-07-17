@@ -124,6 +124,7 @@
                                 $currentSiteName = null;
                                 $siteBalance = 0.0;
                                 $canShowMoveActions = false;
+                                $hasMovableStock = false;
 
                                 if ($assignment->destination_type === 'site' && $assignment->to_project_id) {
                                     $currentSiteId = $assignment->to_project_id;
@@ -131,23 +132,34 @@
                                 } elseif ($assignment->source_type === 'site' && $assignment->from_project_id) {
                                     $currentSiteId = $assignment->from_project_id;
                                     $currentSiteName = $assignment->fromProject?->name;
+                                } else {
+                                    if ($assignment->to_project_id) {
+                                        $currentSiteId = $assignment->to_project_id;
+                                        $currentSiteName = $assignment->toProject?->name;
+                                    } elseif ($assignment->from_project_id) {
+                                        $currentSiteId = $assignment->from_project_id;
+                                        $currentSiteName = $assignment->fromProject?->name;
+                                    }
                                 }
 
-                                if ($assignment->status === 'completed' && $currentSiteId && $assignment->toolMaterial) {
-                                    $siteBalance = (float) ($assignment->toolMaterial->stockBalances()['site:' . $currentSiteId]['quantity'] ?? 0);
+                                if (in_array($assignment->status, ['draft', 'transferred'], true) && $currentSiteId && $assignment->toolMaterial) {
                                     $canShowMoveActions = true;
+                                    $hasMovableStock = true;
                                 }
 
-                                $moveQuantity = $siteBalance > 0
-                                    ? min(max((float) $assignment->quantity, 1), $siteBalance)
-                                    : max((float) $assignment->quantity, 1);
+                                $moveQuantity = max((float) $assignment->quantity, 1);
                                 $moveAmount = round($moveQuantity * (float) $assignment->rate, 2);
                             @endphp
                             <tr>
                                 <td class="fw-semibold">{{ $assignment->reference_no }}</td>
                                 <td class="fw-semibold">{{ $assignment->toolMaterial?->name ?? '-' }}</td>
                                 <td>
-                                    <span class="badge {{ $assignment->status === 'completed' ? 'bg-success' : ($assignment->status === 'cancelled' ? 'bg-danger' : 'bg-secondary') }}">
+                                    @php($statusClass = match ($assignment->status) {
+                                        'transferred' => 'bg-primary',
+                                        'returned', 'completed' => 'bg-success',
+                                        default => 'bg-secondary',
+                                    })
+                                    <span class="badge {{ $statusClass }}">
                                         {{ $assignment->statusLabel() }}
                                     </span>
                                 </td>
@@ -173,44 +185,54 @@
                                 <td>{{ $assignment->handler?->name ?? '-' }}</td>
                                 <td>{{ $assignment->transferred_at?->format('d M Y h:i A') ?: '-' }}</td>
                                 <td class="text-end">
-                                    @if(auth()->user()?->hasPermission('tools-materials-create') && $canShowMoveActions)
-                                        <div class="d-inline-flex gap-1 me-1">
-                                            <a class="btn btn-sm btn-outline-success" href="{{ route('tools-material-assignments.create', [
-                                                'tool_material_id' => $assignment->tool_material_id,
-                                                'transaction_type' => 'return_to_office',
-                                                'source_type' => 'site',
-                                                'destination_type' => 'office',
-                                                'from_project_id' => $currentSiteId,
-                                                'quantity' => $moveQuantity,
-                                                'rate' => $assignment->rate,
-                                                'amount' => $moveAmount,
-                                                'purpose' => 'Return from ' . ($currentSiteName ?? 'site'),
-                                            ]) }}">
-                                                Return
-                                            </a>
-                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('tools-material-assignments.create', [
-                                                'tool_material_id' => $assignment->tool_material_id,
-                                                'transaction_type' => 'site_to_site',
-                                                'source_type' => 'site',
-                                                'destination_type' => 'site',
-                                                'from_project_id' => $currentSiteId,
-                                                'quantity' => $moveQuantity,
-                                                'rate' => $assignment->rate,
-                                                'amount' => $moveAmount,
-                                                'purpose' => 'Transfer from ' . ($currentSiteName ?? 'site'),
-                                            ]) }}">
-                                                Transfer
-                                            </a>
-                                        </div>
-                                    @endif
-                                    <x-action-dropdown
-                                        :editRoute="route('tools-material-assignments.edit', $assignment)"
-                                        editPermission="tools-materials-edit"
-                                        :deleteRoute="route('tools-material-assignments.destroy', $assignment)"
-                                        deleteTitle="Delete Transfer"
-                                        :deleteMessage="'Are you sure you want to delete this transfer?'"
-                                        deletePermission="tools-materials-delete"
-                                    />
+                                    <div class="d-inline-flex align-items-center justify-content-end gap-1 flex-nowrap tm-action-group">
+                                        @if(auth()->user()?->hasPermission('tools-materials-create') && $canShowMoveActions)
+                                            @if($hasMovableStock)
+                                                <a class="btn btn-sm btn-light-success tm-action-btn" title="Return to Office" href="{{ route('tools-material-assignments.create', [
+                                                    'tool_material_id' => $assignment->tool_material_id,
+                                                    'transaction_type' => 'return_to_office',
+                                                    'status' => 'returned',
+                                                    'source_type' => 'site',
+                                                    'destination_type' => 'office',
+                                                    'from_project_id' => $currentSiteId,
+                                                    'quantity' => $moveQuantity,
+                                                    'rate' => $assignment->rate,
+                                                    'amount' => $moveAmount,
+                                                    'purpose' => 'Return from ' . ($currentSiteName ?? 'site'),
+                                                    'lock_transaction' => 1,
+                                                ]) }}">
+                                                    <i class="ti ti-arrow-back-up"></i>
+                                                    <span>Return</span>
+                                                </a>
+                                                <a class="btn btn-sm btn-light-primary tm-action-btn" title="Transfer to Site" href="{{ route('tools-material-assignments.create', [
+                                                    'tool_material_id' => $assignment->tool_material_id,
+                                                    'transaction_type' => 'site_to_site',
+                                                    'status' => 'transferred',
+                                                    'source_type' => 'site',
+                                                    'destination_type' => 'site',
+                                                    'from_project_id' => $currentSiteId,
+                                                    'quantity' => $moveQuantity,
+                                                    'rate' => $assignment->rate,
+                                                    'amount' => $moveAmount,
+                                                    'purpose' => 'Transfer from ' . ($currentSiteName ?? 'site'),
+                                                    'lock_transaction' => 1,
+                                                ]) }}">
+                                                    <i class="ti ti-arrows-transfer-up-down"></i>
+                                                    <span>Transfer</span>
+                                                </a>
+                                            @else
+                                                <span class="badge bg-light text-muted border tm-stock-empty">No site stock</span>
+                                            @endif
+                                        @endif
+                                        <x-action-dropdown
+                                            :editRoute="route('tools-material-assignments.edit', $assignment)"
+                                            editPermission="tools-materials-edit"
+                                            :deleteRoute="route('tools-material-assignments.destroy', $assignment)"
+                                            deleteTitle="Delete Transfer"
+                                            :deleteMessage="'Are you sure you want to delete this transfer?'"
+                                            deletePermission="tools-materials-delete"
+                                        />
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -228,4 +250,69 @@
             </div>
         @endif
     </div>
+
+    @push('styles')
+        <style>
+            .tm-action-group {
+                min-width: max-content;
+                vertical-align: middle;
+            }
+
+            .tm-action-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                border: 0;
+                border-radius: 6px;
+                font-weight: 600;
+                line-height: 1;
+                padding: 7px 9px;
+                white-space: nowrap;
+            }
+
+            .tm-action-btn i {
+                font-size: 15px;
+                line-height: 1;
+            }
+
+            .btn-light-success.tm-action-btn {
+                background: #eaf8ef;
+                color: #1e7e43;
+            }
+
+            .btn-light-success.tm-action-btn:hover {
+                background: #d8f1e2;
+                color: #176b37;
+            }
+
+            .btn-light-primary.tm-action-btn {
+                background: #edf4ff;
+                color: #1f5fbf;
+            }
+
+            .btn-light-primary.tm-action-btn:hover {
+                background: #dbeaff;
+                color: #184f9f;
+            }
+
+            .tm-action-group .table-action {
+                display: inline-flex;
+            }
+
+            .tm-action-group .action-icon {
+                width: 32px;
+                height: 32px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .tm-stock-empty {
+                border-radius: 6px;
+                font-weight: 600;
+                padding: 8px 10px;
+                white-space: nowrap;
+            }
+        </style>
+    @endpush
 @endsection

@@ -77,7 +77,7 @@
                             <th>#</th>
                             <th>Quotation No</th>
                             <th>Client</th>
-                            <th>Date</th>
+                            <th>Create Date</th>
                             <th>Title</th>
                             <th>Total Amount</th>
                             {{-- <th>Total</th> --}}
@@ -125,14 +125,14 @@
                                         :deleteMessage="'Are you sure you want to delete quotation ' . ($quotation->quotation_number ?? '#' . $quotation->id) . '?'"
                                         deletePermission="quotations-delete"
                                     >
-                                        <a class="dropdown-item" href="{{ route('quotations.show', $quotation->id) }}">
-                                            <i class="ti ti-eye text-primary"></i> View Details
+                                        <a class="btn btn-sm btn-outline-info" href="{{ route('quotations.show', $quotation->id) }}" title="View Details">
+                                            <i class="ti ti-eye me-1"></i>View
                                         </a>
-                                        <a class="dropdown-item" href="{{ route('quotations.stream', $quotation->id) }}" target="_blank">
-                                            <i class="ti ti-printer text-info"></i> View / Print PDF
+                                        <a class="btn btn-sm btn-outline-secondary" href="{{ route('quotations.stream', $quotation->id) }}" target="_blank" title="View / Print PDF">
+                                            <i class="ti ti-printer me-1"></i>Print
                                         </a>
-                                        <a class="dropdown-item" href="{{ route('quotations.download', $quotation->id) }}">
-                                            <i class="ti ti-file-download text-success"></i> Download PDF
+                                        <a class="btn btn-sm btn-outline-success" href="{{ route('quotations.download', $quotation->id) }}" title="Download PDF">
+                                            <i class="ti ti-file-download me-1"></i>PDF
                                         </a>
                                     </x-action-dropdown>
                                 </td>

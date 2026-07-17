@@ -337,9 +337,10 @@ class EmployeeTrackingController extends Controller
 
         return collect($filteredTrackings)
             ->map(function (LocationTracking $tracking, int $index) use ($filteredTrackings) {
+                $previousTracking = $filteredTrackings[$index - 1] ?? null;
                 $nextTracking = $filteredTrackings[$index + 1] ?? null;
                 $type = $this->timelineModuleType($tracking);
-                $distance = $nextTracking
+                $distance = $nextTracking && ! $this->shouldBreakTimelineSegment($tracking, $nextTracking)
                     ? $this->distanceInKm(
                         (float) $tracking->latitude,
                         (float) $tracking->longitude,
@@ -361,6 +362,7 @@ class EmployeeTrackingController extends Controller
                     'address' => null,
                     'signalStrength' => null,
                     'trackingType' => $tracking->type,
+                    'segmentBreakBefore' => $previousTracking ? $this->shouldBreakTimelineSegment($previousTracking, $tracking) : false,
                     'startTime' => $tracking->recorded_at?->format('h:i A'),
                     'endTime' => $nextTracking?->recorded_at?->format('h:i A') ?? $tracking->recorded_at?->format('h:i A'),
                     'elapseTime' => $nextTracking && $tracking->recorded_at
@@ -419,6 +421,24 @@ class EmployeeTrackingController extends Controller
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
         return $speedKmh > 120;
+    }
+
+    private function shouldBreakTimelineSegment(LocationTracking $previous, LocationTracking $current): bool
+    {
+        if (! $previous->recorded_at || ! $current->recorded_at) {
+            return false;
+        }
+
+        $distanceKm = $this->distanceInKm(
+            (float) $previous->latitude,
+            (float) $previous->longitude,
+            (float) $current->latitude,
+            (float) $current->longitude
+        );
+        $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+        $speedKmh = ($distanceKm / $seconds) * 3600;
+
+        return $seconds > 120 || $distanceKm > 0.2 || $speedKmh > 80;
     }
 
     private function snapPointsToRoads(array $points, string $googleMapsKey): array

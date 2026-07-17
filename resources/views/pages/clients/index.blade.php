@@ -62,9 +62,9 @@
     <div class="row">
         @forelse ($clients as $client)
             <div class="col-xxl-3 col-xl-4 col-md-6">
-                <div class="card border-0 shadow-sm h-100">
+                <div class="card border-0 shadow-sm h-100 client-grid-card">
                     <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-3 client-card-head">
                             <div class="d-flex align-items-center">
                                 <a href="javascript:void(0);" class="avatar avatar-md flex-shrink-0 me-2">
                                     <img src="{{ asset('assets/img/profiles/avatar-0' . (($loop->iteration % 7) + 1) . '.jpg') }}"
@@ -76,27 +76,23 @@
                                     <p class="text-default mb-0">{{ $client->company_name ?: 'Construction Client' }}</p>
                                 </div>
                             </div>
-                            <div class="dropdown table-action">
-                                <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="ti ti-dots-vertical"></i>
-                                </a>
-                                <div class="dropdown-menu dropdown-menu-right">
-                                    @can('clients-edit')
-                                        <a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                            data-bs-target="#edit_client_{{ $client->id }}"><i class="ti ti-edit text-blue"></i>
-                                            Edit</a>
-                                    @endcan
-                                    @can('clients-delete')
-                                        <button type="button" class="dropdown-item crm-delete-trigger" data-bs-toggle="modal"
-                                            data-bs-target="#crmDeleteModal"
-                                            data-delete-action="{{ route('clients.destroy', $client) }}"
-                                            data-delete-title="Delete Client"
-                                            data-delete-message="Are you sure you want to delete client '{{ $client->name }}'?">
-                                            <i class="ti ti-trash"></i> Delete
-                                        </button>
-                                    @endcan
-                                </div>
+                            <div class="client-card-actions table-action d-inline-flex align-items-center gap-1">
+                                @can('clients-edit')
+                                    <a class="btn btn-sm btn-outline-primary" href="#" data-bs-toggle="modal"
+                                        data-bs-target="#edit_client_{{ $client->id }}" title="Edit" aria-label="Edit client">
+                                        <i class="ti ti-edit"></i>
+                                    </a>
+                                @endcan
+                                @can('clients-delete')
+                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger" data-bs-toggle="modal"
+                                        data-bs-target="#crmDeleteModal"
+                                        data-delete-action="{{ route('clients.destroy', $client) }}"
+                                        data-delete-title="Delete Client"
+                                        data-delete-message="Are you sure you want to delete client '{{ $client->name }}'?"
+                                        title="Delete" aria-label="Delete client">
+                                        <i class="ti ti-trash"></i>
+                                    </button>
+                                @endcan
                             </div>
                         </div>
                         <div class="d-block">
@@ -157,21 +153,21 @@
                 <form action="{{ route('clients.store') }}" method="POST" class="row g-3">
                     @csrf
                     <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
-                            class="form-control" required></div>
+                            class="form-control" value="{{ old('name') }}" required></div>
                     <div class="col-12"><label class="form-label">Company</label><input type="text" name="company_name"
-                            class="form-control"></div>
+                            class="form-control" value="{{ old('company_name') }}"></div>
                     <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
-                            class="form-control"></div>
+                            class="form-control" value="{{ old('email') }}"></div>
                     <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                            class="form-control"></div>
+                            class="form-control" value="{{ old('phone') }}" required></div>
                     <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
-                            class="form-control"></div>
+                            class="form-control" value="{{ old('address') }}"></div>
                     <div class="col-md-4"><label class="form-label">City</label><input type="text" name="city"
-                            class="form-control"></div>
+                            class="form-control" value="{{ old('city') }}"></div>
                     <div class="col-md-4"><label class="form-label">State</label><input type="text" name="state"
-                            class="form-control"></div>
+                            class="form-control" value="{{ old('state') }}"></div>
                     <div class="col-md-4"><label class="form-label">Country</label><input type="text" name="country"
-                            value="india" class="form-control"></div>
+                            value="{{ old('country', 'India') }}" class="form-control"></div>
                     <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
 <option value="enquiry">Enquiry</option>
                             <option value="active">Active</option>
@@ -187,6 +183,7 @@
         </div>
     @endcan
 
+    @can('clients-edit')
     @foreach ($clients as $client)
         <div class="modal fade" id="edit_client_{{ $client->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -206,7 +203,7 @@
                             <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
                                     class="form-control" value="{{ $client->email }}"></div>
                             <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                                    class="form-control" value="{{ $client->phone }}"></div>
+                                    class="form-control" value="{{ old('phone', $client->phone) }}" required></div>
                             <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
                                     class="form-control" value="{{ $client->address }}"></div>
                             <div class="col-md-4"><label class="form-label">City</label><input type="text" name="city"
@@ -232,4 +229,5 @@
             </div>
         </div>
     @endforeach
+    @endcan
 @endsection

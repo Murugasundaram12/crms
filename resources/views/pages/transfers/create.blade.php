@@ -94,9 +94,9 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Current Date (dd/mm/yyyy)</label>
-                            <input type="text" name="current_date" class="form-control form-control-sm"
-                                value="{{ old('current_date') }}" placeholder="dd/mm/yyyy" />
+                            <label class="form-label">Current Date</label>
+                            <input type="date" name="current_date" class="form-control form-control-sm"
+                                value="{{ old('current_date', now()->format('Y-m-d')) }}" />
                             @error('current_date')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror
@@ -105,7 +105,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Current Time</label>
                             <input type="text" name="current_time" class="form-control form-control-sm"
-                                value="{{ old('current_time') }}" placeholder="HH:MM:SS AM/PM" />
+                                value="{{ old('current_time', now()->format('h:i:s A')) }}" placeholder="HH:MM:SS AM/PM" />
                             @error('current_time')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror

@@ -415,7 +415,7 @@
                 <div class="quote-title">QUOTATION</div>
                 <div class="quote-no">{{ $quotation->quotation_number ?? ('QTN-' . $quotation->id) }}</div>
                 <div style="margin-top: 8px;" class="muted">
-                    Date: {{ optional($quotation->quotation_date)->format('d M Y') ?? '-' }}
+                    Create Date: {{ optional($quotation->quotation_date)->format('d M Y') ?? '-' }}
                 </div>
             </td>
         </tr>
@@ -443,9 +443,9 @@
                     <div><strong>Location:</strong> {{ $location }}</div>
                 @endif
                 <div class="muted" style="margin-top: 5px;">
-                    Duration: {{ $quotation->duration_days ? $quotation->duration_days . ' working days' : '10 - 15 working days' }}
+                    Work Duration: {{ $quotation->duration_days ? $quotation->duration_days . ' working days' : '10 - 15 working days' }}
                     &nbsp; | &nbsp;
-                    Validity: {{ $quotation->validity_days ?: 30 }} days
+                    Quote Validity: {{ $quotation->validity_days ?: 30 }} days
                 </div>
             </td>
         </tr>

@@ -9,8 +9,10 @@ use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\QuotationSchedule;
 use App\Models\QuotationTerm;
+use App\Models\Unit;
 use App\Http\Requests\StoreQuotationRequest;
 use App\Http\Requests\UpdateQuotationRequest;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -79,8 +81,9 @@ class QuotationController extends Controller
 
         $clients = Client::orderBy('name')
             ->get(['id', 'name', 'company_name', 'email', 'phone', 'address', 'city', 'state', 'country']);
+        $units = Unit::query()->active()->orderBy('name')->get();
 
-        return view('pages.quotations.create', compact('clients'));
+        return view('pages.quotations.create', compact('clients', 'units'));
     }
 
     /**
@@ -128,8 +131,18 @@ class QuotationController extends Controller
             ->get(['id', 'name', 'company_name', 'email', 'phone', 'address', 'city', 'state', 'country']);
         $quotation->load(['items', 'schedules', 'terms', 'project']);
         $groupedItems = $this->groupQuotationItems($quotation);
+        $usedUnits = collect($groupedItems)
+            ->flatMap(fn(array $group) => collect($group['rows'])->pluck('unit'))
+            ->filter()
+            ->unique()
+            ->values();
+        $units = Unit::query()
+            ->where('active_status', true)
+            ->when($usedUnits->isNotEmpty(), fn($query) => $query->orWhereIn('code', $usedUnits))
+            ->orderBy('name')
+            ->get();
 
-        return view('pages.quotations.edit', compact('quotation', 'clients', 'groupedItems'));
+        return view('pages.quotations.edit', compact('quotation', 'clients', 'groupedItems', 'units'));
     }
 
     /**
@@ -159,6 +172,15 @@ class QuotationController extends Controller
      */
     public function destroy(Quotation $quotation)
     {
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($quotation->id, [
+            ['table' => 'payments', 'column' => 'quotation_id', 'label' => 'payments'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('quotations.list')
+                ->with('error', DeleteDependencyGuard::message('Quotation', $blockedBy['label']));
+        }
+
         DB::transaction(function () use ($quotation) {
             $quotation->items()->delete();
             $quotation->schedules()->delete();

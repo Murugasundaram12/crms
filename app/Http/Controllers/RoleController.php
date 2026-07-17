@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\Permission;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -91,7 +92,16 @@ class RoleController extends Controller
 
     public function destroy(Role $role)
     {
-        // Remove permission links first, then delete the role.
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($role->id, [
+            ['table' => 'user_roles', 'column' => 'role_id', 'label' => 'users'],
+            ['table' => 'model_has_roles', 'column' => 'role_id', 'label' => 'users'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('roles.index')
+                ->with('error', DeleteDependencyGuard::message('Role', $blockedBy['label']));
+        }
+
         $role->permissions()->detach();
         $role->delete();
 

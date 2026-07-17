@@ -143,26 +143,20 @@
                                 <td>{{ $row->category_name }}</td>
                                 <td>{{ $row->created_at ? \Carbon\Carbon::parse($row->created_at)->format('d M Y') : '-' }}</td>
                                 <td class="text-end">
-                                    <div class="dropdown table-action">
-                                        <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                            data-bs-toggle="dropdown" aria-expanded="false">
-                                            <i class="ti ti-dots-vertical"></i>
-                                        </a>
-                                        <div class="dropdown-menu dropdown-menu-right">
-                                            @can('categories-edit')
-                                                <a class="dropdown-item" href="{{ route('categories.edit', $row->category_id) }}"><i
-                                                        class="ti ti-edit text-blue"></i> Edit</a>
-                                            @endcan
-                                            @can('categories-delete')
-                                                <button type="button" class="dropdown-item text-danger crm-delete-trigger"
-                                                    data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
-                                                    data-delete-action="{{ route('categories.destroy', $row->category_id) }}"
-                                                    data-delete-title="Delete Category"
-                                                    data-delete-message="Are you sure you want to delete category '{{ $row->category_name }}'?">
-                                                    <i class="ti ti-trash me-1"></i> Delete
-                                                </button>
-                                            @endcan
-                                        </div>
+                                    <div class="table-action d-inline-flex align-items-center justify-content-end gap-1 flex-wrap">
+                                        @can('categories-edit')
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('categories.edit', $row->category_id) }}"><i
+                                                    class="ti ti-edit me-1"></i>Edit</a>
+                                        @endcan
+                                        @can('categories-delete')
+                                            <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
+                                                data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
+                                                data-delete-action="{{ route('categories.destroy', $row->category_id) }}"
+                                                data-delete-title="Delete Category"
+                                                data-delete-message="Are you sure you want to delete category '{{ $row->category_name }}'?">
+                                                <i class="ti ti-trash me-1"></i>Delete
+                                            </button>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>

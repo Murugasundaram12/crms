@@ -109,16 +109,12 @@ class EmployeeSalaryController extends Controller
                     $userExists = User::query()
                         ->where('name', $value)
                         ->where(function ($queryBuilder) {
-                            $queryBuilder
-                                ->whereIn('role', ['Employee', 'Site Engineer'])
-                                ->orWhereHas('roles', function ($roleQuery) {
-                                    $roleQuery->whereIn('name', ['Employee', 'Site Engineer']);
-                                });
+                            $queryBuilder->whereNull('status')->orWhere('status', 'active');
                         })
                         ->exists();
 
                     if (! $userExists) {
-                        $fail('Please select a valid employee or site engineer.');
+                        $fail('Please select a valid active user.');
                     }
                 },
             ],
@@ -132,11 +128,7 @@ class EmployeeSalaryController extends Controller
         return User::query()
             ->with('roles')
             ->where(function ($queryBuilder) {
-                $queryBuilder
-                    ->whereIn('role', ['Employee', 'Site Engineer'])
-                    ->orWhereHas('roles', function ($roleQuery) {
-                        $roleQuery->whereIn('name', ['Employee', 'Site Engineer']);
-                    });
+                $queryBuilder->whereNull('status')->orWhere('status', 'active');
             })
             ->orderBy('name')
             ->get()

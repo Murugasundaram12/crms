@@ -18,8 +18,10 @@
             </nav>
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
-            <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
-                data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add Stage</a>
+            @can('payment-stages-create')
+                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add Stage</a>
+            @endcan
         </div>
     </div>
 
@@ -75,23 +77,21 @@
                             <tr>
                                 <td>{{ $stage->name }}</td>
                                 <td class="text-end">
-                                    <div class="dropdown table-action">
-                                        <a href="#" class="action-icon btn btn-icon btn-sm btn-outline-light shadow"
-                                            data-bs-toggle="dropdown">
-                                            <i class="ti ti-dots-vertical"></i>
-                                        </a>
-                                        <div class="dropdown-menu dropdown-menu-right">
-                                            <a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                    <div class="table-action d-inline-flex align-items-center justify-content-end gap-1 flex-wrap">
+                                        @can('payment-stages-edit')
+                                            <a class="btn btn-sm btn-outline-primary" href="#" data-bs-toggle="modal"
                                                 data-bs-target="#edit_stage_{{ $stage->id }}"><i
-                                                    class="ti ti-edit text-blue"></i> Edit</a>
-                                            <button type="button" class="dropdown-item text-danger crm-delete-trigger"
+                                                    class="ti ti-edit me-1"></i>Edit</a>
+                                        @endcan
+                                        @can('payment-stages-delete')
+                                            <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
                                                 data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
                                                 data-delete-action="{{ route('payment-stages.destroy', $stage) }}"
                                                 data-delete-title="Delete Payment Stage"
                                                 data-delete-message="Are you sure you want to delete payment stage '{{ $stage->name }}'?">
-                                                <i class="ti ti-trash me-1"></i> Delete
+                                                <i class="ti ti-trash me-1"></i>Delete
                                             </button>
-                                        </div>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -108,6 +108,7 @@
     </div>
 
     <!-- Offcanvas Add -->
+    @can('payment-stages-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add Payment Stage</h5>
@@ -133,8 +134,10 @@
             </form>
         </div>
     </div>
+    @endcan
 
     <!-- Edit Modals -->
+    @can('payment-stages-edit')
     @foreach ($paymentStages as $stage)
         <div class="modal fade" id="edit_stage_{{ $stage->id }}" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -164,4 +167,5 @@
             </div>
         </div>
     @endforeach
+    @endcan
 @endsection

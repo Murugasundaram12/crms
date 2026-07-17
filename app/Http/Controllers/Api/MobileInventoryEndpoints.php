@@ -1,0 +1,406 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Project;
+use App\Models\ToolMaterial;
+use App\Models\ToolMaterialAssignment;
+use App\Models\Vendor;
+use App\Services\CrmBalanceService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+trait MobileInventoryEndpoints
+{
+    private const INVENTORY_TRANSACTION_TYPES = [
+        'purchase' => 'Purchase',
+        'issue_to_site' => 'Issue to Site',
+        'return_to_office' => 'Return to Office',
+        'site_to_site' => 'Site to Site',
+        'return_to_vendor' => 'Return to Vendor',
+        'damage_wastage' => 'Damage / Wastage',
+    ];
+
+    private const INVENTORY_STATUSES = [
+        'draft' => 'Draft',
+        'transferred' => 'Transferred',
+        'returned' => 'Returned',
+        'completed' => 'Completed',
+        'cancelled' => 'Cancelled',
+    ];
+
+    public function inventoryOptions(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-list')) {
+            return $forbidden;
+        }
+
+        return response()->json([
+            'transaction_types' => self::INVENTORY_TRANSACTION_TYPES,
+            'statuses' => self::INVENTORY_STATUSES,
+            'source_types' => ['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor'],
+            'destination_types' => ['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor', 'wastage' => 'Wastage'],
+            'tools_materials' => ToolMaterial::query()
+                ->with(['assignments.fromProject', 'assignments.toProject'])
+                ->where('active_status', true)
+                ->orderBy('name')
+                ->get()
+                ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item)),
+            'projects' => $this->scopeProjectsForAppUser(Project::query(), $request->user())
+                ->orderBy('name')
+                ->get(['id', 'name', 'project_code']),
+            'vendors' => Vendor::query()->orderBy('name')->get()->map(fn(Vendor $vendor) => $this->vendorPayload($vendor)),
+        ]);
+    }
+
+    public function inventoryItems(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-list')) {
+            return $forbidden;
+        }
+
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:255'],
+            'item_type' => ['nullable', Rule::in(['tool', 'material'])],
+            'low_stock' => ['nullable', 'boolean'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = ToolMaterial::query()
+            ->with(['assignments.fromProject', 'assignments.toProject'])
+            ->when($validated['q'] ?? null, fn($q, string $search) => $q->where('name', 'like', "%{$search}%"))
+            ->when($validated['item_type'] ?? null, fn($q, string $type) => $q->where('item_type', $type))
+            ->orderBy('name');
+
+        $items = $query->paginate((int) ($validated['per_page'] ?? 15));
+        $items->setCollection($items->getCollection()
+            ->filter(fn(ToolMaterial $item) => ! $request->boolean('low_stock') || $item->is_low_stock)
+            ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item))
+            ->values());
+
+        return response()->json($items);
+    }
+
+    public function inventoryTransactions(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-list')) {
+            return $forbidden;
+        }
+
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:255'],
+            'tool_material_id' => ['nullable', 'exists:tools_materials,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+            'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'transaction_type' => ['nullable', Rule::in(array_keys(self::INVENTORY_TRANSACTION_TYPES))],
+            'status' => ['nullable', Rule::in(array_keys(self::INVENTORY_STATUSES))],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = ToolMaterialAssignment::query()
+            ->with(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])
+            ->when($validated['q'] ?? null, function ($q, string $search) {
+                $q->where(function ($inner) use ($search) {
+                    $inner->where('reference_no', 'like', "%{$search}%")
+                        ->orWhere('receiver_name', 'like', "%{$search}%")
+                        ->orWhere('vehicle_no', 'like', "%{$search}%")
+                        ->orWhere('purpose', 'like', "%{$search}%")
+                        ->orWhereHas('toolMaterial', fn($toolQuery) => $toolQuery->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($validated['tool_material_id'] ?? null, fn($q, int $id) => $q->where('tool_material_id', $id))
+            ->when($validated['vendor_id'] ?? null, fn($q, int $id) => $q->where('vendor_id', $id))
+            ->when($validated['transaction_type'] ?? null, fn($q, string $type) => $q->where('transaction_type', $type))
+            ->when($validated['status'] ?? null, fn($q, string $status) => $q->where('status', $status));
+
+        if (! blank($validated['project_id'] ?? null)) {
+            $projectId = (int) $validated['project_id'];
+            $query->where(fn($q) => $q->where('from_project_id', $projectId)->orWhere('to_project_id', $projectId));
+        }
+
+        if (! blank($validated['date_from'] ?? null)) {
+            $query->whereDate('transferred_at', '>=', $request->date('date_from')->toDateString());
+        }
+
+        if (! blank($validated['date_to'] ?? null)) {
+            $query->whereDate('transferred_at', '<=', $request->date('date_to')->toDateString());
+        }
+
+        $transactions = $query->latest('transferred_at')->paginate((int) ($validated['per_page'] ?? 15));
+        $transactions->setCollection($transactions->getCollection()->map(fn(ToolMaterialAssignment $assignment) => $this->toolMaterialTransactionPayload($assignment)));
+
+        return response()->json($transactions);
+    }
+
+    public function storeInventoryTransaction(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-create')) {
+            return $forbidden;
+        }
+
+        $validated = $this->validateInventoryTransaction($request);
+
+        $assignment = DB::transaction(function () use ($validated) {
+            $assignment = ToolMaterialAssignment::query()->create($validated);
+            $this->applyInventoryVendorReturnBalance($assignment, 1);
+
+            return $assignment;
+        });
+
+        return response()->json([
+            'message' => 'Inventory transaction saved successfully.',
+            'transaction' => $this->toolMaterialTransactionPayload($assignment->load(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])),
+        ], 201);
+    }
+
+    public function showInventoryTransaction(Request $request, ToolMaterialAssignment $assignment)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-list')) {
+            return $forbidden;
+        }
+
+        return response()->json([
+            'transaction' => $this->toolMaterialTransactionPayload($assignment->load(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])),
+        ]);
+    }
+
+    private function validateInventoryTransaction(Request $request): array
+    {
+        $validated = $request->validate([
+            'tool_material_id' => ['required', 'exists:tools_materials,id'],
+            'reference_no' => ['nullable', 'string', 'max:100', Rule::unique('tool_material_assignments', 'reference_no')],
+            'status' => ['nullable', Rule::in(array_keys(self::INVENTORY_STATUSES))],
+            'from_project_id' => ['nullable', 'exists:projects,id'],
+            'to_project_id' => ['nullable', 'exists:projects,id'],
+            'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'transaction_type' => ['required', Rule::in(array_keys(self::INVENTORY_TRANSACTION_TYPES))],
+            'source_type' => ['nullable', Rule::in(['office', 'site', 'vendor'])],
+            'destination_type' => ['nullable', Rule::in(['office', 'site', 'vendor', 'wastage'])],
+            'quantity' => ['required', 'numeric', 'min:0.01'],
+            'rate' => ['required', 'numeric', 'min:0'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'receiver_name' => ['nullable', 'string', 'max:255'],
+            'vehicle_no' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'transferred_at' => ['nullable', 'date'],
+        ]);
+
+        $validated['reference_no'] = filled($validated['reference_no'] ?? null)
+            ? $validated['reference_no']
+            : $this->nextInventoryReferenceNumber();
+        $validated['status'] = $validated['status'] ?? 'draft';
+        $validated['handled_by'] = $request->user()->id;
+        $validated['transferred_at'] = $validated['transferred_at'] ?? now();
+        $validated['amount'] = round((float) ($validated['amount'] ?? 0) > 0
+            ? (float) $validated['amount']
+            : (float) $validated['quantity'] * (float) $validated['rate'], 2);
+        $validated['unit'] = ToolMaterial::query()->whereKey($validated['tool_material_id'])->value('unit') ?: 'Nos';
+        $validated['transfer_type'] = $validated['transaction_type'];
+
+        $this->normalizeInventoryLocations($validated);
+
+        if (ToolMaterialAssignment::isStockEffectiveStatus($validated['status'])) {
+            $this->ensureInventoryStockAvailable($validated);
+        }
+
+        return $validated;
+    }
+
+    private function normalizeInventoryLocations(array &$validated): void
+    {
+        match ($validated['transaction_type']) {
+            'purchase' => $this->normalizeInventoryPurchase($validated),
+            'issue_to_site' => $this->normalizeInventoryIssueToSite($validated),
+            'return_to_office' => $this->normalizeInventoryReturnToOffice($validated),
+            'site_to_site' => $this->normalizeInventorySiteToSite($validated),
+            'return_to_vendor' => $this->normalizeInventoryReturnToVendor($validated),
+            'damage_wastage' => $this->normalizeInventoryDamageWastage($validated),
+        };
+    }
+
+    private function normalizeInventoryPurchase(array &$validated): void
+    {
+        $validated['source_type'] = 'vendor';
+        $validated['destination_type'] = ($validated['destination_type'] ?? 'office') === 'site' ? 'site' : 'office';
+        $validated['from_project_id'] = null;
+
+        if (empty($validated['vendor_id'])) {
+            throw ValidationException::withMessages(['vendor_id' => 'Vendor is required for purchase.']);
+        }
+
+        if ($validated['destination_type'] === 'site' && empty($validated['to_project_id'])) {
+            throw ValidationException::withMessages(['to_project_id' => 'Site is required when purchase is directly added to site.']);
+        }
+    }
+
+    private function normalizeInventoryIssueToSite(array &$validated): void
+    {
+        $validated['source_type'] = 'office';
+        $validated['destination_type'] = 'site';
+        $validated['from_project_id'] = null;
+
+        if (empty($validated['to_project_id'])) {
+            throw ValidationException::withMessages(['to_project_id' => 'Site is required for issue to site.']);
+        }
+    }
+
+    private function normalizeInventoryReturnToOffice(array &$validated): void
+    {
+        $validated['source_type'] = 'site';
+        $validated['destination_type'] = 'office';
+        $validated['to_project_id'] = null;
+
+        if (empty($validated['from_project_id'])) {
+            throw ValidationException::withMessages(['from_project_id' => 'Site is required for return to office.']);
+        }
+    }
+
+    private function normalizeInventorySiteToSite(array &$validated): void
+    {
+        $validated['source_type'] = 'site';
+        $validated['destination_type'] = 'site';
+
+        if (empty($validated['from_project_id']) || empty($validated['to_project_id'])) {
+            throw ValidationException::withMessages(['to_project_id' => 'From site and to site are required for site to site transfer.']);
+        }
+
+        if ((int) $validated['from_project_id'] === (int) $validated['to_project_id']) {
+            throw ValidationException::withMessages(['to_project_id' => 'To site must be different from from site.']);
+        }
+    }
+
+    private function normalizeInventoryReturnToVendor(array &$validated): void
+    {
+        $validated['source_type'] = ($validated['source_type'] ?? 'office') === 'site' ? 'site' : 'office';
+        $validated['destination_type'] = 'vendor';
+        $validated['to_project_id'] = null;
+
+        if (empty($validated['vendor_id'])) {
+            throw ValidationException::withMessages(['vendor_id' => 'Vendor is required for return to vendor.']);
+        }
+
+        if ($validated['source_type'] === 'site' && empty($validated['from_project_id'])) {
+            throw ValidationException::withMessages(['from_project_id' => 'Site is required when returning to vendor from site.']);
+        }
+    }
+
+    private function normalizeInventoryDamageWastage(array &$validated): void
+    {
+        $validated['source_type'] = ($validated['source_type'] ?? 'office') === 'site' ? 'site' : 'office';
+        $validated['destination_type'] = 'wastage';
+        $validated['to_project_id'] = null;
+        $validated['vendor_id'] = null;
+
+        if ($validated['source_type'] === 'site' && empty($validated['from_project_id'])) {
+            throw ValidationException::withMessages(['from_project_id' => 'Site is required for site damage / wastage.']);
+        }
+    }
+
+    private function ensureInventoryStockAvailable(array $validated): void
+    {
+        $source = match ($validated['transaction_type']) {
+            'issue_to_site' => 'office',
+            'return_to_office', 'site_to_site' => 'site:' . (int) $validated['from_project_id'],
+            'return_to_vendor', 'damage_wastage' => ($validated['source_type'] ?? 'office') === 'site'
+                ? 'site:' . (int) $validated['from_project_id']
+                : 'office',
+            default => null,
+        };
+
+        if (! $source) {
+            return;
+        }
+
+        $material = ToolMaterial::query()
+            ->with(['assignments.fromProject', 'assignments.toProject'])
+            ->findOrFail($validated['tool_material_id']);
+        $available = (float) ($material->stockBalances()[$source]['quantity'] ?? 0);
+
+        if ($available < (float) $validated['quantity']) {
+            throw ValidationException::withMessages([
+                'quantity' => 'Insufficient stock. Available quantity is ' . number_format($available, 2) . ' ' . $material->unit . '.',
+            ]);
+        }
+    }
+
+    private function applyInventoryVendorReturnBalance(ToolMaterialAssignment $assignment, int $direction): void
+    {
+        if (! ToolMaterialAssignment::isStockEffectiveStatus($assignment->status) || $assignment->transaction_type !== 'return_to_vendor' || ! $assignment->vendor_id || (float) $assignment->amount <= 0) {
+            return;
+        }
+
+        app(CrmBalanceService::class)->adjustVendorAdvance((int) $assignment->vendor_id, (float) $assignment->amount * $direction);
+    }
+
+    private function nextInventoryReferenceNumber(): string
+    {
+        $nextId = ((int) ToolMaterialAssignment::query()->max('id')) + 1;
+
+        do {
+            $reference = 'TM-' . now()->format('ymd') . '-' . str_pad((string) $nextId, 4, '0', STR_PAD_LEFT);
+            $nextId++;
+        } while (ToolMaterialAssignment::query()->where('reference_no', $reference)->exists());
+
+        return $reference;
+    }
+
+    private function toolMaterialPayload(ToolMaterial $item): array
+    {
+        return [
+            'id' => $item->id,
+            'item_type' => $item->item_type,
+            'sku' => $item->sku,
+            'name' => $item->name,
+            'unit' => $item->unit,
+            'image_path' => $item->image_path,
+            'image_url' => $item->image_path ? asset('storage/' . $item->image_path) : null,
+            'description' => $item->description,
+            'opening_quantity' => (float) $item->opening_quantity,
+            'opening_rate' => (float) $item->opening_rate,
+            'opening_amount' => (float) $item->opening_amount,
+            'reorder_level' => (float) $item->reorder_level,
+            'office_stock_quantity' => $item->office_stock_quantity,
+            'site_stock_quantity' => $item->site_stock_quantity,
+            'stock_quantity' => $item->stock_quantity,
+            'stock_amount' => $item->stock_amount,
+            'is_low_stock' => $item->is_low_stock,
+            'active_status' => (bool) $item->active_status,
+            'balances' => array_values($item->stockBalances()),
+        ];
+    }
+
+    private function toolMaterialTransactionPayload(ToolMaterialAssignment $assignment): array
+    {
+        return [
+            'id' => $assignment->id,
+            'reference_no' => $assignment->reference_no,
+            'status' => $assignment->status,
+            'status_label' => $assignment->statusLabel(),
+            'transaction_type' => $assignment->transaction_type,
+            'transaction_label' => $assignment->transactionLabel(),
+            'tool_material' => $assignment->toolMaterial ? $this->toolMaterialPayload($assignment->toolMaterial) : null,
+            'from_project' => $assignment->fromProject ? ['id' => $assignment->fromProject->id, 'name' => $assignment->fromProject->name] : null,
+            'to_project' => $assignment->toProject ? ['id' => $assignment->toProject->id, 'name' => $assignment->toProject->name] : null,
+            'vendor' => $assignment->vendor ? $this->vendorPayload($assignment->vendor) : null,
+            'handled_by' => $assignment->handler ? $this->userPayload($assignment->handler) : null,
+            'source_type' => $assignment->source_type,
+            'destination_type' => $assignment->destination_type,
+            'quantity' => (float) $assignment->quantity,
+            'unit' => $assignment->unit,
+            'rate' => (float) $assignment->rate,
+            'amount' => (float) $assignment->amount,
+            'receiver_name' => $assignment->receiver_name,
+            'vehicle_no' => $assignment->vehicle_no,
+            'purpose' => $assignment->purpose,
+            'notes' => $assignment->notes,
+            'transferred_at' => $assignment->transferred_at?->toISOString(),
+            'created_at' => $assignment->created_at?->toISOString(),
+            'updated_at' => $assignment->updated_at?->toISOString(),
+        ];
+    }
+}

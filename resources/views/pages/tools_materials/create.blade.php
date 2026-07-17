@@ -17,7 +17,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Type</label>
-                        <select name="item_type" class="form-select" required>
+                        <select name="item_type" class="form-select tool-material-type-select" required>
                             <option value="material" @selected(old('item_type', 'material') === 'material')>Material</option>
                             <option value="tool" @selected(old('item_type') === 'tool')>Tool</option>
                         </select>
@@ -38,22 +38,29 @@
                         <input type="date" name="date" class="form-control" value="{{ old('date', now()->toDateString()) }}" required>
                         @error('date')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 material-stock-field">
                         <label class="form-label">Unit</label>
-                        <input type="text" name="unit" class="form-control" value="{{ old('unit', 'Nos') }}" required>
+                        <select name="unit" class="form-select material-required-field" required>
+                            <option value="">Select Unit</option>
+                            @foreach($units as $unit)
+                                <option value="{{ $unit->code }}" @selected(old('unit', 'Nos') === $unit->code)>
+                                    {{ $unit->display_name }}
+                                </option>
+                            @endforeach
+                        </select>
                         @error('unit')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 material-stock-field">
                         <label class="form-label">Opening Quantity</label>
-                        <input type="number" step="0.01" name="opening_quantity" class="form-control" value="{{ old('opening_quantity', 0) }}">
+                        <input type="number" step="0.01" name="opening_quantity" class="form-control material-required-field" value="{{ old('opening_quantity', 0) }}" required>
                         @error('opening_quantity')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 material-stock-field">
                         <label class="form-label">Opening Rate</label>
-                        <input type="number" step="0.01" name="opening_rate" class="form-control" value="{{ old('opening_rate', 0) }}">
+                        <input type="number" step="0.01" name="opening_rate" class="form-control material-required-field" value="{{ old('opening_rate', 0) }}" required>
                         @error('opening_rate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 material-stock-field">
                         <label class="form-label">Reorder Level</label>
                         <input type="number" step="0.01" name="reorder_level" class="form-control" value="{{ old('reorder_level', 0) }}">
                         @error('reorder_level')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
@@ -83,3 +90,25 @@
         </div>
     </form>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const typeSelect = document.querySelector('.tool-material-type-select');
+            const materialFields = document.querySelectorAll('.material-stock-field');
+            const requiredFields = document.querySelectorAll('.material-required-field');
+
+            function syncMaterialFields() {
+                const isMaterial = typeSelect && typeSelect.value === 'material';
+                materialFields.forEach((field) => field.classList.toggle('d-none', !isMaterial));
+                requiredFields.forEach((field) => {
+                    field.required = isMaterial;
+                    field.disabled = !isMaterial;
+                });
+            }
+
+            typeSelect?.addEventListener('change', syncMaterialFields);
+            syncMaterialFields();
+        });
+    </script>
+@endpush

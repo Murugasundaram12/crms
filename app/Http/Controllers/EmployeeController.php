@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\Attendance;
 use App\Models\Expense;
+use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -105,6 +106,38 @@ class EmployeeController extends Controller
 
     public function destroy(User $employee)
     {
+        if (auth()->id() === $employee->id) {
+            return redirect()->route('employees.index')
+                ->with('error', 'You cannot delete your own user account.');
+        }
+
+        $blockedBy = DeleteDependencyGuard::firstBlockingReference($employee->id, [
+            ['table' => 'attendances', 'column' => 'user_id', 'label' => 'attendance'],
+            ['table' => 'employee_locations', 'column' => 'user_id', 'label' => 'employee tracking'],
+            ['table' => 'location_trackings', 'column' => 'employee_id', 'label' => 'employee tracking'],
+            ['table' => 'employee_devices', 'column' => 'employee_id', 'label' => 'employee devices'],
+            ['table' => 'tasks', 'column' => 'employee_id', 'label' => 'tasks'],
+            ['table' => 'expenses', 'column' => 'user_id', 'label' => 'expenses'],
+            ['table' => 'expenses', 'column' => 'employee_id', 'label' => 'expenses'],
+            ['table' => 'expense_transactions', 'column' => 'user_id', 'label' => 'expenses'],
+            ['table' => 'labour_expense_transactions', 'column' => 'user_id', 'label' => 'labour expenses'],
+            ['table' => 'vendor_expense_transactions', 'column' => 'user_id', 'label' => 'vendor expenses'],
+            ['table' => 'payments', 'column' => 'employee_id', 'label' => 'payments'],
+            ['table' => 'wallet', 'column' => 'user_id', 'label' => 'wallet transfers'],
+            ['table' => 'transfer_details', 'column' => 'user_id', 'label' => 'wallet transfers'],
+            ['table' => 'transfer_details', 'column' => 'employee_id', 'label' => 'wallet transfers'],
+            ['table' => 'leave_requests', 'column' => 'user_id', 'label' => 'leave requests'],
+            ['table' => 'leave_requests', 'column' => 'approved_by_id', 'label' => 'leave requests'],
+            ['table' => 'mobile_wallet_transfers', 'column' => 'from_user_id', 'label' => 'mobile wallet transfers'],
+            ['table' => 'mobile_wallet_transfers', 'column' => 'to_user_id', 'label' => 'mobile wallet transfers'],
+            ['table' => 'tool_material_assignments', 'column' => 'handled_by', 'label' => 'tool/material transfers'],
+        ]);
+
+        if ($blockedBy['blocked']) {
+            return redirect()->route('employees.index')
+                ->with('error', DeleteDependencyGuard::message('User', $blockedBy['label']));
+        }
+
         $employee->delete();
 
         return redirect()->route('employees.index')
@@ -162,7 +195,7 @@ class EmployeeController extends Controller
                 Rule::unique('users', 'email')->ignore($employee?->id),
             ],
             'role' => ['required', 'string', Rule::exists('roles', 'name')],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'regex:/^[6-9]\d{9}$/'],
             'designation' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
@@ -170,6 +203,8 @@ class EmployeeController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'password' => [$employee ? 'nullable' : 'required', 'string', 'min:6', 'confirmed'],
+        ], [
+            'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
 
 
