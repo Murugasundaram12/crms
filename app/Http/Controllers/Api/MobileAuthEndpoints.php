@@ -68,12 +68,20 @@ trait MobileAuthEndpoints
             'token_hash' => hash('sha256', $plainToken),
         ]);
 
+        $activeTokensCount = MobileApiToken::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->count();
+
         return response()->json([
             'message' => 'Login successful.',
             'token' => $plainToken,
             'token_type' => 'Bearer',
             'user' => $this->userPayload($user),
             'token_id' => $token->id,
+            'active_tokens_count' => $activeTokensCount,
         ]);
     }
 

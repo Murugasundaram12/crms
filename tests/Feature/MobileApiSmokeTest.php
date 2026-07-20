@@ -300,6 +300,40 @@ class MobileApiSmokeTest extends TestCase
         ]);
     }
 
+    public function test_login_supports_multiple_active_sessions_for_the_same_user(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Multi Session User',
+            'email' => 'multi-session@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $firstLogin = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Device One',
+        ]);
+
+        $secondLogin = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Device Two',
+        ]);
+
+        $firstLogin->assertOk()
+            ->assertJsonPath('message', 'Login successful.')
+            ->assertJsonPath('active_tokens_count', 2);
+
+        $secondLogin->assertOk()
+            ->assertJsonPath('message', 'Login successful.')
+            ->assertJsonPath('active_tokens_count', 2);
+
+        $this->assertSame(2, $user->mobileApiTokens()->whereNull('expires_at')->orWhere('expires_at', '>', now())->count());
+    }
+
     public function test_mobile_settings_routes_return_database_backed_values(): void
     {
         $this->getJson('/api/V1/getAppSettings')
