@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\LocationTracking;
+use App\Http\Controllers\EmployeeTrackingController;
 use App\Services\TimelineGpsProcessor;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -10,6 +11,21 @@ use Tests\TestCase;
 
 class TimelineGpsProcessorTest extends TestCase
 {
+    public function test_it_handles_empty_gps_data(): void
+    {
+        $this->assertSame([], (new TimelineGpsProcessor())->filter(collect()));
+    }
+
+    public function test_it_handles_single_point_data(): void
+    {
+        $point = $this->point(11.016844, 76.955832, '2026-07-21 10:00:00', id: 1);
+
+        $filtered = (new TimelineGpsProcessor())->filter(collect([$point]));
+
+        $this->assertCount(1, $filtered);
+        $this->assertSame(1, $filtered[0]->id);
+    }
+
     public function test_it_filters_invalid_duplicate_inaccurate_and_stationary_points(): void
     {
         $processor = new TimelineGpsProcessor();
@@ -36,6 +52,43 @@ class TimelineGpsProcessorTest extends TestCase
         $this->assertSame(11.017020, (float) $filtered[1]->latitude);
     }
 
+    public function test_it_removes_non_consecutive_duplicate_coordinates(): void
+    {
+        $processor = new TimelineGpsProcessor();
+
+        $points = collect([
+            $this->point(11.016844, 76.955832, '2026-07-21 10:00:00', id: 1),
+            $this->point(11.017100, 76.955832, '2026-07-21 10:01:00', id: 2),
+            $this->point(11.016844, 76.955832, '2026-07-21 10:02:00', id: 3),
+            $this->point(11.017300, 76.955832, '2026-07-21 10:03:00', id: 4),
+        ]);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 10,
+            'max_accuracy_meters' => 20,
+        ]);
+
+        $this->assertSame([1, 2, 4], array_map(fn (LocationTracking $point) => $point->id, $filtered));
+    }
+
+    public function test_it_orders_timeline_points_by_created_at_then_id(): void
+    {
+        $processor = new TimelineGpsProcessor();
+
+        $points = collect([
+            $this->point(11.017300, 76.955832, '2026-07-21 10:03:00', id: 4),
+            $this->point(11.016844, 76.955832, '2026-07-21 10:00:00', id: 1),
+            $this->point(11.017100, 76.955832, '2026-07-21 10:01:00', id: 2),
+        ]);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 10,
+            'max_accuracy_meters' => 20,
+        ]);
+
+        $this->assertSame([1, 2, 4], array_map(fn (LocationTracking $point) => $point->id, $filtered));
+    }
+
     public function test_it_simplifies_large_polyline_point_sets(): void
     {
         $processor = new TimelineGpsProcessor();
@@ -55,7 +108,116 @@ class TimelineGpsProcessorTest extends TestCase
         $this->assertSame((float) $points->last()->latitude, (float) $filtered[count($filtered) - 1]->latitude);
     }
 
-    private function point(?float $latitude, ?float $longitude, string $time, ?float $accuracy = 10, ?float $speed = 1, int $secondsOffset = 0): LocationTracking
+    public function test_polyline_simplification_keeps_important_movement_turns(): void
+    {
+        $processor = new TimelineGpsProcessor();
+
+        $points = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1),
+            $this->point(11.001000, 77.000000, '2026-07-21 10:02:00', id: 2),
+            $this->point(11.002000, 77.001500, '2026-07-21 10:04:00', id: 3),
+            $this->point(11.003000, 77.000000, '2026-07-21 10:06:00', id: 4),
+            $this->point(11.004000, 77.000000, '2026-07-21 10:08:00', id: 5),
+        ]);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 0,
+            'max_accuracy_meters' => 20,
+            'simplify_after_points' => 3,
+            'simplification_tolerance_meters' => 30,
+            'max_computed_speed_kmh' => 120,
+        ]);
+
+        $ids = array_map(fn (LocationTracking $point) => $point->id, $filtered);
+
+        $this->assertContains(1, $ids);
+        $this->assertContains(3, $ids);
+        $this->assertContains(5, $ids);
+    }
+
+    public function test_it_uses_device_bearing_to_reject_short_gps_drift(): void
+    {
+        $processor = new TimelineGpsProcessor();
+
+        $points = collect([
+            $this->point(11.016844, 76.955832, '2026-07-21 10:00:00', bearing: 0),
+            $this->point(11.017000, 76.955832, '2026-07-21 10:00:10', bearing: 0),
+            $this->point(11.017020, 76.955850, '2026-07-21 10:00:20', bearing: 120),
+            $this->point(11.017200, 76.955832, '2026-07-21 10:00:30', bearing: 0),
+        ]);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 10,
+            'max_accuracy_meters' => 20,
+            'bearing_drift_distance_meters' => 10,
+            'bearing_change_degrees' => 60,
+            'simplify_after_points' => 1000,
+        ]);
+
+        $this->assertCount(3, $filtered);
+        $this->assertSame(11.017200, (float) $filtered[2]->latitude);
+    }
+
+    public function test_it_rejects_impossible_computed_speed_jumps(): void
+    {
+        $processor = new TimelineGpsProcessor();
+
+        $points = collect([
+            $this->point(11.016844, 76.955832, '2026-07-21 10:00:00'),
+            $this->point(11.016950, 76.955832, '2026-07-21 10:00:10'),
+            $this->point(11.026950, 76.955832, '2026-07-21 10:00:15'),
+            $this->point(11.017100, 76.955832, '2026-07-21 10:00:30'),
+        ]);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 10,
+            'max_accuracy_meters' => 20,
+            'max_computed_speed_kmh' => 80,
+            'simplify_after_points' => 1000,
+        ]);
+
+        $this->assertCount(3, $filtered);
+        $this->assertSame(11.017100, (float) $filtered[2]->latitude);
+    }
+
+    public function test_large_datasets_perform_acceptably(): void
+    {
+        $processor = new TimelineGpsProcessor();
+        $points = Collection::times(5000, function (int $index) {
+            return $this->point(11 + ($index * 0.00001), 76.955832, '2026-07-21 10:00:00', secondsOffset: $index, id: $index);
+        });
+
+        $startedAt = microtime(true);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 0,
+            'max_accuracy_meters' => 20,
+            'simplify_after_points' => 1000,
+            'simplification_tolerance_meters' => 5,
+            'max_computed_speed_kmh' => 200,
+        ]);
+
+        $this->assertLessThan(2.0, microtime(true) - $startedAt);
+        $this->assertNotEmpty($filtered);
+        $this->assertLessThan(5000, count($filtered));
+    }
+
+    public function test_timeline_date_bounds_use_the_configured_timezone(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+
+        $controller = new EmployeeTrackingController();
+        $method = new \ReflectionMethod($controller, 'timelineDateBounds');
+        $method->setAccessible(true);
+
+        [$start, $end] = $method->invoke($controller, '2026-07-20');
+
+        $this->assertSame('Asia/Kolkata', $start->timezoneName);
+        $this->assertSame('2026-07-20 00:00:00', $start->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-07-20 23:59:59', $end->format('Y-m-d H:i:s'));
+    }
+
+    private function point(?float $latitude, ?float $longitude, string $time, ?float $accuracy = 10, ?float $speed = 1, int $secondsOffset = 0, ?float $bearing = null, ?int $id = null): LocationTracking
     {
         $timestamp = Carbon::parse($time)->addSeconds($secondsOffset);
         $tracking = new LocationTracking();
@@ -64,9 +226,13 @@ class TimelineGpsProcessorTest extends TestCase
             'longitude' => $longitude,
             'accuracy' => $accuracy,
             'speed' => $speed,
+            'bearing' => $bearing,
             'recorded_at' => $timestamp,
             'created_at' => $timestamp,
         ]);
+        if ($id !== null) {
+            $tracking->id = $id;
+        }
 
         return $tracking;
     }

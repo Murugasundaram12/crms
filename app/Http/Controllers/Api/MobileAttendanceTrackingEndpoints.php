@@ -48,7 +48,7 @@ trait MobileAttendanceTrackingEndpoints
             ], 403);
         }
 
-        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
+        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 1000);
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:1000'],
             'device_id' => ['nullable', 'string', 'max:255'],
@@ -57,6 +57,7 @@ trait MobileAttendanceTrackingEndpoints
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
             'accuracy' => ['nullable', 'numeric', 'min:0', 'max:' . $maxAccuracyMeters],
             'speed' => ['nullable', 'numeric', 'min:0'],
+            'bearing' => ['nullable', 'numeric', 'min:0', 'max:360'],
             'activity' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
             'isGpsOn' => ['nullable', 'boolean'],
@@ -127,7 +128,7 @@ trait MobileAttendanceTrackingEndpoints
             ], 403);
         }
 
-        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
+        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 1000);
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:1000'],
             'device_id' => ['nullable', 'string', 'max:255'],
@@ -136,6 +137,7 @@ trait MobileAttendanceTrackingEndpoints
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
             'accuracy' => ['nullable', 'numeric', 'min:0', 'max:' . $maxAccuracyMeters],
             'speed' => ['nullable', 'numeric', 'min:0'],
+            'bearing' => ['nullable', 'numeric', 'min:0', 'max:360'],
             'activity' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
             'isGpsOn' => ['nullable', 'boolean'],
@@ -371,16 +373,31 @@ trait MobileAttendanceTrackingEndpoints
             ], 409);
         }
 
-        $tracking = DB::transaction(function () use ($user, $attendance, $validated) {
+        [$tracking, $inserted] = DB::transaction(function () use ($user, $attendance, $validated) {
+            $lastTracking = $this->latestTrackingPoint($user->id, $validated['device_id'] ?? 'default');
+
+            if ($this->shouldSuppressTrackingInsert($lastTracking, $validated)) {
+                $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
+
+                $this->upsertDeviceStatus($user->id, $statusPayload);
+
+                if ($this->hasVeryPoorTrackingAccuracy($validated)) {
+                    return [$lastTracking->refresh(), false];
+                }
+
+                return [$this->refreshTrackingPointStatus($lastTracking, $validated), false];
+            }
+
             $this->upsertDeviceStatus($user->id, $validated);
 
-            return $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling');
+            return [$this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'), true];
         });
 
         return response()->json([
-            'message' => 'Location updated successfully.',
+            'message' => $inserted ? 'Location updated successfully.' : 'Location status refreshed successfully.',
+            'inserted' => $inserted,
             'tracking' => $this->trackingPayload($tracking),
-        ], 201);
+        ], $inserted ? 201 : 200);
     }
 
     public function liveStatus(Request $request)
@@ -412,12 +429,15 @@ trait MobileAttendanceTrackingEndpoints
     {
         return response()->json([
             'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
-            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 25),
-            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
+            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
             'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 10),
             'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 20),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
             'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
+            'timeline_bearing_drift_distance_meters' => $this->settingValue('timeline_bearing_drift_distance_meters', 10),
+            'timeline_bearing_change_degrees' => $this->settingValue('timeline_bearing_change_degrees', 60),
+            'timeline_max_computed_speed_kmh' => $this->settingValue('timeline_max_computed_speed_kmh', 80),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'history_retention_days' => $this->settingValue('history_retention_days', 90),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
@@ -461,6 +481,7 @@ trait MobileAttendanceTrackingEndpoints
         ]);
 
         $date = Carbon::parse($validated['date'])->toDateString();
+        [$timelineStart, $timelineEnd] = $this->timelineDateBounds($date);
 
         $attendance = Attendance::query()
             ->where('user_id', $employeeId)
@@ -476,7 +497,7 @@ trait MobileAttendanceTrackingEndpoints
 
         $trackings = LocationTracking::query()
             ->where('employee_id', $employeeId)
-            ->whereDate('created_at', $date)
+            ->whereBetween('created_at', [$timelineStart, $timelineEnd])
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
@@ -621,12 +642,13 @@ trait MobileAttendanceTrackingEndpoints
                     )
                     : 0;
 
-                $type = $this->timelineModuleType($tracking);
+                $type = $this->timelineModuleType($tracking, $previousTracking, $nextTracking);
 
                 return [
                     'id' => $tracking->id,
                     'type' => $type,
-                    'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : 0,
+                    'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : null,
+                    'bearing' => $tracking->bearing !== null ? (float) $tracking->bearing : null,
                     'activity' => $tracking->activity,
                     'batteryPercentage' => $tracking->battery_percentage,
                     'isGPSOn' => (bool) $tracking->is_gps_on,
@@ -680,10 +702,10 @@ trait MobileAttendanceTrackingEndpoints
         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        return $seconds > 120 || $distanceKm > 0.2 || $speedKmh > 80;
+        return $seconds > 3600 || ($distanceKm > 5 && $speedKmh > 100);
     }
 
-    protected function timelineModuleType(LocationTracking $tracking): string
+    protected function timelineModuleType(LocationTracking $tracking, ?LocationTracking $previous = null, ?LocationTracking $next = null): string
     {
         if ($tracking->type === 'checked_in') {
             return 'checkIn';
@@ -695,11 +717,45 @@ trait MobileAttendanceTrackingEndpoints
 
         $activity = strtolower((string) $tracking->activity);
 
+        if (in_array($activity, ['activitytype.still', 'still'], true)) {
+            return $this->isStationaryTimelinePoint($tracking, $previous, $next) ? 'still' : 'vehicle';
+        }
+
         return match (true) {
-            in_array($activity, ['activitytype.still', 'still'], true) => 'still',
             in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
             default => 'vehicle',
         };
+    }
+
+    protected function isStationaryTimelinePoint(LocationTracking $tracking, ?LocationTracking $previous, ?LocationTracking $next): bool
+    {
+        $speed = $tracking->speed !== null ? (float) $tracking->speed : null;
+        if ($speed !== null && $speed > 0.5) {
+            return false;
+        }
+
+        $nearbyPoints = collect([$previous, $next])->filter();
+        if ($nearbyPoints->isEmpty()) {
+            return false;
+        }
+
+        $nearbyStationaryPoints = $nearbyPoints->filter(function (LocationTracking $nearby) use ($tracking) {
+            $nearbySpeed = $nearby->speed !== null ? (float) $nearby->speed : null;
+            if ($nearbySpeed !== null && $nearbySpeed > 0.8) {
+                return false;
+            }
+
+            $distanceMeters = $this->distanceInKm(
+                (float) $tracking->latitude,
+                (float) $tracking->longitude,
+                (float) $nearby->latitude,
+                (float) $nearby->longitude
+            ) * 1000;
+
+            return $distanceMeters <= 30;
+        });
+
+        return $nearbyStationaryPoints->isNotEmpty();
     }
 
     protected function distanceInKm(float $lat1, float $lon1, float $lat2, float $lon2): float
@@ -716,7 +772,16 @@ trait MobileAttendanceTrackingEndpoints
             'simplification_tolerance_meters' => (float) $this->settingValue('timeline_simplification_tolerance_meters', 8),
             'bearing_drift_distance_meters' => (float) $this->settingValue('timeline_bearing_drift_distance_meters', 10),
             'bearing_change_degrees' => (float) $this->settingValue('timeline_bearing_change_degrees', 60),
+            'max_computed_speed_kmh' => (float) $this->settingValue('timeline_max_computed_speed_kmh', 80),
         ];
+    }
+
+    protected function timelineDateBounds(string $date): array
+    {
+        $timezone = config('app.timezone', 'UTC');
+        $start = Carbon::parse($date, $timezone)->startOfDay();
+
+        return [$start, $start->copy()->endOfDay()];
     }
 
     protected function polylinePointsFromItems($items, string $latitudeKey = 'latitude', string $longitudeKey = 'longitude')

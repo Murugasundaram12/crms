@@ -246,12 +246,15 @@
             const addressLookups = [];
             let hasTravelPoint = false;
             let attendanceCard = '';
+            let visibleMarkerNumber = 0;
+            let lastVisibleStop = null;
 
             if (items.length > 0) {
                 items.forEach(function (item, index) {
                     const latitude = Number(item.latitude);
                     const longitude = Number(item.longitude);
                     const isTravelPoint = item.type === 'vehicle';
+                    const isCollapsedStill = shouldCollapseStillStop(item, lastVisibleStop);
                     hasTravelPoint = hasTravelPoint || isTravelPoint;
 
                     if (Number.isFinite(latitude) && Number.isFinite(longitude) && latitude !== 0) {
@@ -260,30 +263,38 @@
 
                         const trackingType = item.trackingType;
                         const isAttendancePoint = trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out';
-                        const marker = new google.maps.Marker({
-                            position,
-                            map: timelineMap,
-                            icon: {
-                                url: timelineConfig.iconBase + (isAttendancePoint ? 'location_pin_blue.png' : 'location_pin.png'),
-                                scaledSize: isAttendancePoint ? new google.maps.Size(34, 34) : new google.maps.Size(42, 42),
-                                labelOrigin: isAttendancePoint ? new google.maps.Point(15, 11) : new google.maps.Point(21, 22),
-                            },
-                            label: {
-                                text: String(index + 1),
-                                color: '#1F1C1C',
-                                fontWeight: 'bold',
-                                fontSize: '16px',
-                                className: 'card p-0',
-                            },
-                            draggable: false,
-                        });
+                        const shouldShowMarker = (isAttendancePoint || !isTravelPoint) && !isCollapsedStill;
+                        const markerNumber = shouldShowMarker ? ++visibleMarkerNumber : null;
 
-                        marker.addListener('click', function () {
-                            timelineMap.setZoom(15);
-                            timelineMap.setCenter(position);
-                        });
+                        if (shouldShowMarker) {
+                            const marker = new google.maps.Marker({
+                                position,
+                                map: timelineMap,
+                                icon: {
+                                    url: timelineConfig.iconBase + (isAttendancePoint ? 'location_pin_blue.png' : 'location_pin.png'),
+                                    scaledSize: isAttendancePoint ? new google.maps.Size(34, 34) : new google.maps.Size(42, 42),
+                                    labelOrigin: isAttendancePoint ? new google.maps.Point(15, 11) : new google.maps.Point(21, 22),
+                                },
+                                label: {
+                                    text: String(markerNumber),
+                                    color: '#1F1C1C',
+                                    fontWeight: 'bold',
+                                    fontSize: '16px',
+                                    className: 'card p-0',
+                                },
+                                draggable: false,
+                            });
 
-                        timelineMarkers.push(marker);
+                            marker.addListener('click', function () {
+                                timelineMap.setZoom(15);
+                                timelineMap.setCenter(position);
+                            });
+
+                            timelineMarkers.push(marker);
+                            if (item.type === 'still') {
+                                lastVisibleStop = {...item, latitude, longitude};
+                            }
+                        }
                     }
 
                     const addressId = `timelineAddress${index}`;
@@ -299,9 +310,10 @@
                         return;
                     }
 
-                    if (item.type === 'vehicle') {
-                        contents += `<span class="timeline-travel-label">Travel ${escapeHtml(item.startTime || '-')} - ${escapeHtml(item.endTime || '-')} (${escapeHtml(item.elapseTime || '00:00:00')}H) ${escapeHtml(item.distance ?? 0)} KM</span>`;
+                    if (item.type === 'vehicle' || isCollapsedStill) {
+                        return;
                     } else {
+                        const displayNumber = visibleMarkerNumber || index + 1;
                         contents += `
                         <div class="card mb-2 shadow-sm">
                             <div class="card-body p-3">
@@ -310,7 +322,7 @@
                                     ${batteryHtml(item.batteryPercentage)}
                                 </div>
                                     <div class="d-flex justify-content-between gap-2">
-                                        <h6 class="text-primary mb-1"><span class="badge bg-primary me-1">${index + 1}</span>${escapeHtml(item.type || 'Tracking')}</h6>
+                                        <h6 class="text-primary mb-1"><span class="badge bg-primary me-1">${displayNumber}</span>${escapeHtml(item.type || 'Tracking')}</h6>
                                         <span class="small">${accuracyHtml(item.accuracy)}</span>
                                     </div>
                                     <div class="small text-muted" id="${addressId}">${address}</div>
@@ -448,13 +460,15 @@
 
                 if (item.segmentBreakBefore && currentPath.length >= 2) {
                     paths.push(currentPath);
-                    currentPath = previousPoint ? [previousPoint] : [];
+                    currentPath = [];
                 } else if (item.segmentBreakBefore) {
-                    currentPath = previousPoint ? [previousPoint] : [];
+                    currentPath = [];
                 }
 
-                currentPath.push(point);
-                previousPoint = point;
+                if (!previousPoint || google.maps.geometry.spherical.computeDistanceBetween(previousPoint, point) >= 5) {
+                    currentPath.push(point);
+                    previousPoint = point;
+                }
             });
 
             if (currentPath.length >= 2) {
@@ -468,12 +482,28 @@
             const latitude = Number(item.latitude);
             const longitude = Number(item.longitude);
 
-            if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude === 0) {
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude === 0 || longitude === 0) {
                 return null;
             }
 
             return new google.maps.LatLng(latitude, longitude);
         }
+
+        function shouldCollapseStillStop(item, lastVisibleStop) {
+            if (!lastVisibleStop || item.type !== 'still' || lastVisibleStop.type !== 'still') {
+                return false;
+            }
+
+            const currentPoint = itemLatLng(item);
+            const previousPoint = itemLatLng(lastVisibleStop);
+
+            if (!currentPoint || !previousPoint) {
+                return false;
+            }
+
+            return google.maps.geometry.spherical.computeDistanceBetween(previousPoint, currentPoint) <= 200;
+        }
+
         async function drawSnappedRoute(routePath, renderToken) {
             if (routePath.length < 2) {
                 return;
@@ -509,7 +539,9 @@
                     .map((point) => new google.maps.LatLng(Number(point.lat), Number(point.lng)))
                     .filter((point) => Number.isFinite(point.lat()) && Number.isFinite(point.lng()));
 
-                drawRoutePolyline(data.snapped && snappedPath.length >= 2 ? snappedPath : routePath);
+                drawRoutePolyline(
+                    data.snapped && isSnappedRouteUsable(routePath, snappedPath) ? snappedPath : routePath
+                );
             } catch (error) {
                 if (renderToken !== timelineRenderToken) {
                     return;
@@ -517,6 +549,20 @@
 
                 drawRoutePolyline(routePath);
             }
+        }
+
+        function isSnappedRouteUsable(rawPath, snappedPath) {
+            if (snappedPath.length < 2) {
+                return false;
+            }
+
+            const rawLength = google.maps.geometry.spherical.computeLength(rawPath);
+            const snappedLength = google.maps.geometry.spherical.computeLength(snappedPath);
+            const maxAllowedLength = Math.max(rawLength * 1.8, rawLength + 500);
+            const startDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[0], snappedPath[0]);
+            const endDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[rawPath.length - 1], snappedPath[snappedPath.length - 1]);
+
+            return snappedLength <= maxAllowedLength && startDrift <= 150 && endDrift <= 150;
         }
 
         function drawRoutePolyline(latLngs) {

@@ -20,6 +20,7 @@ return new class extends Migration
             ['key' => 'timeline_simplification_tolerance_meters', 'value' => '8', 'type' => 'integer', 'description' => 'Douglas-Peucker simplification tolerance for timeline polylines.'],
             ['key' => 'timeline_bearing_drift_distance_meters', 'value' => '10', 'type' => 'integer', 'description' => 'Distance below which sharp bearing changes are treated as GPS drift.'],
             ['key' => 'timeline_bearing_change_degrees', 'value' => '60', 'type' => 'integer', 'description' => 'Bearing change threshold used to reject short GPS drift points.'],
+            ['key' => 'timeline_max_computed_speed_kmh', 'value' => '80', 'type' => 'integer', 'description' => 'Maximum computed speed allowed between timeline points before treating the point as a GPS jump.'],
         ];
 
         foreach ($settings as $setting) {
@@ -51,6 +52,7 @@ return new class extends Migration
             'timeline_simplification_tolerance_meters',
             'timeline_bearing_drift_distance_meters',
             'timeline_bearing_change_degrees',
+            'timeline_max_computed_speed_kmh',
         ])->delete();
     }
 };

@@ -13,6 +13,7 @@ class TimelineGpsProcessor
     public const DEFAULT_SIMPLIFICATION_TOLERANCE_METERS = 8.0;
     public const DEFAULT_BEARING_DRIFT_DISTANCE_METERS = 10.0;
     public const DEFAULT_BEARING_CHANGE_DEGREES = 60.0;
+    public const DEFAULT_MAX_COMPUTED_SPEED_KMH = 80.0;
 
     public function filter(Collection $trackings, array $options = []): array
     {
@@ -22,13 +23,16 @@ class TimelineGpsProcessor
         $simplificationToleranceMeters = max(0.0, (float) ($options['simplification_tolerance_meters'] ?? self::DEFAULT_SIMPLIFICATION_TOLERANCE_METERS));
         $bearingDriftDistanceMeters = max(0.0, (float) ($options['bearing_drift_distance_meters'] ?? self::DEFAULT_BEARING_DRIFT_DISTANCE_METERS));
         $bearingChangeDegrees = max(0.0, (float) ($options['bearing_change_degrees'] ?? self::DEFAULT_BEARING_CHANGE_DEGREES));
+        $maxComputedSpeedKmh = max(0.0, (float) ($options['max_computed_speed_kmh'] ?? self::DEFAULT_MAX_COMPUTED_SPEED_KMH));
 
         $filtered = [];
         $seenTimestamps = [];
         $seenCoordinates = [];
         $lastBearing = null;
 
-        foreach ($trackings as $tracking) {
+        $orderedTrackings = $this->ensureTimelineOrder($trackings);
+
+        foreach ($orderedTrackings as $tracking) {
             if (! $this->hasValidCoordinates($tracking)) {
                 continue;
             }
@@ -55,11 +59,15 @@ class TimelineGpsProcessor
                     continue;
                 }
 
+                if ($this->isUnrealisticJump($previous, $tracking, $distanceMeters, $maxComputedSpeedKmh)) {
+                    continue;
+                }
+
                 if ((float) ($tracking->speed ?? 0) === 0.0 && $distanceMeters < $minimumDistanceMeters) {
                     continue;
                 }
 
-                $currentBearing = $this->bearingDegrees($previous, $tracking);
+                $currentBearing = $this->movementBearingDegrees($previous, $tracking);
                 if (
                     $lastBearing !== null
                     && $distanceMeters < $bearingDriftDistanceMeters
@@ -111,6 +119,40 @@ class TimelineGpsProcessor
             && $longitude <= 180;
     }
 
+    private function ensureTimelineOrder(Collection $trackings): Collection
+    {
+        $previousTimestamp = null;
+        $previousId = null;
+        $isOrdered = true;
+
+        foreach ($trackings as $tracking) {
+            $timestamp = $tracking->created_at?->getTimestamp() ?? 0;
+            $id = (int) ($tracking->id ?? 0);
+
+            if (
+                $previousTimestamp !== null
+                && ($timestamp < $previousTimestamp || ($timestamp === $previousTimestamp && $id < $previousId))
+            ) {
+                $isOrdered = false;
+                break;
+            }
+
+            $previousTimestamp = $timestamp;
+            $previousId = $id;
+        }
+
+        if ($isOrdered) {
+            return $trackings->values();
+        }
+
+        return $trackings
+            ->sortBy([
+                fn (LocationTracking $a, LocationTracking $b) => ($a->created_at?->getTimestamp() ?? 0) <=> ($b->created_at?->getTimestamp() ?? 0),
+                fn (LocationTracking $a, LocationTracking $b) => ($a->id ?? 0) <=> ($b->id ?? 0),
+            ])
+            ->values();
+    }
+
     private function hasPoorAccuracy(LocationTracking $tracking, float $maxAccuracyMeters): bool
     {
         return $tracking->accuracy !== null
@@ -120,8 +162,9 @@ class TimelineGpsProcessor
 
     private function timestampKey(LocationTracking $tracking): ?string
     {
-        return $tracking->created_at?->toISOString()
-            ?? $tracking->recorded_at?->toISOString();
+        $timestamp = $tracking->created_at ?? $tracking->recorded_at;
+
+        return $timestamp ? (string) $timestamp->getTimestamp() : null;
     }
 
     private function coordinateKey(LocationTracking $tracking): string
@@ -137,6 +180,18 @@ class TimelineGpsProcessor
             (float) $to->latitude,
             (float) $to->longitude
         );
+    }
+
+    private function isUnrealisticJump(LocationTracking $from, LocationTracking $to, float $distanceMeters, float $maxComputedSpeedKmh): bool
+    {
+        if ($maxComputedSpeedKmh <= 0 || ! $from->recorded_at || ! $to->recorded_at) {
+            return false;
+        }
+
+        $seconds = max(1, abs($to->recorded_at->getTimestamp() - $from->recorded_at->getTimestamp()));
+        $computedSpeedKmh = ($distanceMeters / 1000) / $seconds * 3600;
+
+        return $computedSpeedKmh > $maxComputedSpeedKmh;
     }
 
     private function haversineMeters(float $lat1, float $lon1, float $lat2, float $lon2): float
@@ -161,6 +216,15 @@ class TimelineGpsProcessor
         $x = cos($lat1) * sin($lat2) - sin($lat1) * cos($lat2) * cos($lonDelta);
 
         return fmod(rad2deg(atan2($y, $x)) + 360, 360);
+    }
+
+    private function movementBearingDegrees(LocationTracking $from, LocationTracking $to): float
+    {
+        if ($to->bearing !== null) {
+            return fmod(((float) $to->bearing) + 360, 360);
+        }
+
+        return $this->bearingDegrees($from, $to);
     }
 
     private function bearingDeltaDegrees(float $a, float $b): float
