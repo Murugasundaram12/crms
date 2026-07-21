@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\SingleLoginService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -37,6 +38,10 @@ class AuthController extends Controller
         if ($loginWasSuccessful) {
             // Regenerate the session to prevent session fixation issues.
             $request->session()->regenerate();
+            app(SingleLoginService::class)->invalidateOtherLogins(
+                (int) Auth::id(),
+                $request->session()->getId()
+            );
 
             return redirect()->intended('/dashboard');
         }
@@ -79,6 +84,11 @@ class AuthController extends Controller
 
         // Log the newly registered user in immediately.
         Auth::login($user);
+        $request->session()->regenerate();
+        app(SingleLoginService::class)->invalidateOtherLogins(
+            (int) $user->id,
+            $request->session()->getId()
+        );
 
         return redirect()->route('dashboard');
     }

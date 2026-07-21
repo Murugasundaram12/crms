@@ -28,6 +28,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
+use App\Services\SingleLoginService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +61,8 @@ trait MobileAuthEndpoints
                 'email' => 'This account is inactive.',
             ]);
         }
+
+        app(SingleLoginService::class)->invalidateOtherLogins((int) $user->id);
 
         $plainToken = Str::random(80);
         $token = MobileApiToken::query()->create([
@@ -104,4 +107,3 @@ trait MobileAuthEndpoints
         ]);
     }
 }
-

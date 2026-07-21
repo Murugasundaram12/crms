@@ -496,6 +496,119 @@ class ToolMaterialFlowTest extends TestCase
             ->assertJsonPath('transaction.tool_material.site_stock_quantity', 10);
     }
 
+    public function test_tools_materials_api_can_create_update_show_list_and_delete_items(): void
+    {
+        $headers = $this->apiHeaders();
+
+        $createResponse = $this->withHeaders($headers)
+            ->postJson('/api/tools-materials', [
+                'item_type' => 'tool',
+                'sku' => 'CUTTER-1',
+                'name' => 'Tile Cutter',
+                'date' => '2026-07-16',
+                'active_status' => false,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('tool_material.name', 'Tile Cutter')
+            ->assertJsonPath('tool_material.unit', 'Nos')
+            ->assertJsonPath('tool_material.active_status', false);
+
+        $itemId = $createResponse->json('tool_material.id');
+
+        $this->withHeaders($headers)
+            ->getJson('/api/tools-materials/' . $itemId)
+            ->assertOk()
+            ->assertJsonPath('tool_material.sku', 'CUTTER-1');
+
+        $this->withHeaders($headers)
+            ->putJson('/api/tools-materials/' . $itemId, [
+                'item_type' => 'material',
+                'sku' => 'TILE-1',
+                'name' => 'Floor Tile',
+                'unit' => 'Nos',
+                'date' => '2026-07-17',
+                'opening_quantity' => 20,
+                'opening_rate' => 50,
+                'reorder_level' => 5,
+                'active_status' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('tool_material.name', 'Floor Tile')
+            ->assertJsonPath('tool_material.opening_amount', 1000)
+            ->assertJsonPath('tool_material.active_status', true);
+
+        $this->withHeaders($headers)
+            ->getJson('/api/tools-materials?q=Floor&item_type=material')
+            ->assertOk()
+            ->assertJsonPath('summary.materials', 1)
+            ->assertJsonPath('data.0.name', 'Floor Tile');
+
+        $this->withHeaders($headers)
+            ->deleteJson('/api/tools-materials/' . $itemId)
+            ->assertOk()
+            ->assertJsonPath('message', 'Tool / material deleted successfully.');
+
+        $this->assertDatabaseMissing('tools_materials', ['id' => $itemId]);
+    }
+
+    public function test_tools_material_assignments_api_can_update_and_delete_transactions(): void
+    {
+        $material = $this->createMaterial();
+        $headers = $this->apiHeaders();
+
+        $createResponse = $this->withHeaders($headers)
+            ->postJson('/api/tools-material-assignments', [
+                'tool_material_id' => $material->id,
+                'status' => 'transferred',
+                'transaction_type' => 'issue_to_site',
+                'to_project_id' => $this->siteA,
+                'quantity' => 30,
+                'rate' => 10,
+                'transferred_at' => '2026-07-16 10:00:00',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('transaction.to_project.id', $this->siteA)
+            ->assertJsonPath('transaction.quantity', 30);
+
+        $assignmentId = $createResponse->json('transaction.id');
+        $this->assertSame(70.0, $material->fresh(['assignments.fromProject', 'assignments.toProject'])->office_stock_quantity);
+
+        $this->withHeaders($headers)
+            ->putJson('/api/tools-material-assignments/' . $assignmentId, [
+                'tool_material_id' => $material->id,
+                'status' => 'transferred',
+                'transaction_type' => 'issue_to_site',
+                'to_project_id' => $this->siteA,
+                'quantity' => 80,
+                'rate' => 10,
+                'transferred_at' => '2026-07-16 11:00:00',
+            ])
+            ->assertOk()
+            ->assertJsonPath('transaction.quantity', 80)
+            ->assertJsonPath('transaction.tool_material.office_stock_quantity', 20);
+
+        $this->withHeaders($headers)
+            ->putJson('/api/tools-material-assignments/' . $assignmentId, [
+                'tool_material_id' => $material->id,
+                'status' => 'transferred',
+                'transaction_type' => 'issue_to_site',
+                'to_project_id' => $this->siteA,
+                'quantity' => 999,
+                'rate' => 10,
+                'transferred_at' => '2026-07-16 12:00:00',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.quantity.0', 'Insufficient stock. Available quantity is 100.00 CFT.');
+
+        $this->withHeaders($headers)
+            ->deleteJson('/api/tools-material-assignments/' . $assignmentId)
+            ->assertOk()
+            ->assertJsonPath('message', 'Inventory transaction deleted successfully.');
+
+        $this->assertSame(100.0, $material->fresh(['assignments.fromProject', 'assignments.toProject'])->office_stock_quantity);
+        $this->assertDatabaseMissing('tool_material_assignments', ['id' => $assignmentId]);
+    }
+
     private function createMaterial(array $overrides = []): ToolMaterial
     {
         return ToolMaterial::query()->create(array_merge([
@@ -545,5 +658,16 @@ class ToolMaterialFlowTest extends TestCase
         }
 
         return $payload;
+    }
+
+    private function apiHeaders(): array
+    {
+        $token = $this->postJson('/api/login', [
+            'email' => $this->admin->email,
+            'password' => 'password',
+            'device_name' => 'Inventory Flow Test',
+        ])->json('token');
+
+        return ['Authorization' => 'Bearer ' . $token];
     }
 }

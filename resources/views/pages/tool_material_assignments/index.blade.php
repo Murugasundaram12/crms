@@ -142,12 +142,18 @@
                                     }
                                 }
 
-                                if (in_array($assignment->status, ['draft', 'transferred'], true) && $currentSiteId && $assignment->toolMaterial) {
+                                if (
+                                    \App\Models\ToolMaterialAssignment::isStockEffectiveStatus($assignment->status)
+                                    && $assignment->destination_type === 'site'
+                                    && $currentSiteId
+                                    && $assignment->toolMaterial
+                                ) {
+                                    $siteBalance = (float) ($assignment->toolMaterial->stockBalances()['site:' . $currentSiteId]['quantity'] ?? 0);
                                     $canShowMoveActions = true;
-                                    $hasMovableStock = true;
+                                    $hasMovableStock = $siteBalance > 0;
                                 }
 
-                                $moveQuantity = max((float) $assignment->quantity, 1);
+                                $moveQuantity = $siteBalance > 0 ? min((float) $assignment->quantity, $siteBalance) : max((float) $assignment->quantity, 1);
                                 $moveAmount = round($moveQuantity * (float) $assignment->rate, 2);
                             @endphp
                             <tr>

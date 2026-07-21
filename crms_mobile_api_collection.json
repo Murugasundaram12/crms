@@ -1,4 +1,4 @@
-﻿{
+{
   "info": {
     "_postman_id": "crms-mobile-api-collection",
     "name": "CRMS Mobile API Collection",
@@ -2757,6 +2757,710 @@
       ]
     },
     {
+      "name": "Tools & Materials",
+      "item": [
+        {
+          "name": "Tools & Materials Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-materials/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-materials",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tools & Materials",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-materials?q=&item_type=material&low_stock=false&date_from=2026-07-01&date_to=2026-07-31&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-materials"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": ""
+                },
+                {
+                  "key": "item_type",
+                  "value": "material"
+                },
+                {
+                  "key": "low_stock",
+                  "value": "false"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-07-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-07-31"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Tool / Material",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-materials",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-materials"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_type\": \"material\",\n  \"sku\": \"SAND-001\",\n  \"name\": \"River Sand\",\n  \"unit\": \"CFT\",\n  \"date\": \"2026-07-21\",\n  \"opening_quantity\": 100,\n  \"opening_rate\": 10,\n  \"reorder_level\": 10,\n  \"active_status\": true,\n  \"description\": \"Created from API\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Tool / Material",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-materials/{{tool_material_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-materials",
+                "{{tool_material_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Tool / Material",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-materials/{{tool_material_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-materials",
+                "{{tool_material_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_type\": \"material\",\n  \"sku\": \"SAND-001\",\n  \"name\": \"River Sand Updated\",\n  \"unit\": \"CFT\",\n  \"date\": \"2026-07-21\",\n  \"opening_quantity\": 120,\n  \"opening_rate\": 12,\n  \"reorder_level\": 15,\n  \"active_status\": true,\n  \"description\": \"Updated from API\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Tool / Material",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-materials/{{tool_material_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-materials",
+                "{{tool_material_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tool / Material Assignments",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments?q=&tool_material_id=%7B%7Btool_material_id%7D%7D&project_id=%7B%7Bproject_id%7D%7D&transaction_type=issue_to_site&status=transferred&date_from=2026-07-01&date_to=2026-07-31&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": ""
+                },
+                {
+                  "key": "tool_material_id",
+                  "value": "{{tool_material_id}}"
+                },
+                {
+                  "key": "project_id",
+                  "value": "{{project_id}}"
+                },
+                {
+                  "key": "transaction_type",
+                  "value": "issue_to_site"
+                },
+                {
+                  "key": "status",
+                  "value": "transferred"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-07-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-07-31"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Purchase Transaction",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"purchase\",\n  \"destination_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 50,\n  \"rate\": 10,\n  \"amount\": null,\n  \"receiver_name\": \"Store Keeper\",\n  \"vehicle_no\": \"TN-00-AB-1234\",\n  \"purpose\": \"Stock purchase\",\n  \"notes\": \"Created from API\",\n  \"transferred_at\": \"2026-07-21 10:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Issue to Site Transaction",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"issue_to_site\",\n  \"to_project_id\": \"{{project_id}}\",\n  \"quantity\": 10,\n  \"rate\": 10,\n  \"amount\": null,\n  \"receiver_name\": \"Site Engineer\",\n  \"vehicle_no\": \"TN-00-CD-5678\",\n  \"purpose\": \"Issue to site\",\n  \"notes\": \"Created from API\",\n  \"transferred_at\": \"2026-07-21 11:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Return to Office Transaction",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"returned\",\n  \"transaction_type\": \"return_to_office\",\n  \"from_project_id\": \"{{project_id}}\",\n  \"quantity\": 5,\n  \"rate\": 10,\n  \"amount\": null,\n  \"receiver_name\": \"Store Keeper\",\n  \"purpose\": \"Return from site\",\n  \"transferred_at\": \"2026-07-21 12:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Site to Site Transaction",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"site_to_site\",\n  \"from_project_id\": \"{{project_id}}\",\n  \"to_project_id\": 2,\n  \"quantity\": 5,\n  \"rate\": 10,\n  \"amount\": null,\n  \"receiver_name\": \"Site Engineer\",\n  \"purpose\": \"Transfer between sites\",\n  \"transferred_at\": \"2026-07-21 13:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Return to Vendor Transaction",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"returned\",\n  \"transaction_type\": \"return_to_vendor\",\n  \"source_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 10,\n  \"amount\": null,\n  \"purpose\": \"Return excess stock to vendor\",\n  \"transferred_at\": \"2026-07-21 14:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Damage / Wastage Transaction",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"completed\",\n  \"transaction_type\": \"damage_wastage\",\n  \"source_type\": \"office\",\n  \"quantity\": 2,\n  \"rate\": 10,\n  \"amount\": null,\n  \"purpose\": \"Damaged stock\",\n  \"transferred_at\": \"2026-07-21 15:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Tool / Material Assignment",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments/{{assignment_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments",
+                "{{assignment_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Tool / Material Assignment",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments/{{assignment_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments",
+                "{{assignment_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"issue_to_site\",\n  \"to_project_id\": \"{{project_id}}\",\n  \"quantity\": 15,\n  \"rate\": 10,\n  \"amount\": null,\n  \"receiver_name\": \"Site Engineer\",\n  \"vehicle_no\": \"TN-00-CD-5678\",\n  \"purpose\": \"Updated issue to site\",\n  \"notes\": \"Updated from API\",\n  \"transferred_at\": \"2026-07-21 16:00:00\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Tool / Material Assignment",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/tools-material-assignments/{{assignment_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "tools-material-assignments",
+                "{{assignment_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Mobile Settings",
       "item": [
         {
@@ -2997,6 +3701,16 @@
     },
     {
       "key": "leave_request_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "tool_material_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "assignment_id",
       "value": "1",
       "type": "string"
     }

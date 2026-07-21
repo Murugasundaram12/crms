@@ -9,6 +9,7 @@ use App\Models\Vendor;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -65,6 +66,8 @@ trait MobileInventoryEndpoints
             'q' => ['nullable', 'string', 'max:255'],
             'item_type' => ['nullable', Rule::in(['tool', 'material'])],
             'low_stock' => ['nullable', 'boolean'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -72,7 +75,19 @@ trait MobileInventoryEndpoints
             ->with(['assignments.fromProject', 'assignments.toProject'])
             ->when($validated['q'] ?? null, fn($q, string $search) => $q->where('name', 'like', "%{$search}%"))
             ->when($validated['item_type'] ?? null, fn($q, string $type) => $q->where('item_type', $type))
-            ->orderBy('name');
+            ->when($validated['date_from'] ?? null, fn($q) => $q->whereDate('date', '>=', $request->date('date_from')->toDateString()))
+            ->when($validated['date_to'] ?? null, fn($q) => $q->whereDate('date', '<=', $request->date('date_to')->toDateString()))
+            ->latest('date')
+            ->latest();
+
+        $summaryItems = (clone $query)->get();
+        $summary = [
+            'items' => $summaryItems->count(),
+            'tools' => $summaryItems->where('item_type', 'tool')->count(),
+            'materials' => $summaryItems->where('item_type', 'material')->count(),
+            'stock_value' => (float) $summaryItems->sum('stock_amount'),
+            'low_stock' => $summaryItems->filter(fn(ToolMaterial $item) => $item->is_low_stock)->count(),
+        ];
 
         $items = $query->paginate((int) ($validated['per_page'] ?? 15));
         $items->setCollection($items->getCollection()
@@ -80,7 +95,90 @@ trait MobileInventoryEndpoints
             ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item))
             ->values());
 
-        return response()->json($items);
+        return response()->json([
+            'summary' => $summary,
+            ...$items->toArray(),
+        ]);
+    }
+
+    public function storeInventoryItem(Request $request)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-create')) {
+            return $forbidden;
+        }
+
+        $validated = $this->validateInventoryItem($request);
+        $validated = $this->normalizeInventoryItemStockFields($validated);
+        $validated['active_status'] = $request->boolean('active_status', true);
+
+        if ($request->hasFile('image')) {
+            $validated['image_path'] = $request->file('image')->store('tools-materials', 'public');
+        }
+
+        $item = ToolMaterial::query()->create($validated);
+
+        return response()->json([
+            'message' => 'Tool / material created successfully.',
+            'tool_material' => $this->toolMaterialPayload($item->load(['assignments.fromProject', 'assignments.toProject'])),
+        ], 201);
+    }
+
+    public function showInventoryItem(Request $request, ToolMaterial $toolMaterial)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-list')) {
+            return $forbidden;
+        }
+
+        return response()->json([
+            'tool_material' => $this->toolMaterialPayload($toolMaterial->load(['assignments.fromProject', 'assignments.toProject'])),
+        ]);
+    }
+
+    public function updateInventoryItem(Request $request, ToolMaterial $toolMaterial)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-edit')) {
+            return $forbidden;
+        }
+
+        $validated = $this->validateInventoryItem($request);
+        $validated = $this->normalizeInventoryItemStockFields($validated);
+        $validated['active_status'] = $request->boolean('active_status', true);
+
+        if ($request->hasFile('image')) {
+            if ($toolMaterial->image_path) {
+                Storage::disk('public')->delete($toolMaterial->image_path);
+            }
+
+            $validated['image_path'] = $request->file('image')->store('tools-materials', 'public');
+        }
+
+        $toolMaterial->update($validated);
+
+        return response()->json([
+            'message' => 'Tool / material updated successfully.',
+            'tool_material' => $this->toolMaterialPayload($toolMaterial->fresh(['assignments.fromProject', 'assignments.toProject'])),
+        ]);
+    }
+
+    public function deleteInventoryItem(Request $request, ToolMaterial $toolMaterial)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-delete')) {
+            return $forbidden;
+        }
+
+        if ($toolMaterial->assignments()->exists()) {
+            return response()->json([
+                'message' => 'This tool / material has stock transactions. Delete the transactions before deleting this item.',
+            ], 409);
+        }
+
+        if ($toolMaterial->image_path) {
+            Storage::disk('public')->delete($toolMaterial->image_path);
+        }
+
+        $toolMaterial->delete();
+
+        return response()->json(['message' => 'Tool / material deleted successfully.']);
     }
 
     public function inventoryTransactions(Request $request)
@@ -133,7 +231,16 @@ trait MobileInventoryEndpoints
         $transactions = $query->latest('transferred_at')->paginate((int) ($validated['per_page'] ?? 15));
         $transactions->setCollection($transactions->getCollection()->map(fn(ToolMaterialAssignment $assignment) => $this->toolMaterialTransactionPayload($assignment)));
 
-        return response()->json($transactions);
+        return response()->json([
+            'summary' => [
+                'transactions' => (clone $query)->count(),
+                'completed' => (clone $query)->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->count(),
+                'quantity' => (float) (clone $query)->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->sum('quantity'),
+                'amount' => (float) (clone $query)->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->sum('amount'),
+                'vendor_returns' => (float) (clone $query)->whereIn('status', ToolMaterialAssignment::STOCK_EFFECTIVE_STATUSES)->where('transaction_type', 'return_to_vendor')->sum('amount'),
+            ],
+            ...$transactions->toArray(),
+        ]);
     }
 
     public function storeInventoryTransaction(Request $request)
@@ -168,11 +275,76 @@ trait MobileInventoryEndpoints
         ]);
     }
 
-    private function validateInventoryTransaction(Request $request): array
+    public function updateInventoryTransaction(Request $request, ToolMaterialAssignment $assignment)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-edit')) {
+            return $forbidden;
+        }
+
+        $validated = $this->validateInventoryTransaction($request, $assignment);
+
+        DB::transaction(function () use ($assignment, $validated) {
+            $this->applyInventoryVendorReturnBalance($assignment, -1);
+            $assignment->update($validated);
+            $this->applyInventoryVendorReturnBalance($assignment->fresh(), 1);
+        });
+
+        return response()->json([
+            'message' => 'Inventory transaction updated successfully.',
+            'transaction' => $this->toolMaterialTransactionPayload($assignment->fresh(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])),
+        ]);
+    }
+
+    public function deleteInventoryTransaction(Request $request, ToolMaterialAssignment $assignment)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-delete')) {
+            return $forbidden;
+        }
+
+        DB::transaction(function () use ($assignment) {
+            $this->applyInventoryVendorReturnBalance($assignment, -1);
+            $assignment->delete();
+        });
+
+        return response()->json(['message' => 'Inventory transaction deleted successfully.']);
+    }
+
+    private function validateInventoryItem(Request $request): array
+    {
+        return $request->validate([
+            'item_type' => ['required', Rule::in(['tool', 'material'])],
+            'sku' => ['nullable', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:255'],
+            'unit' => ['required_if:item_type,material', 'nullable', 'string', 'max:50'],
+            'image' => ['nullable', 'image', 'max:2048'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'date' => ['required', 'date'],
+            'opening_quantity' => ['required_if:item_type,material', 'nullable', 'numeric', 'min:0'],
+            'opening_rate' => ['required_if:item_type,material', 'nullable', 'numeric', 'min:0'],
+            'reorder_level' => ['nullable', 'numeric', 'min:0'],
+            'active_status' => ['nullable', 'boolean'],
+        ]);
+    }
+
+    private function normalizeInventoryItemStockFields(array $validated): array
+    {
+        if (($validated['item_type'] ?? null) === 'tool') {
+            $validated['unit'] = 'Nos';
+        }
+
+        $validated['opening_quantity'] = (float) ($validated['opening_quantity'] ?? 0);
+        $validated['opening_rate'] = (float) ($validated['opening_rate'] ?? 0);
+        $validated['opening_amount'] = round($validated['opening_quantity'] * $validated['opening_rate'], 2);
+        $validated['reorder_level'] = (float) ($validated['reorder_level'] ?? 0);
+
+        return $validated;
+    }
+
+    private function validateInventoryTransaction(Request $request, ?ToolMaterialAssignment $assignment = null): array
     {
         $validated = $request->validate([
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
-            'reference_no' => ['nullable', 'string', 'max:100', Rule::unique('tool_material_assignments', 'reference_no')],
+            'reference_no' => ['nullable', 'string', 'max:100', Rule::unique('tool_material_assignments', 'reference_no')->ignore($assignment?->id)],
             'status' => ['nullable', Rule::in(array_keys(self::INVENTORY_STATUSES))],
             'from_project_id' => ['nullable', 'exists:projects,id'],
             'to_project_id' => ['nullable', 'exists:projects,id'],
@@ -205,7 +377,7 @@ trait MobileInventoryEndpoints
         $this->normalizeInventoryLocations($validated);
 
         if (ToolMaterialAssignment::isStockEffectiveStatus($validated['status'])) {
-            $this->ensureInventoryStockAvailable($validated);
+            $this->ensureInventoryStockAvailable($validated, $assignment);
         }
 
         return $validated;
@@ -301,7 +473,7 @@ trait MobileInventoryEndpoints
         }
     }
 
-    private function ensureInventoryStockAvailable(array $validated): void
+    private function ensureInventoryStockAvailable(array $validated, ?ToolMaterialAssignment $editingAssignment = null): void
     {
         $source = match ($validated['transaction_type']) {
             'issue_to_site' => 'office',
@@ -319,7 +491,24 @@ trait MobileInventoryEndpoints
         $material = ToolMaterial::query()
             ->with(['assignments.fromProject', 'assignments.toProject'])
             ->findOrFail($validated['tool_material_id']);
-        $available = (float) ($material->stockBalances()[$source]['quantity'] ?? 0);
+        $balances = $material->stockBalances();
+
+        if ($editingAssignment && $editingAssignment->tool_material_id === (int) $validated['tool_material_id']) {
+            foreach ($editingAssignment->load(['fromProject', 'toProject'])->locationEffects() as $effect) {
+                if (! isset($balances[$effect['key']])) {
+                    $balances[$effect['key']] = [
+                        'label' => $effect['label'],
+                        'quantity' => 0.0,
+                        'amount' => 0.0,
+                    ];
+                }
+
+                $balances[$effect['key']]['quantity'] -= $effect['quantity'];
+                $balances[$effect['key']]['amount'] -= $effect['amount'];
+            }
+        }
+
+        $available = (float) ($balances[$source]['quantity'] ?? 0);
 
         if ($available < (float) $validated['quantity']) {
             throw ValidationException::withMessages([

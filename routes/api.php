@@ -90,9 +90,31 @@ Route::middleware('mobile.api')->group(function () {
 
     Route::get('/inventory/options', [MobileInventoryController::class, 'inventoryOptions']);
     Route::get('/inventory/items', [MobileInventoryController::class, 'inventoryItems']);
+    Route::post('/inventory/items', [MobileInventoryController::class, 'storeInventoryItem']);
+    Route::get('/inventory/items/{toolMaterial}', [MobileInventoryController::class, 'showInventoryItem'])->whereNumber('toolMaterial');
+    Route::put('/inventory/items/{toolMaterial}', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
+    Route::post('/inventory/items/{toolMaterial}/update', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
+    Route::delete('/inventory/items/{toolMaterial}', [MobileInventoryController::class, 'deleteInventoryItem'])->whereNumber('toolMaterial');
     Route::get('/inventory/transactions', [MobileInventoryController::class, 'inventoryTransactions']);
     Route::post('/inventory/transactions', [MobileInventoryController::class, 'storeInventoryTransaction']);
     Route::get('/inventory/transactions/{assignment}', [MobileInventoryController::class, 'showInventoryTransaction'])->whereNumber('assignment');
+    Route::put('/inventory/transactions/{assignment}', [MobileInventoryController::class, 'updateInventoryTransaction'])->whereNumber('assignment');
+    Route::post('/inventory/transactions/{assignment}/update', [MobileInventoryController::class, 'updateInventoryTransaction'])->whereNumber('assignment');
+    Route::delete('/inventory/transactions/{assignment}', [MobileInventoryController::class, 'deleteInventoryTransaction'])->whereNumber('assignment');
+
+    Route::get('/tools-materials/options', [MobileInventoryController::class, 'inventoryOptions']);
+    Route::get('/tools-materials', [MobileInventoryController::class, 'inventoryItems']);
+    Route::post('/tools-materials', [MobileInventoryController::class, 'storeInventoryItem']);
+    Route::get('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'showInventoryItem'])->whereNumber('toolMaterial');
+    Route::put('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
+    Route::post('/tools-materials/{toolMaterial}/update', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
+    Route::delete('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'deleteInventoryItem'])->whereNumber('toolMaterial');
+    Route::get('/tools-material-assignments', [MobileInventoryController::class, 'inventoryTransactions']);
+    Route::post('/tools-material-assignments', [MobileInventoryController::class, 'storeInventoryTransaction']);
+    Route::get('/tools-material-assignments/{assignment}', [MobileInventoryController::class, 'showInventoryTransaction'])->whereNumber('assignment');
+    Route::put('/tools-material-assignments/{assignment}', [MobileInventoryController::class, 'updateInventoryTransaction'])->whereNumber('assignment');
+    Route::post('/tools-material-assignments/{assignment}/update', [MobileInventoryController::class, 'updateInventoryTransaction'])->whereNumber('assignment');
+    Route::delete('/tools-material-assignments/{assignment}', [MobileInventoryController::class, 'deleteInventoryTransaction'])->whereNumber('assignment');
 
     Route::get('/leave-requests/options', [MobileLeaveMasterController::class, 'leaveOptions']);
     Route::get('/leave-requests', [MobileLeaveMasterController::class, 'leaveRequests']);

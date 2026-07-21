@@ -300,7 +300,7 @@ class MobileApiSmokeTest extends TestCase
         ]);
     }
 
-    public function test_login_supports_multiple_active_sessions_for_the_same_user(): void
+    public function test_login_allows_only_one_active_session_for_the_same_user(): void
     {
         $user = User::query()->create([
             'name' => 'Multi Session User',
@@ -325,13 +325,21 @@ class MobileApiSmokeTest extends TestCase
 
         $firstLogin->assertOk()
             ->assertJsonPath('message', 'Login successful.')
-            ->assertJsonPath('active_tokens_count', 2);
+            ->assertJsonPath('active_tokens_count', 1);
 
         $secondLogin->assertOk()
             ->assertJsonPath('message', 'Login successful.')
-            ->assertJsonPath('active_tokens_count', 2);
+            ->assertJsonPath('active_tokens_count', 1);
 
-        $this->assertSame(2, $user->mobileApiTokens()->whereNull('expires_at')->orWhere('expires_at', '>', now())->count());
+        $this->assertSame(1, $user->mobileApiTokens()->whereNull('expires_at')->orWhere('expires_at', '>', now())->count());
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $firstLogin->json('token')])
+            ->getJson('/api/dashboard')
+            ->assertUnauthorized();
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $secondLogin->json('token')])
+            ->getJson('/api/dashboard')
+            ->assertOk();
     }
 
     public function test_mobile_settings_routes_return_database_backed_values(): void
@@ -805,7 +813,10 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)->getJson('/api/admin/employees/live-locations')->assertOk();
         $this->withHeaders($headers)
             ->getJson('/api/admin/employees/' . $user->id . '/timeline?date=' . now()->toDateString())
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('summary.raw_points_count', 2)
+            ->assertJsonPath('summary.points_count', 1)
+            ->assertJsonCount(1, 'polylinePoints');
 
         $this->withHeaders($headers)
             ->postJson('/api/check_out', $trackingPayload + ['notes' => 'Check out'])

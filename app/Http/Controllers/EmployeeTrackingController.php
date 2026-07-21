@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\EmployeeDevice;
 use App\Models\LocationTracking;
 use App\Models\User;
+use App\Services\TimelineGpsProcessor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -116,7 +117,14 @@ class EmployeeTrackingController extends Controller
             ->latest('last_seen_at')
             ->first();
 
-        if (! $attendance) {
+        $trackings = LocationTracking::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('created_at', $date)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        if (! $attendance && $trackings->isEmpty()) {
             return response()->json([
                 'employeeName' => $employee->name,
                 'employeeId' => $employee->id,
@@ -127,11 +135,6 @@ class EmployeeTrackingController extends Controller
                 'timeLineItems' => [],
             ]);
         }
-
-        $trackings = LocationTracking::query()
-            ->where('attendance_id', $attendance->id)
-            ->orderBy('recorded_at')
-            ->get();
 
         $timeLineItems = $this->timelineModuleItems($trackings);
         $totalTrackedSeconds = $trackings
@@ -157,6 +160,7 @@ class EmployeeTrackingController extends Controller
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
             'totalKM' => round((float) $timeLineItems->sum('distance'), 2),
+            'polylinePoints' => $this->polylinePointsFromItems($timeLineItems),
             'timeLineItems' => $timeLineItems,
         ]);
     }
@@ -176,17 +180,17 @@ class EmployeeTrackingController extends Controller
             ->first();
 
         $trackings = LocationTracking::query()
-            ->when(
-                $attendance,
-                fn ($query) => $query->where('attendance_id', $attendance->id),
-                fn ($query) => $query->whereRaw('1 = 0')
-            )
-            ->orderBy('recorded_at')
+            ->where('employee_id', $employee->id)
+            ->whereDate('created_at', $date)
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
-        $items = $trackings
-            ->map(function (LocationTracking $tracking, int $index) use ($trackings) {
-                $nextTracking = $trackings->get($index + 1);
+        $filteredTrackings = collect($this->filterTimelineTrackings($trackings));
+
+        $items = $filteredTrackings
+            ->map(function (LocationTracking $tracking, int $index) use ($filteredTrackings) {
+                $nextTracking = $filteredTrackings->get($index + 1);
 
                 return [
                     'id' => $tracking->id,
@@ -227,10 +231,12 @@ class EmployeeTrackingController extends Controller
             ] : null,
             'summary' => [
                 'points_count' => $items->count(),
+                'raw_points_count' => $trackings->count(),
                 'total_tracked_seconds' => $items->sum('elapsed_seconds'),
                 'total_attendance_minutes' => $attendance?->worked_minutes ?? null,
             ],
             'trackings' => $items,
+            'polyline_points' => $this->polylinePointsFromItems($items, 'latitude', 'longitude'),
         ]);
     }
 
@@ -376,39 +382,7 @@ class EmployeeTrackingController extends Controller
 
     private function filterTimelineTrackings($trackings): array
     {
-        if ($trackings->count() === 0) {
-            return [];
-        }
-
-        $filtered = [];
-        $minimumDistanceKm = max(0.01, ((float) $this->settingValue('minimum_distance_meters', 25)) / 1000);
-
-        foreach ($trackings as $tracking) {
-            if (in_array($tracking->type, ['checked_in', 'checked_out'], true) || count($filtered) === 0) {
-                $filtered[] = $tracking;
-                continue;
-            }
-
-            $lastTracking = $filtered[count($filtered) - 1];
-            $distance = $this->distanceInKm(
-                (float) $lastTracking->latitude,
-                (float) $lastTracking->longitude,
-                (float) $tracking->latitude,
-                (float) $tracking->longitude
-            );
-
-            if ($distance < $minimumDistanceKm) {
-                continue;
-            }
-
-            if ($this->isUnrealisticTimelineJump($lastTracking, $tracking, $distance)) {
-                continue;
-            }
-
-            $filtered[] = $tracking;
-        }
-
-        return array_slice($filtered, 0, 500);
+        return app(TimelineGpsProcessor::class)->filter($trackings, $this->timelineGpsOptions());
     }
 
     private function isUnrealisticTimelineJump(LocationTracking $previous, LocationTracking $current, float $distanceKm): bool
@@ -512,14 +486,30 @@ class EmployeeTrackingController extends Controller
 
     private function distanceInKm(float $lat1, float $lon1, float $lat2, float $lon2): float
     {
-        $earthRadius = 6371;
-        $latDistance = deg2rad($lat2 - $lat1);
-        $lonDistance = deg2rad($lon2 - $lon1);
-        $a = sin($latDistance / 2) * sin($latDistance / 2)
-            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
-            * sin($lonDistance / 2) * sin($lonDistance / 2);
+        return app(TimelineGpsProcessor::class)->distanceInKm($lat1, $lon1, $lat2, $lon2);
+    }
 
-        return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
+    private function timelineGpsOptions(): array
+    {
+        return [
+            'minimum_distance_meters' => (float) $this->settingValue('timeline_minimum_distance_meters', 10),
+            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 20),
+            'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
+            'simplification_tolerance_meters' => (float) $this->settingValue('timeline_simplification_tolerance_meters', 8),
+            'bearing_drift_distance_meters' => (float) $this->settingValue('timeline_bearing_drift_distance_meters', 10),
+            'bearing_change_degrees' => (float) $this->settingValue('timeline_bearing_change_degrees', 60),
+        ];
+    }
+
+    private function polylinePointsFromItems($items, string $latitudeKey = 'latitude', string $longitudeKey = 'longitude')
+    {
+        return collect($items)
+            ->filter(fn(array $item) => isset($item[$latitudeKey], $item[$longitudeKey]) && (float) $item[$latitudeKey] !== 0.0 && (float) $item[$longitudeKey] !== 0.0)
+            ->map(fn(array $item) => [
+                'lat' => (float) $item[$latitudeKey],
+                'lng' => (float) $item[$longitudeKey],
+            ])
+            ->values();
     }
 
     private function formatSecondsAsClock(int|float $seconds): string
