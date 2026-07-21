@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\LocationTracking;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
@@ -91,5 +94,20 @@ class AttendanceController extends Controller
         ]);
 
         return redirect()->route('dashboard')->with('success', 'Checked out successfully.');
+    }
+
+    public function destroy(Attendance $attendance): RedirectResponse
+    {
+        DB::transaction(function () use ($attendance): void {
+            LocationTracking::query()
+                ->where('attendance_id', $attendance->id)
+                ->delete();
+
+            $attendance->delete();
+        });
+
+        return redirect()
+            ->route('attendance.index')
+            ->with('success', 'Attendance deleted successfully.');
     }
 }

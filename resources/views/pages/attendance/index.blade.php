@@ -69,6 +69,7 @@
                             <th>Check Out Time</th>
                             <th>Worked Hours</th>
                             <th>Status</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -93,10 +94,21 @@
                                         <span class="badge bg-soft-warning text-warning">Checked In</span>
                                     @endif
                                 </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#crmDeleteModal"
+                                        data-delete-action="{{ route('attendance.destroy', $attendance) }}"
+                                        data-delete-title="Delete Attendance"
+                                        data-delete-message="Are you sure you want to delete attendance #{{ $attendance->id }} for {{ $attendance->user?->name ?? 'this employee' }}? Related tracking points for this attendance will also be removed."
+                                        title="Delete" aria-label="Delete attendance">
+                                        <i class="ti ti-trash"></i>
+                                    </button>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No attendance records found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No attendance records found.</td>
                             </tr>
                         @endforelse
                     </tbody>

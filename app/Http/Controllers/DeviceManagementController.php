@@ -14,12 +14,13 @@ class DeviceManagementController extends Controller
     public function index(Request $request): View
     {
         $onlineThresholdSeconds = $this->onlineThresholdSeconds();
-        $activeTokenUserIds = MobileApiToken::query()
+        $activeDeviceKeys = MobileApiToken::query()
             ->where(function ($query) {
                 $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })
-            ->pluck('user_id')
-            ->map(fn($userId) => (int) $userId)
+            ->whereNotNull('device_id')
+            ->get(['user_id', 'device_id'])
+            ->map(fn (MobileApiToken $token) => $this->deviceLoginKey((int) $token->user_id, (string) $token->device_id))
             ->all();
 
         $query = EmployeeDevice::query()
@@ -38,17 +39,17 @@ class DeviceManagementController extends Controller
             })
             ->latest('last_seen_at');
 
-        $summaryDevices = (clone $query)->get()->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds, $activeTokenUserIds) {
+        $summaryDevices = (clone $query)->get()->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds, $activeDeviceKeys) {
             return [
-                'login_status' => in_array((int) $device->employee_id, $activeTokenUserIds, true) ? 'login' : 'logout',
+                'login_status' => in_array($this->deviceLoginKey((int) $device->employee_id, (string) $device->device_id), $activeDeviceKeys, true) ? 'login' : 'logout',
                 'online_status' => $device->last_seen_at && $device->last_seen_at->gt(now()->subSeconds($onlineThresholdSeconds)) ? 'online' : 'offline',
             ];
         });
 
         $devices = $query->paginate((int) $request->input('per_page', 15));
 
-        $devices->setCollection($devices->getCollection()->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds, $activeTokenUserIds) {
-            $isLoggedIn = in_array((int) $device->employee_id, $activeTokenUserIds, true);
+        $devices->setCollection($devices->getCollection()->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds, $activeDeviceKeys) {
+            $isLoggedIn = in_array($this->deviceLoginKey((int) $device->employee_id, (string) $device->device_id), $activeDeviceKeys, true);
             $isOnline = $device->last_seen_at && $device->last_seen_at->gt(now()->subSeconds($onlineThresholdSeconds));
 
             $device->setAttribute('login_status', $isLoggedIn ? 'login' : 'logout');
@@ -72,6 +73,10 @@ class DeviceManagementController extends Controller
     public function destroy(EmployeeDevice $device): RedirectResponse
     {
         $deviceLabel = trim(collect([$device->device_name, $device->device_id])->filter()->implode(' - '));
+        MobileApiToken::query()
+            ->where('user_id', $device->employee_id)
+            ->where('device_id', $device->device_id)
+            ->delete();
 
         $device->delete();
 
@@ -85,5 +90,10 @@ class DeviceManagementController extends Controller
         $setting = AppSetting::query()->where('key', 'online_threshold_seconds')->first();
 
         return max(60, (int) ($setting?->value ?? 1800));
+    }
+
+    private function deviceLoginKey(int $employeeId, string $deviceId): string
+    {
+        return $employeeId . ':' . $deviceId;
     }
 }

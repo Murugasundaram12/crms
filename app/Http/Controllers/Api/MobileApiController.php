@@ -28,6 +28,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
+use App\Services\GpsTrackingValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -403,7 +404,7 @@ class MobileApiController extends Controller
             'activity' => $validated['activity'] ?? null,
             'is_gps_on' => (bool) $isGpsOn,
             'is_mock_location' => (bool) $isMock,
-            'battery_percentage' => $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null,
+            'battery_percentage' => $this->batteryPercentageFromPayload($validated),
             'recorded_at' => $validated['recorded_at'] ?? null,
             'type' => $this->normalizeTrackingType($type),
         ];
@@ -519,10 +520,23 @@ class MobileApiController extends Controller
     protected function validateTrackingPayload(Request $request, string $defaultType): array
     {
         $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 1000);
+        $request->merge([
+            'device_id' => $this->normalizeDeviceIdFromRequest($request) ?? $this->mobileTokenDeviceId($request),
+        ]);
 
         $validated = $request->validate([
             'device_id' => ['nullable', 'string', 'max:255'],
+            'deviceId' => ['nullable', 'string', 'max:255'],
+            'device_uid' => ['nullable', 'string', 'max:255'],
+            'deviceUid' => ['nullable', 'string', 'max:255'],
+            'device_uuid' => ['nullable', 'string', 'max:255'],
+            'deviceUuid' => ['nullable', 'string', 'max:255'],
+            'unique_id' => ['nullable', 'string', 'max:255'],
+            'uniqueId' => ['nullable', 'string', 'max:255'],
+            'android_id' => ['nullable', 'string', 'max:255'],
+            'androidId' => ['nullable', 'string', 'max:255'],
             'device_name' => ['nullable', 'string', 'max:255'],
+            'deviceName' => ['nullable', 'string', 'max:255'],
             'device_type' => ['nullable', 'string', 'max:100'],
             'deviceType' => ['nullable', 'string', 'max:100'],
             'brand' => ['nullable', 'string', 'max:100'],
@@ -544,6 +558,9 @@ class MobileApiController extends Controller
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
             'signal_strength' => ['nullable', 'string', 'max:100'],
             'signalStrength' => ['nullable', 'string', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
@@ -570,13 +587,93 @@ class MobileApiController extends Controller
         $validated['is_wifi_on'] = (bool) $isWifiOn;
         $validated['is_mock_location'] = (bool) $isMock;
         $validated['accuracy'] = $validated['accuracy'] ?? null;
-        $validated['battery_percentage'] = $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null;
+        $validated['battery_percentage'] = $this->batteryPercentageFromPayload($validated);
+        $validated['device_name'] = $validated['device_name'] ?? $validated['deviceName'] ?? null;
         $validated['device_type'] = $validated['device_type'] ?? $validated['deviceType'] ?? null;
         $validated['sdk_version'] = $validated['sdk_version'] ?? $validated['sdkVersion'] ?? null;
         $validated['signal_strength'] = $validated['signal_strength'] ?? $validated['signalStrength'] ?? null;
+        $validated['device_id'] = $validated['device_id'] ?? $this->mobileTokenDeviceId($request) ?? 'default';
+        $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
         $validated['type'] = $this->normalizeTrackingType($validated['type'] ?? $defaultType);
 
         return $validated;
+    }
+
+    protected function mobileTokenDeviceId(Request $request): ?string
+    {
+        $deviceId = $request->attributes->get('mobile_device_id');
+
+        return filled($deviceId) ? (string) $deviceId : null;
+    }
+
+    protected function normalizeDeviceIdFromRequest(Request $request): ?string
+    {
+        foreach ([
+            'device_id',
+            'deviceId',
+            'device_uid',
+            'deviceUid',
+            'device_uuid',
+            'deviceUuid',
+            'unique_id',
+            'uniqueId',
+            'android_id',
+            'androidId',
+        ] as $key) {
+            $value = $request->input($key);
+
+            if (filled($value)) {
+                return (string) $value;
+            }
+        }
+
+        $device = $request->input('device');
+        if (is_array($device)) {
+            foreach (['id', 'device_id', 'deviceId', 'uid', 'uuid', 'unique_id', 'uniqueId', 'android_id', 'androidId'] as $key) {
+                if (filled($device[$key] ?? null)) {
+                    return (string) $device[$key];
+                }
+            }
+        }
+
+        $fallback = collect([
+            $request->input('device_name') ?? $request->input('deviceName'),
+            $request->input('brand'),
+            $request->input('model'),
+        ])->filter()->implode('|');
+
+        return filled($fallback) ? 'legacy-' . sha1($fallback) : null;
+    }
+
+    protected function assertMobileTokenDeviceMatches(Request $request, ?string $deviceId): void
+    {
+        $tokenDeviceId = $this->mobileTokenDeviceId($request);
+
+        if ($tokenDeviceId && $deviceId && $tokenDeviceId !== $deviceId) {
+            throw ValidationException::withMessages([
+                'device_id' => 'This login token is not valid for the submitted device.',
+            ]);
+        }
+    }
+
+    protected function isLegacyDeviceId(?string $deviceId): bool
+    {
+        return is_string($deviceId) && str_starts_with($deviceId, 'legacy-');
+    }
+
+    protected function rebindCurrentMobileTokenDevice(Request $request, string $deviceId): void
+    {
+        $plainToken = $request->bearerToken();
+
+        if (! $plainToken) {
+            return;
+        }
+
+        MobileApiToken::query()
+            ->where('token_hash', hash('sha256', $plainToken))
+            ->update(['device_id' => $deviceId]);
+
+        $request->attributes->set('mobile_device_id', $deviceId);
     }
 
     protected function activeAttendance(int $userId): ?Attendance
@@ -591,12 +688,35 @@ class MobileApiController extends Controller
     protected function upsertDeviceStatus(int $userId, array $payload): EmployeeDevice
     {
         $deviceId = $payload['device_id'] ?? 'default';
+        $deviceValues = [
+            'device_name' => $payload['device_name'] ?? null,
+            'device_type' => $payload['device_type'] ?? null,
+            'brand' => $payload['brand'] ?? null,
+            'board' => $payload['board'] ?? null,
+            'sdk_version' => $payload['sdk_version'] ?? null,
+            'model' => $payload['model'] ?? null,
+            'latitude' => $payload['latitude'],
+            'longitude' => $payload['longitude'],
+            'accuracy' => $payload['accuracy'] ?? null,
+            'speed' => $payload['speed'] ?? null,
+            'bearing' => $payload['bearing'] ?? null,
+            'activity' => $payload['activity'] ?? null,
+            'is_gps_on' => $payload['is_gps_on'],
+            'is_wifi_on' => $payload['is_wifi_on'] ?? false,
+            'is_mock_location' => $payload['is_mock_location'],
+            'signal_strength' => $payload['signal_strength'] ?? null,
+            'last_seen_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
+        ];
+        if (($payload['battery_percentage'] ?? null) !== null) {
+            $deviceValues['battery_percentage'] = $payload['battery_percentage'];
+        }
 
         return EmployeeDevice::query()->updateOrCreate(
             [
                 'employee_id' => $userId,
                 'device_id' => $deviceId,
             ],
+<<<<<<< HEAD
             $this->availableEmployeeDeviceAttributes([
                 'device_name' => $payload['device_name'] ?? null,
                 'device_type' => $payload['device_type'] ?? null,
@@ -617,6 +737,9 @@ class MobileApiController extends Controller
                 'signal_strength' => $payload['signal_strength'] ?? null,
                 'last_seen_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
             ])
+=======
+            $deviceValues
+>>>>>>> 61c89e1176053a0e34b77797d7dda63d0301ad1f
         );
     }
 
@@ -628,6 +751,22 @@ class MobileApiController extends Controller
             ->latest('recorded_at')
             ->latest('id')
             ->first();
+    }
+
+    protected function latestValidTrackingPoints(int $userId, ?string $deviceId = null, int $limit = 2)
+    {
+        $validator = app(GpsTrackingValidationService::class);
+
+        return LocationTracking::query()
+            ->where('employee_id', $userId)
+            ->when($deviceId, fn ($query) => $query->where('device_id', $deviceId))
+            ->orderByRaw('COALESCE(recorded_at, created_at) DESC')
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking))
+            ->take($limit)
+            ->values();
     }
 
     protected function shouldSuppressTrackingInsert(?LocationTracking $lastTracking, array $payload): bool
@@ -737,10 +876,16 @@ class MobileApiController extends Controller
             'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
             'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
             'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
-            'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 10),
-            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 20),
+            'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 3),
+            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 10),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
             'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
+            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 10),
+            'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 3),
+            'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+            'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 170),
+            'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_distance_metres', 10),
+            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
             'online_threshold_seconds' => $this->onlineThresholdSeconds(),
@@ -771,10 +916,16 @@ class MobileApiController extends Controller
                 'interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
                 'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
                 'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
-                'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 10),
-                'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 20),
+                'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 3),
+                'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 10),
                 'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
                 'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
+                'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 10),
+                'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 3),
+                'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+                'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 170),
+                'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_distance_metres', 10),
+                'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
                 'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
                 'online_threshold_seconds' => $this->onlineThresholdSeconds(),
             ],
@@ -803,14 +954,18 @@ class MobileApiController extends Controller
 
     protected function settingValue(string $key, mixed $default): mixed
     {
-        if (! Schema::hasTable('app_settings')) {
+        try {
+            if (! Schema::hasTable('app_settings')) {
+                return $default;
+            }
+
+            $setting = AppSetting::query()
+                ->where('key', $key)
+                ->where('is_public', true)
+                ->first();
+        } catch (\Throwable) {
             return $default;
         }
-
-        $setting = AppSetting::query()
-            ->where('key', $key)
-            ->where('is_public', true)
-            ->first();
 
         if (! $setting) {
             return $default;
@@ -1408,6 +1563,7 @@ class MobileApiController extends Controller
             'is_wifi_on' => (bool) $device->is_wifi_on,
             'is_mock_location' => (bool) $device->is_mock_location,
             'battery_percentage' => $device->battery_percentage,
+            'batteryPercentage' => $device->battery_percentage,
             'signal_strength' => $device->signal_strength,
             'last_seen_at' => $device->last_seen_at?->toISOString(),
         ];
@@ -1440,9 +1596,21 @@ class MobileApiController extends Controller
             'is_gps_on' => (bool) $tracking->is_gps_on,
             'is_mock_location' => (bool) $tracking->is_mock_location,
             'battery_percentage' => $tracking->battery_percentage,
+            'batteryPercentage' => $tracking->battery_percentage,
             'type' => $tracking->type,
             'recorded_at' => $tracking->recorded_at?->toISOString(),
         ];
+    }
+
+    protected function batteryPercentageFromPayload(array $payload): ?int
+    {
+        foreach (['battery_percentage', 'batteryPercentage', 'battery_level', 'batteryLevel', 'battery'] as $key) {
+            if (array_key_exists($key, $payload) && $payload[$key] !== null && $payload[$key] !== '') {
+                return (int) $payload[$key];
+            }
+        }
+
+        return null;
     }
 
     protected function trackingTypeLabel(LocationTracking $tracking): string

@@ -65,6 +65,9 @@ trait MobileAttendanceTrackingEndpoints
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
         ]);
 
@@ -106,8 +109,9 @@ trait MobileAttendanceTrackingEndpoints
         if (! blank($validated['latitude'] ?? null) && ! blank($validated['longitude'] ?? null)) {
             $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_in');
             $trackingPayload['recorded_at'] = $attendance->check_in_at;
+            $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)->validate($trackingPayload);
 
-            if (! $this->hasVeryPoorTrackingAccuracy($trackingPayload)) {
+            if ($gpsValidation['accepted']) {
                 DB::transaction(function () use ($user, $attendance, $trackingPayload, &$tracking) {
                     $this->upsertDeviceStatus($user->id, $trackingPayload);
                     $tracking = $this->createTrackingPoint($attendance, $trackingPayload, 'checked_in');
@@ -147,6 +151,9 @@ trait MobileAttendanceTrackingEndpoints
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
         ]);
 
@@ -179,8 +186,11 @@ trait MobileAttendanceTrackingEndpoints
             if (! blank($validated['latitude'] ?? null) && ! blank($validated['longitude'] ?? null)) {
                 $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_out');
                 $trackingPayload['recorded_at'] = $checkoutTime;
+                $previousTrackings = $this->latestValidTrackingPoints($user->id, $trackingPayload['device_id'] ?? 'default', 2);
+                $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)
+                    ->validate($trackingPayload, $previousTrackings->get(0), $previousTrackings->get(1));
 
-                if (! $this->hasVeryPoorTrackingAccuracy($trackingPayload)) {
+                if ($gpsValidation['accepted']) {
                     $this->upsertDeviceStatus($user->id, $trackingPayload);
                     $tracking = $this->createTrackingPoint($openAttendance, $trackingPayload, 'checked_out');
                 }
@@ -392,6 +402,17 @@ trait MobileAttendanceTrackingEndpoints
     {
         $validated = $this->validateDeviceRegistrationPayload($request);
         $user = $request->user();
+        $tokenDeviceId = $this->mobileTokenDeviceId($request);
+
+        $existingDevice = EmployeeDevice::query()
+            ->where('device_id', $validated['device_id'])
+            ->first();
+
+        if ($existingDevice && (int) $existingDevice->employee_id !== (int) $user->id) {
+            return response()->json([
+                'message' => 'This device is already registered. Please contact admin.',
+            ], 409);
+        }
 
         $sameUserSameDevice = EmployeeDevice::query()
             ->where('employee_id', $user->id)
@@ -399,20 +420,64 @@ trait MobileAttendanceTrackingEndpoints
             ->first();
 
         if ($sameUserSameDevice) {
+            $sameUserSameDevice->update(collect([
+                'device_name' => $validated['device_name'] ?? null,
+                'device_type' => $validated['device_type'] ?? null,
+                'brand' => $validated['brand'] ?? null,
+                'board' => $validated['board'] ?? null,
+                'sdk_version' => $validated['sdk_version'] ?? null,
+                'model' => $validated['model'] ?? null,
+                'battery_percentage' => $validated['battery_percentage'] ?? null,
+                'last_seen_at' => now(),
+            ])->reject(fn ($value) => $value === null)->all());
+            $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
+
             return response()->json([
-                'message' => 'This device is already registered. Please contact admin.',
-                'device' => $this->devicePayload($sameUserSameDevice),
+                'message' => 'Device verified successfully.',
+                'status' => 'verified',
+                'can_register' => false,
+                'device' => $this->devicePayload($sameUserSameDevice->refresh()),
+            ]);
+        }
+
+        $sameUserOtherDevice = EmployeeDevice::query()
+            ->where('employee_id', $user->id)
+            ->where('device_id', '!=', $validated['device_id'])
+            ->first();
+
+        if ($sameUserOtherDevice) {
+            if ($this->isLegacyDeviceId($tokenDeviceId) && $sameUserOtherDevice->device_id === $tokenDeviceId) {
+                $sameUserOtherDevice->update([
+                    'device_id' => $validated['device_id'],
+                    'device_name' => $validated['device_name'] ?? $sameUserOtherDevice->device_name,
+                    'device_type' => $validated['device_type'] ?? $sameUserOtherDevice->device_type,
+                    'brand' => $validated['brand'] ?? $sameUserOtherDevice->brand,
+                    'board' => $validated['board'] ?? $sameUserOtherDevice->board,
+                    'sdk_version' => $validated['sdk_version'] ?? $sameUserOtherDevice->sdk_version,
+                    'model' => $validated['model'] ?? $sameUserOtherDevice->model,
+                    'battery_percentage' => $validated['battery_percentage'] ?? $sameUserOtherDevice->battery_percentage,
+                    'last_seen_at' => now(),
+                ]);
+                $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
+
+                return response()->json([
+                    'message' => 'Device registered successfully.',
+                    'status' => 'verified',
+                    'can_register' => false,
+                    'device' => $this->devicePayload($sameUserOtherDevice->refresh()),
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Already registered with other device. Please contact admin.',
+                'status' => 'blocked',
+                'can_register' => false,
+                'device' => $this->devicePayload($sameUserOtherDevice),
             ], 409);
         }
 
-        $existingDevice = EmployeeDevice::query()
-            ->where('device_id', $validated['device_id'])
-            ->first();
-
-        if ($existingDevice) {
-            return response()->json([
-                'message' => 'This device is already registered. Please contact admin.',
-            ], 409);
+        if ($tokenDeviceId && $tokenDeviceId !== $validated['device_id'] && ! $this->isLegacyDeviceId($tokenDeviceId)) {
+            $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
         }
 
         $device = EmployeeDevice::query()->create($this->availableEmployeeDeviceAttributes([
@@ -424,8 +489,14 @@ trait MobileAttendanceTrackingEndpoints
             'board' => $validated['board'] ?? null,
             'sdk_version' => $validated['sdk_version'] ?? null,
             'model' => $validated['model'] ?? null,
+            'battery_percentage' => $validated['battery_percentage'] ?? null,
             'last_seen_at' => now(),
+<<<<<<< HEAD
         ]));
+=======
+        ]);
+        $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
+>>>>>>> 61c89e1176053a0e34b77797d7dda63d0301ad1f
 
         return response()->json([
             'message' => 'Device registered successfully.',
@@ -435,16 +506,30 @@ trait MobileAttendanceTrackingEndpoints
 
     public function updateMessagingToken(Request $request)
     {
+        $request->merge([
+            'device_id' => $this->normalizeDeviceIdFromRequest($request) ?? $this->mobileTokenDeviceId($request),
+        ]);
+
         $validated = $request->validate([
-            'device_id' => ['required_without:deviceId', 'string', 'min:2', 'max:255'],
-            'deviceId' => ['required_without:device_id', 'string', 'min:2', 'max:255'],
+            'device_id' => ['required', 'string', 'min:2', 'max:255'],
+            'deviceId' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_uid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceUid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_uuid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceUuid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'unique_id' => ['nullable', 'string', 'min:2', 'max:255'],
+            'uniqueId' => ['nullable', 'string', 'min:2', 'max:255'],
+            'android_id' => ['nullable', 'string', 'min:2', 'max:255'],
+            'androidId' => ['nullable', 'string', 'min:2', 'max:255'],
             'messaging_token' => ['required_without:token', 'string', 'max:5000'],
             'token' => ['required_without:messaging_token', 'string', 'max:5000'],
         ]);
+        $deviceId = $validated['device_id'];
+        $this->assertMobileTokenDeviceMatches($request, $deviceId);
 
         $device = EmployeeDevice::query()
             ->where('employee_id', $request->user()->id)
-            ->where('device_id', $validated['device_id'] ?? $validated['deviceId'])
+            ->where('device_id', $deviceId)
             ->first();
 
         if (! $device) {
@@ -468,6 +553,7 @@ trait MobileAttendanceTrackingEndpoints
     {
         $validated = $this->validateDeviceStatusPayload($request);
         $user = $request->user();
+        $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
 
         $device = EmployeeDevice::query()
             ->where('employee_id', $user->id)
@@ -509,9 +595,21 @@ trait MobileAttendanceTrackingEndpoints
 
     private function validateDeviceRegistrationPayload(Request $request): array
     {
+        $request->merge([
+            'device_id' => $this->normalizeDeviceIdFromRequest($request) ?? $this->mobileTokenDeviceId($request),
+        ]);
+
         $validated = $request->validate([
-            'device_id' => ['required_without:deviceId', 'string', 'min:2', 'max:255'],
-            'deviceId' => ['required_without:device_id', 'string', 'min:2', 'max:255'],
+            'device_id' => ['required', 'string', 'min:2', 'max:255'],
+            'deviceId' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_uid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceUid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_uuid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceUuid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'unique_id' => ['nullable', 'string', 'min:2', 'max:255'],
+            'uniqueId' => ['nullable', 'string', 'min:2', 'max:255'],
+            'android_id' => ['nullable', 'string', 'min:2', 'max:255'],
+            'androidId' => ['nullable', 'string', 'min:2', 'max:255'],
             'device_name' => ['nullable', 'string', 'min:2', 'max:255'],
             'deviceName' => ['nullable', 'string', 'min:2', 'max:255'],
             'device_type' => ['nullable', 'string', 'max:100'],
@@ -521,24 +619,42 @@ trait MobileAttendanceTrackingEndpoints
             'sdk_version' => ['nullable', 'string', 'max:100'],
             'sdkVersion' => ['nullable', 'string', 'max:100'],
             'model' => ['nullable', 'string', 'max:100'],
+            'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
         ]);
 
         return [
-            'device_id' => $validated['device_id'] ?? $validated['deviceId'],
+            'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? $validated['deviceName'] ?? null,
             'device_type' => $validated['device_type'] ?? $validated['deviceType'] ?? null,
             'brand' => $validated['brand'] ?? null,
             'board' => $validated['board'] ?? null,
             'sdk_version' => $validated['sdk_version'] ?? $validated['sdkVersion'] ?? null,
             'model' => $validated['model'] ?? null,
+            'battery_percentage' => $this->batteryPercentageFromPayload($validated),
         ];
     }
 
     private function validateDeviceStatusPayload(Request $request): array
     {
+        $request->merge([
+            'device_id' => $this->normalizeDeviceIdFromRequest($request) ?? $this->mobileTokenDeviceId($request),
+        ]);
+
         $validated = $request->validate([
-            'device_id' => ['required_without:deviceId', 'string', 'min:2', 'max:255'],
-            'deviceId' => ['required_without:device_id', 'string', 'min:2', 'max:255'],
+            'device_id' => ['required', 'string', 'min:2', 'max:255'],
+            'deviceId' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_uid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceUid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_uuid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceUuid' => ['nullable', 'string', 'min:2', 'max:255'],
+            'unique_id' => ['nullable', 'string', 'min:2', 'max:255'],
+            'uniqueId' => ['nullable', 'string', 'min:2', 'max:255'],
+            'android_id' => ['nullable', 'string', 'min:2', 'max:255'],
+            'androidId' => ['nullable', 'string', 'min:2', 'max:255'],
             'device_name' => ['nullable', 'string', 'max:255'],
             'deviceName' => ['nullable', 'string', 'max:255'],
             'device_type' => ['nullable', 'string', 'max:100'],
@@ -562,13 +678,16 @@ trait MobileAttendanceTrackingEndpoints
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
             'signal_strength' => ['nullable', 'string', 'max:100'],
             'signalStrength' => ['nullable', 'string', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
         ]);
 
         return [
-            'device_id' => $validated['device_id'] ?? $validated['deviceId'],
+            'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? $validated['deviceName'] ?? null,
             'device_type' => $validated['device_type'] ?? $validated['deviceType'] ?? null,
             'brand' => $validated['brand'] ?? null,
@@ -584,7 +703,7 @@ trait MobileAttendanceTrackingEndpoints
             'is_gps_on' => (bool) ($validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true),
             'is_wifi_on' => (bool) ($validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false),
             'is_mock_location' => (bool) ($validated['is_mock_location'] ?? $validated['isMock'] ?? false),
-            'battery_percentage' => $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null,
+            'battery_percentage' => $this->batteryPercentageFromPayload($validated),
             'signal_strength' => $validated['signal_strength'] ?? $validated['signalStrength'] ?? null,
             'recorded_at' => $validated['recorded_at'] ?? null,
         ];
@@ -609,34 +728,39 @@ trait MobileAttendanceTrackingEndpoints
             ], 409);
         }
 
-        [$tracking, $inserted] = DB::transaction(function () use ($user, $attendance, $validated) {
-            $lastTracking = $this->latestTrackingPoint($user->id, $validated['device_id'] ?? 'default');
+        [$tracking, $inserted, $gpsValidation] = DB::transaction(function () use ($user, $attendance, $validated) {
+            $previousTrackings = $this->latestValidTrackingPoints($user->id, $validated['device_id'] ?? 'default', 2);
+            $lastTracking = $previousTrackings->get(0);
+            $previousPreviousTracking = $previousTrackings->get(1);
+            $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)
+                ->validate($validated, $lastTracking, $previousPreviousTracking);
 
-            if ($this->hasVeryPoorTrackingAccuracy($validated)) {
+            if (! $gpsValidation['accepted']) {
                 if ($lastTracking) {
                     $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
                     $this->upsertDeviceStatus($user->id, $statusPayload);
-                    return [$lastTracking->refresh(), false];
+
+                    return [$lastTracking->refresh(), false, $gpsValidation];
                 }
 
-                return [null, false];
-            }
-
-            if ($this->shouldSuppressTrackingInsert($lastTracking, $validated)) {
-                $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
-
-                $this->upsertDeviceStatus($user->id, $statusPayload);
-
-                return [$this->refreshTrackingPointStatus($lastTracking, $validated), false];
+                return [null, false, $gpsValidation];
             }
 
             $this->upsertDeviceStatus($user->id, $validated);
 
-            return [$this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'), true];
+            return [
+                $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),
+                true,
+                $gpsValidation,
+            ];
         });
 
         return response()->json([
-            'message' => $inserted ? 'Location updated successfully.' : 'Location status refreshed successfully.',
+            'success' => true,
+            'saved' => $inserted,
+            'message' => $inserted ? 'Location updated successfully.' : 'Location point ignored due to low GPS quality.',
+            'reason' => $gpsValidation['reason'] ?? null,
+            'gps_validation' => $gpsValidation,
             'inserted' => $inserted,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
         ], $inserted ? 201 : 200);
@@ -673,13 +797,21 @@ trait MobileAttendanceTrackingEndpoints
             'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
             'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
             'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
-            'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 10),
-            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 20),
+            'timeline_minimum_distance_meters' => $this->settingValue('gps_min_distance_metres', 5),
+            'timeline_max_accuracy_meters' => $this->settingValue('gps_max_accuracy_metres', 8),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
-            'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
-            'timeline_bearing_drift_distance_meters' => $this->settingValue('timeline_bearing_drift_distance_meters', 10),
+            'timeline_simplification_tolerance_meters' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
+            'timeline_bearing_drift_distance_meters' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
             'timeline_bearing_change_degrees' => $this->settingValue('timeline_bearing_change_degrees', 60),
-            'timeline_max_computed_speed_kmh' => $this->settingValue('timeline_max_computed_speed_kmh', 80),
+            'timeline_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
+            'timeline_max_computed_speed_kmh' => $this->settingValue('timeline_max_computed_speed_kmh', 90),
+            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 8),
+            'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 5),
+            'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+            'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
+            'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
+            'gps_douglas_peucker_tolerance_metres' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
+            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'history_retention_days' => $this->settingValue('history_retention_days', 90),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
@@ -739,8 +871,14 @@ trait MobileAttendanceTrackingEndpoints
 
         $trackings = LocationTracking::query()
             ->where('employee_id', $employeeId)
-            ->whereBetween('created_at', [$timelineStart, $timelineEnd])
-            ->orderBy('created_at')
+            ->where(function ($query) use ($timelineStart, $timelineEnd) {
+                $query->whereBetween('recorded_at', [$timelineStart, $timelineEnd])
+                    ->orWhere(function ($query) use ($timelineStart, $timelineEnd) {
+                        $query->whereNull('recorded_at')
+                            ->whereBetween('created_at', [$timelineStart, $timelineEnd]);
+                    });
+            })
+            ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
             ->orderBy('id')
             ->get();
 
@@ -791,6 +929,7 @@ trait MobileAttendanceTrackingEndpoints
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
             'totalKM' => round((float) $moduleItems->sum('distance'), 2),
             'polylinePoints' => $this->polylinePointsFromItems($moduleItems),
+            'polylineSegments' => $this->polylineSegmentsFromItems($moduleItems),
             'timeLineItems' => $moduleItems,
         ]);
     }
@@ -875,7 +1014,12 @@ trait MobileAttendanceTrackingEndpoints
             ->map(function (LocationTracking $tracking, int $index) use ($filteredTrackings) {
                 $previousTracking = $filteredTrackings[$index - 1] ?? null;
                 $nextTracking = $filteredTrackings[$index + 1] ?? null;
-                $distance = $nextTracking && ! $this->shouldBreakTimelineSegment($tracking, $nextTracking)
+                $type = $this->timelineModuleType($tracking, $previousTracking, $nextTracking);
+                $nextType = $nextTracking ? $this->timelineModuleType($nextTracking, $tracking, $filteredTrackings[$index + 2] ?? null) : null;
+                $distance = $nextTracking
+                    && $this->isTimelineMovementType($type)
+                    && $this->isTimelineMovementType($nextType)
+                    && ! $this->shouldBreakTimelineSegment($tracking, $nextTracking)
                     ? $this->distanceInKm(
                         (float) $tracking->latitude,
                         (float) $tracking->longitude,
@@ -883,8 +1027,6 @@ trait MobileAttendanceTrackingEndpoints
                         (float) $nextTracking->longitude
                     )
                     : 0;
-
-                $type = $this->timelineModuleType($tracking, $previousTracking, $nextTracking);
 
                 return [
                     'id' => $tracking->id,
@@ -906,7 +1048,7 @@ trait MobileAttendanceTrackingEndpoints
                     'elapseTime' => $nextTracking && $tracking->recorded_at
                         ? $this->formatSecondsAsClock($tracking->recorded_at->diffInSeconds($nextTracking->recorded_at))
                         : '00:00:00',
-                    'distance' => in_array($type, ['vehicle', 'walk'], true) ? round($distance, 2) : 0,
+                    'distance' => round($distance, 2),
                 ];
             })
             ->values();
@@ -931,6 +1073,10 @@ trait MobileAttendanceTrackingEndpoints
 
     protected function shouldBreakTimelineSegment(LocationTracking $previous, LocationTracking $current): bool
     {
+        if ($previous->attendance_id !== $current->attendance_id) {
+            return true;
+        }
+
         if (! $previous->recorded_at || ! $current->recorded_at) {
             return false;
         }
@@ -944,7 +1090,9 @@ trait MobileAttendanceTrackingEndpoints
         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        return $seconds > 3600 || ($distanceKm > 5 && $speedKmh > 100);
+        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 600)
+            || $distanceKm > 2
+            || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
     }
 
     protected function timelineModuleType(LocationTracking $tracking, ?LocationTracking $previous = null, ?LocationTracking $next = null): string
@@ -957,16 +1105,25 @@ trait MobileAttendanceTrackingEndpoints
             return 'checkOut';
         }
 
+        if ($tracking->type === 'still') {
+            return 'still';
+        }
+
         $activity = strtolower((string) $tracking->activity);
 
         if (in_array($activity, ['activitytype.still', 'still'], true)) {
-            return $this->isStationaryTimelinePoint($tracking, $previous, $next) ? 'still' : 'vehicle';
+            return 'still';
         }
 
         return match (true) {
             in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
             default => 'vehicle',
         };
+    }
+
+    protected function isTimelineMovementType(?string $type): bool
+    {
+        return in_array($type, ['vehicle', 'walk'], true);
     }
 
     protected function isStationaryTimelinePoint(LocationTracking $tracking, ?LocationTracking $previous, ?LocationTracking $next): bool
@@ -1008,13 +1165,14 @@ trait MobileAttendanceTrackingEndpoints
     protected function timelineGpsOptions(): array
     {
         return [
-            'minimum_distance_meters' => (float) $this->settingValue('timeline_minimum_distance_meters', 10),
-            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 20),
+            'minimum_distance_meters' => (float) $this->settingValue('timeline_minimum_distance_meters', 3),
+            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 10),
             'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
             'simplification_tolerance_meters' => (float) $this->settingValue('timeline_simplification_tolerance_meters', 8),
             'bearing_drift_distance_meters' => (float) $this->settingValue('timeline_bearing_drift_distance_meters', 10),
             'bearing_change_degrees' => (float) $this->settingValue('timeline_bearing_change_degrees', 60),
-            'max_computed_speed_kmh' => (float) $this->settingValue('timeline_max_computed_speed_kmh', 80),
+            'max_bearing_change_degrees' => (float) $this->settingValue('timeline_max_bearing_change_degrees', 170),
+            'max_computed_speed_kmh' => (float) $this->settingValue('timeline_max_computed_speed_kmh', 90),
         ];
     }
 
@@ -1028,13 +1186,64 @@ trait MobileAttendanceTrackingEndpoints
 
     protected function polylinePointsFromItems($items, string $latitudeKey = 'latitude', string $longitudeKey = 'longitude')
     {
-        return collect($items)
-            ->filter(fn(array $item) => isset($item[$latitudeKey], $item[$longitudeKey]) && (float) $item[$latitudeKey] !== 0.0 && (float) $item[$longitudeKey] !== 0.0)
-            ->map(fn(array $item) => [
-                'lat' => (float) $item[$latitudeKey],
-                'lng' => (float) $item[$longitudeKey],
-            ])
+        return collect($this->polylineSegmentsFromItems($items, $latitudeKey, $longitudeKey))
+            ->flatten(1)
             ->values();
+    }
+
+    protected function polylineSegmentsFromItems($items, string $latitudeKey = 'latitude', string $longitudeKey = 'longitude'): array
+    {
+        $points = [];
+        $segments = [];
+        $previous = null;
+
+        foreach ($items as $item) {
+            if (! $this->isTimelineMovementType($item['type'] ?? null)) {
+                if (count($points) >= 2) {
+                    $segments[] = $points;
+                }
+                $points = [];
+                $previous = null;
+                continue;
+            }
+
+            if (! isset($item[$latitudeKey], $item[$longitudeKey])) {
+                continue;
+            }
+
+            if (($item['segmentBreakBefore'] ?? false) === true) {
+                if (count($points) >= 2) {
+                    $segments[] = $points;
+                }
+                $points = [];
+                $previous = null;
+            }
+
+            $lat = (float) $item[$latitudeKey];
+            $lng = (float) $item[$longitudeKey];
+
+            if ($lat === 0.0 || $lng === 0.0) {
+                continue;
+            }
+
+            $current = ['lat' => $lat, 'lng' => $lng];
+
+            if ($previous !== null) {
+                $distanceMeters = $this->distanceInKm($previous['lat'], $previous['lng'], $lat, $lng) * 1000;
+                if ($distanceMeters < 5) {
+                    continue;
+                }
+            }
+
+            $points[] = $current;
+            $previous = $current;
+        }
+
+        if (count($points) >= 2) {
+            $segments[] = $points;
+        }
+
+        return $segments;
     }
 
     protected function formatSecondsAsClock(int|float $seconds): string
