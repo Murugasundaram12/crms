@@ -253,9 +253,9 @@
                 items.forEach(function (item, index) {
                     const latitude = Number(item.latitude);
                     const longitude = Number(item.longitude);
-                    const isTravelPoint = item.type === 'vehicle';
+                    const isMovementPoint = item.type === 'vehicle' || item.type === 'walk';
                     const isCollapsedStill = shouldCollapseStillStop(item, lastVisibleStop);
-                    hasTravelPoint = hasTravelPoint || isTravelPoint;
+                    hasTravelPoint = hasTravelPoint || isMovementPoint;
 
                     if (Number.isFinite(latitude) && Number.isFinite(longitude) && latitude !== 0) {
                         const position = new google.maps.LatLng(latitude, longitude);
@@ -263,7 +263,7 @@
 
                         const trackingType = item.trackingType;
                         const isAttendancePoint = trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out';
-                        const shouldShowMarker = (isAttendancePoint || !isTravelPoint) && !isCollapsedStill;
+                        const shouldShowMarker = (isAttendancePoint || !isMovementPoint) && !isCollapsedStill;
                         const markerNumber = shouldShowMarker ? ++visibleMarkerNumber : null;
 
                         if (shouldShowMarker) {
@@ -310,7 +310,7 @@
                         return;
                     }
 
-                    if (item.type === 'vehicle' || isCollapsedStill) {
+                    if (isMovementPoint || isCollapsedStill) {
                         return;
                     } else {
                         const displayNumber = visibleMarkerNumber || index + 1;
@@ -530,7 +530,7 @@
                 }
 
                 if (!response.ok) {
-                    drawRoutePolyline(routePath);
+                    await drawDirectionsRoute(routePath, renderToken);
                     return;
                 }
 
@@ -539,15 +539,18 @@
                     .map((point) => new google.maps.LatLng(Number(point.lat), Number(point.lng)))
                     .filter((point) => Number.isFinite(point.lat()) && Number.isFinite(point.lng()));
 
-                drawRoutePolyline(
-                    data.snapped && isSnappedRouteUsable(routePath, snappedPath) ? snappedPath : routePath
-                );
+                if (data.snapped && isSnappedRouteUsable(routePath, snappedPath)) {
+                    drawRoutePolyline(snappedPath);
+                    return;
+                }
+
+                await drawDirectionsRoute(routePath, renderToken);
             } catch (error) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
 
-                drawRoutePolyline(routePath);
+                await drawDirectionsRoute(routePath, renderToken);
             }
         }
 
@@ -558,11 +561,127 @@
 
             const rawLength = google.maps.geometry.spherical.computeLength(rawPath);
             const snappedLength = google.maps.geometry.spherical.computeLength(snappedPath);
-            const maxAllowedLength = Math.max(rawLength * 1.8, rawLength + 500);
+            const maxAllowedLength = Math.max(rawLength * 1.6, rawLength + 300);
             const startDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[0], snappedPath[0]);
             const endDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[rawPath.length - 1], snappedPath[snappedPath.length - 1]);
 
-            return snappedLength <= maxAllowedLength && startDrift <= 150 && endDrift <= 150;
+            return snappedLength <= maxAllowedLength && startDrift <= 80 && endDrift <= 80;
+        }
+
+        async function drawDirectionsRoute(routePath, renderToken) {
+            if (!window.google?.maps?.DirectionsService || routePath.length < 2) {
+                drawShortRawSegments(routePath);
+                return;
+            }
+
+            const chunks = chunkRouteForDirections(routePath);
+
+            for (const chunk of chunks) {
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+
+                const directionsPath = await directionsPathForChunk(chunk);
+
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+
+                if (directionsPath.length >= 2 && isDirectionsRouteUsable(chunk, directionsPath)) {
+                    drawRoutePolyline(directionsPath);
+                } else {
+                    drawShortRawSegments(chunk);
+                }
+
+                await wait(80);
+            }
+        }
+
+        function chunkRouteForDirections(routePath) {
+            const chunks = [];
+            const maxPoints = 25;
+
+            for (let index = 0; index < routePath.length - 1; index += maxPoints - 1) {
+                const chunk = routePath.slice(index, index + maxPoints);
+                if (chunk.length >= 2) {
+                    chunks.push(chunk);
+                }
+            }
+
+            return chunks;
+        }
+
+        function directionsPathForChunk(chunk) {
+            return new Promise((resolve) => {
+                const service = new google.maps.DirectionsService();
+                const waypoints = chunk.slice(1, -1).map((point) => ({
+                    location: point,
+                    stopover: false,
+                }));
+
+                service.route({
+                    origin: chunk[0],
+                    destination: chunk[chunk.length - 1],
+                    waypoints,
+                    optimizeWaypoints: false,
+                    travelMode: google.maps.TravelMode.DRIVING,
+                }, (result, status) => {
+                    const isOk = status === 'OK' || status === google.maps.DirectionsStatus?.OK;
+
+                    if (!isOk || !result?.routes?.length) {
+                        resolve([]);
+                        return;
+                    }
+
+                    const path = [];
+                    result.routes[0].legs.forEach((leg) => {
+                        leg.steps.forEach((step) => {
+                            step.path.forEach((point) => path.push(point));
+                        });
+                    });
+
+                    resolve(path);
+                });
+            });
+        }
+
+        function isDirectionsRouteUsable(rawPath, directionsPath) {
+            const rawLength = google.maps.geometry.spherical.computeLength(rawPath);
+            const directionsLength = google.maps.geometry.spherical.computeLength(directionsPath);
+            const maxAllowedLength = Math.max(rawLength * 2.5, rawLength + 1200);
+            const startDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[0], directionsPath[0]);
+            const endDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[rawPath.length - 1], directionsPath[directionsPath.length - 1]);
+
+            return directionsLength <= maxAllowedLength && startDrift <= 120 && endDrift <= 120;
+        }
+
+        function drawShortRawSegments(routePath) {
+            let current = [];
+
+            routePath.forEach((point) => {
+                if (!current.length) {
+                    current.push(point);
+                    return;
+                }
+
+                const previous = current[current.length - 1];
+                const distance = google.maps.geometry.spherical.computeDistanceBetween(previous, point);
+
+                if (distance <= 25) {
+                    current.push(point);
+                    return;
+                }
+
+                if (current.length >= 2) {
+                    drawRoutePolyline(current);
+                }
+
+                current = [point];
+            });
+
+            if (current.length >= 2) {
+                drawRoutePolyline(current);
+            }
         }
 
         function drawRoutePolyline(latLngs) {
