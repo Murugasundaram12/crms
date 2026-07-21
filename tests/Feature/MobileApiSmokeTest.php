@@ -342,6 +342,46 @@ class MobileApiSmokeTest extends TestCase
             ->assertOk();
     }
 
+    public function test_mobile_login_registers_device_and_admin_panel_shows_login_logout_status(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Device Status User',
+            'email' => 'device-status@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_id' => 'device-status-phone',
+            'device_name' => 'Device Status Phone',
+        ]);
+
+        $login->assertOk()
+            ->assertJsonPath('device.device_id', 'device-status-phone')
+            ->assertJsonPath('device.device_name', 'Device Status Phone');
+
+        $this->actingAs($user)
+            ->get(route('device-management.index'))
+            ->assertOk()
+            ->assertSee('Device Status User')
+            ->assertSee('Device Status Phone')
+            ->assertSee('Login');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $login->json('token')])
+            ->postJson('/api/logout')
+            ->assertOk();
+
+        $this->actingAs($user)
+            ->get(route('device-management.index'))
+            ->assertOk()
+            ->assertSee('Device Status User')
+            ->assertSee('Logout');
+    }
+
     public function test_mobile_settings_routes_return_database_backed_values(): void
     {
         $this->getJson('/api/V1/getAppSettings')

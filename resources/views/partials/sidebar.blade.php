@@ -10,6 +10,7 @@
     @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('vendor-expenses.history'))
     @php($isTrackingMenuActive = request()->routeIs('tracking.*'))
     @php($isToolsMaterialsMenuActive = request()->routeIs('tools-materials.*') || request()->routeIs('tools-material-assignments.*'))
+    @php($isDeviceManagementActive = request()->routeIs('device-management.*'))
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -97,6 +98,7 @@
 
                         @if($currentUser && $currentUser->hasPermission('employees-list'))
                             <li><a href="{{ route('manage-users') }}"><i class="ti ti-users"></i><span>Manage Users</span></a></li>
+                            <li><a href="{{ route('device-management.index') }}" class="{{ $isDeviceManagementActive ? 'active' : '' }}"><i class="ti ti-device-mobile"></i><span>Device Management</span></a></li>
                             @if($currentUser && $currentUser->hasPermission('employees-salary-list'))
                                 <li class="sidebar-submenu"><a href="{{ route('employee-salaries.index') }}"><i
                                             class="ti ti-cash me-2"></i><span>Employee Salaries</span></a></li>

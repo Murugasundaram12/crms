@@ -519,6 +519,28 @@ class ToolMaterialFlowTest extends TestCase
             ->assertJsonPath('transaction.tool_material.site_stock_quantity', 10);
     }
 
+    public function test_mobile_inventory_options_include_dropdown_ready_values(): void
+    {
+        $material = $this->createMaterial();
+
+        $this->withHeaders($this->apiHeaders())
+            ->getJson('/api/tools-materials/options')
+            ->assertOk()
+            ->assertJsonPath('item_type_options.0.id', 1)
+            ->assertJsonPath('item_type_options.0.value', 'material')
+            ->assertJsonPath('item_type_options.0.label', 'Material')
+            ->assertJsonPath('item_type_options.1.id', 2)
+            ->assertJsonPath('item_type_options.1.value', 'tool')
+            ->assertJsonPath('transaction_type_options.0.id', 1)
+            ->assertJsonPath('transaction_type_options.0.value', 'purchase')
+            ->assertJsonPath('status_options.0.value', 'draft')
+            ->assertJsonPath('source_type_options.0.value', 'office')
+            ->assertJsonPath('destination_type_options.3.value', 'wastage')
+            ->assertJsonPath('tools_materials.0.id', $material->id)
+            ->assertJsonPath('projects.0.id', $this->siteA)
+            ->assertJsonPath('vendors.0.id', $this->vendorId);
+    }
+
     public function test_tools_materials_api_can_create_update_show_list_and_delete_items(): void
     {
         $headers = $this->apiHeaders();

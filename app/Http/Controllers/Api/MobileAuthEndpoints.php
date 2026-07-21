@@ -45,6 +45,7 @@ trait MobileAuthEndpoints
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'device_id' => ['nullable', 'string', 'min:2', 'max:255'],
             'device_name' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -71,6 +72,20 @@ trait MobileAuthEndpoints
             'token_hash' => hash('sha256', $plainToken),
         ]);
 
+        $device = null;
+        if (filled($credentials['device_id'] ?? null)) {
+            $device = EmployeeDevice::query()->updateOrCreate(
+                [
+                    'employee_id' => $user->id,
+                    'device_id' => $credentials['device_id'],
+                ],
+                [
+                    'device_name' => $credentials['device_name'] ?? null,
+                    'last_seen_at' => now(),
+                ]
+            );
+        }
+
         $activeTokensCount = MobileApiToken::query()
             ->where('user_id', $user->id)
             ->where(function ($query) {
@@ -83,6 +98,7 @@ trait MobileAuthEndpoints
             'token' => $plainToken,
             'token_type' => 'Bearer',
             'user' => $this->userPayload($user),
+            'device' => $device ? $this->devicePayload($device) : null,
             'token_id' => $token->id,
             'active_tokens_count' => $activeTokensCount,
         ]);

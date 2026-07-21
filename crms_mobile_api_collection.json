@@ -2793,7 +2793,43 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success - Dropdown Options",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost/crms/api/tools-materials/options",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "path": [
+                    "crms",
+                    "api",
+                    "tools-materials",
+                    "options"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"transaction_types\": {\n    \"purchase\": \"Purchase\",\n    \"issue_to_site\": \"Issue to Site\",\n    \"return_to_office\": \"Return to Office\",\n    \"site_to_site\": \"Site to Site\",\n    \"return_to_vendor\": \"Return to Vendor\",\n    \"damage_wastage\": \"Damage / Wastage\"\n  },\n  \"transaction_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"purchase\",\n      \"label\": \"Purchase\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"issue_to_site\",\n      \"label\": \"Issue to Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"return_to_office\",\n      \"label\": \"Return to Office\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"site_to_site\",\n      \"label\": \"Site to Site\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"return_to_vendor\",\n      \"label\": \"Return to Vendor\"\n    },\n    {\n      \"id\": 6,\n      \"value\": \"damage_wastage\",\n      \"label\": \"Damage / Wastage\"\n    }\n  ],\n  \"statuses\": {\n    \"draft\": \"Draft\",\n    \"transferred\": \"Transferred\",\n    \"returned\": \"Returned\",\n    \"completed\": \"Completed\",\n    \"cancelled\": \"Cancelled\"\n  },\n  \"status_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"draft\",\n      \"label\": \"Draft\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"transferred\",\n      \"label\": \"Transferred\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"returned\",\n      \"label\": \"Returned\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    }\n  ],\n  \"source_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\"\n  },\n  \"source_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    }\n  ],\n  \"destination_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\",\n    \"wastage\": \"Wastage\"\n  },\n  \"destination_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"wastage\",\n      \"label\": \"Wastage\"\n    }\n  ],\n  \"item_types\": {\n    \"material\": \"Material\",\n    \"tool\": \"Tool\"\n  },\n  \"item_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"material\",\n      \"label\": \"Material\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"tool\",\n      \"label\": \"Tool\"\n    }\n  ],\n  \"units\": [\n    {\n      \"id\": 1,\n      \"name\": \"Bags\",\n      \"code\": \"Bag\"\n    }\n  ],\n  \"unit_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"Bag\",\n      \"label\": \"Bag (Bags)\"\n    }\n  ],\n  \"tools_materials\": [\n    {\n      \"id\": 1,\n      \"item_type\": \"material\",\n      \"name\": \"Cement\",\n      \"unit\": \"Bag\",\n      \"stock_quantity\": 100,\n      \"active_status\": true\n    }\n  ],\n  \"projects\": [\n    {\n      \"id\": 1,\n      \"name\": \"Demo Site\",\n      \"project_code\": \"PRJ-001\"\n    }\n  ],\n  \"vendors\": [\n    {\n      \"id\": 1,\n      \"name\": \"ABC Traders\"\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Get Tools & Materials",
