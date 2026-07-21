@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\EmployeeDevice;
 use App\Models\MobileApiToken;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class DeviceManagementController extends Controller
@@ -66,6 +67,17 @@ class DeviceManagementController extends Controller
                 'online' => $summaryDevices->where('online_status', 'online')->count(),
             ],
         ]);
+    }
+
+    public function destroy(EmployeeDevice $device): RedirectResponse
+    {
+        $deviceLabel = trim(collect([$device->device_name, $device->device_id])->filter()->implode(' - '));
+
+        $device->delete();
+
+        return redirect()
+            ->route('device-management.index')
+            ->with('success', "Device {$deviceLabel} deleted successfully.");
     }
 
     private function onlineThresholdSeconds(): int

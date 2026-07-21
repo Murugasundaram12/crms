@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Attendance;
 use App\Models\Client;
+use App\Models\EmployeeDevice;
 use App\Models\Employee;
 use App\Models\LocationTracking;
 use App\Models\PaymentStage;
@@ -371,6 +372,7 @@ class MobileApiSmokeTest extends TestCase
             ->assertOk()
             ->assertSee('Device Status User')
             ->assertSee('Device Status Phone')
+            ->assertSee(route('device-management.destroy', $login->json('device.id')))
             ->assertSee('Login');
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $login->json('token')])
@@ -382,6 +384,69 @@ class MobileApiSmokeTest extends TestCase
             ->assertOk()
             ->assertSee('Device Status User')
             ->assertSee('Logout');
+    }
+
+    public function test_device_management_can_delete_registered_device(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Delete Device User',
+            'email' => 'delete-device@example.com',
+            'role' => 'Super Admin',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $device = EmployeeDevice::query()->create([
+            'employee_id' => $user->id,
+            'device_id' => 'delete-phone',
+            'device_name' => 'Delete Phone',
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('device-management.destroy', $device))
+            ->assertRedirect(route('device-management.index'))
+            ->assertSessionHas('success', 'Device Delete Phone - delete-phone deleted successfully.');
+
+        $this->assertDatabaseMissing('employee_devices', [
+            'id' => $device->id,
+        ]);
+    }
+
+    public function test_register_api_returns_admin_contact_message_when_device_is_already_registered(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Duplicate Device User',
+            'email' => 'duplicate-device@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        EmployeeDevice::query()->create([
+            'employee_id' => $user->id,
+            'device_id' => 'duplicate-phone',
+            'device_name' => 'Already Registered Phone',
+            'last_seen_at' => now(),
+        ]);
+
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Duplicate Device Login',
+        ])->assertOk();
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $login->json('token')])
+            ->postJson('/api/register', [
+                'device_id' => 'duplicate-phone',
+                'device_name' => 'Duplicate Phone Again',
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This device is already registered. Please contact admin.');
+
+        $this->assertSame(1, EmployeeDevice::query()->where('device_id', 'duplicate-phone')->count());
     }
 
     public function test_mobile_settings_routes_return_database_backed_values(): void

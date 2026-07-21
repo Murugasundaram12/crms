@@ -342,16 +342,22 @@ trait MobileAttendanceTrackingEndpoints
             'device_name' => ['nullable', 'string', 'min:2', 'max:255'],
         ]);
 
-        $device = EmployeeDevice::query()->updateOrCreate(
-            [
-                'employee_id' => $request->user()->id,
-                'device_id' => $validated['device_id'],
-            ],
-            [
-                'device_name' => $validated['device_name'] ?? null,
-                'last_seen_at' => now(),
-            ]
-        );
+        $existingDevice = EmployeeDevice::query()
+            ->where('device_id', $validated['device_id'])
+            ->first();
+
+        if ($existingDevice) {
+            return response()->json([
+                'message' => 'This device is already registered. Please contact admin.',
+            ], 409);
+        }
+
+        $device = EmployeeDevice::query()->create([
+            'employee_id' => $request->user()->id,
+            'device_id' => $validated['device_id'],
+            'device_name' => $validated['device_name'] ?? null,
+            'last_seen_at' => now(),
+        ]);
 
         return response()->json([
             'message' => 'Device registered successfully.',

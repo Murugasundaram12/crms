@@ -70,6 +70,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/device-management', [DeviceManagementController::class, 'index'])
         ->middleware('permission:employees-list')
         ->name('device-management.index');
+    Route::delete('/device-management/{device}', [DeviceManagementController::class, 'destroy'])
+        ->middleware('permission:employees-list')
+        ->name('device-management.destroy');
 
     Route::prefix('employee-tracking')->name('tracking.')->middleware('permission:employees-list')->group(function () {
         Route::get('/', [EmployeeTrackingController::class, 'index'])->name('index');
