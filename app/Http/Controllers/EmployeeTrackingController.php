@@ -379,7 +379,7 @@ class EmployeeTrackingController extends Controller
                     'elapseTime' => $nextTracking && $tracking->recorded_at
                         ? $this->formatSecondsAsClock($tracking->recorded_at->diffInSeconds($nextTracking->recorded_at))
                         : '00:00:00',
-                    'distance' => $type === 'vehicle' ? round($distance, 2) : 0,
+                    'distance' => in_array($type, ['vehicle', 'walk'], true) ? round($distance, 2) : 0,
                 ];
             })
             ->values();

@@ -6,9 +6,7 @@
 @php($googleMapsKey = $mapSettings['google_maps_api_key'] ?? '')
 
 @push('styles')
-    @if (blank($googleMapsKey))
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    @endif
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
         #liveLocationMap {
             width: 100%;
@@ -65,9 +63,9 @@
 @push('scripts')
     <script>
         const liveLocationConfig = {
-            centerLatitude: Number(@json($mapSettings['center_latitude'])),
-            centerLongitude: Number(@json($mapSettings['center_longitude'])),
-            zoom: Number(@json($mapSettings['zoom_level'])),
+            centerLatitude: Number(@json($mapSettings['center_latitude'])) || 20.5937,
+            centerLongitude: Number(@json($mapSettings['center_longitude'])) || 78.9629,
+            zoom: Number(@json($mapSettings['zoom_level'])) || 12,
             liveUrl: @json(route('liveLocationAjax')),
             iconBase: @json(asset('img/map') . '/'),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),
@@ -88,23 +86,22 @@
                 lng: liveLocationConfig.centerLongitude,
             };
 
-            if (window.google?.maps) {
-                liveMapProvider = 'google';
-                liveMap = new google.maps.Map(document.getElementById('liveLocationMap'), {
-                    center: new google.maps.LatLng(center.lat, center.lng),
-                    zoom: liveLocationConfig.zoom,
-                    mapTypeId: google.maps.MapTypeId.ROADMAP,
-                    scrollWheel: true,
-                    gestureHandling: 'greedy',
-                    streetViewControl: false,
-                });
+            if (window.google?.maps && !window.googleMapsFailed) {
+                try {
+                    liveMapProvider = 'google';
+                    liveMap = new google.maps.Map(document.getElementById('liveLocationMap'), {
+                        center: new google.maps.LatLng(center.lat, center.lng),
+                        zoom: liveLocationConfig.zoom,
+                        mapTypeId: google.maps.MapTypeId.ROADMAP,
+                        scrollWheel: true,
+                        gestureHandling: 'greedy',
+                        streetViewControl: false,
+                    });
+                } catch (e) {
+                    initLeafletLiveMap(center.lat, center.lng);
+                }
             } else if (window.L) {
-                liveMapProvider = 'leaflet';
-                liveMap = L.map('liveLocationMap').setView([center.lat, center.lng], liveLocationConfig.zoom);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors',
-                    maxZoom: 19,
-                }).addTo(liveMap);
+                initLeafletLiveMap(center.lat, center.lng);
             } else {
                 return;
             }
@@ -113,45 +110,77 @@
             loadLiveLocationMap();
         }
 
+        function initLeafletLiveMap(lat, lng) {
+            liveMapProvider = 'leaflet';
+            const container = document.getElementById('liveLocationMap');
+            if (!container) return;
+            container.innerHTML = '';
+            liveMap = L.map('liveLocationMap').setView([lat, lng], liveLocationConfig.zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19,
+            }).addTo(liveMap);
+        }
+
+        window.gm_authFailure = function () {
+            window.googleMapsFailed = true;
+            if (liveMapProvider !== 'leaflet' && document.getElementById('liveLocationMap')) {
+                clearLiveMarkers();
+                liveMap = null;
+                initLeafletLiveMap(liveLocationConfig.centerLatitude, liveLocationConfig.centerLongitude);
+                loadLiveLocationMap();
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', function () {
             if (!liveLocationConfig.hasGoogleMapsKey) {
                 initLiveLocationMap();
+            } else {
+                setTimeout(function () {
+                    if (!liveMap) {
+                        initLiveLocationMap();
+                    }
+                }, 2000);
             }
         });
 
         async function loadLiveLocationMap() {
-            const response = await fetch(liveLocationConfig.liveUrl, {
-                headers: {'Accept': 'application/json'},
-            });
-            const payload = await response.json();
-            const employees = payload.data || payload || [];
-            let online = 0;
-            let offline = 0;
+            try {
+                const response = await fetch(liveLocationConfig.liveUrl, {
+                    headers: {'Accept': 'application/json'},
+                });
+                const payload = await response.json();
+                const employees = payload.data || payload || [];
+                let online = 0;
+                let offline = 0;
 
-            clearLiveMarkers();
+                clearLiveMarkers();
 
-            employees.forEach(function (employee) {
-                const latitude = Number(employee.latitude);
-                const longitude = Number(employee.longitude);
+                employees.forEach(function (employee) {
+                    const latitude = Number(employee.latitude);
+                    const longitude = Number(employee.longitude);
 
-                if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-                    return;
-                }
+                    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                        return;
+                    }
 
-                const isOnline = (employee.status || employee.online_status) === 'online';
-                const name = employee.name || employee.employee_name || employee.employee?.name || 'Employee';
+                    const isOnline = (employee.status || employee.online_status) === 'online';
+                    const name = employee.name || employee.employee_name || employee.employee?.name || 'Employee';
 
-                isOnline ? online++ : offline++;
+                    isOnline ? online++ : offline++;
 
-                if (liveMapProvider === 'google') {
-                    addGoogleLiveMarker(employee, name, latitude, longitude, isOnline);
-                } else {
-                    addLeafletLiveMarker(employee, name, latitude, longitude, isOnline);
-                }
-            });
+                    if (liveMapProvider === 'google') {
+                        addGoogleLiveMarker(employee, name, latitude, longitude, isOnline);
+                    } else {
+                        addLeafletLiveMarker(employee, name, latitude, longitude, isOnline);
+                    }
+                });
 
-            document.getElementById('onlineCount').textContent = online;
-            document.getElementById('offlineCount').textContent = offline;
+                document.getElementById('onlineCount').textContent = online;
+                document.getElementById('offlineCount').textContent = offline;
+            } catch (e) {
+                console.error('Failed loading live locations', e);
+            }
         }
 
         function addGoogleLiveMarker(employee, name, latitude, longitude, isOnline) {
@@ -213,7 +242,9 @@
                     return;
                 }
 
-                marker.remove();
+                if (marker.remove) {
+                    marker.remove();
+                }
             });
             liveMarkers = [];
         }
@@ -243,9 +274,8 @@
         }
     </script>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     @if (filled($googleMapsKey))
-        <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&callback=initLiveLocationMap&v=weekly" async defer></script>
-    @else
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&callback=initLiveLocationMap&v=weekly" async defer onerror="window.gm_authFailure()"></script>
     @endif
 @endpush
