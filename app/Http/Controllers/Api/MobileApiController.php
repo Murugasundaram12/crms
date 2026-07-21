@@ -523,6 +523,13 @@ class MobileApiController extends Controller
         $validated = $request->validate([
             'device_id' => ['nullable', 'string', 'max:255'],
             'device_name' => ['nullable', 'string', 'max:255'],
+            'device_type' => ['nullable', 'string', 'max:100'],
+            'deviceType' => ['nullable', 'string', 'max:100'],
+            'brand' => ['nullable', 'string', 'max:100'],
+            'board' => ['nullable', 'string', 'max:100'],
+            'sdk_version' => ['nullable', 'string', 'max:100'],
+            'sdkVersion' => ['nullable', 'string', 'max:100'],
+            'model' => ['nullable', 'string', 'max:100'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'accuracy' => ['nullable', 'numeric', 'min:0', 'max:' . $maxAccuracyMeters],
@@ -531,15 +538,20 @@ class MobileApiController extends Controller
             'activity' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
             'isGpsOn' => ['nullable', 'boolean'],
+            'is_wifi_on' => ['nullable', 'boolean'],
+            'isWifiOn' => ['nullable', 'boolean'],
             'is_mock_location' => ['nullable', 'boolean'],
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'signal_strength' => ['nullable', 'string', 'max:100'],
+            'signalStrength' => ['nullable', 'string', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
             'type' => ['nullable', Rule::in(['checked_in', 'check_in', 'travelling', 'still', 'checked_out', 'check_out'])],
         ]);
 
         $isGpsOn = $validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true;
+        $isWifiOn = $validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false;
         $isMock = $validated['is_mock_location'] ?? $validated['isMock'] ?? false;
 
         if (! $isGpsOn) {
@@ -555,9 +567,13 @@ class MobileApiController extends Controller
         }
 
         $validated['is_gps_on'] = (bool) $isGpsOn;
+        $validated['is_wifi_on'] = (bool) $isWifiOn;
         $validated['is_mock_location'] = (bool) $isMock;
         $validated['accuracy'] = $validated['accuracy'] ?? null;
         $validated['battery_percentage'] = $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null;
+        $validated['device_type'] = $validated['device_type'] ?? $validated['deviceType'] ?? null;
+        $validated['sdk_version'] = $validated['sdk_version'] ?? $validated['sdkVersion'] ?? null;
+        $validated['signal_strength'] = $validated['signal_strength'] ?? $validated['signalStrength'] ?? null;
         $validated['type'] = $this->normalizeTrackingType($validated['type'] ?? $defaultType);
 
         return $validated;
@@ -583,6 +599,11 @@ class MobileApiController extends Controller
             ],
             [
                 'device_name' => $payload['device_name'] ?? null,
+                'device_type' => $payload['device_type'] ?? null,
+                'brand' => $payload['brand'] ?? null,
+                'board' => $payload['board'] ?? null,
+                'sdk_version' => $payload['sdk_version'] ?? null,
+                'model' => $payload['model'] ?? null,
                 'latitude' => $payload['latitude'],
                 'longitude' => $payload['longitude'],
                 'accuracy' => $payload['accuracy'] ?? null,
@@ -590,8 +611,10 @@ class MobileApiController extends Controller
                 'bearing' => $payload['bearing'] ?? null,
                 'activity' => $payload['activity'] ?? null,
                 'is_gps_on' => $payload['is_gps_on'],
+                'is_wifi_on' => $payload['is_wifi_on'] ?? false,
                 'is_mock_location' => $payload['is_mock_location'],
                 'battery_percentage' => $payload['battery_percentage'] ?? null,
+                'signal_strength' => $payload['signal_strength'] ?? null,
                 'last_seen_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
             ]
         );
@@ -1369,6 +1392,12 @@ class MobileApiController extends Controller
             'employee_id' => $device->employee_id,
             'device_id' => $device->device_id,
             'device_name' => $device->device_name,
+            'device_type' => $device->device_type,
+            'brand' => $device->brand,
+            'board' => $device->board,
+            'sdk_version' => $device->sdk_version,
+            'model' => $device->model,
+            'messaging_token' => $device->messaging_token,
             'latitude' => $device->latitude !== null ? (float) $device->latitude : null,
             'longitude' => $device->longitude !== null ? (float) $device->longitude : null,
             'accuracy' => $device->accuracy !== null ? (float) $device->accuracy : null,
@@ -1376,8 +1405,10 @@ class MobileApiController extends Controller
             'bearing' => $device->bearing !== null ? (float) $device->bearing : null,
             'activity' => $device->activity,
             'is_gps_on' => (bool) $device->is_gps_on,
+            'is_wifi_on' => (bool) $device->is_wifi_on,
             'is_mock_location' => (bool) $device->is_mock_location,
             'battery_percentage' => $device->battery_percentage,
+            'signal_strength' => $device->signal_strength,
             'last_seen_at' => $device->last_seen_at?->toISOString(),
         ];
     }

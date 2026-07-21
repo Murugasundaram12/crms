@@ -74,6 +74,11 @@
                                 <td>
                                     <div class="fw-semibold">{{ $device->device_name ?: 'Mobile Device' }}</div>
                                     <div class="text-muted small">{{ $device->device_id }}</div>
+                                    @if($device->brand || $device->model || $device->device_type)
+                                        <div class="text-muted small">
+                                            {{ collect([$device->brand, $device->model, $device->device_type])->filter()->implode(' / ') }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td>
                                     <span class="badge {{ $device->login_status === 'login' ? 'bg-soft-success text-success' : 'bg-soft-secondary text-secondary' }}">

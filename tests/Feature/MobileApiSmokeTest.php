@@ -196,6 +196,12 @@ class MobileApiSmokeTest extends TestCase
             $table->foreignId('employee_id')->constrained('users')->cascadeOnDelete();
             $table->string('device_id');
             $table->string('device_name')->nullable();
+            $table->string('device_type')->nullable();
+            $table->string('brand')->nullable();
+            $table->string('board')->nullable();
+            $table->string('sdk_version')->nullable();
+            $table->string('model')->nullable();
+            $table->text('messaging_token')->nullable();
             $table->decimal('latitude', 10, 7)->nullable();
             $table->decimal('longitude', 10, 7)->nullable();
             $table->decimal('accuracy', 8, 2)->nullable();
@@ -203,8 +209,10 @@ class MobileApiSmokeTest extends TestCase
             $table->decimal('bearing', 6, 2)->nullable();
             $table->string('activity')->nullable();
             $table->boolean('is_gps_on')->default(true);
+            $table->boolean('is_wifi_on')->default(false);
             $table->boolean('is_mock_location')->default(false);
             $table->unsignedTinyInteger('battery_percentage')->nullable();
+            $table->string('signal_strength')->nullable();
             $table->timestamp('last_seen_at')->nullable();
             $table->timestamps();
             $table->unique(['employee_id', 'device_id']);
@@ -447,6 +455,95 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('message', 'This device is already registered. Please contact admin.');
 
         $this->assertSame(1, EmployeeDevice::query()->where('device_id', 'duplicate-phone')->count());
+    }
+
+    public function test_field_management_device_api_aliases_verify_register_token_and_status_flow(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Field Device User',
+            'email' => 'field-device@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Field Device Login',
+        ])->assertOk();
+
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/checkDevice', [
+                'deviceId' => 'field-phone',
+                'deviceType' => 'android',
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'new')
+            ->assertJsonPath('can_register', true);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/registerDevice', [
+                'deviceId' => 'field-phone',
+                'deviceName' => 'Field Phone',
+                'deviceType' => 'android',
+                'brand' => 'Google',
+                'board' => 'bluejay',
+                'sdkVersion' => '35',
+                'model' => 'Pixel 6a',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('device.device_id', 'field-phone')
+            ->assertJsonPath('device.device_type', 'android')
+            ->assertJsonPath('device.brand', 'Google')
+            ->assertJsonPath('device.sdk_version', '35')
+            ->assertJsonPath('device.model', 'Pixel 6a');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/checkDevice', [
+                'deviceId' => 'field-phone',
+                'deviceType' => 'android',
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'verified')
+            ->assertJsonPath('can_register', false);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/messagingToken', [
+                'deviceId' => 'field-phone',
+                'token' => 'fcm-token-123',
+            ])
+            ->assertOk()
+            ->assertJsonPath('device.messaging_token', 'fcm-token-123');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/updateDeviceStatus', [
+                'deviceId' => 'field-phone',
+                'latitude' => 11.016844,
+                'longitude' => 76.955832,
+                'accuracy' => 12,
+                'speed' => 0,
+                'activity' => 'ActivityType.STILL',
+                'isGpsOn' => false,
+                'isWifiOn' => true,
+                'isMock' => false,
+                'batteryPercentage' => 76,
+                'signalStrength' => 'good',
+            ])
+            ->assertOk()
+            ->assertJsonPath('device.latitude', 11.016844)
+            ->assertJsonPath('device.is_gps_on', false)
+            ->assertJsonPath('device.is_wifi_on', true)
+            ->assertJsonPath('device.battery_percentage', 76)
+            ->assertJsonPath('device.signal_strength', 'good');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/checkDevice', ['deviceId' => 'another-phone'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Already registered with other device. Please contact admin.');
     }
 
     public function test_mobile_settings_routes_return_database_backed_values(): void

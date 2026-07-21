@@ -47,6 +47,13 @@ trait MobileAuthEndpoints
             'password' => ['required', 'string'],
             'device_id' => ['nullable', 'string', 'min:2', 'max:255'],
             'device_name' => ['nullable', 'string', 'max:100'],
+            'device_type' => ['nullable', 'string', 'max:100'],
+            'deviceType' => ['nullable', 'string', 'max:100'],
+            'brand' => ['nullable', 'string', 'max:100'],
+            'board' => ['nullable', 'string', 'max:100'],
+            'sdk_version' => ['nullable', 'string', 'max:100'],
+            'sdkVersion' => ['nullable', 'string', 'max:100'],
+            'model' => ['nullable', 'string', 'max:100'],
         ]);
 
         $user = User::query()->where('email', $credentials['email'])->first();
@@ -63,6 +70,31 @@ trait MobileAuthEndpoints
             ]);
         }
 
+        $device = null;
+        if (filled($credentials['device_id'] ?? null)) {
+            $otherUserDevice = EmployeeDevice::query()
+                ->where('device_id', $credentials['device_id'])
+                ->where('employee_id', '!=', $user->id)
+                ->first();
+
+            if ($otherUserDevice) {
+                throw ValidationException::withMessages([
+                    'device_id' => 'Already registered with other user. Please contact admin.',
+                ]);
+            }
+
+            $sameUserOtherDevice = EmployeeDevice::query()
+                ->where('employee_id', $user->id)
+                ->where('device_id', '!=', $credentials['device_id'])
+                ->first();
+
+            if ($sameUserOtherDevice) {
+                throw ValidationException::withMessages([
+                    'device_id' => 'Already registered with other device. Please contact admin.',
+                ]);
+            }
+        }
+
         app(SingleLoginService::class)->invalidateOtherLogins((int) $user->id);
 
         $plainToken = Str::random(80);
@@ -72,7 +104,6 @@ trait MobileAuthEndpoints
             'token_hash' => hash('sha256', $plainToken),
         ]);
 
-        $device = null;
         if (filled($credentials['device_id'] ?? null)) {
             $device = EmployeeDevice::query()->updateOrCreate(
                 [
@@ -81,6 +112,11 @@ trait MobileAuthEndpoints
                 ],
                 [
                     'device_name' => $credentials['device_name'] ?? null,
+                    'device_type' => $credentials['device_type'] ?? $credentials['deviceType'] ?? null,
+                    'brand' => $credentials['brand'] ?? null,
+                    'board' => $credentials['board'] ?? null,
+                    'sdk_version' => $credentials['sdk_version'] ?? $credentials['sdkVersion'] ?? null,
+                    'model' => $credentials['model'] ?? null,
                     'last_seen_at' => now(),
                 ]
             );

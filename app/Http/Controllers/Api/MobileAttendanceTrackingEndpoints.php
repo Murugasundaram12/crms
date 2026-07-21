@@ -335,12 +335,75 @@ trait MobileAttendanceTrackingEndpoints
         ]);
     }
 
+    public function checkDevice(Request $request)
+    {
+        $validated = $this->validateDeviceRegistrationPayload($request);
+        $user = $request->user();
+
+        $sameUserSameDevice = EmployeeDevice::query()
+            ->where('employee_id', $user->id)
+            ->where('device_id', $validated['device_id'])
+            ->first();
+
+        if ($sameUserSameDevice) {
+            return response()->json([
+                'message' => 'Device verified successfully.',
+                'status' => 'verified',
+                'can_register' => false,
+                'device' => $this->devicePayload($sameUserSameDevice),
+            ]);
+        }
+
+        $otherUserDevice = EmployeeDevice::query()
+            ->where('device_id', $validated['device_id'])
+            ->where('employee_id', '!=', $user->id)
+            ->first();
+
+        if ($otherUserDevice) {
+            return response()->json([
+                'message' => 'Already registered with other user. Please contact admin.',
+                'status' => 'blocked',
+                'can_register' => false,
+            ], 409);
+        }
+
+        $sameUserOtherDevice = EmployeeDevice::query()
+            ->where('employee_id', $user->id)
+            ->where('device_id', '!=', $validated['device_id'])
+            ->first();
+
+        if ($sameUserOtherDevice) {
+            return response()->json([
+                'message' => 'Already registered with other device. Please contact admin.',
+                'status' => 'blocked',
+                'can_register' => false,
+                'device' => $this->devicePayload($sameUserOtherDevice),
+            ], 409);
+        }
+
+        return response()->json([
+            'message' => 'Device is not registered. Please register this device.',
+            'status' => 'new',
+            'can_register' => true,
+        ]);
+    }
+
     public function registerDevice(Request $request)
     {
-        $validated = $request->validate([
-            'device_id' => ['required', 'string', 'min:2', 'max:255'],
-            'device_name' => ['nullable', 'string', 'min:2', 'max:255'],
-        ]);
+        $validated = $this->validateDeviceRegistrationPayload($request);
+        $user = $request->user();
+
+        $sameUserSameDevice = EmployeeDevice::query()
+            ->where('employee_id', $user->id)
+            ->where('device_id', $validated['device_id'])
+            ->first();
+
+        if ($sameUserSameDevice) {
+            return response()->json([
+                'message' => 'This device is already registered. Please contact admin.',
+                'device' => $this->devicePayload($sameUserSameDevice),
+            ], 409);
+        }
 
         $existingDevice = EmployeeDevice::query()
             ->where('device_id', $validated['device_id'])
@@ -353,9 +416,14 @@ trait MobileAttendanceTrackingEndpoints
         }
 
         $device = EmployeeDevice::query()->create([
-            'employee_id' => $request->user()->id,
+            'employee_id' => $user->id,
             'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? null,
+            'device_type' => $validated['device_type'] ?? null,
+            'brand' => $validated['brand'] ?? null,
+            'board' => $validated['board'] ?? null,
+            'sdk_version' => $validated['sdk_version'] ?? null,
+            'model' => $validated['model'] ?? null,
             'last_seen_at' => now(),
         ]);
 
@@ -363,6 +431,163 @@ trait MobileAttendanceTrackingEndpoints
             'message' => 'Device registered successfully.',
             'device' => $this->devicePayload($device),
         ], 201);
+    }
+
+    public function updateMessagingToken(Request $request)
+    {
+        $validated = $request->validate([
+            'device_id' => ['required_without:deviceId', 'string', 'min:2', 'max:255'],
+            'deviceId' => ['required_without:device_id', 'string', 'min:2', 'max:255'],
+            'messaging_token' => ['required_without:token', 'string', 'max:5000'],
+            'token' => ['required_without:messaging_token', 'string', 'max:5000'],
+        ]);
+
+        $device = EmployeeDevice::query()
+            ->where('employee_id', $request->user()->id)
+            ->where('device_id', $validated['device_id'] ?? $validated['deviceId'])
+            ->first();
+
+        if (! $device) {
+            return response()->json([
+                'message' => 'Device not registered. Please contact admin.',
+            ], 404);
+        }
+
+        $device->update([
+            'messaging_token' => $validated['messaging_token'] ?? $validated['token'],
+            'last_seen_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Messaging token updated successfully.',
+            'device' => $this->devicePayload($device->refresh()),
+        ]);
+    }
+
+    public function updateDeviceStatus(Request $request)
+    {
+        $validated = $this->validateDeviceStatusPayload($request);
+        $user = $request->user();
+
+        $device = EmployeeDevice::query()
+            ->where('employee_id', $user->id)
+            ->where('device_id', $validated['device_id'])
+            ->first();
+
+        if (! $device) {
+            return response()->json([
+                'message' => 'Device not registered. Please contact admin.',
+            ], 404);
+        }
+
+        $device->update(collect([
+            'device_name' => $validated['device_name'] ?? null,
+            'device_type' => $validated['device_type'] ?? null,
+            'brand' => $validated['brand'] ?? null,
+            'board' => $validated['board'] ?? null,
+            'sdk_version' => $validated['sdk_version'] ?? null,
+            'model' => $validated['model'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'accuracy' => $validated['accuracy'] ?? null,
+            'speed' => $validated['speed'] ?? null,
+            'bearing' => $validated['bearing'] ?? null,
+            'activity' => $validated['activity'] ?? null,
+            'is_gps_on' => $validated['is_gps_on'],
+            'is_wifi_on' => $validated['is_wifi_on'],
+            'is_mock_location' => $validated['is_mock_location'],
+            'battery_percentage' => $validated['battery_percentage'] ?? null,
+            'signal_strength' => $validated['signal_strength'] ?? null,
+            'last_seen_at' => isset($validated['recorded_at']) ? Carbon::parse($validated['recorded_at']) : now(),
+        ])->reject(fn ($value) => $value === null)->all());
+
+        return response()->json([
+            'message' => 'Device status updated successfully.',
+            'device' => $this->devicePayload($device->refresh()),
+        ]);
+    }
+
+    private function validateDeviceRegistrationPayload(Request $request): array
+    {
+        $validated = $request->validate([
+            'device_id' => ['required_without:deviceId', 'string', 'min:2', 'max:255'],
+            'deviceId' => ['required_without:device_id', 'string', 'min:2', 'max:255'],
+            'device_name' => ['nullable', 'string', 'min:2', 'max:255'],
+            'deviceName' => ['nullable', 'string', 'min:2', 'max:255'],
+            'device_type' => ['nullable', 'string', 'max:100'],
+            'deviceType' => ['nullable', 'string', 'max:100'],
+            'brand' => ['nullable', 'string', 'max:100'],
+            'board' => ['nullable', 'string', 'max:100'],
+            'sdk_version' => ['nullable', 'string', 'max:100'],
+            'sdkVersion' => ['nullable', 'string', 'max:100'],
+            'model' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        return [
+            'device_id' => $validated['device_id'] ?? $validated['deviceId'],
+            'device_name' => $validated['device_name'] ?? $validated['deviceName'] ?? null,
+            'device_type' => $validated['device_type'] ?? $validated['deviceType'] ?? null,
+            'brand' => $validated['brand'] ?? null,
+            'board' => $validated['board'] ?? null,
+            'sdk_version' => $validated['sdk_version'] ?? $validated['sdkVersion'] ?? null,
+            'model' => $validated['model'] ?? null,
+        ];
+    }
+
+    private function validateDeviceStatusPayload(Request $request): array
+    {
+        $validated = $request->validate([
+            'device_id' => ['required_without:deviceId', 'string', 'min:2', 'max:255'],
+            'deviceId' => ['required_without:device_id', 'string', 'min:2', 'max:255'],
+            'device_name' => ['nullable', 'string', 'max:255'],
+            'deviceName' => ['nullable', 'string', 'max:255'],
+            'device_type' => ['nullable', 'string', 'max:100'],
+            'deviceType' => ['nullable', 'string', 'max:100'],
+            'brand' => ['nullable', 'string', 'max:100'],
+            'board' => ['nullable', 'string', 'max:100'],
+            'sdk_version' => ['nullable', 'string', 'max:100'],
+            'sdkVersion' => ['nullable', 'string', 'max:100'],
+            'model' => ['nullable', 'string', 'max:100'],
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
+            'accuracy' => ['nullable', 'numeric', 'min:0'],
+            'speed' => ['nullable', 'numeric', 'min:0'],
+            'bearing' => ['nullable', 'numeric', 'min:0', 'max:360'],
+            'activity' => ['nullable', 'string', 'max:100'],
+            'is_gps_on' => ['nullable', 'boolean'],
+            'isGpsOn' => ['nullable', 'boolean'],
+            'is_wifi_on' => ['nullable', 'boolean'],
+            'isWifiOn' => ['nullable', 'boolean'],
+            'is_mock_location' => ['nullable', 'boolean'],
+            'isMock' => ['nullable', 'boolean'],
+            'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'signal_strength' => ['nullable', 'string', 'max:100'],
+            'signalStrength' => ['nullable', 'string', 'max:100'],
+            'recorded_at' => ['nullable', 'date'],
+        ]);
+
+        return [
+            'device_id' => $validated['device_id'] ?? $validated['deviceId'],
+            'device_name' => $validated['device_name'] ?? $validated['deviceName'] ?? null,
+            'device_type' => $validated['device_type'] ?? $validated['deviceType'] ?? null,
+            'brand' => $validated['brand'] ?? null,
+            'board' => $validated['board'] ?? null,
+            'sdk_version' => $validated['sdk_version'] ?? $validated['sdkVersion'] ?? null,
+            'model' => $validated['model'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'accuracy' => $validated['accuracy'] ?? null,
+            'speed' => $validated['speed'] ?? null,
+            'bearing' => $validated['bearing'] ?? null,
+            'activity' => $validated['activity'] ?? null,
+            'is_gps_on' => (bool) ($validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true),
+            'is_wifi_on' => (bool) ($validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false),
+            'is_mock_location' => (bool) ($validated['is_mock_location'] ?? $validated['isMock'] ?? false),
+            'battery_percentage' => $validated['battery_percentage'] ?? $validated['batteryPercentage'] ?? null,
+            'signal_strength' => $validated['signal_strength'] ?? $validated['signalStrength'] ?? null,
+            'recorded_at' => $validated['recorded_at'] ?? null,
+        ];
     }
 
     public function updateLocation(Request $request)

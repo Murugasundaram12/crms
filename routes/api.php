@@ -23,7 +23,13 @@ Route::middleware('mobile.api')->group(function () {
     Route::post('/logout', [MobileAuthController::class, 'logout']);
     Route::get('/dashboard', [MobileSettingsDashboardController::class, 'dashboard']);
     Route::get('/options', [MobileSettingsDashboardController::class, 'appOptions']);
+    Route::post('/checkDevice', [MobileAttendanceTrackingController::class, 'checkDevice']);
+    Route::post('/devices/check', [MobileAttendanceTrackingController::class, 'checkDevice']);
     Route::post('/register', [MobileAttendanceTrackingController::class, 'registerDevice']);
+    Route::post('/registerDevice', [MobileAttendanceTrackingController::class, 'registerDevice']);
+    Route::post('/devices/register', [MobileAttendanceTrackingController::class, 'registerDevice']);
+    Route::post('/messagingToken', [MobileAttendanceTrackingController::class, 'updateMessagingToken']);
+    Route::post('/devices/messaging-token', [MobileAttendanceTrackingController::class, 'updateMessagingToken']);
     Route::get('/check_status', [MobileAttendanceTrackingController::class, 'attendanceStatus']);
     Route::get('/attendance/status', [MobileAttendanceTrackingController::class, 'attendanceStatus']);
     Route::get('/attendance', [MobileAttendanceTrackingController::class, 'attendances']);
@@ -33,6 +39,8 @@ Route::middleware('mobile.api')->group(function () {
     Route::post('/check_out', [MobileAttendanceTrackingController::class, 'checkOut']);
     Route::post('/tracking/location', [MobileAttendanceTrackingController::class, 'updateLocation']);
     Route::post('/devices/live-status', [MobileAttendanceTrackingController::class, 'liveStatus']);
+    Route::post('/updateDeviceStatus', [MobileAttendanceTrackingController::class, 'updateDeviceStatus']);
+    Route::post('/devices/status', [MobileAttendanceTrackingController::class, 'updateDeviceStatus']);
     Route::get('/settings/tracking', [MobileAttendanceTrackingController::class, 'trackingSettings']);
     Route::get('/settings/app', [MobileSettingsDashboardController::class, 'getAppSettings']);
     Route::get('/settings/modules', [MobileSettingsDashboardController::class, 'getModuleSettings']);
