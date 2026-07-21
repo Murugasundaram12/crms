@@ -199,6 +199,7 @@ class MobileApiSmokeTest extends TestCase
             $table->decimal('longitude', 10, 7)->nullable();
             $table->decimal('accuracy', 8, 2)->nullable();
             $table->decimal('speed', 8, 2)->nullable();
+            $table->decimal('bearing', 6, 2)->nullable();
             $table->string('activity')->nullable();
             $table->boolean('is_gps_on')->default(true);
             $table->boolean('is_mock_location')->default(false);
@@ -217,6 +218,7 @@ class MobileApiSmokeTest extends TestCase
             $table->decimal('longitude', 10, 7);
             $table->decimal('accuracy', 8, 2)->nullable();
             $table->decimal('speed', 8, 2)->nullable();
+            $table->decimal('bearing', 6, 2)->nullable();
             $table->string('activity')->nullable();
             $table->boolean('is_gps_on')->default(true);
             $table->boolean('is_mock_location')->default(false);
@@ -415,6 +417,123 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->postJson('/api/check_out', $trackingPayload)
             ->assertForbidden();
+    }
+
+    public function test_stationary_gps_drift_refreshes_status_without_inserting_tracking_point(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Stationary Drift User',
+            'email' => 'stationary-drift@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Stationary Drift Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $initialPayload = [
+            'device_id' => 'stationary-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 0,
+            'activity' => 'still',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+            'recorded_at' => '2026-07-21 10:00:00',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $initialPayload)
+            ->assertCreated();
+
+        $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
+
+        $driftPayload = array_merge($initialPayload, [
+            'latitude' => 11.016854,
+            'longitude' => 76.955842,
+            'accuracy' => 19,
+            'speed' => 0.2,
+            'batteryPercentage' => 65,
+            'recorded_at' => '2026-07-21 10:01:00',
+            'type' => 'still',
+        ]);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', $driftPayload)
+            ->assertOk()
+            ->assertJsonPath('inserted', false)
+            ->assertJsonPath('tracking.latitude', 11.016844)
+            ->assertJsonPath('tracking.longitude', 76.955832)
+            ->assertJsonPath('tracking.accuracy', 19.0)
+            ->assertJsonPath('tracking.battery_percentage', 65);
+
+        $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
+
+        $device = \App\Models\EmployeeDevice::query()->where('employee_id', $user->id)->firstOrFail();
+        $this->assertSame(11.016844, (float) $device->latitude);
+        $this->assertSame(76.955832, (float) $device->longitude);
+        $this->assertSame(19.0, (float) $device->accuracy);
+    }
+
+    public function test_poor_accuracy_tracking_update_does_not_overwrite_last_good_route_point(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Poor Accuracy User',
+            'email' => 'poor-accuracy@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Poor Accuracy Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $initialPayload = [
+            'device_id' => 'poor-accuracy-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'travelling',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $initialPayload)
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', array_merge($initialPayload, [
+                'latitude' => 11.017500,
+                'longitude' => 76.956500,
+                'accuracy' => 80,
+                'batteryPercentage' => 60,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('inserted', false);
+
+        $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
+        $this->assertSame(8.0, (float) LocationTracking::query()->where('employee_id', $user->id)->firstOrFail()->accuracy);
+
+        $device = \App\Models\EmployeeDevice::query()->where('employee_id', $user->id)->firstOrFail();
+        $this->assertSame(11.016844, (float) $device->latitude);
+        $this->assertSame(76.955832, (float) $device->longitude);
+        $this->assertSame(80.0, (float) $device->accuracy);
     }
 
     public function test_missing_api_model_returns_clean_json_message(): void
