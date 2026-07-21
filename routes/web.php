@@ -59,6 +59,9 @@ Route::middleware('auth')->group(function () {
             ->name('index');
         Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
         Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
+        Route::delete('/{attendance}', [AttendanceController::class, 'destroy'])
+            ->middleware('permission:attendance-list')
+            ->name('destroy');
     });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])

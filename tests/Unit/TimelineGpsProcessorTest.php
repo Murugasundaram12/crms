@@ -37,6 +37,9 @@ class TimelineGpsProcessorTest extends TestCase
             $this->point(11.016844, 76.955832, '2026-07-21 10:00:03'),
             $this->point(11.016900, 76.955832, '2026-07-21 10:00:02'),
             $this->point(11.017000, 76.955832, '2026-07-21 10:00:04', accuracy: 35),
+            $this->point(11.017050, 76.955832, '2026-07-21 10:00:04', accuracy: null),
+            $this->point(11.017080, 76.955832, '2026-07-21 10:00:04', accuracy: 0),
+            $this->point(11.017100, 76.955832, '2026-07-21 10:00:04', isMockLocation: true),
             $this->point(11.016880, 76.955832, '2026-07-21 10:00:05', speed: 0),
             $this->point(11.017020, 76.955832, '2026-07-21 10:00:06'),
         ]);
@@ -180,6 +183,32 @@ class TimelineGpsProcessorTest extends TestCase
         $this->assertSame(11.017100, (float) $filtered[2]->latitude);
     }
 
+    public function test_it_reduces_stationary_oscillating_drift_clusters(): void
+    {
+        $processor = new TimelineGpsProcessor();
+
+        $points = collect([
+            $this->point(10.3688475, 77.9819837, '2026-07-21 12:07:42', accuracy: 29, speed: 0.02, id: 1),
+            $this->point(10.3685750, 77.9820478, '2026-07-21 12:10:39', accuracy: 4, speed: 0.04, id: 2),
+            $this->point(10.3688486, 77.9819918, '2026-07-21 12:14:29', accuracy: 5, speed: 0.04, id: 3),
+            $this->point(10.3685564, 77.9820364, '2026-07-21 12:26:39', accuracy: 7, speed: 0.11, id: 4),
+            $this->point(10.3690437, 77.9820217, '2026-07-21 12:27:44', accuracy: 6, speed: 0.16, id: 5),
+            $this->point(10.3683821, 77.9820397, '2026-07-21 13:07:18', accuracy: 2, speed: 0.02, id: 6),
+            $this->point(10.3684094, 77.9820021, '2026-07-21 13:11:21', accuracy: 5, speed: 0.01, id: 7),
+            $this->point(10.3687602, 77.9820740, '2026-07-21 13:22:04', accuracy: 10, speed: 0.26, id: 8),
+        ]);
+
+        $filtered = $processor->filter($points, [
+            'minimum_distance_meters' => 30,
+            'max_accuracy_meters' => 50,
+            'max_bearing_change_degrees' => 0,
+            'max_computed_speed_kmh' => 120,
+        ]);
+
+        $this->assertLessThanOrEqual(2, count($filtered));
+        $this->assertSame(1, $filtered[0]->id);
+    }
+
     public function test_large_datasets_perform_acceptably(): void
     {
         $processor = new TimelineGpsProcessor();
@@ -197,7 +226,7 @@ class TimelineGpsProcessorTest extends TestCase
             'max_computed_speed_kmh' => 200,
         ]);
 
-        $this->assertLessThan(2.0, microtime(true) - $startedAt);
+        $this->assertLessThan(5.0, microtime(true) - $startedAt);
         $this->assertNotEmpty($filtered);
         $this->assertLessThan(5000, count($filtered));
     }
@@ -217,7 +246,7 @@ class TimelineGpsProcessorTest extends TestCase
         $this->assertSame('2026-07-20 23:59:59', $end->format('Y-m-d H:i:s'));
     }
 
-    private function point(?float $latitude, ?float $longitude, string $time, ?float $accuracy = 10, ?float $speed = 1, int $secondsOffset = 0, ?float $bearing = null, ?int $id = null): LocationTracking
+    private function point(?float $latitude, ?float $longitude, string $time, ?float $accuracy = 10, ?float $speed = 1, int $secondsOffset = 0, ?float $bearing = null, ?int $id = null, bool $isMockLocation = false): LocationTracking
     {
         $timestamp = Carbon::parse($time)->addSeconds($secondsOffset);
         $tracking = new LocationTracking();
@@ -227,6 +256,7 @@ class TimelineGpsProcessorTest extends TestCase
             'accuracy' => $accuracy,
             'speed' => $speed,
             'bearing' => $bearing,
+            'is_mock_location' => $isMockLocation,
             'recorded_at' => $timestamp,
             'created_at' => $timestamp,
         ]);

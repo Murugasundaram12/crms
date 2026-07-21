@@ -149,6 +149,10 @@
     <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap">
         <h4 class="mb-0">Timeline</h4>
         <div class="d-flex gap-3 flex-wrap">
+            <select id="timelineRouteMode" class="form-select form-select-sm" style="width: 140px;">
+                <option value="road">Road route</option>
+                <option value="actual">Actual GPS</option>
+            </select>
             <input type="date" id="trackingDate" class="form-control form-control-sm" value="{{ request('date', now()->toDateString()) }}" style="width: 150px;">
             <select id="trackingEmployee" class="form-select form-select-sm" style="width: 220px;">
                 <option value="">Please select employee</option>
@@ -180,18 +184,20 @@
             centerLongitude: Number(@json($mapSettings['center_longitude'])) || 78.9629,
             zoom: Number(@json($mapSettings['zoom_level'])) || 12,
             timelineUrl: @json(route('dashboard.getTimeLineAjax')),
-            snapRouteUrl: @json(route('dashboard.snapTimeLineRoute')),
             csrfToken: @json(csrf_token()),
             iconBase: @json(asset('img/map') . '/'),
             selectedEmployee: @json(request('employee')),
             selectedDate: @json(request('date')),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),
+            gpsDebug: @json(request()->boolean('gps_debug')),
+            defaultRouteMode: @json(request('route_mode', filled($googleMapsKey) ? 'road' : 'actual')),
         };
 
         let timelineMap;
         let timelineMapProvider = null;
         let timelineMarkers = [];
         let timelinePolylines = [];
+        let timelineDirectionsRenderers = [];
         let timelineRenderToken = 0;
 
         function initEmployeeTrackingMap() {
@@ -259,6 +265,15 @@
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('trackingEmployee')?.addEventListener('change', loadTimelineData);
             document.getElementById('trackingDate')?.addEventListener('change', loadTimelineData);
+            const routeModeSelect = document.getElementById('timelineRouteMode');
+            if (routeModeSelect) {
+                routeModeSelect.value = timelineConfig.defaultRouteMode === 'actual' ? 'actual' : 'road';
+                routeModeSelect.addEventListener('change', loadTimelineData);
+                if (!timelineConfig.hasGoogleMapsKey) {
+                    routeModeSelect.value = 'actual';
+                    routeModeSelect.disabled = true;
+                }
+            }
 
             if (!timelineConfig.hasGoogleMapsKey) {
                 initEmployeeTrackingMap();
@@ -287,6 +302,15 @@
             body.set('userId', userId);
             body.set('date', date);
             body.set('_token', timelineConfig.csrfToken);
+            if (timelineConfig.gpsDebug) {
+                body.set('gps_debug', '1');
+                console.info('[EmployeeTracking] timeline request', {
+                    url: timelineConfig.timelineUrl,
+                    userId,
+                    date,
+                    routeMode: currentRouteMode(),
+                });
+            }
 
             const response = await fetch(timelineConfig.timelineUrl, {
                 method: 'POST',
@@ -303,7 +327,12 @@
                 return;
             }
 
-            renderTimeline(await response.json());
+            const payload = await response.json();
+            if (timelineConfig.gpsDebug) {
+                console.info('[EmployeeTracking] timeline response', payload);
+            }
+
+            renderTimeline(payload);
         }
 
         function renderTimeline(data) {
@@ -339,7 +368,7 @@
 
                         const trackingType = item.trackingType;
                         const isAttendancePoint = trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out';
-                        const shouldShowMarker = (isAttendancePoint || !isMovementPoint) && !isCollapsedStill;
+                        const shouldShowMarker = (isAttendancePoint || !isMovementPoint || items.length === 1) && !isCollapsedStill;
                         const markerNumber = shouldShowMarker ? ++visibleMarkerNumber : null;
 
                         if (shouldShowMarker) {
@@ -425,7 +454,9 @@
                 attendanceCard = attendanceSessionCard(items);
                 contents = `${attendanceCard}${contents}`;
 
-                drawTimelineRoute(items, latLngs, rawPoints, buildMovementPaths(items), hasTravelPoint, renderToken);
+                const movementPaths = buildMovementPathsFromSegments(data.polylineSegments);
+
+                drawTimelineRoute(items, latLngs, rawPoints, movementPaths, data.directionsSegments || [], hasTravelPoint, renderToken);
 
                 if (data.totalKM !== undefined && data.totalKM !== null) {
                     finalDistance = `${Number(data.totalKM).toFixed(2)} KM`;
@@ -515,7 +546,7 @@
             return 'Unknown address!';
         }
 
-        async function drawTimelineRoute(items, latLngs, rawPoints, movementPaths, hasTravelPoint, renderToken) {
+        async function drawTimelineRoute(items, latLngs, rawPoints, movementPaths, directionsSegments, hasTravelPoint, renderToken) {
             if (!rawPoints.length) {
                 return;
             }
@@ -534,18 +565,37 @@
                 timelineMap.fitBounds(L.latLngBounds(coords));
             }
 
+            const routeMode = currentRouteMode();
+            if (timelineConfig.gpsDebug) {
+                console.info('[EmployeeTracking] route render plan', {
+                    routeMode,
+                    gpsSegments: movementPaths.length,
+                    gpsVertices: movementPaths.reduce((count, segment) => count + segment.length, 0),
+                    directionsSegments: Array.isArray(directionsSegments) ? directionsSegments.length : 0,
+                    directionsWaypoints: Array.isArray(directionsSegments)
+                        ? directionsSegments.map((segment) => (segment.waypoints || []).length)
+                        : [],
+                });
+            }
+
+            if (routeMode === 'road' && timelineMapProvider === 'google') {
+                await drawDirectionsSegments(directionsSegments, renderToken);
+                return;
+            }
+
             for (const routePath of movementPaths) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
 
-                if (timelineMapProvider === 'google') {
-                    await drawSnappedRoute(routePath, renderToken);
-                } else {
-                    drawRoutePolyline(routePath);
-                }
-                await wait(80);
+                drawRoutePolyline(routePath);
+                await wait(20);
             }
+        }
+
+        function currentRouteMode() {
+            const value = document.getElementById('timelineRouteMode')?.value || timelineConfig.defaultRouteMode || 'actual';
+            return value === 'road' && timelineMapProvider === 'google' ? 'road' : 'actual';
         }
 
         function computeDistanceMeters(p1, p2) {
@@ -587,41 +637,28 @@
             return filtered;
         }
 
-        function buildMovementPaths(items) {
-            const paths = [];
-            let currentPath = [];
-            let previousPoint = null;
-
-            items.forEach((item) => {
-                const point = itemLatLng(item);
-
-                if (!point) {
-                    return;
-                }
-
-                if (item.segmentBreakBefore && currentPath.length >= 2) {
-                    paths.push(currentPath);
-                    currentPath = [];
-                } else if (item.segmentBreakBefore) {
-                    currentPath = [];
-                }
-
-                if (!previousPoint || computeDistanceMeters(previousPoint, point) >= 5) {
-                    currentPath.push(point);
-                    previousPoint = point;
-                }
-            });
-
-            if (currentPath.length >= 2) {
-                paths.push(currentPath);
+        function buildMovementPathsFromSegments(segments) {
+            if (!Array.isArray(segments)) {
+                return [];
             }
 
-            return paths;
+            return segments
+                .map((segment) => {
+                    const points = Array.isArray(segment) ? segment : segment?.points;
+                    return Array.isArray(points)
+                        ? filterPolylineCoordinates(points.map((point) => itemLatLng(point)).filter(Boolean), 3)
+                        : [];
+                })
+                .filter((segment) => segment.length >= 2);
+        }
+
+        function isRouteMovementPoint(item) {
+            return item && (item.type === 'vehicle' || item.type === 'walk');
         }
 
         function itemLatLng(item) {
-            const latitude = Number(item.latitude);
-            const longitude = Number(item.longitude);
+            const latitude = Number(item.latitude ?? item.lat);
+            const longitude = Number(item.longitude ?? item.lng);
 
             if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude === 0 || longitude === 0) {
                 return null;
@@ -645,191 +682,13 @@
             return computeDistanceMeters(previousPoint, currentPoint) <= 200;
         }
 
-        async function drawSnappedRoute(routePath, renderToken) {
-            if (routePath.length < 2) {
-                return;
-            }
-
-            try {
-                const response = await fetch(timelineConfig.snapRouteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
-                    },
-                    body: JSON.stringify({
-                        points: routePath.map((point) => ({
-                            lat: typeof point.lat === 'function' ? point.lat() : point.lat,
-                            lng: typeof point.lng === 'function' ? point.lng() : point.lng,
-                        })),
-                    }),
-                });
-
-                if (renderToken !== timelineRenderToken) {
-                    return;
-                }
-
-                if (!response.ok) {
-                    await drawDirectionsRoute(routePath, renderToken);
-                    return;
-                }
-
-                const data = await response.json();
-                const snappedPath = (data.points || [])
-                    .map((point) => ({lat: Number(point.lat), lng: Number(point.lng)}))
-                    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
-
-                if (data.snapped && isSnappedRouteUsable(routePath, snappedPath)) {
-                    drawRoutePolyline(snappedPath);
-                    return;
-                }
-
-                await drawDirectionsRoute(routePath, renderToken);
-            } catch (error) {
-                if (renderToken !== timelineRenderToken) {
-                    return;
-                }
-
-                await drawDirectionsRoute(routePath, renderToken);
-            }
-        }
-
-        function isSnappedRouteUsable(rawPath, snappedPath) {
-            if (!snappedPath || snappedPath.length < 2 || !rawPath || rawPath.length < 1) {
-                return false;
-            }
-
-            const startDrift = computeDistanceMeters(rawPath[0], snappedPath[0]);
-            const endDrift = computeDistanceMeters(rawPath[rawPath.length - 1], snappedPath[snappedPath.length - 1]);
-
-            return startDrift <= 150 && endDrift <= 150;
-        }
-
-        async function drawDirectionsRoute(routePath, renderToken) {
-            if (!window.google?.maps?.DirectionsService || routePath.length < 2) {
-                drawShortRawSegments(routePath);
-                return;
-            }
-
-            const chunks = chunkRouteForDirections(routePath);
-
-            for (const chunk of chunks) {
-                if (renderToken !== timelineRenderToken) {
-                    return;
-                }
-
-                const directionsPath = await directionsPathForChunk(chunk);
-
-                if (renderToken !== timelineRenderToken) {
-                    return;
-                }
-
-                if (directionsPath.length >= 2 && isDirectionsRouteUsable(chunk, directionsPath)) {
-                    drawRoutePolyline(directionsPath);
-                } else {
-                    drawShortRawSegments(chunk);
-                }
-
-                await wait(80);
-            }
-        }
-
-        function chunkRouteForDirections(routePath) {
-            const chunks = [];
-            const maxPoints = 25;
-
-            for (let index = 0; index < routePath.length - 1; index += maxPoints - 1) {
-                const chunk = routePath.slice(index, index + maxPoints);
-                if (chunk.length >= 2) {
-                    chunks.push(chunk);
-                }
-            }
-
-            return chunks;
-        }
-
-        function directionsPathForChunk(chunk) {
-            return new Promise((resolve) => {
-                if (!window.google?.maps?.DirectionsService) {
-                    resolve([]);
-                    return;
-                }
-                const service = new google.maps.DirectionsService();
-                const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);
-                const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);
-                const waypoints = chunk.slice(1, -1).map((point) => ({
-                    location: new google.maps.LatLng(point.lat, point.lng),
-                    stopover: false,
-                }));
-
-                service.route({
-                    origin,
-                    destination,
-                    waypoints,
-                    optimizeWaypoints: false,
-                    travelMode: google.maps.TravelMode.DRIVING,
-                }, (result, status) => {
-                    const isOk = status === 'OK' || status === google.maps.DirectionsStatus?.OK;
-
-                    if (!isOk || !result?.routes?.length) {
-                        resolve([]);
-                        return;
-                    }
-
-                    const path = [];
-                    result.routes[0].legs.forEach((leg) => {
-                        leg.steps.forEach((step) => {
-                            step.path.forEach((point) => path.push({lat: point.lat(), lng: point.lng()}));
-                        });
-                    });
-
-                    resolve(path);
-                });
-            });
-        }
-
-        function isDirectionsRouteUsable(rawPath, directionsPath) {
-            const rawLength = computeDistanceMeters(rawPath[0], rawPath[rawPath.length - 1]);
-            const directionsLength = computeDistanceMeters(directionsPath[0], directionsPath[directionsPath.length - 1]);
-            const startDrift = computeDistanceMeters(rawPath[0], directionsPath[0]);
-            const endDrift = computeDistanceMeters(rawPath[rawPath.length - 1], directionsPath[directionsPath.length - 1]);
-
-            return startDrift <= 150 && endDrift <= 150;
-        }
-
-        function drawShortRawSegments(routePath) {
-            let current = [];
-
-            routePath.forEach((point) => {
-                if (!current.length) {
-                    current.push(point);
-                    return;
-                }
-
-                const previous = current[current.length - 1];
-                const distance = computeDistanceMeters(previous, point);
-
-                if (distance <= 25) {
-                    current.push(point);
-                    return;
-                }
-
-                if (current.length >= 2) {
-                    drawRoutePolyline(current);
-                }
-
-                current = [point];
-            });
-
-            if (current.length >= 2) {
-                drawRoutePolyline(current);
-            }
-        }
-
         function drawRoutePolyline(latLngs) {
-            const cleanPath = filterPolylineCoordinates(latLngs, 5);
+            const cleanPath = filterPolylineCoordinates(latLngs, 3);
             if (cleanPath.length < 2) {
+                return;
+            }
+
+            if (isLikelyStationaryDriftPath(cleanPath)) {
                 return;
             }
 
@@ -851,6 +710,125 @@
                 }).addTo(timelineMap);
                 timelinePolylines.push(polyline);
             }
+        }
+
+        async function drawDirectionsSegments(segments, renderToken) {
+            if (!Array.isArray(segments) || !window.google?.maps?.DirectionsService || !window.google?.maps?.DirectionsRenderer) {
+                return;
+            }
+
+            for (const segment of segments) {
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+
+                await drawDirectionsSegment(segment, renderToken);
+                await wait(50);
+            }
+        }
+
+        function drawDirectionsSegment(segment, renderToken) {
+            return new Promise((resolve) => {
+                const origin = itemLatLng(segment?.origin);
+                const destination = itemLatLng(segment?.destination);
+
+                if (!origin || !destination) {
+                    resolve();
+                    return;
+                }
+
+                const waypoints = Array.isArray(segment.waypoints)
+                    ? segment.waypoints
+                        .map((point) => itemLatLng(point))
+                        .filter(Boolean)
+                        .map((point) => ({
+                            location: new google.maps.LatLng(point.lat, point.lng),
+                            stopover: false,
+                        }))
+                    : [];
+
+                const service = new google.maps.DirectionsService();
+                const renderer = new google.maps.DirectionsRenderer({
+                    map: timelineMap,
+                    preserveViewport: true,
+                    suppressMarkers: true,
+                    polylineOptions: {
+                        strokeColor: '#0000FF',
+                        strokeWeight: 3,
+                    },
+                });
+
+                service.route({
+                    origin: new google.maps.LatLng(origin.lat, origin.lng),
+                    destination: new google.maps.LatLng(destination.lat, destination.lng),
+                    waypoints,
+                    optimizeWaypoints: false,
+                    travelMode: google.maps.TravelMode[segment.travel_mode || 'WALKING'] || google.maps.TravelMode.WALKING,
+                }, (result, status) => {
+                    if (renderToken !== timelineRenderToken) {
+                        renderer.setMap(null);
+                        resolve();
+                        return;
+                    }
+
+                    const isOk = status === 'OK' || status === google.maps.DirectionsStatus?.OK;
+                    if (!isOk || !result?.routes?.length) {
+                        renderer.setMap(null);
+                        if (timelineConfig.gpsDebug) {
+                            console.info('[EmployeeTracking] directions segment skipped', {
+                                segmentNumber: segment.segment_number,
+                                status,
+                                sourcePointIds: segment.source_point_ids || [],
+                            });
+                        }
+                        resolve();
+                        return;
+                    }
+
+                    renderer.setDirections(result);
+                    timelineDirectionsRenderers.push(renderer);
+
+                    if (timelineConfig.gpsDebug) {
+                        const directionsDistanceMeters = result.routes[0].legs.reduce((total, leg) => total + Number(leg.distance?.value || 0), 0);
+                        console.info('[EmployeeTracking] directions segment drawn', {
+                            segmentNumber: segment.segment_number,
+                            travelMode: segment.travel_mode,
+                            sourcePointIds: segment.source_point_ids || [],
+                            origin,
+                            destination,
+                            waypointCount: waypoints.length,
+                            directionsDistanceKm: directionsDistanceMeters / 1000,
+                        });
+                    }
+
+                    resolve();
+                });
+            });
+        }
+
+        function isLikelyStationaryDriftPath(path) {
+            if (!Array.isArray(path) || path.length < 4) {
+                return false;
+            }
+
+            let pathLength = 0;
+            let lat = 0;
+            let lng = 0;
+
+            path.forEach((point, index) => {
+                lat += Number(point.lat);
+                lng += Number(point.lng);
+                if (index > 0) {
+                    pathLength += computeDistanceMeters(path[index - 1], point);
+                }
+            });
+
+            const center = {lat: lat / path.length, lng: lng / path.length};
+            const directDistance = computeDistanceMeters(path[0], path[path.length - 1]);
+            const detourRatio = pathLength / Math.max(1, directDistance);
+            const maxRadius = Math.max(...path.map((point) => computeDistanceMeters(center, point)));
+
+            return pathLength >= 200 && directDistance <= 120 && detourRatio >= 4 && maxRadius <= 120;
         }
 
         function resolveMissingAddresses(addressLookups) {
@@ -939,6 +917,11 @@
                 }
             });
             timelinePolylines = [];
+
+            timelineDirectionsRenderers.forEach(function (renderer) {
+                renderer.setMap(null);
+            });
+            timelineDirectionsRenderers = [];
         }
 
         function wait(milliseconds) {
