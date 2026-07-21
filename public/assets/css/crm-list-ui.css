@@ -768,15 +768,15 @@
 .sidebar .sidebar-menu a.active,
 .sidebar .sidebar-menu a.subdrop,
 .sidebar .sidebar-menu li.active > a {
-    background: #eef5ff;
-    color: #0d5fd7;
+    background: var(--primary-transparent);
+    color: var(--primary);
 }
 
 .sidebar .sidebar-menu a:hover i,
 .sidebar .sidebar-menu a.active i,
 .sidebar .sidebar-menu a.subdrop i,
 .sidebar .sidebar-menu li.active > a i {
-    color: #0d5fd7;
+    color: var(--primary);
 }
 
 .sidebar .sidebar-menu > ul > li > ul > li > a:hover {
@@ -796,8 +796,8 @@
 }
 
 .sidebar .sidebar-menu .submenu ul a.active {
-    background: #f8fbff;
-    color: #0d5fd7;
+    background: var(--primary-transparent);
+    color: var(--primary);
 }
 
 .sidebar .menu-arrow {

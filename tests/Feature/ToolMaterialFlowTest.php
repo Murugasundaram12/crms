@@ -405,6 +405,29 @@ class ToolMaterialFlowTest extends TestCase
             ->assertSee('Transfer from Site A');
     }
 
+    public function test_draft_site_assignment_shows_return_and_transfer_actions(): void
+    {
+        $material = $this->createMaterial();
+
+        $this->postAssignment($material, [
+            'status' => 'draft',
+            'transaction_type' => 'issue_to_site',
+            'to_project_id' => $this->siteA,
+            'quantity' => 12,
+            'rate' => 7,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('tools-material-assignments.index'))
+            ->assertOk()
+            ->assertSee('Return')
+            ->assertSee('Transfer')
+            ->assertSee('transaction_type=return_to_office', false)
+            ->assertSee('transaction_type=site_to_site', false)
+            ->assertSee('quantity=12', false)
+            ->assertDontSee('No site stock');
+    }
+
     public function test_assignment_form_rejects_invalid_transaction_location_combinations(): void
     {
         $material = $this->createMaterial();

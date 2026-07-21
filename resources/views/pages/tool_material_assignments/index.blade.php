@@ -142,15 +142,17 @@
                                     }
                                 }
 
-                                if (
-                                    \App\Models\ToolMaterialAssignment::isStockEffectiveStatus($assignment->status)
-                                    && $assignment->destination_type === 'site'
-                                    && $currentSiteId
-                                    && $assignment->toolMaterial
-                                ) {
-                                    $siteBalance = (float) ($assignment->toolMaterial->stockBalances()['site:' . $currentSiteId]['quantity'] ?? 0);
-                                    $canShowMoveActions = true;
-                                    $hasMovableStock = $siteBalance > 0;
+                                if ($assignment->destination_type === 'site' && $currentSiteId && $assignment->toolMaterial) {
+                                    if (\App\Models\ToolMaterialAssignment::isStockEffectiveStatus($assignment->status)) {
+                                        $siteBalance = (float) ($assignment->toolMaterial->stockBalances()['site:' . $currentSiteId]['quantity'] ?? 0);
+                                        $hasMovableStock = $siteBalance > 0;
+                                    } else {
+                                        $siteBalance = (float) $assignment->quantity;
+                                        $hasMovableStock = $assignment->status === 'draft' && $siteBalance > 0;
+                                    }
+
+                                    $canShowMoveActions = $assignment->status === 'draft'
+                                        || \App\Models\ToolMaterialAssignment::isStockEffectiveStatus($assignment->status);
                                 }
 
                                 $moveQuantity = $siteBalance > 0 ? min((float) $assignment->quantity, $siteBalance) : max((float) $assignment->quantity, 1);
