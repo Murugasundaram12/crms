@@ -110,7 +110,7 @@ trait MobileAuthEndpoints
                     'employee_id' => $user->id,
                     'device_id' => $credentials['device_id'],
                 ],
-                [
+                $this->availableEmployeeDeviceAttributes([
                     'device_name' => $credentials['device_name'] ?? null,
                     'device_type' => $credentials['device_type'] ?? $credentials['deviceType'] ?? null,
                     'brand' => $credentials['brand'] ?? null,
@@ -118,7 +118,7 @@ trait MobileAuthEndpoints
                     'sdk_version' => $credentials['sdk_version'] ?? $credentials['sdkVersion'] ?? null,
                     'model' => $credentials['model'] ?? null,
                     'last_seen_at' => now(),
-                ]
+                ])
             );
         }
 

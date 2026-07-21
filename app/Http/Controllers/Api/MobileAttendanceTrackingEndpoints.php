@@ -415,7 +415,7 @@ trait MobileAttendanceTrackingEndpoints
             ], 409);
         }
 
-        $device = EmployeeDevice::query()->create([
+        $device = EmployeeDevice::query()->create($this->availableEmployeeDeviceAttributes([
             'employee_id' => $user->id,
             'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? null,
@@ -425,7 +425,7 @@ trait MobileAttendanceTrackingEndpoints
             'sdk_version' => $validated['sdk_version'] ?? null,
             'model' => $validated['model'] ?? null,
             'last_seen_at' => now(),
-        ]);
+        ]));
 
         return response()->json([
             'message' => 'Device registered successfully.',
@@ -453,10 +453,10 @@ trait MobileAttendanceTrackingEndpoints
             ], 404);
         }
 
-        $device->update([
+        $device->update($this->availableEmployeeDeviceAttributes([
             'messaging_token' => $validated['messaging_token'] ?? $validated['token'],
             'last_seen_at' => now(),
-        ]);
+        ]));
 
         return response()->json([
             'message' => 'Messaging token updated successfully.',
@@ -480,7 +480,7 @@ trait MobileAttendanceTrackingEndpoints
             ], 404);
         }
 
-        $device->update(collect([
+        $device->update($this->availableEmployeeDeviceAttributes(collect([
             'device_name' => $validated['device_name'] ?? null,
             'device_type' => $validated['device_type'] ?? null,
             'brand' => $validated['brand'] ?? null,
@@ -499,7 +499,7 @@ trait MobileAttendanceTrackingEndpoints
             'battery_percentage' => $validated['battery_percentage'] ?? null,
             'signal_strength' => $validated['signal_strength'] ?? null,
             'last_seen_at' => isset($validated['recorded_at']) ? Carbon::parse($validated['recorded_at']) : now(),
-        ])->reject(fn ($value) => $value === null)->all());
+        ])->reject(fn ($value) => $value === null)->all()));
 
         return response()->json([
             'message' => 'Device status updated successfully.',

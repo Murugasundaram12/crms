@@ -597,7 +597,7 @@ class MobileApiController extends Controller
                 'employee_id' => $userId,
                 'device_id' => $deviceId,
             ],
-            [
+            $this->availableEmployeeDeviceAttributes([
                 'device_name' => $payload['device_name'] ?? null,
                 'device_type' => $payload['device_type'] ?? null,
                 'brand' => $payload['brand'] ?? null,
@@ -616,7 +616,7 @@ class MobileApiController extends Controller
                 'battery_percentage' => $payload['battery_percentage'] ?? null,
                 'signal_strength' => $payload['signal_strength'] ?? null,
                 'last_seen_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
-            ]
+            ])
         );
     }
 
@@ -1411,6 +1411,17 @@ class MobileApiController extends Controller
             'signal_strength' => $device->signal_strength,
             'last_seen_at' => $device->last_seen_at?->toISOString(),
         ];
+    }
+
+    protected function availableEmployeeDeviceAttributes(array $attributes): array
+    {
+        if (! Schema::hasTable('employee_devices')) {
+            return $attributes;
+        }
+
+        return collect($attributes)
+            ->filter(fn ($value, string $column) => Schema::hasColumn('employee_devices', $column))
+            ->all();
     }
 
     protected function trackingPayload(LocationTracking $tracking): array
