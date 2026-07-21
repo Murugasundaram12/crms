@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Models\Project;
 use App\Models\ToolMaterial;
 use App\Models\ToolMaterialAssignment;
+use App\Models\Unit;
 use App\Models\Vendor;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -40,9 +42,25 @@ trait MobileInventoryEndpoints
 
         return response()->json([
             'transaction_types' => self::INVENTORY_TRANSACTION_TYPES,
+            'transaction_type_options' => $this->enumOptions(self::INVENTORY_TRANSACTION_TYPES),
             'statuses' => self::INVENTORY_STATUSES,
+            'status_options' => $this->enumOptions(self::INVENTORY_STATUSES),
             'source_types' => ['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor'],
+            'source_type_options' => $this->enumOptions(['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor']),
             'destination_types' => ['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor', 'wastage' => 'Wastage'],
+            'destination_type_options' => $this->enumOptions(['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor', 'wastage' => 'Wastage']),
+            'item_types' => ['material' => 'Material', 'tool' => 'Tool'],
+            'item_type_options' => $this->enumOptions(['material' => 'Material', 'tool' => 'Tool']),
+            'units' => Schema::hasTable('units')
+                ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code'])
+                : [],
+            'unit_options' => Schema::hasTable('units')
+                ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code'])->map(fn(Unit $unit) => [
+                    'id' => $unit->id,
+                    'value' => $unit->code,
+                    'label' => $unit->display_name,
+                ])
+                : [],
             'tools_materials' => ToolMaterial::query()
                 ->with(['assignments.fromProject', 'assignments.toProject'])
                 ->where('active_status', true)
@@ -324,6 +342,23 @@ trait MobileInventoryEndpoints
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'active_status' => ['nullable', 'boolean'],
         ]);
+    }
+
+    private function enumOptions(array $options): array
+    {
+        $payload = [];
+        $index = 1;
+
+        foreach ($options as $value => $label) {
+            $payload[] = [
+                'id' => $index,
+                'value' => $value,
+                'label' => $label,
+            ];
+            $index++;
+        }
+
+        return $payload;
     }
 
     private function normalizeInventoryItemStockFields(array $validated): array

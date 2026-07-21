@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeviceManagementController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeTrackingController;
 use App\Http\Controllers\EmployeeSalaryController;
@@ -65,6 +66,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [EmployeeController::class, 'profile'])
         ->name('profile.show');
+
+    Route::get('/device-management', [DeviceManagementController::class, 'index'])
+        ->middleware('permission:employees-list')
+        ->name('device-management.index');
 
     Route::prefix('employee-tracking')->name('tracking.')->middleware('permission:employees-list')->group(function () {
         Route::get('/', [EmployeeTrackingController::class, 'index'])->name('index');

@@ -862,6 +862,125 @@ Response:
 }
 ```
 
+## Success Response Variables Explanation
+
+### Common Variables
+
+| Variable | Ethuku use panranga | Frontend/Mobile use |
+| --- | --- | --- |
+| `message` | Operation success message | Toast/snackbar alert show panna. |
+| `summary` | List total/count/value summary | Page top cards and dashboard count show panna. |
+| `data` | Paginated list records | Table/list/grid render panna. |
+| `current_page` | Current page number | Pagination active page show panna. |
+| `per_page` | One page-la ethana records | Page size display/control. |
+| `total` | Filter apply pannadhuku apram total records | Total count show panna. |
+| `next_page_url` | Next page API URL | Next button enable panna. |
+| `prev_page_url` | Previous page API URL | Previous button enable panna. |
+| `first_page_url` | First page API URL | First page navigation-ku. |
+| `last_page_url` | Last page API URL | Last page navigation-ku. |
+| `links` | Laravel pagination links | Pagination component build panna. |
+
+### Options Response Variables
+
+| Variable | Ethuku use panranga | Frontend/Mobile use |
+| --- | --- | --- |
+| `transaction_types` | Allowed stock transaction list | Transaction dropdown values. |
+| `statuses` | Allowed status list | Draft/Transferred/Returned status dropdown. |
+| `source_types` | Stock enga irundhu varudhu | Source dropdown: Office/Site/Vendor. |
+| `destination_types` | Stock enga pogudhu | Destination dropdown: Office/Site/Vendor/Wastage. |
+| `tools_materials` | Active tools/materials | Transaction form-la item select panna. |
+| `projects` | Site/project list | Issue to site, return, site-to-site transfer-ku. |
+| `vendors` | Vendor list | Purchase and return-to-vendor-ku. |
+
+### Tool Material Variables
+
+| Variable | Ethuku use panranga | Frontend/Mobile use |
+| --- | --- | --- |
+| `tool_material` | Single saved/viewed item object | Create/show/update response-la item data refresh panna. |
+| `id` | Primary key | Show/update/delete and transaction payload-ku. |
+| `item_type` | `tool` or `material` | Type badge/filter/form logic. |
+| `sku` | Item code | Search and reference display. |
+| `name` | Tool/material name | Main item display. |
+| `unit` | Quantity unit | Quantity display, example `Bag`, `Nos`, `CFT`. |
+| `image_path` | Storage path | Backend/internal image reference. |
+| `image_url` | Public image URL | UI-la image display panna. |
+| `description` | Item details | Detail page/edit prefill. |
+| `opening_quantity` | Starting stock quantity | Initial stock ledger balance. |
+| `opening_rate` | Starting per-unit rate | Opening amount calculate panna. |
+| `opening_amount` | Starting stock value | Opening quantity * opening rate. |
+| `reorder_level` | Minimum stock limit | Low stock alert calculate panna. |
+| `office_stock_quantity` | Office-la irukura stock | Office-lendhu issue panna available stock check/display. |
+| `site_stock_quantity` | Ella site stock total | Site stock summary display. |
+| `stock_quantity` | Office + sites total stock | Total available stock show panna. |
+| `stock_amount` | Current stock value | Inventory value summary. |
+| `is_low_stock` | Stock reorder level below ah nu boolean | Low stock badge/alert show panna. |
+| `active_status` | Item active/inactive | Dropdown/list-la active items mattum show panna. |
+| `balances` | Location-wise stock split | Office/site wise stock display. |
+| `balances.label` | Location name | `Office` or project/site name display. |
+| `balances.quantity` | Location quantity | Site/office quantity show panna. |
+| `balances.amount` | Location stock amount | Site/office value show panna. |
+
+### Transaction Variables
+
+| Variable | Ethuku use panranga | Frontend/Mobile use |
+| --- | --- | --- |
+| `transaction` | Single transaction object | Create/show/update response-la transaction data refresh panna. |
+| `reference_no` | Transaction reference number | Search, audit, print, user reference. |
+| `status` | Raw status key | Logic checks, example `draft`, `transferred`, `returned`. |
+| `status_label` | Human readable status | Badge text show panna. |
+| `transaction_type` | Raw transaction type key | Business logic, example `issue_to_site`. |
+| `transaction_label` | Human readable transaction name | UI display text. |
+| `tool_material` | Related item object | Transaction-la entha item move aagudhu nu show panna. |
+| `from_project` | Source site/project | Return/site-to-site/wastage source site display. |
+| `to_project` | Destination site/project | Issue/site-to-site/purchase-to-site destination display. |
+| `vendor` | Related vendor | Purchase/return-to-vendor display. |
+| `handled_by` | Transaction handled user | Audit trail and display. |
+| `source_type` | Source location type | Office/site/vendor source logic. |
+| `destination_type` | Destination location type | Office/site/vendor/wastage destination logic. |
+| `quantity` | Moved quantity | Quantity column and stock calculation. |
+| `rate` | Per-unit rate | Amount calculation/display. |
+| `amount` | Total amount | Transaction value; usually quantity * rate. |
+| `receiver_name` | Receiver/person name | Delivery/issue tracking. |
+| `vehicle_no` | Vehicle number | Transport tracking. |
+| `purpose` | Transaction reason | Purpose/remarks display. |
+| `notes` | Extra notes | Internal remarks. |
+| `transferred_at` | Transaction date/time | Sorting, filter, report, display. |
+| `created_at` | Created timestamp | Audit. |
+| `updated_at` | Last updated timestamp | Audit/cache refresh. |
+
+### Transaction Summary Variables
+
+| Variable | Ethuku use panranga | Frontend/Mobile use |
+| --- | --- | --- |
+| `summary.transactions` | Total transaction count | List page count card. |
+| `summary.completed` | Stock affect pannura transaction count | Completed/transferred/returned count. |
+| `summary.quantity` | Stock-effective total quantity | Total moved quantity summary. |
+| `summary.amount` | Stock-effective total amount | Total transaction value summary. |
+| `summary.vendor_returns` | Vendor return amount total | Vendor return summary card. |
+
+## Error Response Variables Explanation
+
+| Variable | Ethuku use panranga | Frontend/Mobile use |
+| --- | --- | --- |
+| `message` | Main error message | General alert/toast show panna. |
+| `errors` | Field-wise validation errors object | Form field-kitta exact error show panna. |
+| `errors.quantity` | Quantity validation error | Insufficient stock or invalid quantity show panna. |
+| `errors.vendor_id` | Vendor validation error | Purchase/return-to-vendor-la vendor required nu show panna. |
+| `errors.from_project_id` | From site validation error | Return/site-to-site/source-site missing nu show panna. |
+| `errors.to_project_id` | To site validation error | Issue/site-to-site destination missing nu show panna. |
+| `errors.tool_material_id` | Item validation error | Tool/material select pannala or invalid id nu show panna. |
+| `errors.transaction_type` | Transaction type validation error | Invalid transaction type select pannina show panna. |
+| `errors.status` | Status validation error | Invalid status value show panna. |
+
+Common HTTP status meaning:
+
+- `200`: Success for list/show/update/delete.
+- `201`: Create success.
+- `401`: Login token missing/invalid.
+- `403`: Permission illa.
+- `422`: Validation error.
+- `409`: Business conflict, example transaction irukura item delete panna try pannumbothu.
+
 ## Short Summary
 
 Mobile app-ku rendu naming support panniruku:

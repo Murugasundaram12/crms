@@ -1,0 +1,738 @@
+Please perform a complete end-to-end audit, testing, and verification of this Laravel project based on the following confirmed project concept.
+
+# Project Core Concept
+
+This project is a **CRMS / Construction Resource Management System**.
+
+The main purpose is to manage all construction company operations through a single Laravel web panel and mobile API, including:
+
+* Clients
+* Projects
+* Quotations
+* Payments
+* Expenses
+* Employees
+* Attendance
+* Live employee tracking
+* Tasks
+* Tools and materials stock
+* Vendors
+* Labours
+* Wallet
+* Leave requests
+* Roles and permissions
+* Reports
+* Application settings
+
+The web application is mainly used by Admin and Super Admin users, while employees use both the web panel and mobile APIs depending on their role and permissions.
+
+# Expected Main Flow
+
+1. A user logs in.
+2. The system identifies the user's role and permissions.
+3. The user sees only the modules and data they are authorized to access.
+4. Admin and Super Admin users can access company-level data.
+5. Employee users must be restricted to their own or assigned data wherever required.
+6. Web workflows use Laravel Blade views and session authentication.
+7. Mobile workflows use JSON APIs and custom mobile token authentication.
+8. All create, update, approval, payment, attendance, tracking, stock, wallet, report, PDF, and Excel flows must follow proper business validation.
+
+# Major Modules to Test
+
+## 1. Authentication
+
+Test:
+
+* Login
+* Registration
+* Logout
+* Forgot password
+* Reset password
+* Single-login behavior
+* Session handling
+* Remember-me behavior, if implemented
+* Invalid login handling
+* Inactive or unauthorized user access
+* Redirect after login based on role
+* Session expiration
+* Unauthorized page access
+
+Verify that authentication works correctly for both web and mobile API users.
+
+## 2. Dashboard
+
+Test:
+
+* Dashboard loading
+* Business summary values
+* Employee-specific dashboard
+* Admin and Super Admin dashboard
+* Project counts
+* Client counts
+* Payment totals
+* Expense totals
+* Wallet values
+* Attendance summary
+* Task summary
+* Role-based data scoping
+
+Confirm that dashboard values match the database and are not duplicated or incorrectly calculated.
+
+## 3. Employees and Users
+
+Test:
+
+* Employee creation
+* Employee editing
+* Employee profile
+* Employee activation and deactivation
+* Role assignment
+* Permission assignment
+* Employee deletion, if supported
+* Employee list filters
+* Employee search
+* Validation
+* Duplicate email and mobile handling
+* Employee-related API responses
+
+Verify that employee users cannot access another employee's restricted information.
+
+## 4. Roles and Permissions
+
+This project uses Spatie Laravel Permission.
+
+Test:
+
+* Role creation
+* Permission creation
+* Role-permission assignment
+* User-role assignment
+* Middleware protection
+* Sidebar visibility
+* Route authorization
+* Controller authorization
+* API authorization
+* Direct URL access without permission
+* Admin and Super Admin access behavior
+
+Ensure that hiding a menu item is not the only protection. Routes and controller actions must also be protected.
+
+## 5. Clients
+
+Test the complete client CRUD flow:
+
+* Create
+* List
+* View
+* Edit
+* Update
+* Delete
+* Search
+* Filter
+* Pagination
+* Validation
+* Duplicate client handling
+* Client-project relation
+* Client-payment relation
+* Client report
+* Mobile API access
+
+## 6. Projects
+
+Test:
+
+* Project creation
+* Project editing
+* Project view
+* Project status
+* Client assignment
+* Employee assignment
+* Project payment details
+* Project expenses
+* Final bill
+* Project invoice PDF
+* Project list filters
+* Project search
+* Project summary
+* Project completion flow
+* Mobile API flow
+
+Verify all totals, remaining amounts, invoices, and related records.
+
+## 7. Quotations
+
+Test:
+
+* Quotation creation
+* Quotation edit
+* Quotation update
+* Quotation show page
+* Quotation list
+* Item calculations
+* Subtotal
+* Tax
+* Discount
+* Grand total
+* Payment stage mapping
+* Remaining amount validation
+* PDF stream
+* PDF download
+* Print layout
+* PDF page width and height
+* Dynamic quotation data
+* Client and project relation
+
+The quotation PDF must use actual database data and match the expected document layout.
+
+Verify that:
+
+* No quotation data is hardcoded.
+* Wide content fits correctly.
+* Tables do not overflow.
+* PDF uses the required page orientation and size.
+* Downloaded and streamed PDF results are consistent.
+
+## 8. Payments and Payment Stages
+
+Test:
+
+* Payment creation
+* Payment update
+* Payment deletion
+* Payment stage creation
+* Stage-based payment tracking
+* Quotation payment validation
+* Project payment validation
+* Remaining amount calculation
+* Paid amount calculation
+* Overpayment prevention
+* Duplicate payment prevention
+* Wallet impact
+* Payment history
+* Payment report
+* Mobile API response
+
+Ensure that a payment cannot exceed the remaining quotation or project amount.
+
+## 9. Expenses
+
+Test:
+
+* Normal expenses
+* Expense creation
+* Expense editing
+* Expense update
+* Expense deletion
+* Expense categories
+* Paid amount
+* Unpaid amount
+* Expense date
+* Project-related expense
+* Client-related expense
+* Employee-related expense
+* Expense import from Excel
+* Import validation
+* Duplicate import handling
+* Incorrect file format
+* Empty row handling
+* Expense reports
+* Mobile expense API
+
+Also check for:
+
+* Missing database columns
+* Required fields without defaults
+* Invalid foreign keys
+* Broken expense relationships
+* Incorrect date parsing
+
+## 10. Unpaid Expenses
+
+Test:
+
+* Creating unpaid expense records
+* Updating unpaid amounts
+* Partial payments
+* Full payments
+* Unpaid history
+* Due date
+* Payment status
+* Related expense synchronization
+* Reports
+* Validation
+
+Ensure paid, unpaid, and total amounts always remain consistent.
+
+## 11. Labours
+
+Test:
+
+* Labour master
+* Labour creation
+* Labour editing
+* Labour roles
+* Labour expenses
+* Labour advance
+* Labour advance history
+* Labour payment history
+* Labour status
+* Project assignment
+* Search and filters
+* Validation
+* Reports
+
+## 12. Vendors
+
+Test:
+
+* Vendor master
+* Vendor creation
+* Vendor edit
+* Vendor expenses
+* Vendor unpaid amount
+* Vendor advance
+* Vendor payment history
+* Project relation
+* Stock purchase relation
+* Search
+* Filters
+* Reports
+* Validation
+
+## 13. Wallet
+
+Test:
+
+* Wallet balance
+* Wallet transfer
+* Transfer validation
+* Transfer history
+* Sender balance
+* Receiver balance
+* Insufficient balance
+* Negative amount
+* Zero amount
+* Self-transfer
+* Duplicate submission
+* Transaction rollback
+* API response
+* Permission restrictions
+
+Wallet transfers must use database transactions to prevent partial updates.
+
+## 14. Tasks
+
+Test:
+
+* Task creation
+* Employee assignment
+* Task edit
+* Task status
+* Task completion
+* Task blocking
+* Task reopening
+* Due date
+* Priority
+* Attachments, if available
+* Role access
+* Employee-specific task access
+* Mobile API flow
+
+Ensure an employee cannot update a task not assigned to them unless authorized.
+
+## 15. Attendance
+
+Test:
+
+* Check-in
+* Check-out
+* Duplicate check-in
+* Check-out without check-in
+* Attendance history
+* Attendance date
+* Late attendance
+* Multiple attendance records
+* Employee scoping
+* Admin view
+* Mobile API
+* Location data during attendance
+* Timezone behavior
+
+Check whether all dates and times correctly use the configured timezone.
+
+## 16. Employee Tracking
+
+Test:
+
+* Live location update
+* Employee online/offline status
+* Tracking card view
+* Timeline map
+* Latest location
+* Old location data
+* Tracking frequency
+* Invalid coordinates
+* Missing latitude or longitude
+* Employee-specific access
+* Admin access
+* API token validation
+* Online threshold setting
+
+Verify that refreshing the page does not incorrectly change an employee's active or offline state.
+
+## 17. GPS Timeline Processing
+
+Test the service that processes raw GPS data.
+
+Verify:
+
+* Invalid coordinates are removed.
+* Duplicate coordinates are removed.
+* Impossible jumps are filtered.
+* Noise is reduced.
+* Timeline ordering is correct.
+* Polyline simplification does not remove important movement.
+* Empty GPS data is handled.
+* Single-point data is handled.
+* Large datasets perform acceptably.
+* Date and timezone filtering are correct.
+
+## 18. Tools and Materials
+
+Test:
+
+* Item master
+* Tool creation
+* Material creation
+* Stock purchase
+* Stock issue
+* Stock return
+* Stock transfer
+* Stock ledger
+* Current stock
+* Negative stock prevention
+* Project assignment
+* Employee assignment
+* Vendor relation
+* Quantity validation
+* Unit relation
+* Missing units table handling
+* Mobile inventory API
+* Stock history
+
+Ensure every stock operation updates the ledger and balance consistently.
+
+## 19. Leave Requests
+
+Test:
+
+* Leave request creation
+* Leave type
+* Start date
+* End date
+* Number of days
+* Approval
+* Rejection
+* Pending status
+* Employee access
+* Admin access
+* Overlapping leave
+* Past-date leave
+* Mobile API
+* Notifications, if implemented
+
+## 20. Reports
+
+Test:
+
+* Expense reports
+* Payment reports
+* Client reports
+* Project reports
+* Employee reports
+* Attendance reports
+* Vendor reports
+* Labour reports
+* Wallet reports
+* Date filters
+* Project filters
+* Client filters
+* Employee filters
+* Export
+* PDF
+* Excel
+* Empty result handling
+* Correct totals
+
+Ensure report totals match source records in the database.
+
+## 21. Settings
+
+Test:
+
+* App settings
+* Module settings
+* Map settings
+* Tracking settings
+* Online threshold
+* API-exposed settings
+* Default setting values
+* Missing setting handling
+* Admin-only modification access
+* Cache behavior after setting changes
+
+## 22. Mobile API
+
+Test every route in `routes/api.php`.
+
+Cover:
+
+* Mobile login
+* Mobile logout
+* Dashboard
+* Attendance
+* Location tracking
+* Tasks
+* Wallet
+* Clients
+* Projects
+* Expenses
+* Inventory
+* Leave
+* Roles
+* Permissions
+* Settings
+
+For each API, verify:
+
+* HTTP method
+* URL
+* Authentication
+* Required headers
+* Request body
+* Validation
+* Success response
+* Error response
+* Status code
+* Data structure
+* Null handling
+* Unauthorized access
+* Employee data scoping
+* Admin data scoping
+* Duplicate request behavior
+
+Create an API test report containing the request URL, method, request body, expected result, actual result, and status.
+
+# Backend Technology
+
+* PHP 8.2.12
+* Laravel 12.55.1
+* Laravel migrations
+* Eloquent ORM
+* Blade templates
+* Laravel session authentication for web
+* Custom `mobile.api` token middleware for mobile APIs
+* Spatie Laravel Permission
+* DOMPDF
+* Maatwebsite Excel
+* PhpSpreadsheet
+* PHPUnit
+
+# Important Packages
+
+* `laravel/framework`: 12.55.1
+* `barryvdh/laravel-dompdf`: 3.1.2
+* `maatwebsite/excel`: 1.1.5
+* `phpoffice/phpspreadsheet`: 5.8.0
+* `spatie/laravel-permission`: 6.25.0
+* `phpunit/phpunit`: 11.5.55
+* `laravel/pint`: 1.29.0
+
+# Frontend
+
+* Vite 7.3.6
+* Laravel Vite Plugin 2.1.0
+* Tailwind CSS 4.3.3
+* Axios 1.18.1
+* Concurrently 9.2.4
+
+# Project Architecture
+
+Review these areas carefully:
+
+* `routes/web.php`
+* `routes/api.php`
+* `app/Http/Controllers`
+* `app/Http/Controllers/Api`
+* `app/Models`
+* `app/Services`
+* `app/Http/Middleware`
+* `resources/views/pages`
+* `database/migrations`
+* `tests/Feature`
+* `tests/Unit`
+* `config`
+* `composer.json`
+* `package.json`
+
+# Required Technical Checks
+
+Check for:
+
+* PHP syntax errors
+* Laravel exceptions
+* Undefined variables
+* Undefined array keys
+* Null object errors
+* Missing models
+* Missing controllers
+* Missing services
+* Missing routes
+* Missing database tables
+* Missing database columns
+* Incorrect namespaces
+* Incorrect imports
+* Broken Eloquent relationships
+* Incorrect foreign keys
+* Incorrect fillable or guarded properties
+* Mass assignment errors
+* Invalid validation
+* Incorrect redirects
+* Broken Blade syntax
+* JavaScript errors
+* AJAX errors
+* API authentication errors
+* Incorrect HTTP status codes
+* N+1 queries
+* Duplicate queries
+* Slow database queries
+* Missing indexes
+* Race conditions
+* Missing database transactions
+* Incorrect timezone behavior
+* Incorrect business calculations
+* Hardcoded values
+* Duplicate code
+* Dead code
+* Security vulnerabilities
+* File upload vulnerabilities
+* Authorization bypass
+* IDOR vulnerabilities
+* CSRF issues
+* XSS issues
+* SQL injection risks
+* Sensitive information exposure
+* Production configuration problems
+
+# Commands to Run
+
+Run all relevant commands, including:
+
+```bash
+php -v
+php artisan --version
+composer validate
+composer install
+php artisan about
+php artisan route:list
+php artisan migrate:status
+php artisan config:show
+php artisan test
+php artisan test --testsuite=Feature
+php artisan test --testsuite=Unit
+php artisan optimize:clear
+php artisan config:clear
+php artisan cache:clear
+php artisan route:clear
+php artisan view:clear
+./vendor/bin/pint --test
+npm install
+npm run build
+```
+
+Do not run destructive commands such as:
+
+```bash
+php artisan migrate:fresh
+php artisan db:wipe
+php artisan schema:drop
+```
+
+unless you are using a separate test database and clearly confirm that production data will not be affected.
+
+# Testing Rules
+
+1. First understand the existing implementation.
+2. Do not assume a module works only because the page loads.
+3. Test the full workflow from input to database result and output.
+4. Do not modify working code unnecessarily.
+5. Do not make large refactors without a confirmed reason.
+6. Do not use hardcoded production values.
+7. Do not delete existing functionality.
+8. Preserve backward compatibility.
+9. Before every change, identify the exact root cause.
+10. Mention the affected file and relevant method or line.
+11. After every fix, test the affected module again.
+12. Also test related modules that may be impacted.
+13. Run syntax and automated tests after fixes.
+14. Use a separate test database or database transaction wherever possible.
+15. Do not claim that a flow was tested if it was only inspected in code.
+16. Clearly separate:
+
+    * Code reviewed
+    * Automatically tested
+    * Manually tested
+    * Not tested
+
+# Expected Final Report
+
+At the end, provide a detailed report with:
+
+1. Project structure reviewed
+2. Modules identified
+3. Modules tested
+4. Web flows tested
+5. Mobile API flows tested
+6. Commands executed
+7. Automated test results
+8. Manual test results
+9. Issues found
+10. Severity of each issue
+11. Root cause
+12. Affected files and methods
+13. Fixes applied
+14. Files changed
+15. Database changes
+16. Security findings
+17. Performance findings
+18. Unresolved issues
+19. Flows not tested
+20. Reason each flow could not be tested
+21. Required environment or credentials
+22. Production-readiness status
+
+Use severity levels:
+
+* Critical
+* High
+* Medium
+* Low
+
+Do not provide a generic statement such as “everything is working correctly.”
+
+For every successful flow, provide evidence such as:
+
+* Test name
+* Command result
+* HTTP status
+* Database result
+* Expected output
+* Actual output
+
+Finally, clearly state one of these conclusions:
+
+* Production-ready
+* Production-ready with minor fixes
+* Not production-ready
+
+Include the exact reasons for the final conclusion.
