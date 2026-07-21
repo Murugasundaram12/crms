@@ -609,12 +609,12 @@ class MobileApiController extends Controller
 
     protected function shouldSuppressTrackingInsert(?LocationTracking $lastTracking, array $payload): bool
     {
-        if (! $lastTracking) {
-            return false;
-        }
-
         if ($this->hasVeryPoorTrackingAccuracy($payload)) {
             return true;
+        }
+
+        if (! $lastTracking) {
+            return false;
         }
 
         $distanceMeters = $this->trackingDistanceMeters($lastTracking, $payload);
@@ -627,9 +627,11 @@ class MobileApiController extends Controller
 
     protected function hasVeryPoorTrackingAccuracy(array $payload): bool
     {
+        $maxAccuracy = (float) $this->settingValue('max_accuracy_meters', 50);
+
         return isset($payload['accuracy'])
             && $payload['accuracy'] !== null
-            && (float) $payload['accuracy'] > 50;
+            && (float) $payload['accuracy'] > $maxAccuracy;
     }
 
     protected function isStationaryTrackingPayload(array $payload): bool

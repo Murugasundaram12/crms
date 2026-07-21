@@ -2827,7 +2827,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"transaction_types\": {\n    \"purchase\": \"Purchase\",\n    \"issue_to_site\": \"Issue to Site\",\n    \"return_to_office\": \"Return to Office\",\n    \"site_to_site\": \"Site to Site\",\n    \"return_to_vendor\": \"Return to Vendor\",\n    \"damage_wastage\": \"Damage / Wastage\"\n  },\n  \"transaction_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"purchase\",\n      \"label\": \"Purchase\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"issue_to_site\",\n      \"label\": \"Issue to Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"return_to_office\",\n      \"label\": \"Return to Office\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"site_to_site\",\n      \"label\": \"Site to Site\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"return_to_vendor\",\n      \"label\": \"Return to Vendor\"\n    },\n    {\n      \"id\": 6,\n      \"value\": \"damage_wastage\",\n      \"label\": \"Damage / Wastage\"\n    }\n  ],\n  \"statuses\": {\n    \"draft\": \"Draft\",\n    \"transferred\": \"Transferred\",\n    \"returned\": \"Returned\",\n    \"completed\": \"Completed\",\n    \"cancelled\": \"Cancelled\"\n  },\n  \"status_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"draft\",\n      \"label\": \"Draft\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"transferred\",\n      \"label\": \"Transferred\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"returned\",\n      \"label\": \"Returned\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    }\n  ],\n  \"source_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\"\n  },\n  \"source_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    }\n  ],\n  \"destination_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\",\n    \"wastage\": \"Wastage\"\n  },\n  \"destination_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"wastage\",\n      \"label\": \"Wastage\"\n    }\n  ],\n  \"item_types\": {\n    \"material\": \"Material\",\n    \"tool\": \"Tool\"\n  },\n  \"item_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"material\",\n      \"label\": \"Material\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"tool\",\n      \"label\": \"Tool\"\n    }\n  ],\n  \"units\": [\n    {\n      \"id\": 1,\n      \"name\": \"Bags\",\n      \"code\": \"Bag\"\n    }\n  ],\n  \"unit_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"Bag\",\n      \"label\": \"Bag (Bags)\"\n    }\n  ],\n  \"tools_materials\": [\n    {\n      \"id\": 1,\n      \"item_type\": \"material\",\n      \"name\": \"Cement\",\n      \"unit\": \"Bag\",\n      \"stock_quantity\": 100,\n      \"active_status\": true\n    }\n  ],\n  \"projects\": [\n    {\n      \"id\": 1,\n      \"name\": \"Demo Site\",\n      \"project_code\": \"PRJ-001\"\n    }\n  ],\n  \"vendors\": [\n    {\n      \"id\": 1,\n      \"name\": \"ABC Traders\"\n    }\n  ]\n}"
+              "body": "{\n  \"transaction_types\": {\n    \"purchase\": \"Purchase\",\n    \"issue_to_site\": \"Issue to Site\",\n    \"return_to_office\": \"Return to Office\",\n    \"site_to_site\": \"Site to Site\",\n    \"return_to_vendor\": \"Return to Vendor\",\n    \"damage_wastage\": \"Damage / Wastage\"\n  },\n  \"transaction_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"purchase\",\n      \"label\": \"Purchase\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"issue_to_site\",\n      \"label\": \"Issue to Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"return_to_office\",\n      \"label\": \"Return to Office\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"site_to_site\",\n      \"label\": \"Site to Site\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"return_to_vendor\",\n      \"label\": \"Return to Vendor\"\n    },\n    {\n      \"id\": 6,\n      \"value\": \"damage_wastage\",\n      \"label\": \"Damage / Wastage\"\n    }\n  ],\n  \"statuses\": {\n    \"draft\": \"Draft\",\n    \"transferred\": \"Transferred\",\n    \"returned\": \"Returned\",\n    \"completed\": \"Completed\",\n    \"cancelled\": \"Cancelled\"\n  },\n  \"status_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"draft\",\n      \"label\": \"Draft\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"transferred\",\n      \"label\": \"Transferred\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"returned\",\n      \"label\": \"Returned\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    }\n  ],\n  \"source_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\"\n  },\n  \"source_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    }\n  ],\n  \"destination_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\",\n    \"wastage\": \"Wastage\"\n  },\n  \"destination_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"wastage\",\n      \"label\": \"Wastage\"\n    }\n  ],\n  \"item_types\": {\n    \"material\": \"Material\",\n    \"tool\": \"Tool\"\n  },\n  \"item_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"material\",\n      \"label\": \"Material\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"tool\",\n      \"label\": \"Tool\"\n    }\n  ],\n  \"units\": [\n    {\n      \"id\": 1,\n      \"name\": \"Bags\",\n      \"code\": \"Bag\"\n    }\n  ],\n  \"unit_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"Bag\",\n      \"label\": \"Bag (Bags)\"\n    }\n  ],\n  \"tools_materials\": [\n    {\n      \"id\": 1,\n      \"item_type\": \"material\",\n      \"name\": \"Cement\",\n      \"unit\": \"Bag\",\n      \"stock_quantity\": 100,\n      \"active_status\": true,\n      \"date\": \"2026-07-21\"\n    }\n  ],\n  \"projects\": [\n    {\n      \"id\": 1,\n      \"name\": \"Demo Site\",\n      \"project_code\": \"PRJ-001\"\n    }\n  ],\n  \"vendors\": [\n    {\n      \"id\": 1,\n      \"name\": \"ABC Traders\"\n    }\n  ]\n}"
             }
           ]
         },
@@ -2908,10 +2908,6 @@
             "method": "POST",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
                 "key": "Accept",
                 "value": "application/json"
               }
@@ -2929,11 +2925,104 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"item_type\": \"material\",\n  \"sku\": \"SAND-001\",\n  \"name\": \"River Sand\",\n  \"unit\": \"CFT\",\n  \"date\": \"2026-07-21\",\n  \"opening_quantity\": 100,\n  \"opening_rate\": 10,\n  \"reorder_level\": 10,\n  \"active_status\": true,\n  \"description\": \"Created from API\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "item_type",
+                  "value": "material",
+                  "type": "text"
+                },
+                {
+                  "key": "sku",
+                  "value": "SAND-001",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "River Sand",
+                  "type": "text"
+                },
+                {
+                  "key": "unit",
+                  "value": "CFT",
+                  "type": "text"
+                },
+                {
+                  "key": "date",
+                  "value": "2026-07-21",
+                  "type": "text"
+                },
+                {
+                  "key": "opening_quantity",
+                  "value": "100",
+                  "type": "text"
+                },
+                {
+                  "key": "opening_rate",
+                  "value": "10",
+                  "type": "text"
+                },
+                {
+                  "key": "reorder_level",
+                  "value": "10",
+                  "type": "text"
+                },
+                {
+                  "key": "active_status",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "value": "",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional image file. Same as web form field `image`. Max 2MB."
+                },
+                {
+                  "key": "description",
+                  "value": "Created from API",
+                  "type": "text"
+                }
+              ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success - Created With Web Form Fields",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost/crms/api/tools-materials",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "path": [
+                    "crms",
+                    "api",
+                    "tools-materials"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"message\": \"Tool / material created successfully.\",\n  \"tool_material\": {\n    \"id\": 1,\n    \"item_type\": \"material\",\n    \"sku\": \"SAND-001\",\n    \"name\": \"River Sand\",\n    \"unit\": \"CFT\",\n    \"date\": \"2026-07-21\",\n    \"image_path\": \"tools-materials/material.jpg\",\n    \"image_url\": \"http://localhost/crms/storage/tools-materials/material.jpg\",\n    \"description\": \"Created from API\",\n    \"opening_quantity\": 100,\n    \"opening_rate\": 10,\n    \"opening_amount\": 1000,\n    \"reorder_level\": 10,\n    \"office_stock_quantity\": 100,\n    \"site_stock_quantity\": 0,\n    \"stock_quantity\": 100,\n    \"stock_amount\": 1000,\n    \"is_low_stock\": false,\n    \"active_status\": true,\n    \"balances\": [\n      {\n        \"label\": \"Office\",\n        \"quantity\": 100,\n        \"amount\": 1000\n      }\n    ]\n  }\n}"
+            }
+          ]
         },
         {
           "name": "Show Tool / Material",
@@ -2984,19 +3073,15 @@
                 }
               ]
             },
-            "method": "PUT",
+            "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "http://localhost/crms/api/tools-materials/{{tool_material_id}}",
+              "raw": "http://localhost/crms/api/tools-materials/{{tool_material_id}}/update",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -3005,15 +3090,111 @@
                 "crms",
                 "api",
                 "tools-materials",
-                "{{tool_material_id}}"
+                "{{tool_material_id}}",
+                "update"
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"item_type\": \"material\",\n  \"sku\": \"SAND-001\",\n  \"name\": \"River Sand Updated\",\n  \"unit\": \"CFT\",\n  \"date\": \"2026-07-21\",\n  \"opening_quantity\": 120,\n  \"opening_rate\": 12,\n  \"reorder_level\": 15,\n  \"active_status\": true,\n  \"description\": \"Updated from API\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "item_type",
+                  "value": "material",
+                  "type": "text"
+                },
+                {
+                  "key": "sku",
+                  "value": "SAND-001",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "River Sand Updated",
+                  "type": "text"
+                },
+                {
+                  "key": "unit",
+                  "value": "CFT",
+                  "type": "text"
+                },
+                {
+                  "key": "date",
+                  "value": "2026-07-21",
+                  "type": "text"
+                },
+                {
+                  "key": "opening_quantity",
+                  "value": "120",
+                  "type": "text"
+                },
+                {
+                  "key": "opening_rate",
+                  "value": "12",
+                  "type": "text"
+                },
+                {
+                  "key": "reorder_level",
+                  "value": "15",
+                  "type": "text"
+                },
+                {
+                  "key": "active_status",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "value": "",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional image file. Same as web form field `image`. Max 2MB."
+                },
+                {
+                  "key": "description",
+                  "value": "Updated from API",
+                  "type": "text"
+                }
+              ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success - Updated With Web Form Fields",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost/crms/api/tools-materials/{{tool_material_id}}/update",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "path": [
+                    "crms",
+                    "api",
+                    "tools-materials",
+                    "{{tool_material_id}}",
+                    "update"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"message\": \"Tool / material updated successfully.\",\n  \"tool_material\": {\n    \"id\": 1,\n    \"item_type\": \"material\",\n    \"sku\": \"SAND-001\",\n    \"name\": \"River Sand Updated\",\n    \"unit\": \"CFT\",\n    \"date\": \"2026-07-21\",\n    \"image_path\": \"tools-materials/material.jpg\",\n    \"image_url\": \"http://localhost/crms/storage/tools-materials/material.jpg\",\n    \"description\": \"Created from API\",\n    \"opening_quantity\": 120,\n    \"opening_rate\": 12,\n    \"opening_amount\": 1440,\n    \"reorder_level\": 10,\n    \"office_stock_quantity\": 100,\n    \"site_stock_quantity\": 0,\n    \"stock_quantity\": 120,\n    \"stock_amount\": 1440,\n    \"is_low_stock\": false,\n    \"active_status\": true,\n    \"balances\": [\n      {\n        \"label\": \"Office\",\n        \"quantity\": 100,\n        \"amount\": 1000\n      }\n    ]\n  }\n}"
+            }
+          ]
         },
         {
           "name": "Delete Tool / Material",

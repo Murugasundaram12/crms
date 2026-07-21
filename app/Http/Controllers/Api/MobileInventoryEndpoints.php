@@ -581,6 +581,7 @@ trait MobileInventoryEndpoints
             'sku' => $item->sku,
             'name' => $item->name,
             'unit' => $item->unit,
+            'date' => $item->date?->toDateString(),
             'image_path' => $item->image_path,
             'image_url' => $item->image_path ? asset('storage/' . $item->image_path) : null,
             'description' => $item->description,

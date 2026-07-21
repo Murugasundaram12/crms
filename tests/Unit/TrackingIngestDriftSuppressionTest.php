@@ -70,6 +70,15 @@ class TrackingIngestDriftSuppressionTest extends TestCase
             'activity' => 'travelling',
             'type' => 'travelling',
         ]));
+
+        $this->assertTrue($controller->suppress(null, [
+            'latitude' => 11.017500,
+            'longitude' => 76.956500,
+            'accuracy' => 80,
+            'speed' => 1.2,
+            'activity' => 'travelling',
+            'type' => 'travelling',
+        ]));
     }
 
     public function test_suppressed_status_keeps_previous_coordinates(): void

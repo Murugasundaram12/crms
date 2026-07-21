@@ -512,7 +512,7 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('inserted', false)
             ->assertJsonPath('tracking.latitude', 11.016844)
             ->assertJsonPath('tracking.longitude', 76.955832)
-            ->assertJsonPath('tracking.accuracy', 19.0)
+            ->assertJsonPath('tracking.accuracy', 19)
             ->assertJsonPath('tracking.battery_percentage', 65);
 
         $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
@@ -891,8 +891,8 @@ class MobileApiSmokeTest extends TestCase
 
         $this->withHeaders($headers)
             ->postJson('/api/tracking/location', $trackingPayload + ['type' => 'still'])
-            ->assertCreated()
-            ->assertJsonPath('tracking.type', 'still');
+            ->assertOk()
+            ->assertJsonPath('tracking.type', 'checked_in');
 
         $this->withHeaders($headers)
             ->postJson('/api/devices/live-status', $trackingPayload)
@@ -973,7 +973,7 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->getJson('/api/admin/employees/' . $user->id . '/timeline?date=' . now()->toDateString())
             ->assertOk()
-            ->assertJsonPath('summary.raw_points_count', 2)
+            ->assertJsonPath('summary.raw_points_count', 1)
             ->assertJsonPath('summary.points_count', 1)
             ->assertJsonCount(1, 'polylinePoints');
 
