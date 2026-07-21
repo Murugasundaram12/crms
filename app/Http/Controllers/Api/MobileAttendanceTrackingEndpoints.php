@@ -107,10 +107,12 @@ trait MobileAttendanceTrackingEndpoints
             $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_in');
             $trackingPayload['recorded_at'] = $attendance->check_in_at;
 
-            DB::transaction(function () use ($user, $attendance, $trackingPayload, &$tracking) {
-                $this->upsertDeviceStatus($user->id, $trackingPayload);
-                $tracking = $this->createTrackingPoint($attendance, $trackingPayload, 'checked_in');
-            });
+            if (! $this->hasVeryPoorTrackingAccuracy($trackingPayload)) {
+                DB::transaction(function () use ($user, $attendance, $trackingPayload, &$tracking) {
+                    $this->upsertDeviceStatus($user->id, $trackingPayload);
+                    $tracking = $this->createTrackingPoint($attendance, $trackingPayload, 'checked_in');
+                });
+            }
         }
 
         return response()->json([
@@ -177,8 +179,11 @@ trait MobileAttendanceTrackingEndpoints
             if (! blank($validated['latitude'] ?? null) && ! blank($validated['longitude'] ?? null)) {
                 $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_out');
                 $trackingPayload['recorded_at'] = $checkoutTime;
-                $this->upsertDeviceStatus($user->id, $trackingPayload);
-                $tracking = $this->createTrackingPoint($openAttendance, $trackingPayload, 'checked_out');
+
+                if (! $this->hasVeryPoorTrackingAccuracy($trackingPayload)) {
+                    $this->upsertDeviceStatus($user->id, $trackingPayload);
+                    $tracking = $this->createTrackingPoint($openAttendance, $trackingPayload, 'checked_out');
+                }
             }
         });
 
@@ -376,14 +381,20 @@ trait MobileAttendanceTrackingEndpoints
         [$tracking, $inserted] = DB::transaction(function () use ($user, $attendance, $validated) {
             $lastTracking = $this->latestTrackingPoint($user->id, $validated['device_id'] ?? 'default');
 
+            if ($this->hasVeryPoorTrackingAccuracy($validated)) {
+                if ($lastTracking) {
+                    $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
+                    $this->upsertDeviceStatus($user->id, $statusPayload);
+                    return [$lastTracking->refresh(), false];
+                }
+
+                return [null, false];
+            }
+
             if ($this->shouldSuppressTrackingInsert($lastTracking, $validated)) {
                 $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
 
                 $this->upsertDeviceStatus($user->id, $statusPayload);
-
-                if ($this->hasVeryPoorTrackingAccuracy($validated)) {
-                    return [$lastTracking->refresh(), false];
-                }
 
                 return [$this->refreshTrackingPointStatus($lastTracking, $validated), false];
             }
@@ -396,7 +407,7 @@ trait MobileAttendanceTrackingEndpoints
         return response()->json([
             'message' => $inserted ? 'Location updated successfully.' : 'Location status refreshed successfully.',
             'inserted' => $inserted,
-            'tracking' => $this->trackingPayload($tracking),
+            'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
         ], $inserted ? 201 : 200);
     }
 

@@ -551,13 +551,35 @@ class EmployeeTrackingController extends Controller
 
     private function polylinePointsFromItems($items, string $latitudeKey = 'latitude', string $longitudeKey = 'longitude')
     {
-        return collect($items)
-            ->filter(fn(array $item) => isset($item[$latitudeKey], $item[$longitudeKey]) && (float) $item[$latitudeKey] !== 0.0 && (float) $item[$longitudeKey] !== 0.0)
-            ->map(fn(array $item) => [
-                'lat' => (float) $item[$latitudeKey],
-                'lng' => (float) $item[$longitudeKey],
-            ])
-            ->values();
+        $points = [];
+        $previous = null;
+
+        foreach ($items as $item) {
+            if (! isset($item[$latitudeKey], $item[$longitudeKey])) {
+                continue;
+            }
+
+            $lat = (float) $item[$latitudeKey];
+            $lng = (float) $item[$longitudeKey];
+
+            if ($lat === 0.0 || $lng === 0.0) {
+                continue;
+            }
+
+            $current = ['lat' => $lat, 'lng' => $lng];
+
+            if ($previous !== null) {
+                $distanceMeters = $this->distanceInKm($previous['lat'], $previous['lng'], $lat, $lng) * 1000;
+                if ($distanceMeters < 5) {
+                    continue;
+                }
+            }
+
+            $points[] = $current;
+            $previous = $current;
+        }
+
+        return collect($points);
     }
 
     private function formatSecondsAsClock(int|float $seconds): string

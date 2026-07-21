@@ -9,6 +9,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class ToolMaterialFlowTest extends TestCase
@@ -556,6 +558,7 @@ class ToolMaterialFlowTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('tool_material.name', 'Tile Cutter')
             ->assertJsonPath('tool_material.unit', 'Nos')
+            ->assertJsonPath('tool_material.date', '2026-07-16')
             ->assertJsonPath('tool_material.active_status', false);
 
         $itemId = $createResponse->json('tool_material.id');
@@ -579,6 +582,7 @@ class ToolMaterialFlowTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('tool_material.name', 'Floor Tile')
+            ->assertJsonPath('tool_material.date', '2026-07-17')
             ->assertJsonPath('tool_material.opening_amount', 1000)
             ->assertJsonPath('tool_material.active_status', true);
 
@@ -586,6 +590,7 @@ class ToolMaterialFlowTest extends TestCase
             ->getJson('/api/tools-materials?q=Floor&item_type=material')
             ->assertOk()
             ->assertJsonPath('summary.materials', 1)
+            ->assertJsonPath('data.0.date', '2026-07-17')
             ->assertJsonPath('data.0.name', 'Floor Tile');
 
         $this->withHeaders($headers)
@@ -594,6 +599,43 @@ class ToolMaterialFlowTest extends TestCase
             ->assertJsonPath('message', 'Tool / material deleted successfully.');
 
         $this->assertDatabaseMissing('tools_materials', ['id' => $itemId]);
+    }
+
+    public function test_tools_materials_api_supports_same_create_fields_as_web_form_including_image(): void
+    {
+        Storage::fake('public');
+
+        $response = $this->withHeaders($this->apiHeaders())
+            ->post('/api/tools-materials', [
+                'item_type' => 'material',
+                'sku' => 'IMG-1',
+                'name' => 'Image Material',
+                'unit' => 'Bag',
+                'date' => '2026-07-18',
+                'opening_quantity' => 10,
+                'opening_rate' => 50,
+                'reorder_level' => 2,
+                'active_status' => 1,
+                'description' => 'Created with same fields as web form.',
+                'image' => UploadedFile::fake()->image('material.jpg', 20, 20),
+            ], ['Accept' => 'application/json']);
+
+        $response->assertCreated()
+            ->assertJsonPath('tool_material.item_type', 'material')
+            ->assertJsonPath('tool_material.sku', 'IMG-1')
+            ->assertJsonPath('tool_material.name', 'Image Material')
+            ->assertJsonPath('tool_material.unit', 'Bag')
+            ->assertJsonPath('tool_material.date', '2026-07-18')
+            ->assertJsonPath('tool_material.opening_quantity', 10)
+            ->assertJsonPath('tool_material.opening_rate', 50)
+            ->assertJsonPath('tool_material.opening_amount', 500)
+            ->assertJsonPath('tool_material.reorder_level', 2)
+            ->assertJsonPath('tool_material.active_status', true)
+            ->assertJsonPath('tool_material.description', 'Created with same fields as web form.');
+
+        $imagePath = $response->json('tool_material.image_path');
+        $this->assertNotEmpty($imagePath);
+        Storage::disk('public')->assertExists($imagePath);
     }
 
     public function test_tools_material_assignments_api_can_update_and_delete_transactions(): void

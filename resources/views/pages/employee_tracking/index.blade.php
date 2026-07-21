@@ -446,6 +446,43 @@
             }
         }
 
+        function computeDistanceMeters(p1, p2) {
+            if (!p1 || !p2) {
+                return 0;
+            }
+            if (window.google?.maps?.geometry?.spherical?.computeDistanceBetween) {
+                return google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
+            }
+            const lat1 = typeof p1.lat === 'function' ? p1.lat() : Number(p1.lat);
+            const lng1 = typeof p1.lng === 'function' ? p1.lng() : Number(p1.lng);
+            const lat2 = typeof p2.lat === 'function' ? p2.lat() : Number(p2.lat);
+            const lng2 = typeof p2.lng === 'function' ? p2.lng() : Number(p2.lng);
+
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function filterPolylineCoordinates(latLngs, minDistanceMeters = 5) {
+            if (!Array.isArray(latLngs) || latLngs.length === 0) {
+                return [];
+            }
+            const filtered = [latLngs[0]];
+            for (let i = 1; i < latLngs.length; i++) {
+                const prev = filtered[filtered.length - 1];
+                const curr = latLngs[i];
+                if (computeDistanceMeters(prev, curr) >= minDistanceMeters) {
+                    filtered.push(curr);
+                }
+            }
+            return filtered;
+        }
+
         function buildMovementPaths(items) {
             const paths = [];
             let currentPath = [];
@@ -465,7 +502,7 @@
                     currentPath = [];
                 }
 
-                if (!previousPoint || google.maps.geometry.spherical.computeDistanceBetween(previousPoint, point) >= 5) {
+                if (!previousPoint || computeDistanceMeters(previousPoint, point) >= 5) {
                     currentPath.push(point);
                     previousPoint = point;
                 }
@@ -501,7 +538,7 @@
                 return false;
             }
 
-            return google.maps.geometry.spherical.computeDistanceBetween(previousPoint, currentPoint) <= 200;
+            return computeDistanceMeters(previousPoint, currentPoint) <= 200;
         }
 
         async function drawSnappedRoute(routePath, renderToken) {
@@ -556,18 +593,22 @@
                 return false;
             }
 
-            const rawLength = google.maps.geometry.spherical.computeLength(rawPath);
-            const snappedLength = google.maps.geometry.spherical.computeLength(snappedPath);
-            const maxAllowedLength = Math.max(rawLength * 1.8, rawLength + 500);
-            const startDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[0], snappedPath[0]);
-            const endDrift = google.maps.geometry.spherical.computeDistanceBetween(rawPath[rawPath.length - 1], snappedPath[snappedPath.length - 1]);
+            const rawLength = computeDistanceMeters(rawPath[0], rawPath[rawPath.length - 1]);
+            const snappedLength = computeDistanceMeters(snappedPath[0], snappedPath[snappedPath.length - 1]);
+            const startDrift = computeDistanceMeters(rawPath[0], snappedPath[0]);
+            const endDrift = computeDistanceMeters(rawPath[rawPath.length - 1], snappedPath[snappedPath.length - 1]);
 
-            return snappedLength <= maxAllowedLength && startDrift <= 150 && endDrift <= 150;
+            return startDrift <= 150 && endDrift <= 150;
         }
 
         function drawRoutePolyline(latLngs) {
+            const cleanPath = filterPolylineCoordinates(latLngs, 5);
+            if (cleanPath.length < 2) {
+                return;
+            }
+
             const polyline = new google.maps.Polyline({
-                path: latLngs,
+                path: cleanPath,
                 geodesic: false,
                 strokeColor: '#0000FF',
                 strokeWeight: 3,
