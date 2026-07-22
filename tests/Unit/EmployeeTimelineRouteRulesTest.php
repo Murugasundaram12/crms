@@ -74,6 +74,22 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame([], $this->invoke($controller, 'polylineSegmentsFromItems', [$items]));
     }
 
+    public function test_travelling_type_with_still_activity_does_not_create_route(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+        $trackings = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $this->point(11.000500, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+        ]);
+
+        $timeline = $builder->build($trackings, $this->builderOptions());
+
+        $this->assertSame(['still', 'still'], $timeline['items']->pluck('type')->all());
+        $this->assertSame([], $timeline['polylineSegments']);
+        $this->assertSame(0.0, (float) $timeline['gpsDistanceKm']);
+    }
+
     public function test_low_speed_walking_jitter_does_not_create_route_lines(): void
     {
         $controller = new EmployeeTrackingController();
@@ -291,6 +307,23 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame([], $timeline['directionsSegments']);
     }
 
+    public function test_short_valid_movement_block_still_creates_directions_route(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+        $trackings = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.002000, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.003000, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+
+        $timeline = $builder->build($trackings, $this->builderOptions());
+
+        $this->assertCount(1, $timeline['directionsSegments']);
+        $this->assertSame([1, 3], $timeline['directionsSegments'][0]['source_point_ids']);
+        $this->assertLessThan(0.5, $timeline['polylineSegments'][0]['distance_km']);
+    }
+
     public function test_douglas_peucker_reduces_redundant_points_without_changing_total_distance_source(): void
     {
         $builder = app(EmployeeTimelineBuilder::class);
@@ -378,6 +411,8 @@ class EmployeeTimelineRouteRulesTest extends TestCase
             'max_computed_speed_kmh' => 90,
             'max_bearing_change_degrees' => 45,
             'bearing_drift_distance_meters' => 10,
+            'tracking_interval_seconds' => 60,
+            'max_inactive_gap_seconds' => 3600,
             'douglas_peucker_tolerance_meters' => 3,
         ];
     }

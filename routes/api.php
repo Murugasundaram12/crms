@@ -38,6 +38,9 @@ Route::middleware('mobile.api')->group(function () {
     Route::post('/check_in', [MobileAttendanceTrackingController::class, 'checkIn']);
     Route::post('/check_out', [MobileAttendanceTrackingController::class, 'checkOut']);
     Route::post('/tracking/location', [MobileAttendanceTrackingController::class, 'updateLocation']);
+    Route::post('/tracking/locations/bulk', [MobileAttendanceTrackingController::class, 'syncOfflineLocations']);
+    Route::post('/V1/attendance/statusUpdate', [MobileAttendanceTrackingController::class, 'updateLocation']);
+    Route::post('/V1/attendance/statusUpdate/bulk', [MobileAttendanceTrackingController::class, 'syncOfflineLocations']);
     Route::post('/devices/live-status', [MobileAttendanceTrackingController::class, 'liveStatus']);
     Route::post('/updateDeviceStatus', [MobileAttendanceTrackingController::class, 'updateDeviceStatus']);
     Route::post('/devices/status', [MobileAttendanceTrackingController::class, 'updateDeviceStatus']);

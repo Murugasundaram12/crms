@@ -109,6 +109,7 @@ trait MobileAttendanceTrackingEndpoints
         ]);
 
         $tracking = null;
+        $gpsValidation = null;
 
         if (! blank($validated['latitude'] ?? null) && ! blank($validated['longitude'] ?? null)) {
             $trackingPayload = $this->normalizeOptionalTrackingPayload($validated, 'checked_in');
@@ -126,6 +127,9 @@ trait MobileAttendanceTrackingEndpoints
         return response()->json([
             'message' => 'Checked in successfully.',
             'attendance' => $this->attendancePayload($attendance),
+            'saved' => (bool) $tracking,
+            'reason' => $tracking ? null : ($gpsValidation['reason'] ?? null),
+            'gps_validation' => $gpsValidation,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
         ], 201);
     }
@@ -183,8 +187,9 @@ trait MobileAttendanceTrackingEndpoints
         $notes = trim(collect([$openAttendance->notes, $validated['notes'] ?? null])->filter()->implode("\n"));
 
         $tracking = null;
+        $gpsValidation = null;
 
-        DB::transaction(function () use ($user, $openAttendance, $checkoutTime, $notes, $validated, &$tracking) {
+        DB::transaction(function () use ($user, $openAttendance, $checkoutTime, $notes, $validated, &$tracking, &$gpsValidation) {
             $openAttendance->update([
                 'check_out_at' => $checkoutTime,
                 'worked_minutes' => $openAttendance->check_in_at->diffInMinutes($checkoutTime),
@@ -208,6 +213,9 @@ trait MobileAttendanceTrackingEndpoints
         return response()->json([
             'message' => 'Checked out successfully.',
             'attendance' => $this->attendancePayload($openAttendance->fresh()),
+            'saved' => (bool) $tracking,
+            'reason' => $tracking ? null : ($gpsValidation['reason'] ?? null),
+            'gps_validation' => $gpsValidation,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
         ]);
     }
@@ -488,11 +496,7 @@ trait MobileAttendanceTrackingEndpoints
             $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
         }
 
-<<<<<<< HEAD
         $device = EmployeeDevice::query()->create($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
-=======
-        $device = EmployeeDevice::query()->create($this->availableEmployeeDeviceAttributes([
->>>>>>> 5d33ae179396425d80fc99e052907004f60016d2
             'employee_id' => $user->id,
             'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? null,
@@ -504,10 +508,6 @@ trait MobileAttendanceTrackingEndpoints
             'battery_percentage' => $validated['battery_percentage'] ?? null,
             'last_seen_at' => now(),
         ]));
-<<<<<<< HEAD
-=======
-
->>>>>>> 5d33ae179396425d80fc99e052907004f60016d2
         $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
 
         return response()->json([
@@ -732,73 +732,144 @@ trait MobileAttendanceTrackingEndpoints
         $validated = $this->validateTrackingPayload($request, 'travelling');
         $user = $request->user();
 
-        $attendance = $this->activeAttendance($user->id);
+        $attendance = $this->attendanceForTrackingPayload($user->id, $validated);
 
         if (! $attendance) {
             return response()->json([
-                'message' => 'No active attendance found. Tracking is allowed only after check-in and before check-out.',
+                'success' => false,
+                'saved' => false,
+                'reason' => 'no_active_attendance',
+                'message' => 'No attendance session found for this tracking time.',
             ], 409);
         }
 
-        [$tracking, $inserted, $gpsValidation] = DB::transaction(function () use ($user, $attendance, $validated) {
-            $deviceId = $validated['device_id'] ?? 'default';
-            $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
-            if ($duplicate) {
-                $this->upsertDeviceStatus($user->id, $validated);
+        try {
+            [$tracking, $inserted, $gpsValidation] = $this->storeTrackingUpdate($user, $attendance, $validated);
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::error('Mobile tracking location update failed.', [
+                'employee_id' => $user->id,
+                'attendance_id' => $attendance->id,
+                'device_id' => $validated['device_id'] ?? null,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
 
-                return [
-                    $duplicate->refresh(),
-                    false,
-                    [
-                        'accepted' => true,
-                        'reason' => 'duplicate_retry',
-                    ],
-                ];
-            }
-
-            $previousTrackings = $this->latestValidTrackingPointsBefore(
-                $user->id,
-                $deviceId,
-                2,
-                $validated['recorded_at'] ?? now()
-            );
-            $lastTracking = $previousTrackings->get(0);
-            $previousPreviousTracking = $previousTrackings->get(1);
-            $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)
-                ->validate($validated, $lastTracking, $previousPreviousTracking);
-
-            if (! $gpsValidation['accepted']) {
-                if ($lastTracking) {
-                    $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
-                    $this->upsertDeviceStatus($user->id, $statusPayload);
-                    if (in_array($gpsValidation['reason'] ?? null, ['distance_below_threshold', 'duplicate_location'], true)) {
-                        $lastTracking = $this->refreshTrackingPointStatus($lastTracking, $statusPayload);
-                    }
-
-                    return [$lastTracking->refresh(), false, $gpsValidation];
-                }
-
-                return [null, false, $gpsValidation];
-            }
-
-            $this->upsertDeviceStatus($user->id, $validated);
-
-            return [
-                $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),
-                true,
-                $gpsValidation,
-            ];
-        });
+            return response()->json([
+                'success' => false,
+                'saved' => false,
+                'reason' => 'server_exception',
+                'message' => 'Location update failed on server.',
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
             'saved' => $inserted,
-            'message' => $inserted ? 'Location updated successfully.' : 'Location point ignored due to low GPS quality.',
+            'message' => $inserted ? 'Location updated successfully.' : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
             'reason' => $gpsValidation['reason'] ?? null,
             'gps_validation' => $gpsValidation,
             'inserted' => $inserted,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
         ], $inserted ? 201 : 200);
+    }
+
+    public function syncOfflineLocations(Request $request)
+    {
+        if (! $this->settingValue('tracking_enabled', true)) {
+            return response()->json([
+                'message' => 'Location tracking is disabled by mobile app settings.',
+            ], 403);
+        }
+
+        if (! $this->settingValue('offline_tracking_enabled', true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Offline tracking sync is disabled by mobile app settings.',
+            ], 403);
+        }
+
+        $validatedBatch = $request->validate([
+            'locations' => ['required', 'array', 'min:1', 'max:500'],
+            'locations.*' => ['required', 'array'],
+        ]);
+
+        $user = $request->user();
+        $results = [];
+        $savedCount = 0;
+        $ignoredCount = 0;
+        $failedCount = 0;
+
+        foreach (array_values($validatedBatch['locations']) as $index => $locationPayload) {
+            $pointRequest = $this->trackingPointRequest($request, [
+                ...$request->except('locations'),
+                ...$locationPayload,
+                'is_offline' => $locationPayload['is_offline'] ?? $locationPayload['isOffline'] ?? $locationPayload['offline'] ?? true,
+            ]);
+
+            try {
+                $validated = $this->validateTrackingPayload($pointRequest, 'travelling');
+                $attendance = $this->attendanceForTrackingPayload($user->id, $validated);
+
+                if (! $attendance) {
+                    $failedCount++;
+                    $results[] = [
+                        'index' => $index,
+                        'success' => false,
+                        'saved' => false,
+                        'reason' => 'no_active_attendance',
+                        'message' => 'No attendance session found for this tracking time.',
+                    ];
+                    continue;
+                }
+
+                [$tracking, $inserted, $gpsValidation] = $this->storeTrackingUpdate($user, $attendance, $validated);
+                $inserted ? $savedCount++ : $ignoredCount++;
+
+                $results[] = [
+                    'index' => $index,
+                    'success' => true,
+                    'saved' => $inserted,
+                    'reason' => $gpsValidation['reason'] ?? null,
+                    'message' => $inserted ? 'Location updated successfully.' : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
+                    'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
+                ];
+            } catch (ValidationException $exception) {
+                $failedCount++;
+                $results[] = [
+                    'index' => $index,
+                    'success' => false,
+                    'saved' => false,
+                    'reason' => 'validation_failed',
+                    'message' => collect($exception->errors())->flatten()->first() ?? 'Location validation failed.',
+                    'errors' => $exception->errors(),
+                ];
+            } catch (\Throwable $exception) {
+                $failedCount++;
+                \Illuminate\Support\Facades\Log::error('Mobile offline tracking sync point failed.', [
+                    'employee_id' => $user->id,
+                    'index' => $index,
+                    'exception' => $exception::class,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                $results[] = [
+                    'index' => $index,
+                    'success' => false,
+                    'saved' => false,
+                    'reason' => 'server_exception',
+                    'message' => 'Location update failed on server.',
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => $failedCount === 0,
+            'message' => 'Offline tracking sync processed.',
+            'saved_count' => $savedCount,
+            'ignored_count' => $ignoredCount,
+            'failed_count' => $failedCount,
+            'results' => $results,
+        ], $failedCount > 0 ? 207 : 200);
     }
 
     public function liveStatus(Request $request)
@@ -829,7 +900,7 @@ trait MobileAttendanceTrackingEndpoints
     public function trackingSettings()
     {
         return response()->json([
-            'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
+            'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 30),
             'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
             'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
             'timeline_minimum_distance_meters' => $this->settingValue('gps_min_distance_metres', 30),
@@ -846,7 +917,7 @@ trait MobileAttendanceTrackingEndpoints
             'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
             'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
             'gps_douglas_peucker_tolerance_metres' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
-            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
+            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 90),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'history_retention_days' => $this->settingValue('history_retention_days', 90),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
@@ -1125,7 +1196,10 @@ trait MobileAttendanceTrackingEndpoints
         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 3600)
+        $intervalSeconds = max(1, (int) $this->settingValue('tracking_interval_seconds', 30));
+        $gapThresholdSeconds = max($intervalSeconds * 3, (int) $this->settingValue('gps_max_inactive_gap_seconds', 90));
+
+        return $seconds >= $gapThresholdSeconds
             || $distanceKm > 2
             || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
     }
@@ -1144,7 +1218,15 @@ trait MobileAttendanceTrackingEndpoints
             return 'still';
         }
 
+        $trackingType = strtolower((string) $tracking->type);
         $activity = strtolower((string) $tracking->activity);
+
+        if (in_array($trackingType, ['travelling', 'vehicle', 'walking', 'walk'], true)) {
+            if (in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) || $trackingType === 'walking' || $trackingType === 'walk') {
+                return 'walk';
+            }
+            return 'vehicle';
+        }
 
         if (in_array($activity, ['activitytype.still', 'still'], true)) {
             return 'still';
@@ -1208,7 +1290,23 @@ trait MobileAttendanceTrackingEndpoints
             'bearing_change_degrees' => (float) $this->settingValue('timeline_bearing_change_degrees', 60),
             'max_bearing_change_degrees' => (float) $this->settingValue('timeline_max_bearing_change_degrees', 170),
             'max_computed_speed_kmh' => (float) $this->settingValue('timeline_max_computed_speed_kmh', 90),
+            'tracking_interval_seconds' => (int) $this->settingValue('tracking_interval_seconds', 30),
+            'gps_max_inactive_gap_seconds' => (int) $this->settingValue('gps_max_inactive_gap_seconds', 90),
         ];
+    }
+
+    protected function trackingIgnoredMessage(?string $reason): string
+    {
+        return match ($reason) {
+            'distance_below_threshold' => 'Location received but ignored because movement was too small.',
+            'duplicate_location' => 'Location received but ignored because it duplicates the previous point.',
+            'invalid_timestamp' => 'Location received but ignored because recorded_at is not newer than the previous point.',
+            'speed_exceeded' => 'Location received but ignored because movement speed was impossible.',
+            'accuracy_exceeded' => 'Location received but ignored because GPS accuracy is above threshold.',
+            'invalid_coordinates' => 'Location received but ignored because coordinates are invalid or mock location was detected.',
+            'duplicate_retry' => 'Location already saved earlier; duplicate retry ignored.',
+            default => 'Location received but ignored by GPS validation.',
+        };
     }
 
     protected function timelineDateBounds(string $date): array
