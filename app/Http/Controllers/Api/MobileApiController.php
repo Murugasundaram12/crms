@@ -379,6 +379,7 @@ class MobileApiController extends Controller
     protected function normalizeOptionalTrackingPayload(array $validated, string $type): array
     {
         $isGpsOn = $validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true;
+        $isWifiOn = $validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false;
         $isMock = $validated['is_mock_location'] ?? $validated['isMock'] ?? false;
 
         if (! $isGpsOn) {
@@ -403,8 +404,10 @@ class MobileApiController extends Controller
             'bearing' => $validated['bearing'] ?? null,
             'activity' => $validated['activity'] ?? null,
             'is_gps_on' => (bool) $isGpsOn,
+            'is_wifi_on' => (bool) $isWifiOn,
             'is_mock_location' => (bool) $isMock,
             'battery_percentage' => $this->batteryPercentageFromPayload($validated),
+            'signal_strength' => $validated['signal_strength'] ?? $validated['signalStrength'] ?? null,
             'recorded_at' => $validated['recorded_at'] ?? null,
             'type' => $this->normalizeTrackingType($type),
         ];
@@ -519,7 +522,7 @@ class MobileApiController extends Controller
 
     protected function validateTrackingPayload(Request $request, string $defaultType): array
     {
-        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 1000);
+        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
         $request->merge([
             'device_id' => $this->normalizeDeviceIdFromRequest($request) ?? $this->mobileTokenDeviceId($request),
         ]);
@@ -730,6 +733,31 @@ class MobileApiController extends Controller
             ->first();
     }
 
+    protected function deviceValuesWithLatestTrackingFallback(int $userId, string $deviceId, array $deviceValues): array
+    {
+        if (($deviceValues['latitude'] ?? null) !== null && ($deviceValues['longitude'] ?? null) !== null) {
+            return $deviceValues;
+        }
+
+        $latestTracking = $this->latestTrackingPoint($userId, $deviceId);
+        if (! $latestTracking) {
+            return $deviceValues;
+        }
+
+        return [
+            ...$deviceValues,
+            'latitude' => (float) $latestTracking->latitude,
+            'longitude' => (float) $latestTracking->longitude,
+            'accuracy' => $latestTracking->accuracy,
+            'speed' => $latestTracking->speed,
+            'bearing' => $latestTracking->bearing,
+            'activity' => $latestTracking->activity,
+            'is_gps_on' => (bool) $latestTracking->is_gps_on,
+            'is_mock_location' => (bool) $latestTracking->is_mock_location,
+            'battery_percentage' => $deviceValues['battery_percentage'] ?? $latestTracking->battery_percentage,
+        ];
+    }
+
     protected function latestValidTrackingPoints(int $userId, ?string $deviceId = null, int $limit = 2)
     {
         $validator = app(GpsTrackingValidationService::class);
@@ -744,6 +772,43 @@ class MobileApiController extends Controller
             ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking))
             ->take($limit)
             ->values();
+    }
+
+    protected function latestValidTrackingPointsBefore(int $userId, ?string $deviceId = null, int $limit = 2, Carbon|string|null $recordedAt = null)
+    {
+        $validator = app(GpsTrackingValidationService::class);
+        $recordedAt = $recordedAt ? Carbon::parse($recordedAt) : now();
+
+        return LocationTracking::query()
+            ->where('employee_id', $userId)
+            ->when($deviceId, fn ($query) => $query->where('device_id', $deviceId))
+            ->where(function ($query) use ($recordedAt) {
+                $query->where('recorded_at', '<', $recordedAt)
+                    ->orWhere(function ($query) use ($recordedAt) {
+                        $query->whereNull('recorded_at')
+                            ->where('created_at', '<', $recordedAt);
+                    });
+            })
+            ->orderByRaw('COALESCE(recorded_at, created_at) DESC')
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking))
+            ->take($limit)
+            ->values();
+    }
+
+    protected function duplicateTrackingPoint(int $userId, ?string $deviceId, array $payload): ?LocationTracking
+    {
+        $recordedAt = isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now();
+
+        return LocationTracking::query()
+            ->where('employee_id', $userId)
+            ->when($deviceId, fn ($query) => $query->where('device_id', $deviceId))
+            ->where('recorded_at', $recordedAt)
+            ->where('latitude', round((float) $payload['latitude'], 7))
+            ->where('longitude', round((float) $payload['longitude'], 7))
+            ->first();
     }
 
     protected function shouldSuppressTrackingInsert(?LocationTracking $lastTracking, array $payload): bool
@@ -831,8 +896,10 @@ class MobileApiController extends Controller
             'bearing' => $payload['bearing'] ?? null,
             'activity' => $payload['activity'] ?? null,
             'is_gps_on' => $payload['is_gps_on'],
+            'is_wifi_on' => $payload['is_wifi_on'] ?? false,
             'is_mock_location' => $payload['is_mock_location'],
             'battery_percentage' => $payload['battery_percentage'] ?? null,
+            'signal_strength' => $payload['signal_strength'] ?? null,
             'type' => $this->normalizeTrackingType($type),
             'recorded_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
         ]);
@@ -851,18 +918,18 @@ class MobileApiController extends Controller
             'force_update' => $this->settingValue('force_update', false),
             'privacy_policy_url' => $this->settingValue('privacy_policy_url', ''),
             'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
-            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
-            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
-            'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 3),
-            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 10),
+            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
+            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+            'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 30),
+            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 50),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
             'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
-            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 10),
-            'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 3),
+            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
+            'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 30),
             'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
             'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 170),
             'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_distance_metres', 10),
-            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
+            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
             'online_threshold_seconds' => $this->onlineThresholdSeconds(),
@@ -891,18 +958,18 @@ class MobileApiController extends Controller
                 'background_tracking_enabled' => $this->settingValue('tracking_enabled', true),
                 'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
                 'interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
-                'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
-                'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
-                'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 3),
-                'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 10),
+                'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
+                'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+                'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 30),
+                'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 50),
                 'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
                 'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
-                'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 10),
-                'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 3),
+                'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
+                'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 30),
                 'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
                 'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 170),
                 'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_distance_metres', 10),
-                'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
+                'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
                 'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
                 'online_threshold_seconds' => $this->onlineThresholdSeconds(),
             ],
@@ -1560,9 +1627,13 @@ class MobileApiController extends Controller
             'bearing' => $tracking->bearing !== null ? (float) $tracking->bearing : null,
             'activity' => $tracking->activity,
             'is_gps_on' => (bool) $tracking->is_gps_on,
+            'is_wifi_on' => (bool) $tracking->is_wifi_on,
+            'isWifiOn' => (bool) $tracking->is_wifi_on,
             'is_mock_location' => (bool) $tracking->is_mock_location,
             'battery_percentage' => $tracking->battery_percentage,
             'batteryPercentage' => $tracking->battery_percentage,
+            'signal_strength' => $tracking->signal_strength,
+            'signalStrength' => $tracking->signal_strength,
             'type' => $tracking->type,
             'recorded_at' => $tracking->recorded_at?->toISOString(),
         ];

@@ -48,7 +48,7 @@ trait MobileAttendanceTrackingEndpoints
             ], 403);
         }
 
-        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 1000);
+        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:1000'],
             'device_id' => ['nullable', 'string', 'max:255'],
@@ -61,6 +61,8 @@ trait MobileAttendanceTrackingEndpoints
             'activity' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
             'isGpsOn' => ['nullable', 'boolean'],
+            'is_wifi_on' => ['nullable', 'boolean'],
+            'isWifiOn' => ['nullable', 'boolean'],
             'is_mock_location' => ['nullable', 'boolean'],
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -68,6 +70,8 @@ trait MobileAttendanceTrackingEndpoints
             'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
             'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'signal_strength' => ['nullable', 'string', 'max:100'],
+            'signalStrength' => ['nullable', 'string', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
         ]);
 
@@ -134,7 +138,7 @@ trait MobileAttendanceTrackingEndpoints
             ], 403);
         }
 
-        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 1000);
+        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:1000'],
             'device_id' => ['nullable', 'string', 'max:255'],
@@ -147,6 +151,8 @@ trait MobileAttendanceTrackingEndpoints
             'activity' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
             'isGpsOn' => ['nullable', 'boolean'],
+            'is_wifi_on' => ['nullable', 'boolean'],
+            'isWifiOn' => ['nullable', 'boolean'],
             'is_mock_location' => ['nullable', 'boolean'],
             'isMock' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -154,6 +160,8 @@ trait MobileAttendanceTrackingEndpoints
             'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryLevel' => ['nullable', 'integer', 'min:0', 'max:100'],
             'battery' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'signal_strength' => ['nullable', 'string', 'max:100'],
+            'signalStrength' => ['nullable', 'string', 'max:100'],
             'recorded_at' => ['nullable', 'date'],
         ]);
 
@@ -420,7 +428,7 @@ trait MobileAttendanceTrackingEndpoints
             ->first();
 
         if ($sameUserSameDevice) {
-            $sameUserSameDevice->update(collect([
+            $sameUserSameDevice->update(collect($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
                 'device_name' => $validated['device_name'] ?? null,
                 'device_type' => $validated['device_type'] ?? null,
                 'brand' => $validated['brand'] ?? null,
@@ -429,7 +437,7 @@ trait MobileAttendanceTrackingEndpoints
                 'model' => $validated['model'] ?? null,
                 'battery_percentage' => $validated['battery_percentage'] ?? null,
                 'last_seen_at' => now(),
-            ])->reject(fn ($value) => $value === null)->all());
+            ]))->reject(fn ($value) => $value === null)->all());
             $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
 
             return response()->json([
@@ -447,7 +455,7 @@ trait MobileAttendanceTrackingEndpoints
 
         if ($sameUserOtherDevice) {
             if ($this->isLegacyDeviceId($tokenDeviceId) && $sameUserOtherDevice->device_id === $tokenDeviceId) {
-                $sameUserOtherDevice->update([
+                $sameUserOtherDevice->update($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
                     'device_id' => $validated['device_id'],
                     'device_name' => $validated['device_name'] ?? $sameUserOtherDevice->device_name,
                     'device_type' => $validated['device_type'] ?? $sameUserOtherDevice->device_type,
@@ -457,7 +465,7 @@ trait MobileAttendanceTrackingEndpoints
                     'model' => $validated['model'] ?? $sameUserOtherDevice->model,
                     'battery_percentage' => $validated['battery_percentage'] ?? $sameUserOtherDevice->battery_percentage,
                     'last_seen_at' => now(),
-                ]);
+                ]));
                 $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
 
                 return response()->json([
@@ -480,7 +488,7 @@ trait MobileAttendanceTrackingEndpoints
             $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
         }
 
-        $device = EmployeeDevice::query()->create([
+        $device = EmployeeDevice::query()->create($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
             'employee_id' => $user->id,
             'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? null,
@@ -491,7 +499,7 @@ trait MobileAttendanceTrackingEndpoints
             'model' => $validated['model'] ?? null,
             'battery_percentage' => $validated['battery_percentage'] ?? null,
             'last_seen_at' => now(),
-        ]);
+        ]));
         $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
 
         return response()->json([
@@ -725,7 +733,27 @@ trait MobileAttendanceTrackingEndpoints
         }
 
         [$tracking, $inserted, $gpsValidation] = DB::transaction(function () use ($user, $attendance, $validated) {
-            $previousTrackings = $this->latestValidTrackingPoints($user->id, $validated['device_id'] ?? 'default', 2);
+            $deviceId = $validated['device_id'] ?? 'default';
+            $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
+            if ($duplicate) {
+                $this->upsertDeviceStatus($user->id, $validated);
+
+                return [
+                    $duplicate->refresh(),
+                    false,
+                    [
+                        'accepted' => true,
+                        'reason' => 'duplicate_retry',
+                    ],
+                ];
+            }
+
+            $previousTrackings = $this->latestValidTrackingPointsBefore(
+                $user->id,
+                $deviceId,
+                2,
+                $validated['recorded_at'] ?? now()
+            );
             $lastTracking = $previousTrackings->get(0);
             $previousPreviousTracking = $previousTrackings->get(1);
             $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)
@@ -735,6 +763,9 @@ trait MobileAttendanceTrackingEndpoints
                 if ($lastTracking) {
                     $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
                     $this->upsertDeviceStatus($user->id, $statusPayload);
+                    if (in_array($gpsValidation['reason'] ?? null, ['distance_below_threshold', 'duplicate_location'], true)) {
+                        $lastTracking = $this->refreshTrackingPointStatus($lastTracking, $statusPayload);
+                    }
 
                     return [$lastTracking->refresh(), false, $gpsValidation];
                 }
@@ -791,23 +822,23 @@ trait MobileAttendanceTrackingEndpoints
     {
         return response()->json([
             'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
-            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
-            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
-            'timeline_minimum_distance_meters' => $this->settingValue('gps_min_distance_metres', 5),
-            'timeline_max_accuracy_meters' => $this->settingValue('gps_max_accuracy_metres', 8),
+            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
+            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+            'timeline_minimum_distance_meters' => $this->settingValue('gps_min_distance_metres', 30),
+            'timeline_max_accuracy_meters' => $this->settingValue('gps_max_accuracy_metres', 50),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
             'timeline_simplification_tolerance_meters' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
             'timeline_bearing_drift_distance_meters' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
             'timeline_bearing_change_degrees' => $this->settingValue('timeline_bearing_change_degrees', 60),
             'timeline_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
             'timeline_max_computed_speed_kmh' => $this->settingValue('timeline_max_computed_speed_kmh', 90),
-            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 8),
-            'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 5),
+            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
+            'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 30),
             'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
             'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
             'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
             'gps_douglas_peucker_tolerance_metres' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
-            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
+            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'history_retention_days' => $this->settingValue('history_retention_days', 90),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
@@ -1086,7 +1117,7 @@ trait MobileAttendanceTrackingEndpoints
         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 600)
+        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 3600)
             || $distanceKm > 2
             || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
     }
@@ -1161,8 +1192,8 @@ trait MobileAttendanceTrackingEndpoints
     protected function timelineGpsOptions(): array
     {
         return [
-            'minimum_distance_meters' => (float) $this->settingValue('timeline_minimum_distance_meters', 3),
-            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 10),
+            'minimum_distance_meters' => (float) $this->settingValue('timeline_minimum_distance_meters', 30),
+            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 50),
             'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
             'simplification_tolerance_meters' => (float) $this->settingValue('timeline_simplification_tolerance_meters', 8),
             'bearing_drift_distance_meters' => (float) $this->settingValue('timeline_bearing_drift_distance_meters', 10),

@@ -138,6 +138,7 @@ trait MobileAuthEndpoints
         if ($credentials['battery_percentage'] !== null) {
             $deviceValues['battery_percentage'] = $credentials['battery_percentage'];
         }
+        $deviceValues = $this->deviceValuesWithLatestTrackingFallback($user->id, $credentials['device_id'], $deviceValues);
 
         $device = EmployeeDevice::query()->updateOrCreate(
             [
