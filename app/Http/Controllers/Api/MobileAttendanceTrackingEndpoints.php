@@ -491,12 +491,9 @@ trait MobileAttendanceTrackingEndpoints
             'model' => $validated['model'] ?? null,
             'battery_percentage' => $validated['battery_percentage'] ?? null,
             'last_seen_at' => now(),
-<<<<<<< HEAD
         ]));
-=======
-        ]);
+
         $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
->>>>>>> 61c89e1176053a0e34b77797d7dda63d0301ad1f
 
         return response()->json([
             'message' => 'Device registered successfully.',

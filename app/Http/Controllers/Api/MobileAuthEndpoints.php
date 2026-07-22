@@ -126,24 +126,6 @@ trait MobileAuthEndpoints
             'token_hash' => hash('sha256', $plainToken),
         ]);
 
-<<<<<<< HEAD
-        if (filled($credentials['device_id'] ?? null)) {
-            $device = EmployeeDevice::query()->updateOrCreate(
-                [
-                    'employee_id' => $user->id,
-                    'device_id' => $credentials['device_id'],
-                ],
-                $this->availableEmployeeDeviceAttributes([
-                    'device_name' => $credentials['device_name'] ?? null,
-                    'device_type' => $credentials['device_type'] ?? $credentials['deviceType'] ?? null,
-                    'brand' => $credentials['brand'] ?? null,
-                    'board' => $credentials['board'] ?? null,
-                    'sdk_version' => $credentials['sdk_version'] ?? $credentials['sdkVersion'] ?? null,
-                    'model' => $credentials['model'] ?? null,
-                    'last_seen_at' => now(),
-                ])
-            );
-=======
         $deviceValues = [
             'device_name' => $credentials['device_name'] ?? null,
             'device_type' => $credentials['device_type'] ?? $credentials['deviceType'] ?? null,
@@ -155,7 +137,6 @@ trait MobileAuthEndpoints
         ];
         if ($credentials['battery_percentage'] !== null) {
             $deviceValues['battery_percentage'] = $credentials['battery_percentage'];
->>>>>>> 61c89e1176053a0e34b77797d7dda63d0301ad1f
         }
 
         $device = EmployeeDevice::query()->updateOrCreate(
@@ -163,7 +144,7 @@ trait MobileAuthEndpoints
                 'employee_id' => $user->id,
                 'device_id' => $credentials['device_id'],
             ],
-            $deviceValues
+            $this->availableEmployeeDeviceAttributes($deviceValues)
         );
 
         $activeTokensCount = MobileApiToken::query()

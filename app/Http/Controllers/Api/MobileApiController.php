@@ -716,30 +716,7 @@ class MobileApiController extends Controller
                 'employee_id' => $userId,
                 'device_id' => $deviceId,
             ],
-<<<<<<< HEAD
-            $this->availableEmployeeDeviceAttributes([
-                'device_name' => $payload['device_name'] ?? null,
-                'device_type' => $payload['device_type'] ?? null,
-                'brand' => $payload['brand'] ?? null,
-                'board' => $payload['board'] ?? null,
-                'sdk_version' => $payload['sdk_version'] ?? null,
-                'model' => $payload['model'] ?? null,
-                'latitude' => $payload['latitude'],
-                'longitude' => $payload['longitude'],
-                'accuracy' => $payload['accuracy'] ?? null,
-                'speed' => $payload['speed'] ?? null,
-                'bearing' => $payload['bearing'] ?? null,
-                'activity' => $payload['activity'] ?? null,
-                'is_gps_on' => $payload['is_gps_on'],
-                'is_wifi_on' => $payload['is_wifi_on'] ?? false,
-                'is_mock_location' => $payload['is_mock_location'],
-                'battery_percentage' => $payload['battery_percentage'] ?? null,
-                'signal_strength' => $payload['signal_strength'] ?? null,
-                'last_seen_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
-            ])
-=======
-            $deviceValues
->>>>>>> 61c89e1176053a0e34b77797d7dda63d0301ad1f
+            $this->availableEmployeeDeviceAttributes($deviceValues)
         );
     }
 
