@@ -1306,10 +1306,7 @@ class MobileApiController extends Controller
                 ->all();
         }
 
-        return $user->assignedRoles()
-            ->flatMap(fn(Role $role) => $role->permissions->pluck('key'))
-            ->filter()
-            ->unique()
+        return collect($user->effectivePermissionKeys())
             ->sort()
             ->values()
             ->all();
