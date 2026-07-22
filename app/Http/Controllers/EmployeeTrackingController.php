@@ -110,35 +110,35 @@ class EmployeeTrackingController extends Controller
         $date = $validated['date'];
         [$timelineStart, $timelineEnd] = $this->timelineDateBounds($date);
 
-        $attendance = Attendance::query()
+        $attendances = Attendance::query()
             ->where('user_id', $employee->id)
             ->whereDate('attendance_date', $date)
-            ->latest('check_in_at')
-            ->first();
+            ->orderBy('check_in_at')
+            ->get();
+        $attendance = $attendances->last();
 
         $device = EmployeeDevice::query()
             ->where('employee_id', $employee->id)
             ->latest('last_seen_at')
             ->first();
 
-        $trackings = LocationTracking::query()
-            ->with('attendance')
-            ->where('employee_id', $employee->id)
-            ->where(function ($query) use ($timelineStart, $timelineEnd) {
-                $query->whereBetween('recorded_at', [$timelineStart, $timelineEnd])
-                    ->orWhere(function ($query) use ($timelineStart, $timelineEnd) {
-                        $query->whereNull('recorded_at')
-                            ->whereBetween('created_at', [$timelineStart, $timelineEnd]);
-                    });
-            })
-            ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
-            ->orderBy('id')
-            ->get();
+        $trackings = $attendances->isEmpty()
+            ? collect()
+            : LocationTracking::query()
+                ->with('attendance')
+                ->whereIn('attendance_id', $attendances->pluck('id'))
+                ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
+                ->orderBy('id')
+                ->get();
 
-        if (! $attendance && $trackings->isEmpty()) {
+        if ($attendances->isEmpty()) {
             $response = [
                 'employeeName' => $employee->name,
                 'employeeId' => $employee->id,
+                'attendanceId' => null,
+                'attendanceIds' => [],
+                'attendances' => [],
+                'attendanceSessions' => [],
                 'totalTrackedTime' => '00:00:00',
                 'totalAttendanceTime' => '00:00:00',
                 'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
@@ -148,6 +148,8 @@ class EmployeeTrackingController extends Controller
                 'polylinePoints' => [],
                 'polylineSegments' => [],
                 'directionsSegments' => [],
+                'routeBlocks' => [],
+                'timelineEvents' => [],
                 'timeLineItems' => [],
             ];
 
@@ -160,34 +162,29 @@ class EmployeeTrackingController extends Controller
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
         $timeLineItems = $timeline['items'];
-        $totalTrackedSeconds = $trackings
-            ->values()
-            ->map(function (LocationTracking $tracking, int $index) use ($trackings) {
-                $nextTracking = $trackings->values()->get($index + 1);
+        $totalTrackedSeconds = $this->trackedSecondsByAttendance($trackings);
 
-                return $nextTracking && $tracking->recorded_at
-                    ? $tracking->recorded_at->diffInSeconds($nextTracking->recorded_at)
-                    : 0;
-            })
-            ->sum();
-
-        $attendanceSeconds = $attendance->check_in_at
-            ? $attendance->check_in_at->diffInSeconds($attendance->check_out_at ?? now())
-            : 0;
+        $attendanceSeconds = $this->attendanceSeconds($attendances);
+        $timelineEvents = $this->groupTimelineEvents($timeLineItems);
 
         $response = [
             'employeeId' => $employee->id,
             'employeeName' => $employee->name,
             'attendanceId' => $attendance?->id,
+            'attendanceIds' => $attendances->pluck('id')->values(),
+            'attendances' => $attendances->map(fn (Attendance $attendance): array => $this->attendancePayload($attendance))->values(),
+            'attendanceSessions' => $this->attendanceSessionPayloads($attendances, $timeline),
             'totalTrackedTime' => $this->formatSecondsAsClock($totalTrackedSeconds),
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
             'totalKM' => $timeline['totalKM'],
-            'gpsDistanceKm' => $timeline['totalKM'],
-            'directionsDistanceKm' => null,
+            'gpsDistanceKm' => $timeline['gpsDistanceKm'] ?? $timeline['totalKM'],
+            'directionsDistanceKm' => $timeline['directionsDistanceKm'] ?? null,
             'polylinePoints' => $timeline['polylinePoints'],
             'polylineSegments' => $timeline['polylineSegments'],
             'directionsSegments' => $timeline['directionsSegments'],
+            'routeBlocks' => $timeline['routeBlocks'] ?? [],
+            'timelineEvents' => $timelineEvents,
             'timeLineItems' => $timeLineItems,
         ];
 
@@ -207,25 +204,21 @@ class EmployeeTrackingController extends Controller
         $date = $validated['date'];
         [$timelineStart, $timelineEnd] = $this->timelineDateBounds($date);
 
-        $attendance = Attendance::query()
+        $attendances = Attendance::query()
             ->where('user_id', $employee->id)
             ->whereDate('attendance_date', $date)
-            ->latest('check_in_at')
-            ->first();
-
-        $trackings = LocationTracking::query()
-            ->with('attendance')
-            ->where('employee_id', $employee->id)
-            ->where(function ($query) use ($timelineStart, $timelineEnd) {
-                $query->whereBetween('recorded_at', [$timelineStart, $timelineEnd])
-                    ->orWhere(function ($query) use ($timelineStart, $timelineEnd) {
-                        $query->whereNull('recorded_at')
-                            ->whereBetween('created_at', [$timelineStart, $timelineEnd]);
-                    });
-            })
-            ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
-            ->orderBy('id')
+            ->orderBy('check_in_at')
             ->get();
+        $attendance = $attendances->last();
+
+        $trackings = $attendances->isEmpty()
+            ? collect()
+            : LocationTracking::query()
+                ->with('attendance')
+                ->whereIn('attendance_id', $attendances->pluck('id'))
+                ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
+                ->orderBy('id')
+                ->get();
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
 
@@ -258,6 +251,8 @@ class EmployeeTrackingController extends Controller
                 'worked_minutes' => $attendance->worked_minutes,
                 'status' => $attendance->status,
             ] : null,
+            'attendance_ids' => $attendances->pluck('id')->values(),
+            'attendance_sessions' => $this->attendanceSessionPayloads($attendances, $timeline),
             'summary' => [
                 'points_count' => $items->count(),
                 'raw_points_count' => $trackings->count(),
@@ -267,6 +262,10 @@ class EmployeeTrackingController extends Controller
             'trackings' => $items,
             'polyline_points' => $timeline['polylinePoints'],
             'polyline_segments' => $timeline['polylineSegments'],
+            'route_blocks' => $timeline['routeBlocks'] ?? [],
+            'directions_segments' => $timeline['directionsSegments'] ?? [],
+            'gps_distance_km' => $timeline['gpsDistanceKm'] ?? $timeline['totalKM'],
+            'directions_distance_km' => $timeline['directionsDistanceKm'] ?? null,
         ]);
     }
 
@@ -516,6 +515,209 @@ class EmployeeTrackingController extends Controller
         ];
     }
 
+    private function trackedSecondsByAttendance($trackings): int
+    {
+        return (int) $trackings
+            ->groupBy('attendance_id')
+            ->sum(function ($sessionTrackings): int {
+                $ordered = $sessionTrackings->values();
+
+                return (int) $ordered
+                    ->map(function (LocationTracking $tracking, int $index) use ($ordered): int {
+                        $nextTracking = $ordered->get($index + 1);
+
+                        return $nextTracking && $tracking->recorded_at
+                            ? $tracking->recorded_at->diffInSeconds($nextTracking->recorded_at)
+                            : 0;
+                    })
+                    ->sum();
+            });
+    }
+
+    private function attendanceSeconds($attendances): int
+    {
+        return (int) $attendances->sum(function (Attendance $attendance): int {
+            return $attendance->check_in_at
+                ? $attendance->check_in_at->diffInSeconds($attendance->check_out_at ?? now())
+                : 0;
+        });
+    }
+
+    private function attendancePayload(Attendance $attendance): array
+    {
+        return [
+            'id' => $attendance->id,
+            'user_id' => $attendance->user_id,
+            'attendance_date' => $attendance->attendance_date?->toDateString(),
+            'check_in_at' => $attendance->check_in_at?->toISOString(),
+            'check_out_at' => $attendance->check_out_at?->toISOString(),
+            'check_in_time' => $attendance->check_in_at?->format('h:i A'),
+            'check_out_time' => $attendance->check_out_at?->format('h:i A'),
+            'worked_minutes' => $attendance->worked_minutes,
+            'status' => $attendance->status,
+        ];
+    }
+
+    private function attendanceSessionPayloads($attendances, array $timeline): array
+    {
+        $routeBlocks = collect($timeline['routeBlocks'] ?? [])->groupBy('attendance_id');
+        $items = collect($timeline['items'] ?? [])->groupBy('attendanceId');
+
+        return $attendances
+            ->values()
+            ->map(function (Attendance $attendance, int $index) use ($routeBlocks, $items): array {
+                $sessionItems = $items->get($attendance->id, collect());
+
+                return [
+                    'attendance_id' => $attendance->id,
+                    'session_index' => $index + 1,
+                    'attendance' => $this->attendancePayload($attendance),
+                    'item_count' => $sessionItems->count(),
+                    'route_blocks' => $routeBlocks->get($attendance->id, collect())->values()->all(),
+                ];
+            })
+            ->all();
+    }
+
+    private function groupTimelineEvents($items): array
+    {
+        $events = [];
+        $current = null;
+
+        foreach (collect($items)->values() as $item) {
+            $eventType = $this->timelineEventType($item['type'] ?? null);
+            $attendanceId = $item['attendanceId'] ?? null;
+
+            if (! $current
+                || $current['type'] !== $eventType
+                || $current['attendance_id'] !== $attendanceId
+                || ($item['segmentBreakBefore'] ?? false) === true
+                || in_array($eventType, ['checkIn', 'checkOut', 'proofPost'], true)) {
+                if ($current) {
+                    $events[] = $this->finalizeTimelineEvent($current);
+                }
+
+                $current = $this->newTimelineEvent($item, $eventType);
+                continue;
+            }
+
+            $previousLat = $current['end_latitude'];
+            $previousLng = $current['end_longitude'];
+            $currentLat = $item['latitude'] ?? null;
+            $currentLng = $item['longitude'] ?? null;
+
+            $current['items'][] = $item;
+            $current['end_time'] = $item['endTime'] ?? $item['startTime'] ?? $current['end_time'];
+            $current['end_latitude'] = $currentLat ?? $current['end_latitude'];
+            $current['end_longitude'] = $currentLng ?? $current['end_longitude'];
+            $current['distance'] += $this->eventDistanceKm($eventType, $previousLat, $previousLng, $currentLat, $currentLng);
+            $current['accuracies'][] = $item['accuracy'] ?? null;
+            $current['battery_percentage'] = $item['batteryPercentage'] ?? $current['battery_percentage'];
+            $current['is_gps_on'] = $item['isGPSOn'] ?? $current['is_gps_on'];
+            $current['is_wifi_on'] = $item['isWifiOn'] ?? $current['is_wifi_on'];
+        }
+
+        if ($current) {
+            $events[] = $this->finalizeTimelineEvent($current);
+        }
+
+        return $events;
+    }
+
+    private function timelineEventType(?string $type): string
+    {
+        return match ($type) {
+            'vehicle' => 'travelling',
+            'walk' => 'walk',
+            'checkIn' => 'checkIn',
+            'checkOut' => 'checkOut',
+            'proofPost' => 'proofPost',
+            default => 'still',
+        };
+    }
+
+    private function newTimelineEvent(array $item, string $eventType): array
+    {
+        return [
+            'attendance_id' => $item['attendanceId'] ?? null,
+            'type' => $eventType,
+            'activity' => $item['activity'] ?? null,
+            'tracking_type' => $item['trackingType'] ?? null,
+            'start_time' => $item['startTime'] ?? null,
+            'end_time' => $item['endTime'] ?? $item['startTime'] ?? null,
+            'start_latitude' => $item['latitude'] ?? null,
+            'start_longitude' => $item['longitude'] ?? null,
+            'end_latitude' => $item['latitude'] ?? null,
+            'end_longitude' => $item['longitude'] ?? null,
+            'distance' => (float) ($item['distance'] ?? 0),
+            'accuracies' => [$item['accuracy'] ?? null],
+            'battery_percentage' => $item['batteryPercentage'] ?? null,
+            'is_gps_on' => $item['isGPSOn'] ?? null,
+            'is_wifi_on' => $item['isWifiOn'] ?? null,
+            'address' => $item['address'] ?? null,
+            'items' => [$item],
+        ];
+    }
+
+    private function finalizeTimelineEvent(array $event): array
+    {
+        $accuracies = collect($event['accuracies'])
+            ->filter(fn ($accuracy) => $accuracy !== null && $accuracy !== '')
+            ->map(fn ($accuracy) => (float) $accuracy)
+            ->values();
+
+        return [
+            'attendance_id' => $event['attendance_id'],
+            'type' => $event['type'],
+            'activity' => $event['activity'],
+            'tracking_type' => $event['tracking_type'],
+            'start_time' => $event['start_time'],
+            'end_time' => $event['end_time'],
+            'duration' => $this->eventDuration($event['start_time'], $event['end_time']),
+            'start_latitude' => $event['start_latitude'],
+            'start_longitude' => $event['start_longitude'],
+            'end_latitude' => $event['end_latitude'],
+            'end_longitude' => $event['end_longitude'],
+            'distance' => round((float) $event['distance'], 2),
+            'accuracy_min' => $accuracies->isNotEmpty() ? $accuracies->min() : null,
+            'accuracy_max' => $accuracies->isNotEmpty() ? $accuracies->max() : null,
+            'battery_percentage' => $event['battery_percentage'],
+            'is_gps_on' => $event['is_gps_on'],
+            'is_wifi_on' => $event['is_wifi_on'],
+            'address' => $event['address'],
+            'item_count' => count($event['items']),
+        ];
+    }
+
+    private function eventDistanceKm(string $eventType, mixed $fromLat, mixed $fromLng, mixed $toLat, mixed $toLng): float
+    {
+        if (! in_array($eventType, ['travelling', 'walk'], true)
+            || $fromLat === null
+            || $fromLng === null
+            || $toLat === null
+            || $toLng === null) {
+            return 0.0;
+        }
+
+        return $this->distanceInKm((float) $fromLat, (float) $fromLng, (float) $toLat, (float) $toLng);
+    }
+
+    private function eventDuration(?string $startTime, ?string $endTime): string
+    {
+        if (! $startTime || ! $endTime) {
+            return '00:00:00';
+        }
+
+        try {
+            $start = \Illuminate\Support\Carbon::createFromFormat('h:i A', $startTime);
+            $end = \Illuminate\Support\Carbon::createFromFormat('h:i A', $endTime);
+
+            return $this->formatSecondsAsClock(max(0, $start->diffInSeconds($end)));
+        } catch (\Throwable) {
+            return '00:00:00';
+        }
+    }
+
     private function isUnrealisticTimelineJump(LocationTracking $previous, LocationTracking $current, float $distanceKm): bool
     {
         if (! $previous->recorded_at || ! $current->recorded_at) {
@@ -547,7 +749,7 @@ class EmployeeTrackingController extends Controller
         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 600)
+        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 3600)
             || $distanceKm > 2
             || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
     }
@@ -697,7 +899,7 @@ class EmployeeTrackingController extends Controller
     {
         return [
             'minimum_distance_meters' => (float) $this->settingValue('gps_min_distance_metres', 5),
-            'max_accuracy_meters' => (float) $this->settingValue('gps_max_accuracy_metres', 8),
+            'max_accuracy_meters' => (float) $this->settingValue('gps_max_accuracy_metres', 50),
             'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
             'simplification_tolerance_meters' => (float) $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
             'douglas_peucker_tolerance_meters' => (float) $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),

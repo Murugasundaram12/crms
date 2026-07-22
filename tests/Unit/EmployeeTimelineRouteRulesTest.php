@@ -15,7 +15,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
     {
         $controller = new EmployeeTrackingController();
         $previous = $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', attendanceId: 1);
-        $current = $this->point(11.000200, 77.000000, '2026-07-21 10:20:00', attendanceId: 1);
+        $current = $this->point(11.000200, 77.000000, '2026-07-21 11:10:00', attendanceId: 1);
 
         $this->assertTrue($this->invoke($controller, 'shouldBreakTimelineSegment', [$previous, $current]));
     }
@@ -212,10 +212,10 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
         $trackings = collect([
             $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendance),
-            $this->point(11.000100, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendance),
-            $this->point(11.000200, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1)->setRelation('attendance', $attendance),
-            $this->point(11.000210, 77.000010, '2026-07-21 10:05:00', id: 4, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
-            $this->point(11.000230, 77.000015, '2026-07-21 10:06:00', id: 5, activity: 'walking', speed: 0.2, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $this->point(11.003000, 77.000000, '2026-07-21 10:04:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.006000, 77.000000, '2026-07-21 10:08:00', id: 3, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.006010, 77.000010, '2026-07-21 10:10:00', id: 4, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
+            $this->point(11.006030, 77.000015, '2026-07-21 10:11:00', id: 5, activity: 'walking', speed: 0.2, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
         ]);
 
         $timeline = $builder->build($trackings, $this->builderOptions());
@@ -236,7 +236,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         for ($index = 0; $index < 30; $index++) {
             $trackings->push(
                 $this->point(
-                    11.000000 + ($index * 0.0001),
+                    11.000000 + ($index * 0.001),
                     77.000000 + (($index % 3) * 0.00001),
                     Carbon::parse('2026-07-21 10:00:00')->addMinute($index)->toDateTimeString(),
                     id: $index + 1,
@@ -252,7 +252,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
 
         $waypointIds = collect($timeline['directionsSegments'][0]['waypoints'])->pluck('id')->all();
 
-        $this->assertLessThanOrEqual(23, count($waypointIds));
+        $this->assertLessThanOrEqual(8, count($waypointIds));
         $this->assertSame($waypointIds, collect($waypointIds)->sort()->values()->all());
         $this->assertSame(1, $timeline['directionsSegments'][0]['origin']['id']);
         $this->assertSame(30, $timeline['directionsSegments'][0]['destination']['id']);
@@ -265,9 +265,9 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $attendanceTwo = $this->attendance(2, '2026-07-21 12:00:00', '2026-07-21 13:00:00');
         $trackings = collect([
             $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendanceOne),
-            $this->point(11.000100, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.006000, 77.000000, '2026-07-21 10:08:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendanceOne),
             $this->point(11.001000, 77.000000, '2026-07-21 12:00:00', id: 3, attendanceId: 2)->setRelation('attendance', $attendanceTwo),
-            $this->point(11.001100, 77.000000, '2026-07-21 12:01:00', id: 4, attendanceId: 2)->setRelation('attendance', $attendanceTwo),
+            $this->point(11.007000, 77.000000, '2026-07-21 12:08:00', id: 4, attendanceId: 2)->setRelation('attendance', $attendanceTwo),
         ]);
 
         $timeline = $builder->build($trackings, $this->builderOptions());

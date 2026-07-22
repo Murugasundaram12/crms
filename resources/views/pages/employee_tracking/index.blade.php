@@ -123,8 +123,24 @@
             border: 2px solid #fff;
         }
 
+        .timeline-leaflet-pin::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+        }
+
         .timeline-leaflet-pin.attendance-pin {
             background: #0d6efd;
+        }
+
+        .timeline-leaflet-pin.route-start-pin {
+            background: #16a34a;
+        }
+
+        .timeline-leaflet-pin.route-end-pin {
+            background: #ef1d0d;
         }
 
         @media (max-width: 767px) {
@@ -149,9 +165,9 @@
     <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap">
         <h4 class="mb-0">Timeline</h4>
         <div class="d-flex gap-3 flex-wrap">
-            <select id="timelineRouteMode" class="form-select form-select-sm" style="width: 140px;">
-                <option value="road">Road route</option>
-                <option value="actual">Actual GPS</option>
+            <select id="timelineRouteMode" class="form-select form-select-sm" style="width: 190px;">
+                <option value="actual">Actual GPS Route</option>
+                <option value="road">Estimated Road Route</option>
             </select>
             <input type="date" id="trackingDate" class="form-control form-control-sm" value="{{ request('date', now()->toDateString()) }}" style="width: 150px;">
             <select id="trackingEmployee" class="form-select form-select-sm" style="width: 220px;">
@@ -190,7 +206,7 @@
             selectedDate: @json(request('date')),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),
             gpsDebug: @json(request()->boolean('gps_debug')),
-            defaultRouteMode: @json(request('route_mode', filled($googleMapsKey) ? 'road' : 'actual')),
+            defaultRouteMode: @json(request('route_mode', 'actual')),
         };
 
         let timelineMap;
@@ -267,7 +283,7 @@
             document.getElementById('trackingDate')?.addEventListener('change', loadTimelineData);
             const routeModeSelect = document.getElementById('timelineRouteMode');
             if (routeModeSelect) {
-                routeModeSelect.value = timelineConfig.defaultRouteMode === 'actual' ? 'actual' : 'road';
+                routeModeSelect.value = timelineConfig.defaultRouteMode === 'road' ? 'road' : 'actual';
                 routeModeSelect.addEventListener('change', loadTimelineData);
                 if (!timelineConfig.hasGoogleMapsKey) {
                     routeModeSelect.value = 'actual';
@@ -342,6 +358,8 @@
 
             let contents = '';
             let finalDistance = '- KM';
+            let gpsDistance = data.gpsDistanceKm ?? data.totalKM ?? null;
+            let directionsDistance = data.directionsDistanceKm ?? null;
             const latLngs = [];
             const rawPoints = [];
             const addressLookups = [];
@@ -351,6 +369,7 @@
             let lastVisibleStop = null;
 
             if (items.length > 0) {
+                const routedPointIds = routePointIdsFromSegments(data.polylineSegments);
                 items.forEach(function (item, index) {
                     const latitude = Number(item.latitude);
                     const longitude = Number(item.longitude);
@@ -368,7 +387,8 @@
 
                         const trackingType = item.trackingType;
                         const isAttendancePoint = trackingType === 0 || trackingType === 3 || trackingType === 'checked_in' || trackingType === 'checked_out';
-                        const shouldShowMarker = (isAttendancePoint || !isMovementPoint || items.length === 1) && !isCollapsedStill;
+                        const isUnroutedMovementPoint = isMovementPoint && !routedPointIds.has(Number(item.id));
+                        const shouldShowMarker = (isAttendancePoint || !isMovementPoint || items.length === 1 || isUnroutedMovementPoint) && !isCollapsedStill;
                         const markerNumber = shouldShowMarker ? ++visibleMarkerNumber : null;
 
                         if (shouldShowMarker) {
@@ -379,14 +399,6 @@
                                     icon: {
                                         url: timelineConfig.iconBase + (isAttendancePoint ? 'location_pin_blue.png' : 'location_pin.png'),
                                         scaledSize: isAttendancePoint ? new google.maps.Size(34, 34) : new google.maps.Size(42, 42),
-                                        labelOrigin: isAttendancePoint ? new google.maps.Point(15, 11) : new google.maps.Point(21, 22),
-                                    },
-                                    label: {
-                                        text: String(markerNumber),
-                                        color: '#1F1C1C',
-                                        fontWeight: 'bold',
-                                        fontSize: '16px',
-                                        className: 'card p-0',
                                     },
                                     draggable: false,
                                 });
@@ -398,11 +410,11 @@
                             } else if (timelineMapProvider === 'leaflet') {
                                 const icon = L.divIcon({
                                     className: '',
-                                    html: `<div class="timeline-leaflet-pin ${isAttendancePoint ? 'attendance-pin' : ''}">${markerNumber}</div>`,
+                                    html: `<div class="timeline-leaflet-pin ${isAttendancePoint ? 'attendance-pin' : ''}"></div>`,
                                     iconSize: [32, 32],
                                     iconAnchor: [16, 16],
                                 });
-                                const marker = L.marker([latitude, longitude], {icon, title: String(markerNumber)})
+                                const marker = L.marker([latitude, longitude], {icon, title: item.type || 'Tracking'})
                                     .addTo(timelineMap);
                                 marker.on('click', function () {
                                     focusTimelinePoint(latitude, longitude);
@@ -458,8 +470,8 @@
 
                 drawTimelineRoute(items, latLngs, rawPoints, movementPaths, data.directionsSegments || [], hasTravelPoint, renderToken);
 
-                if (data.totalKM !== undefined && data.totalKM !== null) {
-                    finalDistance = `${Number(data.totalKM).toFixed(2)} KM`;
+                if (gpsDistance !== undefined && gpsDistance !== null) {
+                    finalDistance = `${Number(gpsDistance).toFixed(2)} KM`;
                 } else if (hasTravelPoint && rawPoints.length > 1) {
                     let totalMeters = 0;
                     for (let i = 0; i < rawPoints.length - 1; i++) {
@@ -473,11 +485,8 @@
                 contents = '<p class="text-muted mb-0">No data!</p>';
             }
 
-            document.getElementById('timelineOverlayCard').innerHTML = overlayShell(contents, data, finalDistance);
-            const distanceNode = document.getElementById('timelineDistance');
-            if (distanceNode) {
-                distanceNode.textContent = finalDistance;
-            }
+            document.getElementById('timelineOverlayCard').innerHTML = overlayShell(contents, data, finalDistance, directionsDistance);
+            updateDistanceDisplay(finalDistance, directionsDistance);
             resolveMissingAddresses(addressLookups);
         }
 
@@ -578,8 +587,13 @@
                 });
             }
 
+            movementPaths.forEach(drawRouteBoundaryMarkers);
+
             if (routeMode === 'road' && timelineMapProvider === 'google') {
-                await drawDirectionsSegments(directionsSegments, renderToken);
+                const directionsDistanceKm = await drawDirectionsSegments(directionsSegments, renderToken);
+                if (directionsDistanceKm !== null) {
+                    updateDistanceDisplay(null, directionsDistanceKm);
+                }
                 return;
             }
 
@@ -652,6 +666,29 @@
                 .filter((segment) => segment.length >= 2);
         }
 
+        function routePointIdsFromSegments(segments) {
+            const ids = new Set();
+            if (!Array.isArray(segments)) {
+                return ids;
+            }
+
+            segments.forEach((segment) => {
+                const points = Array.isArray(segment) ? segment : segment?.points;
+                if (!Array.isArray(points)) {
+                    return;
+                }
+
+                points.forEach((point) => {
+                    const id = Number(point?.id);
+                    if (Number.isFinite(id)) {
+                        ids.add(id);
+                    }
+                });
+            });
+
+            return ids;
+        }
+
         function isRouteMovementPoint(item) {
             return item && (item.type === 'vehicle' || item.type === 'walk');
         }
@@ -712,19 +749,74 @@
             }
         }
 
-        async function drawDirectionsSegments(segments, renderToken) {
-            if (!Array.isArray(segments) || !window.google?.maps?.DirectionsService || !window.google?.maps?.DirectionsRenderer) {
+        function drawRouteBoundaryMarkers(latLngs) {
+            const cleanPath = filterPolylineCoordinates(latLngs, 3);
+            if (cleanPath.length < 2) {
                 return;
             }
 
+            drawRouteBoundaryMarker(cleanPath[0], 'start');
+            drawRouteBoundaryMarker(cleanPath[cleanPath.length - 1], 'end');
+        }
+
+        function drawRouteBoundaryMarker(point, boundaryType) {
+            const lat = Number(point?.lat);
+            const lng = Number(point?.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                return;
+            }
+
+            const title = boundaryType === 'start' ? 'Route start' : 'Route end';
+            if (timelineMapProvider === 'google') {
+                const marker = new google.maps.Marker({
+                    position: new google.maps.LatLng(lat, lng),
+                    map: timelineMap,
+                    icon: {
+                        url: timelineConfig.iconBase + (boundaryType === 'start' ? 'green_circle.png' : 'red_circle.png'),
+                        scaledSize: new google.maps.Size(20, 20),
+                        anchor: new google.maps.Point(10, 10),
+                    },
+                    title,
+                    draggable: false,
+                });
+                marker.addListener('click', function () {
+                    focusTimelinePoint(lat, lng);
+                });
+                timelineMarkers.push(marker);
+                return;
+            }
+
+            if (timelineMapProvider === 'leaflet') {
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div class="timeline-leaflet-pin route-${boundaryType}-pin"></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12],
+                });
+                const marker = L.marker([lat, lng], {icon, title}).addTo(timelineMap);
+                marker.on('click', function () {
+                    focusTimelinePoint(lat, lng);
+                });
+                timelineMarkers.push(marker);
+            }
+        }
+
+        async function drawDirectionsSegments(segments, renderToken) {
+            if (!Array.isArray(segments) || !window.google?.maps?.DirectionsService || !window.google?.maps?.DirectionsRenderer) {
+                return null;
+            }
+
+            let totalDistanceMeters = 0;
             for (const segment of segments) {
                 if (renderToken !== timelineRenderToken) {
-                    return;
+                    return null;
                 }
 
-                await drawDirectionsSegment(segment, renderToken);
+                totalDistanceMeters += await drawDirectionsSegment(segment, renderToken);
                 await wait(50);
             }
+
+            return totalDistanceMeters > 0 ? totalDistanceMeters / 1000 : null;
         }
 
         function drawDirectionsSegment(segment, renderToken) {
@@ -733,7 +825,7 @@
                 const destination = itemLatLng(segment?.destination);
 
                 if (!origin || !destination) {
-                    resolve();
+                    resolve(0);
                     return;
                 }
 
@@ -763,11 +855,11 @@
                     destination: new google.maps.LatLng(destination.lat, destination.lng),
                     waypoints,
                     optimizeWaypoints: false,
-                    travelMode: google.maps.TravelMode[segment.travel_mode || 'WALKING'] || google.maps.TravelMode.WALKING,
+                    travelMode: google.maps.TravelMode[segment.travel_mode || 'DRIVING'] || google.maps.TravelMode.DRIVING,
                 }, (result, status) => {
                     if (renderToken !== timelineRenderToken) {
                         renderer.setMap(null);
-                        resolve();
+                        resolve(0);
                         return;
                     }
 
@@ -781,15 +873,15 @@
                                 sourcePointIds: segment.source_point_ids || [],
                             });
                         }
-                        resolve();
+                        resolve(0);
                         return;
                     }
 
                     renderer.setDirections(result);
                     timelineDirectionsRenderers.push(renderer);
+                    const directionsDistanceMeters = result.routes[0].legs.reduce((total, leg) => total + Number(leg.distance?.value || 0), 0);
 
                     if (timelineConfig.gpsDebug) {
-                        const directionsDistanceMeters = result.routes[0].legs.reduce((total, leg) => total + Number(leg.distance?.value || 0), 0);
                         console.info('[EmployeeTracking] directions segment drawn', {
                             segmentNumber: segment.segment_number,
                             travelMode: segment.travel_mode,
@@ -801,7 +893,7 @@
                         });
                     }
 
-                    resolve();
+                    resolve(directionsDistanceMeters);
                 });
             });
         }
@@ -876,18 +968,27 @@
             }
         }
 
-        function overlayShell(contents, data = {}, distance = '-') {
+        function overlayShell(contents, data = {}, gpsDistance = '-', directionsDistance = null) {
+            const routeModeLabel = currentRouteMode() === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
+            const roadDistance = directionsDistance !== null && directionsDistance !== undefined
+                ? `${Number(directionsDistance).toFixed(2)} KM`
+                : '-';
+
             return `
                 <div class="bg-white rounded shadow-lg p-3">
                     <div class="timeline-summary-card mb-3 shadow-lg">
                         <div class="card-body">
                             <dl class="row mb-0">
+                                <dt class="col-6">Route mode</dt>
+                                <dd class="col-6" id="timelineRouteModeLabel">${escapeHtml(routeModeLabel)}</dd>
                                 <dt class="col-6">Total tracked time</dt>
                                 <dd class="col-6">${escapeHtml(data.totalTrackedTime || '00:00:00')}</dd>
                                 <dt class="col-6">Total attendance time</dt>
                                 <dd class="col-6">${escapeHtml(data.totalAttendanceTime || '00:00:00')}</dd>
-                                <dt class="col-6">Total travelled distance</dt>
-                                <dd class="col-6" id="timelineDistance">${escapeHtml(distance)}</dd>
+                                <dt class="col-6">Actual GPS distance</dt>
+                                <dd class="col-6" id="timelineGpsDistance">${escapeHtml(gpsDistance)}</dd>
+                                <dt class="col-6">Estimated road distance</dt>
+                                <dd class="col-6" id="timelineDirectionsDistance">${escapeHtml(roadDistance)}</dd>
                                 <dt class="col-6">Device information</dt>
                                 <dd class="col-6">${escapeHtml(data.deviceInfo || '-')}</dd>
                             </dl>
@@ -896,6 +997,23 @@
                     <div class="timeline mt-1" style="max-height:350px; overflow-y:auto;">${contents}</div>
                 </div>
             `;
+        }
+
+        function updateDistanceDisplay(gpsDistance = null, directionsDistance = null) {
+            const gpsNode = document.getElementById('timelineGpsDistance');
+            if (gpsNode && gpsDistance !== null) {
+                gpsNode.textContent = gpsDistance;
+            }
+
+            const directionsNode = document.getElementById('timelineDirectionsDistance');
+            if (directionsNode && directionsDistance !== null && directionsDistance !== undefined) {
+                directionsNode.textContent = `${Number(directionsDistance).toFixed(2)} KM`;
+            }
+
+            const routeModeNode = document.getElementById('timelineRouteModeLabel');
+            if (routeModeNode) {
+                routeModeNode.textContent = currentRouteMode() === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
+            }
         }
 
         function clearTimelineMap() {

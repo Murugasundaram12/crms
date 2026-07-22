@@ -25,6 +25,11 @@ class GpsTrackingValidationServiceTest extends TestCase
         $this->assertNull($result['distance_metres']);
     }
 
+    public function test_default_minimum_distance_matches_tracking_checklist(): void
+    {
+        $this->assertSame(30.0, GpsTrackingValidationService::DEFAULT_MIN_DISTANCE_METRES);
+    }
+
     public function test_accuracy_greater_than_eight_is_rejected_and_equal_eight_is_accepted(): void
     {
         $this->assertSame('accuracy_exceeded', $this->validator()->validate(

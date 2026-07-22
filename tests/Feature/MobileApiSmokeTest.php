@@ -230,8 +230,10 @@ class MobileApiSmokeTest extends TestCase
             $table->decimal('bearing', 6, 2)->nullable();
             $table->string('activity')->nullable();
             $table->boolean('is_gps_on')->default(true);
+            $table->boolean('is_wifi_on')->default(false);
             $table->boolean('is_mock_location')->default(false);
             $table->unsignedTinyInteger('battery_percentage')->nullable();
+            $table->string('signal_strength')->nullable();
             $table->string('type')->default('travelling');
             $table->timestamp('recorded_at');
             $table->timestamps();
@@ -621,6 +623,67 @@ class MobileApiSmokeTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_tracking_location_persists_wifi_and_signal_status(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:00:00'));
+
+        $user = User::query()->create([
+            'name' => 'Tracking Device User',
+            'email' => 'tracking-device-status@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Tracking Device',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $basePayload = [
+            'device_id' => 'tracking-device-status',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 12,
+            'isGpsOn' => true,
+            'isWifiOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 78,
+            'signalStrength' => 'good',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $basePayload)
+            ->assertCreated();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:05:00'));
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', array_merge($basePayload, [
+                'latitude' => 11.017844,
+                'longitude' => 76.956832,
+                'activity' => 'IN_VEHICLE',
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('tracking.is_wifi_on', true)
+            ->assertJsonPath('tracking.isWifiOn', true)
+            ->assertJsonPath('tracking.signal_strength', 'good')
+            ->assertJsonPath('tracking.signalStrength', 'good');
+
+        $tracking = LocationTracking::query()
+            ->where('employee_id', $user->id)
+            ->where('type', 'travelling')
+            ->firstOrFail();
+
+        $this->assertTrue((bool) $tracking->is_wifi_on);
+        $this->assertSame('good', $tracking->signal_strength);
+
+        Carbon::setTestNow();
+    }
+
     public function test_stationary_gps_drift_refreshes_status_without_inserting_tracking_point(): void
     {
         $user = User::query()->create([
@@ -736,6 +799,120 @@ class MobileApiSmokeTest extends TestCase
         $this->assertSame(11.016844, (float) $device->latitude);
         $this->assertSame(76.955832, (float) $device->longitude);
         $this->assertSame(80.0, (float) $device->accuracy);
+    }
+
+    public function test_weak_signal_moving_tracking_point_is_saved_for_route_line(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Weak Signal User',
+            'email' => 'weak-signal@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Weak Signal Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $initialPayload = [
+            'device_id' => 'weak-signal-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'walking',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+            'recorded_at' => '2026-07-21 10:00:00',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $initialPayload)
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', array_merge($initialPayload, [
+                'latitude' => 11.017300,
+                'longitude' => 76.956300,
+                'accuracy' => 35,
+                'batteryPercentage' => 60,
+                'recorded_at' => '2026-07-21 10:05:00',
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('inserted', true);
+
+        $this->assertSame(2, LocationTracking::query()->where('employee_id', $user->id)->count());
+    }
+
+    public function test_delayed_offline_tracking_point_is_validated_against_earlier_history(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Delayed Sync User',
+            'email' => 'delayed-sync@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Delayed Sync Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $initialPayload = [
+            'device_id' => 'delayed-sync-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'walking',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+            'recorded_at' => '2026-07-21 10:00:00',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $initialPayload)
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', array_merge($initialPayload, [
+                'latitude' => 11.017800,
+                'longitude' => 76.956800,
+                'accuracy' => 20,
+                'recorded_at' => '2026-07-21 10:20:00',
+            ]))
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', array_merge($initialPayload, [
+                'latitude' => 11.017300,
+                'longitude' => 76.956300,
+                'accuracy' => 18,
+                'recorded_at' => '2026-07-21 10:10:00',
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('inserted', true);
+
+        $this->assertSame(
+            ['10:00:00', '10:10:00', '10:20:00'],
+            LocationTracking::query()
+                ->where('employee_id', $user->id)
+                ->orderBy('recorded_at')
+                ->pluck('recorded_at')
+                ->map(fn (Carbon $recordedAt) => $recordedAt->format('H:i:s'))
+                ->all()
+        );
     }
 
     public function test_missing_api_model_returns_clean_json_message(): void

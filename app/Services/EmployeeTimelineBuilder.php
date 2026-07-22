@@ -222,7 +222,10 @@ class EmployeeTimelineBuilder
             'polylineSegments' => $segments,
             'polylinePoints' => collect($segments)->pluck('points')->flatten(1)->values(),
             'directionsSegments' => $this->directionsSegments($segments),
+            'routeBlocks' => $this->routeBlocks($segments),
             'totalKM' => round((float) collect($segments)->sum('distance_km'), 2),
+            'gpsDistanceKm' => round((float) collect($segments)->sum('distance_km'), 2),
+            'directionsDistanceKm' => null,
             'diagnostics' => $diagnostics,
             'rejectionReasons' => $reasons,
             'settings' => $settings,
@@ -232,16 +235,20 @@ class EmployeeTimelineBuilder
     public function timelineType(LocationTracking $tracking, ?LocationTracking $previous = null, ?LocationTracking $next = null): string
     {
         $trackingType = strtolower((string) $tracking->type);
+        $activity = strtolower((string) $tracking->activity);
 
         return match (true) {
             $trackingType === 'checked_in' => 'checkIn',
             $trackingType === 'checked_out' => 'checkOut',
             $trackingType === 'still' => 'still',
             $trackingType === 'proof_post' => 'proofPost',
-            in_array(strtolower((string) $tracking->activity), ['activitytype.still', 'still'], true) => 'still',
-            in_array(strtolower((string) $tracking->activity), ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
-            in_array(strtolower((string) $tracking->activity), ['activitytype.in_vehicle', 'in_vehicle', 'vehicle', 'travelling'], true)
-                || in_array($trackingType, ['travelling', 'vehicle'], true) => 'vehicle',
+            in_array($trackingType, ['walking', 'walk'], true) => 'walk',
+            $trackingType === 'vehicle' => 'vehicle',
+            $trackingType === 'travelling' && in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
+            $trackingType === 'travelling' => 'vehicle',
+            in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
+            in_array($activity, ['activitytype.in_vehicle', 'in_vehicle', 'vehicle', 'travelling'], true) => 'vehicle',
+            in_array($activity, ['activitytype.still', 'still'], true) => 'still',
             default => 'still',
         };
     }
@@ -374,9 +381,13 @@ class EmployeeTimelineBuilder
                     return null;
                 }
 
+                if ((float) ($segment['distance_km'] ?? 0) < 0.5) {
+                    return null;
+                }
+
                 $origin = $points[0];
                 $destination = $points[count($points) - 1];
-                $waypoints = $this->directionWaypoints($points);
+                $waypoints = $this->directionWaypoints($points, $origin, $destination);
 
                 return [
                     'segment_number' => $segment['segment_number'] ?? null,
@@ -395,10 +406,53 @@ class EmployeeTimelineBuilder
             ->all();
     }
 
-    private function directionWaypoints(array $points): array
+    private function routeBlocks(array $segments): array
     {
-        $middle = array_slice($points, 1, -1);
-        $maxWaypoints = 23;
+        $sessionIndexes = [];
+        $nextSessionIndex = 1;
+
+        return collect($segments)
+            ->map(function (array $segment) use (&$sessionIndexes, &$nextSessionIndex): array {
+                $attendanceId = $segment['attendance_id'] ?? null;
+                $sessionKey = $attendanceId ?? 'segment-' . ($segment['segment_number'] ?? $nextSessionIndex);
+                if (! isset($sessionIndexes[$sessionKey])) {
+                    $sessionIndexes[$sessionKey] = $nextSessionIndex++;
+                }
+
+                $points = array_values($segment['points'] ?? []);
+                $unsimplifiedPoints = array_values($segment['unsimplified_points'] ?? []);
+                $first = $unsimplifiedPoints[0] ?? $points[0] ?? null;
+                $last = $unsimplifiedPoints[count($unsimplifiedPoints) - 1] ?? $points[count($points) - 1] ?? null;
+
+                return [
+                    'attendance_id' => $attendanceId,
+                    'session_index' => $sessionIndexes[$sessionKey],
+                    'segment_number' => $segment['segment_number'] ?? null,
+                    'device_id' => $segment['device_id'] ?? null,
+                    'type' => 'travelling',
+                    'start_time' => $first['recorded_at'] ?? null,
+                    'end_time' => $last['recorded_at'] ?? null,
+                    'distance_km' => $segment['distance_km'] ?? 0,
+                    'points' => $points,
+                    'unsimplified_points_count' => count($unsimplifiedPoints),
+                    'simplified_points_count' => count($points),
+                    'source_point_ids' => collect($points)->pluck('id')->values()->all(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function directionWaypoints(array $points, array $origin, array $destination): array
+    {
+        $middle = collect(array_slice($points, 1, -1))
+            ->filter(function (array $point) use ($origin, $destination): bool {
+                return $this->pointDistanceMetres($origin, $point) >= 300
+                    && $this->pointDistanceMetres($destination, $point) >= 500;
+            })
+            ->values()
+            ->all();
+        $maxWaypoints = 8;
 
         if (count($middle) <= $maxWaypoints) {
             return array_values($middle);
@@ -417,14 +471,19 @@ class EmployeeTimelineBuilder
             ->all();
     }
 
+    private function pointDistanceMetres(array $from, array $to): float
+    {
+        return $this->gpsValidator->distanceMetres(
+            (float) ($from['lat'] ?? 0),
+            (float) ($from['lng'] ?? 0),
+            (float) ($to['lat'] ?? 0),
+            (float) ($to['lng'] ?? 0),
+        );
+    }
+
     private function directionsTravelMode(array $points): string
     {
-        $hasVehicle = collect($points)->contains(function (array $point): bool {
-            return in_array(strtolower((string) ($point['activity'] ?? '')), ['activitytype.in_vehicle', 'in_vehicle', 'vehicle', 'travelling'], true)
-                || in_array(strtolower((string) ($point['type'] ?? '')), ['vehicle'], true);
-        });
-
-        return $hasVehicle ? 'DRIVING' : 'WALKING';
+        return 'DRIVING';
     }
 
     private function directionsPoint(array $point): array

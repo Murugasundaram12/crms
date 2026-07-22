@@ -145,7 +145,7 @@ trait MobileAuthEndpoints
                 'employee_id' => $user->id,
                 'device_id' => $credentials['device_id'],
             ],
-            $deviceValues
+            $this->availableEmployeeDeviceAttributes($deviceValues)
         );
 
         $activeTokensCount = MobileApiToken::query()

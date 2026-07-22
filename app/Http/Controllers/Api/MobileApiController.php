@@ -719,7 +719,7 @@ class MobileApiController extends Controller
                 'employee_id' => $userId,
                 'device_id' => $deviceId,
             ],
-            $deviceValues
+            $this->availableEmployeeDeviceAttributes($deviceValues)
         );
     }
 
@@ -1611,6 +1611,17 @@ class MobileApiController extends Controller
             'signal_strength' => $device->signal_strength,
             'last_seen_at' => $device->last_seen_at?->toISOString(),
         ];
+    }
+
+    protected function availableEmployeeDeviceAttributes(array $attributes): array
+    {
+        if (! Schema::hasTable('employee_devices')) {
+            return $attributes;
+        }
+
+        return collect($attributes)
+            ->filter(fn ($value, string $column) => Schema::hasColumn('employee_devices', $column))
+            ->all();
     }
 
     protected function trackingPayload(LocationTracking $tracking): array

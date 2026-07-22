@@ -9,12 +9,12 @@ use Illuminate\Support\Facades\Schema;
 
 class GpsTrackingValidationService
 {
-    public const DEFAULT_MAX_ACCURACY_METRES = 8.0;
-    public const DEFAULT_MIN_DISTANCE_METRES = 5.0;
+    public const DEFAULT_MAX_ACCURACY_METRES = 50.0;
+    public const DEFAULT_MIN_DISTANCE_METRES = 30.0;
     public const DEFAULT_MAX_SPEED_MPS = 25.0;
     public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 45.0;
     public const DEFAULT_BEARING_MIN_DISTANCE_METRES = 10.0;
-    public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 600;
+    public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 3600;
     public const DEFAULT_DOUGLAS_PEUCKER_TOLERANCE_METRES = 15.0;
 
     private static ?array $cachedSettings = null;

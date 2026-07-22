@@ -1,0 +1,530 @@
+diff --git a/app/Http/Controllers/Api/MobileApiController.php b/app/Http/Controllers/Api/MobileApiController.php
+index 80d85c6a..a520f465 100644
+--- a/app/Http/Controllers/Api/MobileApiController.php
++++ b/app/Http/Controllers/Api/MobileApiController.php
+@@ -730,6 +730,31 @@ protected function latestTrackingPoint(int $userId, ?string $deviceId = null): ?
+             ->first();
+     }
+ 
++    protected function deviceValuesWithLatestTrackingFallback(int $userId, string $deviceId, array $deviceValues): array
++    {
++        if (($deviceValues['latitude'] ?? null) !== null && ($deviceValues['longitude'] ?? null) !== null) {
++            return $deviceValues;
++        }
++
++        $latestTracking = $this->latestTrackingPoint($userId, $deviceId);
++        if (! $latestTracking) {
++            return $deviceValues;
++        }
++
++        return [
++            ...$deviceValues,
++            'latitude' => (float) $latestTracking->latitude,
++            'longitude' => (float) $latestTracking->longitude,
++            'accuracy' => $latestTracking->accuracy,
++            'speed' => $latestTracking->speed,
++            'bearing' => $latestTracking->bearing,
++            'activity' => $latestTracking->activity,
++            'is_gps_on' => (bool) $latestTracking->is_gps_on,
++            'is_mock_location' => (bool) $latestTracking->is_mock_location,
++            'battery_percentage' => $deviceValues['battery_percentage'] ?? $latestTracking->battery_percentage,
++        ];
++    }
++
+     protected function latestValidTrackingPoints(int $userId, ?string $deviceId = null, int $limit = 2)
+     {
+         $validator = app(GpsTrackingValidationService::class);
+@@ -746,6 +771,43 @@ protected function latestValidTrackingPoints(int $userId, ?string $deviceId = nu
+             ->values();
+     }
+ 
++    protected function latestValidTrackingPointsBefore(int $userId, ?string $deviceId = null, int $limit = 2, Carbon|string|null $recordedAt = null)
++    {
++        $validator = app(GpsTrackingValidationService::class);
++        $recordedAt = $recordedAt ? Carbon::parse($recordedAt) : now();
++
++        return LocationTracking::query()
++            ->where('employee_id', $userId)
++            ->when($deviceId, fn ($query) => $query->where('device_id', $deviceId))
++            ->where(function ($query) use ($recordedAt) {
++                $query->where('recorded_at', '<', $recordedAt)
++                    ->orWhere(function ($query) use ($recordedAt) {
++                        $query->whereNull('recorded_at')
++                            ->where('created_at', '<', $recordedAt);
++                    });
++            })
++            ->orderByRaw('COALESCE(recorded_at, created_at) DESC')
++            ->latest('id')
++            ->limit(50)
++            ->get()
++            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking))
++            ->take($limit)
++            ->values();
++    }
++
++    protected function duplicateTrackingPoint(int $userId, ?string $deviceId, array $payload): ?LocationTracking
++    {
++        $recordedAt = isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now();
++
++        return LocationTracking::query()
++            ->where('employee_id', $userId)
++            ->when($deviceId, fn ($query) => $query->where('device_id', $deviceId))
++            ->where('recorded_at', $recordedAt)
++            ->where('latitude', round((float) $payload['latitude'], 7))
++            ->where('longitude', round((float) $payload['longitude'], 7))
++            ->first();
++    }
++
+     protected function shouldSuppressTrackingInsert(?LocationTracking $lastTracking, array $payload): bool
+     {
+         if ($this->hasVeryPoorTrackingAccuracy($payload)) {
+@@ -854,15 +916,15 @@ protected function appSettingsPayload(): array
+             'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
+             'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
+             'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 3),
+-            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 10),
++            'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 50),
+             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
+             'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
+-            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 10),
++            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
+             'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 3),
+             'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+             'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 170),
+             'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_distance_metres', 10),
+-            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
++            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
+             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
+             'online_threshold_seconds' => $this->onlineThresholdSeconds(),
+@@ -894,15 +956,15 @@ protected function moduleSettingsPayload(): array
+                 'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
+                 'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
+                 'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 3),
+-                'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 10),
++                'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 50),
+                 'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
+                 'timeline_simplification_tolerance_meters' => $this->settingValue('timeline_simplification_tolerance_meters', 8),
+-                'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 10),
++                'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
+                 'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 3),
+                 'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+                 'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 170),
+                 'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_distance_metres', 10),
+-                'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
++                'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
+                 'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+                 'online_threshold_seconds' => $this->onlineThresholdSeconds(),
+             ],
+diff --git a/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php b/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php
+index 95253514..5fa43680 100644
+--- a/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php
++++ b/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php
+@@ -420,7 +420,7 @@ public function registerDevice(Request $request)
+             ->first();
+ 
+         if ($sameUserSameDevice) {
+-            $sameUserSameDevice->update(collect([
++            $sameUserSameDevice->update(collect($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
+                 'device_name' => $validated['device_name'] ?? null,
+                 'device_type' => $validated['device_type'] ?? null,
+                 'brand' => $validated['brand'] ?? null,
+@@ -429,7 +429,7 @@ public function registerDevice(Request $request)
+                 'model' => $validated['model'] ?? null,
+                 'battery_percentage' => $validated['battery_percentage'] ?? null,
+                 'last_seen_at' => now(),
+-            ])->reject(fn ($value) => $value === null)->all());
++            ]))->reject(fn ($value) => $value === null)->all());
+             $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
+ 
+             return response()->json([
+@@ -447,7 +447,7 @@ public function registerDevice(Request $request)
+ 
+         if ($sameUserOtherDevice) {
+             if ($this->isLegacyDeviceId($tokenDeviceId) && $sameUserOtherDevice->device_id === $tokenDeviceId) {
+-                $sameUserOtherDevice->update([
++                $sameUserOtherDevice->update($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
+                     'device_id' => $validated['device_id'],
+                     'device_name' => $validated['device_name'] ?? $sameUserOtherDevice->device_name,
+                     'device_type' => $validated['device_type'] ?? $sameUserOtherDevice->device_type,
+@@ -457,7 +457,7 @@ public function registerDevice(Request $request)
+                     'model' => $validated['model'] ?? $sameUserOtherDevice->model,
+                     'battery_percentage' => $validated['battery_percentage'] ?? $sameUserOtherDevice->battery_percentage,
+                     'last_seen_at' => now(),
+-                ]);
++                ]));
+                 $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
+ 
+                 return response()->json([
+@@ -480,7 +480,7 @@ public function registerDevice(Request $request)
+             $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
+         }
+ 
+-        $device = EmployeeDevice::query()->create([
++        $device = EmployeeDevice::query()->create($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
+             'employee_id' => $user->id,
+             'device_id' => $validated['device_id'],
+             'device_name' => $validated['device_name'] ?? null,
+@@ -491,7 +491,7 @@ public function registerDevice(Request $request)
+             'model' => $validated['model'] ?? null,
+             'battery_percentage' => $validated['battery_percentage'] ?? null,
+             'last_seen_at' => now(),
+-        ]);
++        ]));
+         $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
+ 
+         return response()->json([
+@@ -725,7 +725,27 @@ public function updateLocation(Request $request)
+         }
+ 
+         [$tracking, $inserted, $gpsValidation] = DB::transaction(function () use ($user, $attendance, $validated) {
+-            $previousTrackings = $this->latestValidTrackingPoints($user->id, $validated['device_id'] ?? 'default', 2);
++            $deviceId = $validated['device_id'] ?? 'default';
++            $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
++            if ($duplicate) {
++                $this->upsertDeviceStatus($user->id, $validated);
++
++                return [
++                    $duplicate->refresh(),
++                    false,
++                    [
++                        'accepted' => true,
++                        'reason' => 'duplicate_retry',
++                    ],
++                ];
++            }
++
++            $previousTrackings = $this->latestValidTrackingPointsBefore(
++                $user->id,
++                $deviceId,
++                2,
++                $validated['recorded_at'] ?? now()
++            );
+             $lastTracking = $previousTrackings->get(0);
+             $previousPreviousTracking = $previousTrackings->get(1);
+             $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)
+@@ -735,6 +755,9 @@ public function updateLocation(Request $request)
+                 if ($lastTracking) {
+                     $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
+                     $this->upsertDeviceStatus($user->id, $statusPayload);
++                    if (in_array($gpsValidation['reason'] ?? null, ['distance_below_threshold', 'duplicate_location'], true)) {
++                        $lastTracking = $this->refreshTrackingPointStatus($lastTracking, $statusPayload);
++                    }
+ 
+                     return [$lastTracking->refresh(), false, $gpsValidation];
+                 }
+@@ -794,20 +817,20 @@ public function trackingSettings()
+             'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 5),
+             'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 1000),
+             'timeline_minimum_distance_meters' => $this->settingValue('gps_min_distance_metres', 5),
+-            'timeline_max_accuracy_meters' => $this->settingValue('gps_max_accuracy_metres', 8),
++            'timeline_max_accuracy_meters' => $this->settingValue('gps_max_accuracy_metres', 50),
+             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
+             'timeline_simplification_tolerance_meters' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
+             'timeline_bearing_drift_distance_meters' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
+             'timeline_bearing_change_degrees' => $this->settingValue('timeline_bearing_change_degrees', 60),
+             'timeline_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
+             'timeline_max_computed_speed_kmh' => $this->settingValue('timeline_max_computed_speed_kmh', 90),
+-            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 8),
++            'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
+             'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 5),
+             'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+             'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
+             'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
+             'gps_douglas_peucker_tolerance_metres' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
+-            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 600),
++            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
+             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+             'history_retention_days' => $this->settingValue('history_retention_days', 90),
+             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
+@@ -1086,7 +1109,7 @@ protected function shouldBreakTimelineSegment(LocationTracking $previous, Locati
+         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+         $speedKmh = ($distanceKm / $seconds) * 3600;
+ 
+-        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 600)
++        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 3600)
+             || $distanceKm > 2
+             || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
+     }
+@@ -1162,7 +1185,7 @@ protected function timelineGpsOptions(): array
+     {
+         return [
+             'minimum_distance_meters' => (float) $this->settingValue('timeline_minimum_distance_meters', 3),
+-            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 10),
++            'max_accuracy_meters' => (float) $this->settingValue('timeline_max_accuracy_meters', 50),
+             'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
+             'simplification_tolerance_meters' => (float) $this->settingValue('timeline_simplification_tolerance_meters', 8),
+             'bearing_drift_distance_meters' => (float) $this->settingValue('timeline_bearing_drift_distance_meters', 10),
+diff --git a/app/Http/Controllers/Api/MobileAuthEndpoints.php b/app/Http/Controllers/Api/MobileAuthEndpoints.php
+index 35d60dae..89a3993b 100644
+--- a/app/Http/Controllers/Api/MobileAuthEndpoints.php
++++ b/app/Http/Controllers/Api/MobileAuthEndpoints.php
+@@ -138,6 +138,7 @@ public function login(Request $request)
+         if ($credentials['battery_percentage'] !== null) {
+             $deviceValues['battery_percentage'] = $credentials['battery_percentage'];
+         }
++        $deviceValues = $this->deviceValuesWithLatestTrackingFallback($user->id, $credentials['device_id'], $deviceValues);
+ 
+         $device = EmployeeDevice::query()->updateOrCreate(
+             [
+diff --git a/app/Http/Controllers/EmployeeTrackingController.php b/app/Http/Controllers/EmployeeTrackingController.php
+index 8e678da3..f5458a0b 100644
+--- a/app/Http/Controllers/EmployeeTrackingController.php
++++ b/app/Http/Controllers/EmployeeTrackingController.php
+@@ -547,7 +547,7 @@ private function shouldBreakTimelineSegment(LocationTracking $previous, Location
+         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+         $speedKmh = ($distanceKm / $seconds) * 3600;
+ 
+-        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 600)
++        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 3600)
+             || $distanceKm > 2
+             || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
+     }
+@@ -697,7 +697,7 @@ private function timelineGpsOptions(): array
+     {
+         return [
+             'minimum_distance_meters' => (float) $this->settingValue('gps_min_distance_metres', 5),
+-            'max_accuracy_meters' => (float) $this->settingValue('gps_max_accuracy_metres', 8),
++            'max_accuracy_meters' => (float) $this->settingValue('gps_max_accuracy_metres', 50),
+             'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
+             'simplification_tolerance_meters' => (float) $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
+             'douglas_peucker_tolerance_meters' => (float) $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
+diff --git a/app/Services/EmployeeTimelineBuilder.php b/app/Services/EmployeeTimelineBuilder.php
+index 3614a62e..6bef2759 100644
+--- a/app/Services/EmployeeTimelineBuilder.php
++++ b/app/Services/EmployeeTimelineBuilder.php
+@@ -238,10 +238,11 @@ public function timelineType(LocationTracking $tracking, ?LocationTracking $prev
+             $trackingType === 'checked_out' => 'checkOut',
+             $trackingType === 'still' => 'still',
+             $trackingType === 'proof_post' => 'proofPost',
+-            in_array(strtolower((string) $tracking->activity), ['activitytype.still', 'still'], true) => 'still',
+             in_array(strtolower((string) $tracking->activity), ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
+             in_array(strtolower((string) $tracking->activity), ['activitytype.in_vehicle', 'in_vehicle', 'vehicle', 'travelling'], true)
+-                || in_array($trackingType, ['travelling', 'vehicle'], true) => 'vehicle',
++                => 'vehicle',
++            in_array($trackingType, ['travelling', 'vehicle'], true) => 'vehicle',
++            in_array(strtolower((string) $tracking->activity), ['activitytype.still', 'still'], true) => 'still',
+             default => 'still',
+         };
+     }
+diff --git a/app/Services/GpsTrackingValidationService.php b/app/Services/GpsTrackingValidationService.php
+index f4c84498..317de5a9 100644
+--- a/app/Services/GpsTrackingValidationService.php
++++ b/app/Services/GpsTrackingValidationService.php
+@@ -9,12 +9,12 @@
+ 
+ class GpsTrackingValidationService
+ {
+-    public const DEFAULT_MAX_ACCURACY_METRES = 8.0;
++    public const DEFAULT_MAX_ACCURACY_METRES = 50.0;
+     public const DEFAULT_MIN_DISTANCE_METRES = 5.0;
+     public const DEFAULT_MAX_SPEED_MPS = 25.0;
+     public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 45.0;
+     public const DEFAULT_BEARING_MIN_DISTANCE_METRES = 10.0;
+-    public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 600;
++    public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 3600;
+     public const DEFAULT_DOUGLAS_PEUCKER_TOLERANCE_METRES = 15.0;
+ 
+     private static ?array $cachedSettings = null;
+diff --git a/tests/Feature/EmployeeTrackingTimelineEndpointTest.php b/tests/Feature/EmployeeTrackingTimelineEndpointTest.php
+index 76555deb..e38dde1c 100644
+--- a/tests/Feature/EmployeeTrackingTimelineEndpointTest.php
++++ b/tests/Feature/EmployeeTrackingTimelineEndpointTest.php
+@@ -70,6 +70,40 @@ public function test_timeline_endpoint_returns_validated_segmented_route_payload
+         $this->assertNotContains('still', collect($payload['timeLineItems'])->whereIn('type', ['vehicle', 'walk'])->pluck('type')->all());
+     }
+ 
++    public function test_travelling_tracking_type_draws_route_even_when_activity_reports_still(): void
++    {
++        config(['app.timezone' => 'Asia/Kolkata']);
++
++        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
++        $employee = User::factory()->create(['status' => 'active']);
++        $attendance = Attendance::query()->create([
++            'user_id' => $employee->id,
++            'attendance_date' => '2026-07-22',
++            'check_in_at' => Carbon::parse('2026-07-22 08:44:00', 'Asia/Kolkata'),
++            'status' => 'present',
++        ]);
++
++        $this->point($employee->id, $attendance->id, 11, 9.863315, 78.0211683, '2026-07-22 08:44:02', 'still', type: 'travelling');
++        $this->point($employee->id, $attendance->id, 12, 9.864495, 78.0223417, '2026-07-22 08:44:15', 'still', type: 'travelling');
++        $this->point($employee->id, $attendance->id, 13, 9.8692767, 78.0247083, '2026-07-22 08:45:38', 'still', type: 'travelling');
++
++        $response = $this
++            ->actingAs($viewer)
++            ->withoutMiddleware()
++            ->post(route('dashboard.getTimeLineAjax'), [
++                'userId' => $employee->id,
++                'date' => '2026-07-22',
++            ]);
++
++        $response->assertOk();
++
++        $payload = $response->json();
++
++        $this->assertGreaterThanOrEqual(1, count($payload['polylineSegments']));
++        $this->assertGreaterThanOrEqual(2, count($payload['polylinePoints']));
++        $this->assertSame(['vehicle'], collect($payload['timeLineItems'])->pluck('type')->unique()->values()->all());
++    }
++
+     private function point(
+         int $employeeId,
+         int $attendanceId,
+@@ -79,7 +113,8 @@ private function point(
+         string $recordedAt,
+         string $activity,
+         float $accuracy = 8,
+-        float $speed = 1
++        float $speed = 1,
++        string $type = 'location'
+     ): void {
+         LocationTracking::query()->create([
+             'id' => $id,
+@@ -94,7 +129,7 @@ private function point(
+             'is_gps_on' => true,
+             'is_mock_location' => false,
+             'battery_percentage' => 80,
+-            'type' => 'location',
++            'type' => $type,
+             'recorded_at' => Carbon::parse($recordedAt, 'Asia/Kolkata'),
+         ]);
+     }
+diff --git a/tests/Feature/MobileApiSmokeTest.php b/tests/Feature/MobileApiSmokeTest.php
+index 03427e9e..0af77d5f 100644
+--- a/tests/Feature/MobileApiSmokeTest.php
++++ b/tests/Feature/MobileApiSmokeTest.php
+@@ -738,6 +738,120 @@ public function test_poor_accuracy_tracking_update_does_not_overwrite_last_good_
+         $this->assertSame(80.0, (float) $device->accuracy);
+     }
+ 
++    public function test_weak_signal_moving_tracking_point_is_saved_for_route_line(): void
++    {
++        $user = User::query()->create([
++            'name' => 'Weak Signal User',
++            'email' => 'weak-signal@example.com',
++            'role' => 'Employee',
++            'status' => 'active',
++            'wallet' => 0,
++            'password' => Hash::make('password'),
++        ]);
++
++        $token = $this->postJson('/api/login', [
++            'email' => $user->email,
++            'password' => 'password',
++            'device_name' => 'Weak Signal Test',
++        ])->json('token');
++
++        $headers = ['Authorization' => 'Bearer ' . $token];
++        $initialPayload = [
++            'device_id' => 'weak-signal-device',
++            'latitude' => 11.016844,
++            'longitude' => 76.955832,
++            'accuracy' => 8,
++            'speed' => 1,
++            'activity' => 'walking',
++            'isGpsOn' => true,
++            'isMock' => false,
++            'batteryPercentage' => 71,
++            'recorded_at' => '2026-07-21 10:00:00',
++        ];
++
++        $this->withHeaders($headers)
++            ->postJson('/api/check_in', $initialPayload)
++            ->assertCreated();
++
++        $this->withHeaders($headers)
++            ->postJson('/api/tracking/location', array_merge($initialPayload, [
++                'latitude' => 11.017300,
++                'longitude' => 76.956300,
++                'accuracy' => 35,
++                'batteryPercentage' => 60,
++                'recorded_at' => '2026-07-21 10:05:00',
++            ]))
++            ->assertCreated()
++            ->assertJsonPath('inserted', true);
++
++        $this->assertSame(2, LocationTracking::query()->where('employee_id', $user->id)->count());
++    }
++
++    public function test_delayed_offline_tracking_point_is_validated_against_earlier_history(): void
++    {
++        $user = User::query()->create([
++            'name' => 'Delayed Sync User',
++            'email' => 'delayed-sync@example.com',
++            'role' => 'Employee',
++            'status' => 'active',
++            'wallet' => 0,
++            'password' => Hash::make('password'),
++        ]);
++
++        $token = $this->postJson('/api/login', [
++            'email' => $user->email,
++            'password' => 'password',
++            'device_name' => 'Delayed Sync Test',
++        ])->json('token');
++
++        $headers = ['Authorization' => 'Bearer ' . $token];
++        $initialPayload = [
++            'device_id' => 'delayed-sync-device',
++            'latitude' => 11.016844,
++            'longitude' => 76.955832,
++            'accuracy' => 8,
++            'speed' => 1,
++            'activity' => 'walking',
++            'isGpsOn' => true,
++            'isMock' => false,
++            'batteryPercentage' => 71,
++            'recorded_at' => '2026-07-21 10:00:00',
++        ];
++
++        $this->withHeaders($headers)
++            ->postJson('/api/check_in', $initialPayload)
++            ->assertCreated();
++
++        $this->withHeaders($headers)
++            ->postJson('/api/tracking/location', array_merge($initialPayload, [
++                'latitude' => 11.017800,
++                'longitude' => 76.956800,
++                'accuracy' => 20,
++                'recorded_at' => '2026-07-21 10:20:00',
++            ]))
++            ->assertCreated();
++
++        $this->withHeaders($headers)
++            ->postJson('/api/tracking/location', array_merge($initialPayload, [
++                'latitude' => 11.017300,
++                'longitude' => 76.956300,
++                'accuracy' => 18,
++                'recorded_at' => '2026-07-21 10:10:00',
++            ]))
++            ->assertCreated()
++            ->assertJsonPath('inserted', true);
++
++        $this->assertSame(
++            ['10:00:00', '10:10:00', '10:20:00'],
++            LocationTracking::query()
++                ->where('employee_id', $user->id)
++                ->orderBy('recorded_at')
++                ->pluck('recorded_at')
++                ->map(fn (Carbon $recordedAt) => $recordedAt->format('H:i:s'))
++                ->all()
++        );
++    }
++
+     public function test_missing_api_model_returns_clean_json_message(): void
+     {
+         $user = User::query()->create([
+diff --git a/tests/Unit/EmployeeTimelineRouteRulesTest.php b/tests/Unit/EmployeeTimelineRouteRulesTest.php
+index 35aa8420..01365686 100644
+--- a/tests/Unit/EmployeeTimelineRouteRulesTest.php
++++ b/tests/Unit/EmployeeTimelineRouteRulesTest.php
+@@ -15,7 +15,7 @@ public function test_large_inactive_gap_starts_a_new_polyline_segment(): void
+     {
+         $controller = new EmployeeTrackingController();
+         $previous = $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', attendanceId: 1);
+-        $current = $this->point(11.000200, 77.000000, '2026-07-21 10:20:00', attendanceId: 1);
++        $current = $this->point(11.000200, 77.000000, '2026-07-21 11:10:00', attendanceId: 1);
+ 
+         $this->assertTrue($this->invoke($controller, 'shouldBreakTimelineSegment', [$previous, $current]));
+     }

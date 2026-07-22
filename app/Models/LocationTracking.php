@@ -18,8 +18,10 @@ class LocationTracking extends Model
         'bearing',
         'activity',
         'is_gps_on',
+        'is_wifi_on',
         'is_mock_location',
         'battery_percentage',
+        'signal_strength',
         'type',
         'recorded_at',
     ];
@@ -31,6 +33,7 @@ class LocationTracking extends Model
         'speed' => 'decimal:2',
         'bearing' => 'decimal:2',
         'is_gps_on' => 'boolean',
+        'is_wifi_on' => 'boolean',
         'is_mock_location' => 'boolean',
         'battery_percentage' => 'integer',
         'recorded_at' => 'datetime',
