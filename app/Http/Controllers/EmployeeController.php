@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Attendance;
 use App\Models\Expense;
 use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
@@ -15,16 +17,22 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         // Build the employee list query and apply optional filters.
-        $employeeQuery = User::query()->with('roles');
+        $employeeQuery = User::query()->with('roles.permissions');
+        if (Schema::hasTable('model_has_permissions')) {
+            $employeeQuery->with('directPermissions');
+        }
         $this->applySearchFilter($employeeQuery, $request);
         $this->applyStatusFilter($employeeQuery, $request);
         $this->applyDateFilter($employeeQuery, $request);
 
         // Load employees and available roles for the page.
         $users = $employeeQuery->latest()->paginate(10)->withQueryString();
-        $roles = Role::all();
+        $roles = Role::query()->with('permissions')->get();
+        $permissions = Schema::hasTable('permissions')
+            ? Permission::query()->orderBy('key')->get()
+            : collect();
 
-        return view('pages.employees.index', compact('users', 'roles'));
+        return view('pages.employees.index', compact('users', 'roles', 'permissions'));
     }
 
     public function create()
@@ -36,12 +44,15 @@ class EmployeeController extends Controller
     {
         // Validate the form before creating the employee account.
         $validatedData = $this->validateEmployeeData($request);
+        $directPermissionIds = $validatedData['direct_permissions'] ?? [];
+        unset($validatedData['direct_permissions']);
         $selectedRole = Role::where('name', $validatedData['role'])->firstOrFail();
         $validatedData = $this->handleAvatarUpload($request, $validatedData);
 
         // Create the employee record and attach the selected role.
         $employee = User::create($validatedData);
         $employee->roles()->sync([$selectedRole->id]);
+        $this->syncDirectPermissions($employee, $directPermissionIds);
 
         return redirect()->route('employees.index')->with('success', 'User created successfully.');
     }
@@ -94,12 +105,15 @@ class EmployeeController extends Controller
     {
         // Validate the form before updating the employee account.
         $validatedData = $this->validateEmployeeData($request, $employee);
+        $directPermissionIds = $validatedData['direct_permissions'] ?? [];
+        unset($validatedData['direct_permissions']);
         $selectedRole = Role::where('name', $validatedData['role'])->firstOrFail();
         $validatedData = $this->handleAvatarUpload($request, $validatedData);
 
         // Save the updated employee values and sync the selected role.
         $employee->update($validatedData);
         $employee->roles()->sync([$selectedRole->id]);
+        $this->syncDirectPermissions($employee, $directPermissionIds);
 
         return redirect()->route('employees.index')->with('success', 'User updated successfully.');
     }
@@ -203,6 +217,8 @@ class EmployeeController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'password' => [$employee ? 'nullable' : 'required', 'string', 'min:6', 'confirmed'],
+            'direct_permissions' => ['nullable', 'array'],
+            'direct_permissions.*' => ['integer', 'exists:permissions,id'],
         ], [
             'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
         ]);
@@ -214,6 +230,16 @@ class EmployeeController extends Controller
         }
 
         return $validatedData;
+    }
+
+    private function syncDirectPermissions(User $employee, array $permissionIds): void
+    {
+        if (! Schema::hasTable('model_has_permissions') || ! Schema::hasTable('permissions')) {
+            return;
+        }
+
+        $employee->directPermissions()->sync($permissionIds);
+        $employee->clearResolvedPermissions();
     }
 
     private function handleAvatarUpload(Request $request, array $validatedData): array

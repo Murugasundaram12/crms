@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        //
+        if (! Schema::hasTable('quotations') || Schema::hasColumn('quotations', 'client_id')) {
+            return;
+        }
+
         Schema::table('quotations', function (Blueprint $table) {
-            $table->foreignId('client_id')->constrained('clients');
+            $table->foreignId('client_id')->nullable()->constrained('clients');
         });
     }
 
@@ -22,9 +25,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        if (! Schema::hasTable('quotations') || ! Schema::hasColumn('quotations', 'client_id')) {
+            return;
+        }
+
         Schema::table('quotations', function (Blueprint $table) {
-            
+            $table->dropConstrainedForeignId('client_id');
         });
     }
 };

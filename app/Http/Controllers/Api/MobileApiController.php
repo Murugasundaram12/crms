@@ -415,9 +415,11 @@ class MobileApiController extends Controller
 
     protected function normalizeTrackingType(string $type): string
     {
-        return match ($type) {
+        return match (strtolower(trim($type))) {
             'check_in' => 'checked_in',
             'check_out' => 'checked_out',
+            'walking', 'walk', 'vehicle', 'in_vehicle', 'movement' => 'travelling',
+            'activitytype.still' => 'still',
             default => $type,
         };
     }
@@ -538,6 +540,8 @@ class MobileApiController extends Controller
             'uniqueId' => ['nullable', 'string', 'max:255'],
             'android_id' => ['nullable', 'string', 'max:255'],
             'androidId' => ['nullable', 'string', 'max:255'],
+            'client_uuid' => ['nullable', 'string', 'max:100'],
+            'clientUuid' => ['nullable', 'string', 'max:100'],
             'device_name' => ['nullable', 'string', 'max:255'],
             'deviceName' => ['nullable', 'string', 'max:255'],
             'device_type' => ['nullable', 'string', 'max:100'],
@@ -553,12 +557,16 @@ class MobileApiController extends Controller
             'speed' => ['nullable', 'numeric', 'min:0'],
             'bearing' => ['nullable', 'numeric', 'min:0', 'max:360'],
             'activity' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'string', 'max:100'],
             'is_gps_on' => ['nullable', 'boolean'],
             'isGpsOn' => ['nullable', 'boolean'],
             'is_wifi_on' => ['nullable', 'boolean'],
             'isWifiOn' => ['nullable', 'boolean'],
             'is_mock_location' => ['nullable', 'boolean'],
             'isMock' => ['nullable', 'boolean'],
+            'is_offline' => ['nullable', 'boolean'],
+            'isOffline' => ['nullable', 'boolean'],
+            'offline' => ['nullable', 'boolean'],
             'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'batteryPercentage' => ['nullable', 'integer', 'min:0', 'max:100'],
             'battery_level' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -573,6 +581,7 @@ class MobileApiController extends Controller
         $isGpsOn = $validated['is_gps_on'] ?? $validated['isGpsOn'] ?? true;
         $isWifiOn = $validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false;
         $isMock = $validated['is_mock_location'] ?? $validated['isMock'] ?? false;
+        $isOffline = $validated['is_offline'] ?? $validated['isOffline'] ?? $validated['offline'] ?? false;
 
         if (! $isGpsOn) {
             throw ValidationException::withMessages([
@@ -589,17 +598,64 @@ class MobileApiController extends Controller
         $validated['is_gps_on'] = (bool) $isGpsOn;
         $validated['is_wifi_on'] = (bool) $isWifiOn;
         $validated['is_mock_location'] = (bool) $isMock;
+        $validated['is_offline'] = (bool) $isOffline;
         $validated['accuracy'] = $validated['accuracy'] ?? null;
         $validated['battery_percentage'] = $this->batteryPercentageFromPayload($validated);
         $validated['device_name'] = $validated['device_name'] ?? $validated['deviceName'] ?? null;
         $validated['device_type'] = $validated['device_type'] ?? $validated['deviceType'] ?? null;
         $validated['sdk_version'] = $validated['sdk_version'] ?? $validated['sdkVersion'] ?? null;
         $validated['signal_strength'] = $validated['signal_strength'] ?? $validated['signalStrength'] ?? null;
+        $validated['client_uuid'] = $validated['client_uuid'] ?? $validated['clientUuid'] ?? null;
         $validated['device_id'] = $validated['device_id'] ?? $this->mobileTokenDeviceId($request) ?? 'default';
         $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
-        $validated['type'] = $this->normalizeTrackingType($validated['type'] ?? $defaultType);
+        $validated['type'] = $this->resolveTrackingType($validated, $defaultType);
+
+        if ($this->normalizeTrackingType($defaultType) === 'travelling'
+            && in_array($validated['type'], ['checked_in', 'checked_out'], true)) {
+            $validated['type'] = $this->trackingTypeFromActivity($validated['activity'] ?? null, 'travelling');
+        }
 
         return $validated;
+    }
+
+    protected function resolveTrackingType(array $payload, string $defaultType): string
+    {
+        if (! blank($payload['type'] ?? null)) {
+            return $this->normalizeTrackingType((string) $payload['type']);
+        }
+
+        $statusType = $this->trackingTypeFromStatus($payload['status'] ?? null, '');
+        if ($statusType !== '') {
+            return $this->normalizeTrackingType($statusType);
+        }
+
+        return $this->trackingTypeFromActivity($payload['activity'] ?? null, $defaultType);
+    }
+
+    protected function trackingTypeFromStatus(?string $status, string $defaultType): string
+    {
+        $normalized = strtolower(trim((string) $status));
+
+        return match ($normalized) {
+            'still', 'activitytype.still' => 'still',
+            'checked_in', 'check_in' => 'checked_in',
+            'checked_out', 'check_out' => 'checked_out',
+            '', 'null' => $defaultType,
+            default => 'travelling',
+        };
+    }
+
+    protected function trackingTypeFromActivity(?string $activity, string $defaultType): string
+    {
+        $normalized = strtolower(trim((string) $activity));
+
+        return match ($normalized) {
+            'still', 'activitytype.still', 'stationary' => 'still',
+            'walking', 'walk', 'activitytype.walking' => 'travelling',
+            'in_vehicle', 'vehicle', 'activitytype.in_vehicle', 'travelling', 'moving', 'movement' => 'travelling',
+            '', 'null' => $this->normalizeTrackingType($defaultType),
+            default => $this->normalizeTrackingType($defaultType),
+        };
     }
 
     protected function mobileTokenDeviceId(Request $request): ?string
@@ -686,6 +742,38 @@ class MobileApiController extends Controller
             ->whereNull('check_out_at')
             ->latest('check_in_at')
             ->first();
+    }
+
+    protected function attendanceForTrackingPayload(int $userId, array $payload): ?Attendance
+    {
+        $recordedAt = isset($payload['recorded_at']) && $payload['recorded_at']
+            ? Carbon::parse($payload['recorded_at'])
+            : now();
+
+        $attendance = Attendance::query()
+            ->where('user_id', $userId)
+            ->where('check_in_at', '<=', $recordedAt)
+            ->where(function ($query) use ($recordedAt) {
+                $query->whereNull('check_out_at')
+                    ->orWhere('check_out_at', '>=', $recordedAt);
+            })
+            ->latest('check_in_at')
+            ->first();
+
+        return $attendance ?? $this->activeAttendance($userId);
+    }
+
+    protected function trackingPointRequest(Request $parent, array $payload): Request
+    {
+        $request = Request::create($parent->path(), 'POST', $payload);
+        $request->headers->replace($parent->headers->all());
+        $request->setUserResolver(fn () => $parent->user());
+
+        if ($parent->attributes->has('mobile_device_id')) {
+            $request->attributes->set('mobile_device_id', $parent->attributes->get('mobile_device_id'));
+        }
+
+        return $request;
     }
 
     protected function upsertDeviceStatus(int $userId, array $payload): EmployeeDevice
@@ -800,6 +888,18 @@ class MobileApiController extends Controller
 
     protected function duplicateTrackingPoint(int $userId, ?string $deviceId, array $payload): ?LocationTracking
     {
+        if (! blank($payload['client_uuid'] ?? null)) {
+            $duplicate = LocationTracking::query()
+                ->where('employee_id', $userId)
+                ->when($deviceId, fn ($query) => $query->where('device_id', $deviceId))
+                ->where('client_uuid', (string) $payload['client_uuid'])
+                ->first();
+
+            if ($duplicate) {
+                return $duplicate;
+            }
+        }
+
         $recordedAt = isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now();
 
         return LocationTracking::query()
@@ -809,6 +909,74 @@ class MobileApiController extends Controller
             ->where('latitude', round((float) $payload['latitude'], 7))
             ->where('longitude', round((float) $payload['longitude'], 7))
             ->first();
+    }
+
+    protected function storeTrackingUpdate(User $user, Attendance $attendance, array $validated): array
+    {
+        return DB::transaction(function () use ($user, $attendance, $validated) {
+            $deviceId = $validated['device_id'] ?? 'default';
+            $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
+            if ($duplicate) {
+                $this->upsertDeviceStatus($user->id, $validated);
+
+                return [
+                    $duplicate->refresh(),
+                    false,
+                    [
+                        'accepted' => true,
+                        'reason' => 'duplicate_retry',
+                    ],
+                ];
+            }
+
+            $previousTrackings = $this->latestValidTrackingPointsBefore(
+                $user->id,
+                $deviceId,
+                2,
+                $validated['recorded_at'] ?? now()
+            );
+            $lastTracking = $previousTrackings->get(0);
+            $previousPreviousTracking = $previousTrackings->get(1);
+            $gpsValidation = app(GpsTrackingValidationService::class)
+                ->validate($validated, $lastTracking, $previousPreviousTracking);
+
+            if (! $gpsValidation['accepted']) {
+                \Illuminate\Support\Facades\Log::info('Mobile tracking location ignored by GPS validation.', [
+                    'employee_id' => $user->id,
+                    'attendance_id' => $attendance->id,
+                    'device_id' => $deviceId,
+                    'reason' => $gpsValidation['reason'] ?? null,
+                    'recorded_at' => $validated['recorded_at'] ?? null,
+                    'latitude' => $validated['latitude'] ?? null,
+                    'longitude' => $validated['longitude'] ?? null,
+                    'accuracy' => $validated['accuracy'] ?? null,
+                    'activity' => $validated['activity'] ?? null,
+                    'type' => $validated['type'] ?? null,
+                    'is_offline' => $validated['is_offline'] ?? false,
+                    'signal_strength' => $validated['signal_strength'] ?? null,
+                ]);
+
+                if ($lastTracking) {
+                    $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
+                    $this->upsertDeviceStatus($user->id, $statusPayload);
+                    if (in_array($gpsValidation['reason'] ?? null, ['distance_below_threshold', 'duplicate_location'], true)) {
+                        $lastTracking = $this->refreshTrackingPointStatus($lastTracking, $statusPayload);
+                    }
+
+                    return [$lastTracking->refresh(), false, $gpsValidation];
+                }
+
+                return [null, false, $gpsValidation];
+            }
+
+            $this->upsertDeviceStatus($user->id, $validated);
+
+            return [
+                $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),
+                true,
+                $gpsValidation,
+            ];
+        });
     }
 
     protected function shouldSuppressTrackingInsert(?LocationTracking $lastTracking, array $payload): bool
@@ -869,26 +1037,30 @@ class MobileApiController extends Controller
 
     protected function refreshTrackingPointStatus(LocationTracking $tracking, array $payload): LocationTracking
     {
-        $tracking->forceFill([
+        $tracking->forceFill($this->availableLocationTrackingAttributes([
             'accuracy' => $payload['accuracy'] ?? $tracking->accuracy,
             'speed' => $payload['speed'] ?? $tracking->speed,
             'bearing' => $payload['bearing'] ?? $tracking->bearing,
             'activity' => $payload['activity'] ?? $tracking->activity,
             'is_gps_on' => $payload['is_gps_on'],
+            'is_wifi_on' => $payload['is_wifi_on'] ?? $tracking->is_wifi_on,
             'is_mock_location' => $payload['is_mock_location'],
+            'is_offline' => $payload['is_offline'] ?? $tracking->is_offline ?? false,
             'battery_percentage' => $payload['battery_percentage'] ?? $tracking->battery_percentage,
+            'signal_strength' => $payload['signal_strength'] ?? $tracking->signal_strength,
             'recorded_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
-        ])->save();
+        ]))->save();
 
         return $tracking->refresh();
     }
 
     protected function createTrackingPoint(Attendance $attendance, array $payload, string $type): LocationTracking
     {
-        return LocationTracking::query()->create([
+        return LocationTracking::query()->create($this->availableLocationTrackingAttributes([
             'attendance_id' => $attendance->id,
             'employee_id' => $attendance->user_id,
             'device_id' => $payload['device_id'] ?? 'default',
+            'client_uuid' => $payload['client_uuid'] ?? null,
             'latitude' => $payload['latitude'],
             'longitude' => $payload['longitude'],
             'accuracy' => $payload['accuracy'] ?? null,
@@ -898,11 +1070,12 @@ class MobileApiController extends Controller
             'is_gps_on' => $payload['is_gps_on'],
             'is_wifi_on' => $payload['is_wifi_on'] ?? false,
             'is_mock_location' => $payload['is_mock_location'],
+            'is_offline' => $payload['is_offline'] ?? false,
             'battery_percentage' => $payload['battery_percentage'] ?? null,
             'signal_strength' => $payload['signal_strength'] ?? null,
             'type' => $this->normalizeTrackingType($type),
             'recorded_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
-        ]);
+        ]));
     }
 
     protected function canViewEmployeeTracking(User $user): bool
@@ -1621,6 +1794,17 @@ class MobileApiController extends Controller
             ->all();
     }
 
+    protected function availableLocationTrackingAttributes(array $attributes): array
+    {
+        if (! Schema::hasTable('location_trackings')) {
+            return $attributes;
+        }
+
+        return collect($attributes)
+            ->filter(fn ($value, string $column) => Schema::hasColumn('location_trackings', $column))
+            ->all();
+    }
+
     protected function trackingPayload(LocationTracking $tracking): array
     {
         return [
@@ -1628,6 +1812,8 @@ class MobileApiController extends Controller
             'attendance_id' => $tracking->attendance_id,
             'employee_id' => $tracking->employee_id,
             'device_id' => $tracking->device_id,
+            'client_uuid' => $tracking->client_uuid,
+            'clientUuid' => $tracking->client_uuid,
             'latitude' => (float) $tracking->latitude,
             'longitude' => (float) $tracking->longitude,
             'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : null,
@@ -1638,6 +1824,8 @@ class MobileApiController extends Controller
             'is_wifi_on' => (bool) $tracking->is_wifi_on,
             'isWifiOn' => (bool) $tracking->is_wifi_on,
             'is_mock_location' => (bool) $tracking->is_mock_location,
+            'is_offline' => (bool) ($tracking->is_offline ?? false),
+            'isOffline' => (bool) ($tracking->is_offline ?? false),
             'battery_percentage' => $tracking->battery_percentage,
             'batteryPercentage' => $tracking->battery_percentage,
             'signal_strength' => $tracking->signal_strength,

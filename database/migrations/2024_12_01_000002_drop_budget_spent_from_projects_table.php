@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('projects')) {
+            return;
+        }
+
         Schema::table('projects', function (Blueprint $table) {
             foreach (['budget', 'spent'] as $column) {
                 if (Schema::hasColumn('projects', $column)) {
@@ -19,6 +23,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('projects')) {
+            return;
+        }
+
         Schema::table('projects', function (Blueprint $table) {
             if (! Schema::hasColumn('projects', 'budget')) {
                 $table->decimal('budget', 14, 2)->nullable()->after('end_date');

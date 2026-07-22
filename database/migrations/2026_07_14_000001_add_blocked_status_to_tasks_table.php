@@ -10,6 +10,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE tasks MODIFY status ENUM('pending', 'in_progress', 'completed', 'blocked') DEFAULT 'pending'");
     }
 
@@ -19,6 +23,10 @@ return new class extends Migration
     public function down(): void
     {
         DB::table('tasks')->where('status', 'blocked')->update(['status' => 'pending']);
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE tasks MODIFY status ENUM('pending', 'in_progress', 'completed') DEFAULT 'pending'");
     }
 };

@@ -20,8 +20,10 @@ return new class extends Migration
             $table->dropForeign(['from_project_id']);
         });
 
-        DB::statement('ALTER TABLE tool_material_assignments MODIFY from_project_id BIGINT UNSIGNED NULL');
-        DB::statement('ALTER TABLE tool_material_assignments MODIFY transfer_type VARCHAR(50) NOT NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE tool_material_assignments MODIFY from_project_id BIGINT UNSIGNED NULL');
+            DB::statement('ALTER TABLE tool_material_assignments MODIFY transfer_type VARCHAR(50) NOT NULL');
+        }
 
         Schema::table('tool_material_assignments', function (Blueprint $table) {
             $table->foreign('from_project_id')->references('id')->on('projects')->nullOnDelete();
@@ -61,8 +63,10 @@ return new class extends Migration
             ]);
         });
 
-        DB::statement("ALTER TABLE tool_material_assignments MODIFY transfer_type ENUM('site_to_office', 'site_to_site') NOT NULL");
-        DB::statement('ALTER TABLE tool_material_assignments MODIFY from_project_id BIGINT UNSIGNED NOT NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE tool_material_assignments MODIFY transfer_type ENUM('site_to_office', 'site_to_site') NOT NULL");
+            DB::statement('ALTER TABLE tool_material_assignments MODIFY from_project_id BIGINT UNSIGNED NOT NULL');
+        }
 
         Schema::table('tool_material_assignments', function (Blueprint $table) {
             $table->foreign('from_project_id')->references('id')->on('projects')->cascadeOnDelete();

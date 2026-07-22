@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('clients')) {
+            return;
+        }
+
         Schema::table('clients', function (Blueprint $table) {
             if (! Schema::hasColumn('clients', 'status')) {
                 $table->enum('status', ['enquiry', 'active', 'inactive'])->default('enquiry')->after('name');
@@ -17,6 +21,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('clients')) {
+            return;
+        }
+
         Schema::table('clients', function (Blueprint $table) {
             if (Schema::hasColumn('clients', 'status')) {
                 $table->dropColumn('status');

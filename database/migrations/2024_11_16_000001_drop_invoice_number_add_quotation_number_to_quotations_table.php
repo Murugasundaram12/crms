@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('quotations')) {
+            return;
+        }
+
         Schema::table('quotations', function (Blueprint $table) {
             if (Schema::hasColumn('quotations', 'invoice_number')) {
                 $table->dropColumn('invoice_number');
@@ -20,6 +24,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('quotations')) {
+            return;
+        }
+
         Schema::table('quotations', function (Blueprint $table) {
             if (Schema::hasColumn('quotations', 'quotation_number')) {
                 $table->dropColumn('quotation_number');

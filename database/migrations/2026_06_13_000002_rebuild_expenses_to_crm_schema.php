@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('expenses')) {
+            return;
+        }
+
         Schema::disableForeignKeyConstraints();
 
         Schema::table('expenses', function (Blueprint $table) {
@@ -63,43 +67,51 @@ return new class extends Migration
         $this->fillRequiredIds();
         $this->dropOldForeignKeys();
 
-        Schema::table('expenses', function (Blueprint $table) {
-            foreach ([
-                'expense_code',
-                'employee_id',
-                'title',
-                'type',
-                'category',
-                'status',
-                'expense_date',
-                'paid_amount',
-                'unpaid_amount',
-                'extra_amount',
-                'active_status',
-                'delete_status',
-                'delete_reason',
-                'notes',
-            ] as $column) {
-                if (Schema::hasColumn('expenses', $column)) {
-                    $table->dropColumn($column);
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('expenses', function (Blueprint $table) {
+                foreach ([
+                    'expense_code',
+                    'employee_id',
+                    'title',
+                    'type',
+                    'category',
+                    'status',
+                    'expense_date',
+                    'paid_amount',
+                    'unpaid_amount',
+                    'extra_amount',
+                    'active_status',
+                    'delete_status',
+                    'delete_reason',
+                    'notes',
+                ] as $column) {
+                    if (Schema::hasColumn('expenses', $column)) {
+                        $table->dropColumn($column);
+                    }
                 }
-            }
-        });
+            });
+        }
 
-        $this->rebuildAmountColumnAsInteger();
-        DB::statement('ALTER TABLE expenses MODIFY category_id INT UNSIGNED NOT NULL');
-        DB::statement('ALTER TABLE expenses MODIFY user_id INT UNSIGNED NOT NULL');
-        DB::statement('ALTER TABLE expenses MODIFY `current_date` DATETIME NOT NULL');
-        DB::statement('ALTER TABLE expenses MODIFY paid_amt INT NOT NULL DEFAULT 0');
-        DB::statement('ALTER TABLE expenses MODIFY unpaid_amt INT NOT NULL DEFAULT 0');
-        DB::statement('ALTER TABLE expenses MODIFY extra_amt INT NULL');
-        DB::statement('ALTER TABLE expenses MODIFY payment_mode INT NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->rebuildAmountColumnAsInteger();
+            DB::statement('ALTER TABLE expenses MODIFY category_id INT UNSIGNED NOT NULL');
+            DB::statement('ALTER TABLE expenses MODIFY user_id INT UNSIGNED NOT NULL');
+            DB::statement('ALTER TABLE expenses MODIFY `current_date` DATETIME NOT NULL');
+            DB::statement('ALTER TABLE expenses MODIFY paid_amt INT NOT NULL DEFAULT 0');
+            DB::statement('ALTER TABLE expenses MODIFY unpaid_amt INT NOT NULL DEFAULT 0');
+            DB::statement('ALTER TABLE expenses MODIFY extra_amt INT NULL');
+            DB::statement('ALTER TABLE expenses MODIFY payment_mode INT NULL');
+        }
 
         Schema::enableForeignKeyConstraints();
     }
 
     public function down(): void
     {
+        if (! Schema::hasTable('expenses')) {
+            return;
+        }
+
         Schema::table('expenses', function (Blueprint $table) {
             if (! Schema::hasColumn('expenses', 'expense_code')) {
                 $table->string('expense_code')->nullable()->after('id');
@@ -146,7 +158,8 @@ return new class extends Migration
             DB::statement('UPDATE expenses SET extra_amt = CAST(COALESCE(extra_amount, 0) AS SIGNED)');
         }
         if (Schema::hasColumn('expenses', 'expense_date')) {
-            DB::statement('UPDATE expenses SET `current_date` = COALESCE(`expense_date`, `created_at`, NOW())');
+            DB::table('expenses')->whereNull('current_date')->update(['current_date' => now()]);
+            DB::statement('UPDATE expenses SET `current_date` = COALESCE(`expense_date`, `created_at`, `current_date`)');
         }
         if (Schema::hasColumn('expenses', 'employee_id')) {
             DB::statement('UPDATE expenses SET user_id = COALESCE(employee_id, user_id)');
@@ -155,7 +168,11 @@ return new class extends Migration
             DB::statement('UPDATE expenses SET reason = delete_reason');
         }
         if (Schema::hasColumn('expenses', 'delete_status')) {
-            DB::statement('UPDATE expenses SET deleted_at = COALESCE(updated_at, NOW()) WHERE delete_status = 1 AND deleted_at IS NULL');
+            DB::table('expenses')
+                ->where('delete_status', 1)
+                ->whereNull('deleted_at')
+                ->update(['deleted_at' => now()]);
+            DB::statement('UPDATE expenses SET deleted_at = COALESCE(updated_at, deleted_at) WHERE delete_status = 1');
         }
 
         if (Schema::hasColumn('expenses', 'category')) {
@@ -204,13 +221,28 @@ return new class extends Migration
 
     private function fillRequiredIds(): void
     {
-        $categoryId = DB::table('categories')->orderBy('id')->value('id');
-        if (! $categoryId) {
-            $categoryId = DB::table('categories')->insertGetId([
+        $mainCategoryId = DB::table('main_categories')->orderBy('id')->value('id');
+        if (! $mainCategoryId) {
+            $mainCategoryId = DB::table('main_categories')->insertGetId([
                 'name' => 'GENERAL',
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+        }
+
+        $categoryId = DB::table('categories')->orderBy('id')->value('id');
+        if (! $categoryId) {
+            $categoryValues = [
+                'name' => 'GENERAL',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            if (Schema::hasColumn('categories', 'main_category_id')) {
+                $categoryValues['main_category_id'] = $mainCategoryId;
+            }
+
+            $categoryId = DB::table('categories')->insertGetId($categoryValues);
         }
 
         $userId = DB::table('users')->orderBy('id')->value('id');
@@ -219,12 +251,17 @@ return new class extends Migration
         }
 
         DB::table('expenses')->whereNull('category_id')->update(['category_id' => $categoryId]);
+        DB::table('expenses')->whereNull('main_category_id')->update(['main_category_id' => $mainCategoryId]);
         DB::table('expenses')->whereNull('user_id')->update(['user_id' => $userId]);
         DB::table('expenses')->whereNull('current_date')->update(['current_date' => now()]);
     }
 
     private function rebuildAmountColumnAsInteger(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         $type = DB::table('information_schema.COLUMNS')
             ->whereRaw('TABLE_SCHEMA = DATABASE()')
             ->where('TABLE_NAME', 'expenses')
@@ -252,6 +289,10 @@ return new class extends Migration
 
     private function dropOldForeignKeys(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         $foreignKeys = DB::select("
             SELECT CONSTRAINT_NAME
             FROM information_schema.KEY_COLUMN_USAGE

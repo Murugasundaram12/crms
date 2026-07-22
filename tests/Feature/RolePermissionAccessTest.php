@@ -18,6 +18,7 @@ class RolePermissionAccessTest extends TestCase
         parent::setUp();
 
         Schema::dropIfExists('user_roles');
+        Schema::dropIfExists('model_has_permissions');
         Schema::dropIfExists('role_permission');
         Schema::dropIfExists('permissions');
         Schema::dropIfExists('roles');
@@ -70,6 +71,13 @@ class RolePermissionAccessTest extends TestCase
             $table->foreignId('role_id')->constrained('roles')->cascadeOnDelete();
             $table->timestamps();
             $table->unique(['user_id', 'role_id']);
+        });
+
+        Schema::create('model_has_permissions', function (Blueprint $table): void {
+            $table->unsignedBigInteger('permission_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+            $table->primary(['permission_id', 'model_id', 'model_type'], 'model_has_permissions_primary');
         });
     }
 
@@ -148,6 +156,57 @@ class RolePermissionAccessTest extends TestCase
             ->get(route('excel.import.form'))
             ->assertRedirect(route('dashboard'))
             ->assertSessionHas('error', 'You do not have permission to access this module.');
+    }
+
+    public function test_direct_user_permission_adds_access_without_changing_role_permissions(): void
+    {
+        $user = User::factory()->create(['role' => 'Employee']);
+        $role = Role::query()->create(['name' => 'Viewer']);
+        $rolePermission = Permission::query()->create([
+            'name' => 'List Roles',
+            'key' => 'roles-list',
+        ]);
+        $directPermission = Permission::query()->create([
+            'name' => 'List Permissions',
+            'key' => 'permissions-list',
+        ]);
+
+        $role->permissions()->sync([$rolePermission->id]);
+        $user->roles()->sync([$role->id]);
+        $user->directPermissions()->sync([$directPermission->id]);
+
+        $freshUser = $user->fresh();
+
+        $this->assertTrue($freshUser->hasPermission('roles-list'));
+        $this->assertTrue($freshUser->hasPermission('permissions-list'));
+        $this->assertTrue(Gate::forUser($freshUser)->allows('permissions-list'));
+    }
+
+    public function test_rendered_ui_permission_context_includes_direct_user_permissions(): void
+    {
+        $user = User::factory()->create(['role' => 'Employee']);
+        $role = Role::query()->create(['name' => 'Role Viewer']);
+        $rolePermission = Permission::query()->create([
+            'name' => 'List Roles',
+            'key' => 'roles-list',
+        ]);
+        $directPermission = Permission::query()->create([
+            'name' => 'List Permissions',
+            'key' => 'permissions-list',
+        ]);
+
+        $role->permissions()->sync([$rolePermission->id]);
+        $user->roles()->sync([$role->id]);
+        $user->directPermissions()->sync([$directPermission->id]);
+
+        $response = $this->actingAs($user)->get(route('roles.index'));
+
+        $response->assertOk();
+
+        $context = $this->permissionContextFromResponse($response->getContent());
+
+        $this->assertContains('roles-list', $context['userPermissions']);
+        $this->assertContains('permissions-list', $context['userPermissions']);
     }
 
     public function test_super_admin_can_access_protected_route_without_individual_permission(): void

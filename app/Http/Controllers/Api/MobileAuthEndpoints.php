@@ -94,10 +94,13 @@ trait MobileAuthEndpoints
         $device = null;
         $credentials['device_id'] = $credentials['device_id'] ?: $this->fallbackDeviceIdForLogin($user, $request);
 
-        $otherUserDevice = EmployeeDevice::query()
-            ->where('device_id', $credentials['device_id'])
-            ->where('employee_id', '!=', $user->id)
-            ->first();
+        $hasEmployeeDevicesTable = Schema::hasTable('employee_devices');
+        $otherUserDevice = $hasEmployeeDevicesTable
+            ? EmployeeDevice::query()
+                ->where('device_id', $credentials['device_id'])
+                ->where('employee_id', '!=', $user->id)
+                ->first()
+            : null;
 
         if ($otherUserDevice) {
             throw ValidationException::withMessages([
@@ -105,10 +108,12 @@ trait MobileAuthEndpoints
             ]);
         }
 
-        $sameUserOtherDevice = EmployeeDevice::query()
-            ->where('employee_id', $user->id)
-            ->where('device_id', '!=', $credentials['device_id'])
-            ->first();
+        $sameUserOtherDevice = $hasEmployeeDevicesTable
+            ? EmployeeDevice::query()
+                ->where('employee_id', $user->id)
+                ->where('device_id', '!=', $credentials['device_id'])
+                ->first()
+            : null;
 
         if ($sameUserOtherDevice) {
             throw ValidationException::withMessages([
@@ -119,12 +124,16 @@ trait MobileAuthEndpoints
         app(SingleLoginService::class)->invalidateOtherLogins((int) $user->id);
 
         $plainToken = Str::random(80);
-        $token = MobileApiToken::query()->create([
+        $tokenValues = [
             'user_id' => $user->id,
             'name' => $credentials['device_name'] ?? 'mobile',
-            'device_id' => $credentials['device_id'],
             'token_hash' => hash('sha256', $plainToken),
-        ]);
+        ];
+        if (Schema::hasColumn('mobile_api_tokens', 'device_id')) {
+            $tokenValues['device_id'] = $credentials['device_id'];
+        }
+
+        $token = MobileApiToken::query()->create($tokenValues);
 
         $deviceValues = [
             'device_name' => $credentials['device_name'] ?? null,
@@ -138,15 +147,17 @@ trait MobileAuthEndpoints
         if ($credentials['battery_percentage'] !== null) {
             $deviceValues['battery_percentage'] = $credentials['battery_percentage'];
         }
-        $deviceValues = $this->deviceValuesWithLatestTrackingFallback($user->id, $credentials['device_id'], $deviceValues);
+        if ($hasEmployeeDevicesTable) {
+            $deviceValues = $this->deviceValuesWithLatestTrackingFallback($user->id, $credentials['device_id'], $deviceValues);
 
-        $device = EmployeeDevice::query()->updateOrCreate(
-            [
-                'employee_id' => $user->id,
-                'device_id' => $credentials['device_id'],
-            ],
-            $this->availableEmployeeDeviceAttributes($deviceValues)
-        );
+            $device = EmployeeDevice::query()->updateOrCreate(
+                [
+                    'employee_id' => $user->id,
+                    'device_id' => $credentials['device_id'],
+                ],
+                $this->availableEmployeeDeviceAttributes($deviceValues)
+            );
+        }
 
         $activeTokensCount = MobileApiToken::query()
             ->where('user_id', $user->id)

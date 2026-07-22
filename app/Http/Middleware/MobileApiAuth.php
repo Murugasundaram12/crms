@@ -6,6 +6,7 @@ use App\Models\MobileApiToken;
 use App\Models\EmployeeDevice;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
 class MobileApiAuth
@@ -34,30 +35,35 @@ class MobileApiAuth
             ], 401);
         }
 
-        if (blank($apiToken->device_id)) {
-            $apiToken->delete();
+        $hasDeviceBinding = Schema::hasColumn('mobile_api_tokens', 'device_id') && Schema::hasTable('employee_devices');
+        if ($hasDeviceBinding) {
+            if (blank($apiToken->device_id)) {
+                $apiToken->delete();
 
-            return response()->json([
-                'message' => 'Please login again with this device.',
-            ], 401);
-        }
+                return response()->json([
+                    'message' => 'Please login again with this device.',
+                ], 401);
+            }
 
-        $deviceExists = EmployeeDevice::query()
-            ->where('employee_id', $apiToken->user_id)
-            ->where('device_id', $apiToken->device_id)
-            ->exists();
+            $deviceExists = EmployeeDevice::query()
+                ->where('employee_id', $apiToken->user_id)
+                ->where('device_id', $apiToken->device_id)
+                ->exists();
 
-        if (! $deviceExists) {
-            $apiToken->delete();
+            if (! $deviceExists) {
+                $apiToken->delete();
 
-            return response()->json([
-                'message' => 'Device not registered. Please contact admin.',
-            ], 401);
+                return response()->json([
+                    'message' => 'Device not registered. Please contact admin.',
+                ], 401);
+            }
         }
 
         $apiToken->forceFill(['last_used_at' => now()])->save();
         $request->setUserResolver(fn () => $apiToken->user);
-        $request->attributes->set('mobile_device_id', $apiToken->device_id);
+        if ($hasDeviceBinding) {
+            $request->attributes->set('mobile_device_id', $apiToken->device_id);
+        }
 
         return $next($request);
     }

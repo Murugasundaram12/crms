@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('expenses')) {
+            return;
+        }
+
         if (! Schema::hasColumn('expenses', 'title')) {
             return;
         }
@@ -27,6 +31,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('expenses')) {
+            return;
+        }
+
         Schema::table('expenses', function (Blueprint $table) {
             foreach (['type', 'status', 'category'] as $column) {
                 if (Schema::hasColumn('expenses', $column)) {

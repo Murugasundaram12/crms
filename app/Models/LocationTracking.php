@@ -11,6 +11,7 @@ class LocationTracking extends Model
         'attendance_id',
         'employee_id',
         'device_id',
+        'client_uuid',
         'latitude',
         'longitude',
         'accuracy',
@@ -20,6 +21,7 @@ class LocationTracking extends Model
         'is_gps_on',
         'is_wifi_on',
         'is_mock_location',
+        'is_offline',
         'battery_percentage',
         'signal_strength',
         'type',
@@ -35,6 +37,7 @@ class LocationTracking extends Model
         'is_gps_on' => 'boolean',
         'is_wifi_on' => 'boolean',
         'is_mock_location' => 'boolean',
+        'is_offline' => 'boolean',
         'battery_percentage' => 'integer',
         'recorded_at' => 'datetime',
     ];

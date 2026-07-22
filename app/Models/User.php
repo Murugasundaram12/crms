@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
@@ -74,6 +76,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Role::class, 'user_roles', 'user_id', 'role_id');
     }
 
+    public function directPermissions(): MorphToMany
+    {
+        return $this->morphToMany(Permission::class, 'model', 'model_has_permissions', 'model_id', 'permission_id');
+    }
+
     public function mobileApiTokens(): HasMany
     {
         return $this->hasMany(MobileApiToken::class);
@@ -126,20 +133,55 @@ class User extends Authenticatable
             return true;
         }
 
+        return in_array($key, $this->effectivePermissionKeys(), true);
+    }
+
+    public function effectivePermissionKeys(): array
+    {
         if (is_array($this->resolvedPermissionKeys)) {
-            return in_array($key, $this->resolvedPermissionKeys, true);
+            return $this->resolvedPermissionKeys;
         }
 
         $permissionKeys = [];
 
         foreach ($this->assignedRoles() as $role) {
             foreach ($role->permissions as $permission) {
-                $permissionKeys[] = $permission->key;
+                if (! empty($permission->key)) {
+                    $permissionKeys[] = $permission->key;
+                }
             }
+        }
+
+        foreach ($this->directPermissionKeys() as $permissionKey) {
+            $permissionKeys[] = $permissionKey;
         }
 
         $this->resolvedPermissionKeys = array_values(array_unique($permissionKeys));
 
-        return in_array($key, $this->resolvedPermissionKeys, true);
+        return $this->resolvedPermissionKeys;
+    }
+
+    public function clearResolvedPermissions(): void
+    {
+        $this->resolvedPermissionKeys = null;
+        $this->resolvedAssignedRoles = null;
+        unset($this->relations['directPermissions'], $this->relations['roles']);
+    }
+
+    private function directPermissionKeys(): array
+    {
+        if (! Schema::hasTable('model_has_permissions') || ! Schema::hasTable('permissions')) {
+            return [];
+        }
+
+        $permissions = $this->relationLoaded('directPermissions')
+            ? $this->directPermissions
+            : $this->directPermissions()->get();
+
+        return $permissions
+            ->pluck('key')
+            ->filter()
+            ->values()
+            ->all();
     }
 }

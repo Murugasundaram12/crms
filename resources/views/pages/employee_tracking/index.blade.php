@@ -165,10 +165,6 @@
     <div class="d-flex align-items-center justify-content-between gap-3 mb-3 flex-wrap">
         <h4 class="mb-0">Timeline</h4>
         <div class="d-flex gap-3 flex-wrap">
-            <select id="timelineRouteMode" class="form-select form-select-sm" style="width: 190px;">
-                <option value="actual">Actual GPS Route</option>
-                <option value="road">Estimated Road Route</option>
-            </select>
             <input type="date" id="trackingDate" class="form-control form-control-sm" value="{{ request('date', now()->toDateString()) }}" style="width: 150px;">
             <select id="trackingEmployee" class="form-select form-select-sm" style="width: 220px;">
                 <option value="">Please select employee</option>
@@ -206,7 +202,7 @@
             selectedDate: @json(request('date')),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),
             gpsDebug: @json(request()->boolean('gps_debug')),
-            defaultRouteMode: @json(request('route_mode', 'actual')),
+            defaultRouteMode: @json(request('route_mode', 'road')),
         };
 
         let timelineMap;
@@ -215,6 +211,7 @@
         let timelinePolylines = [];
         let timelineDirectionsRenderers = [];
         let timelineRenderToken = 0;
+        let lastTimelinePayload = null;
 
         function initEmployeeTrackingMap() {
             if (timelineMap) {
@@ -281,15 +278,6 @@
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('trackingEmployee')?.addEventListener('change', loadTimelineData);
             document.getElementById('trackingDate')?.addEventListener('change', loadTimelineData);
-            const routeModeSelect = document.getElementById('timelineRouteMode');
-            if (routeModeSelect) {
-                routeModeSelect.value = timelineConfig.defaultRouteMode === 'road' ? 'road' : 'actual';
-                routeModeSelect.addEventListener('change', loadTimelineData);
-                if (!timelineConfig.hasGoogleMapsKey) {
-                    routeModeSelect.value = 'actual';
-                    routeModeSelect.disabled = true;
-                }
-            }
 
             if (!timelineConfig.hasGoogleMapsKey) {
                 initEmployeeTrackingMap();
@@ -353,6 +341,7 @@
 
         function renderTimeline(data) {
             const items = data.timeLineItems || [];
+            lastTimelinePayload = data;
             clearTimelineMap();
             const renderToken = ++timelineRenderToken;
 
@@ -463,12 +452,13 @@
                     }
                 });
 
-                attendanceCard = attendanceSessionCard(items);
+                attendanceCard = attendanceSessionCard(items, data);
                 contents = `${attendanceCard}${contents}`;
 
                 const movementPaths = buildMovementPathsFromSegments(data.polylineSegments);
+                const roadSegments = data.directionsSegments || [];
 
-                drawTimelineRoute(items, latLngs, rawPoints, movementPaths, data.directionsSegments || [], hasTravelPoint, renderToken);
+                drawTimelineRoute(data, items, latLngs, rawPoints, movementPaths, roadSegments, hasTravelPoint, renderToken);
 
                 if (gpsDistance !== undefined && gpsDistance !== null) {
                     finalDistance = `${Number(gpsDistance).toFixed(2)} KM`;
@@ -490,29 +480,34 @@
             resolveMissingAddresses(addressLookups);
         }
 
-        function attendanceSessionCard(items) {
+        function attendanceSessionCard(items, data = {}) {
             const checkInIndex = items.findIndex((item) => item.type === 'checkIn');
             const checkOutIndex = items.findIndex((item) => item.type === 'checkOut');
             const checkInItem = checkInIndex >= 0 ? items[checkInIndex] : null;
             const checkOutItem = checkOutIndex >= 0 ? items[checkOutIndex] : null;
+            const attendance = (data.attendanceSessions?.[0]?.attendance || data.attendances?.[0] || {});
+            const firstTracking = items[0] || null;
+            const lastTracking = items.length ? items[items.length - 1] : null;
 
-            if (!checkInItem && !checkOutItem) {
+            if (!checkInItem && !checkOutItem && !attendance.id) {
                 return '';
             }
 
-            const startTime = checkInItem?.startTime || '-';
-            const endTime = checkOutItem?.startTime || checkOutItem?.endTime || '-';
-            const batteryValue = checkOutItem?.batteryPercentage ?? checkInItem?.batteryPercentage;
-            const checkInAccuracy = accuracyHtml(checkInItem?.accuracy);
-            const checkOutAccuracy = accuracyHtml(checkOutItem?.accuracy);
+            const startTime = checkInItem?.startTime || attendance.check_in_time || '-';
+            const endTime = checkOutItem?.startTime || checkOutItem?.endTime || attendance.check_out_time || '-';
+            const batteryValue = checkOutItem?.batteryPercentage ?? lastTracking?.batteryPercentage ?? checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage;
+            const checkInAccuracy = accuracyHtml(checkInItem?.accuracy ?? firstTracking?.accuracy);
+            const checkOutAccuracy = accuracyHtml(checkOutItem?.accuracy ?? lastTracking?.accuracy);
+            const checkInBattery = batteryHtml(checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage);
+            const checkOutBattery = batteryHtml(checkOutItem?.batteryPercentage ?? lastTracking?.batteryPercentage);
 
             const checkInAddress = checkInItem
                 ? `<div class="session-address" id="timelineAddress${checkInIndex}">${itemAddressHtml(checkInItem)}</div>`
-                : '<div class="session-address">-</div>';
+                : '<div class="session-address text-muted">Attendance check-in time saved. Check-in GPS marker not available.</div>';
 
             const checkOutAddress = checkOutItem
                 ? `<div class="session-address" id="timelineAddress${checkOutIndex}">${itemAddressHtml(checkOutItem)}</div>`
-                : '<div class="session-address">Not checked out</div>';
+                : '<div class="session-address text-muted">Attendance check-out time saved. Check-out GPS marker not available.</div>';
 
             return `
                 <div class="card attendance-session-card mb-2 shadow-sm">
@@ -527,16 +522,18 @@
                         </div>
                         <div class="session-section">
                             <div class="d-flex justify-content-between gap-2 mb-1">
-                                <div class="session-label">Check In ${escapeHtml(checkInItem?.startTime || '-')}</div>
+                                <div class="session-label">Check In ${escapeHtml(startTime)}</div>
                                 <div class="session-meta">${checkInAccuracy}</div>
                             </div>
+                            <div class="session-meta mb-1">${checkInBattery}</div>
                             ${checkInAddress}
                         </div>
                         <div class="session-section">
                             <div class="d-flex justify-content-between gap-2 mb-1">
-                                <div class="session-label">Check Out ${escapeHtml(checkOutItem?.startTime || '-')}</div>
+                                <div class="session-label">Check Out ${escapeHtml(endTime)}</div>
                                 <div class="session-meta">${checkOutAccuracy}</div>
                             </div>
+                            <div class="session-meta mb-1">${checkOutBattery}</div>
                             ${checkOutAddress}
                         </div>
                     </div>
@@ -555,7 +552,7 @@
             return 'Unknown address!';
         }
 
-        async function drawTimelineRoute(items, latLngs, rawPoints, movementPaths, directionsSegments, hasTravelPoint, renderToken) {
+        async function drawTimelineRoute(data, items, latLngs, rawPoints, movementPaths, directionsSegments, hasTravelPoint, renderToken) {
             if (!rawPoints.length) {
                 return;
             }
@@ -574,7 +571,7 @@
                 timelineMap.fitBounds(L.latLngBounds(coords));
             }
 
-            const routeMode = currentRouteMode();
+            const routeMode = currentRouteMode(data);
             if (timelineConfig.gpsDebug) {
                 console.info('[EmployeeTracking] route render plan', {
                     routeMode,
@@ -607,9 +604,40 @@
             }
         }
 
-        function currentRouteMode() {
-            const value = document.getElementById('timelineRouteMode')?.value || timelineConfig.defaultRouteMode || 'actual';
-            return value === 'road' && timelineMapProvider === 'google' ? 'road' : 'actual';
+        function currentRouteMode(data = lastTimelinePayload) {
+            return timelineMapProvider === 'google' && isRoadRouteReliable(data) ? 'road' : 'actual';
+        }
+
+        function isRoadRouteReliable(data = {}) {
+            const health = data?.trackingHealth || {};
+            const coverage = Number(health.tracking_coverage_percentage);
+            const gapCount = Number(health.gap_count);
+
+            if (Number.isFinite(coverage) && coverage < 60) {
+                return false;
+            }
+
+            if (Number.isFinite(gapCount) && gapCount > 0) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function lowConfidenceRouteWarning(data = {}) {
+            const health = data?.trackingHealth || {};
+            const coverage = Number(health.tracking_coverage_percentage);
+            const gapCount = Number(health.gap_count);
+
+            if ((Number.isFinite(coverage) && coverage < 60) || (Number.isFinite(gapCount) && gapCount > 0)) {
+                return `
+                    <div class="alert alert-warning py-2 px-3 mb-3 small">
+                        Low tracking coverage. Estimated road route is hidden because sparse GPS points can create wrong loops or jumps.
+                    </div>
+                `;
+            }
+
+            return '';
         }
 
         function computeDistanceMeters(p1, p2) {
@@ -969,13 +997,22 @@
         }
 
         function overlayShell(contents, data = {}, gpsDistance = '-', directionsDistance = null) {
-            const routeModeLabel = currentRouteMode() === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
+            const routeModeLabel = currentRouteMode(data) === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
             const roadDistance = directionsDistance !== null && directionsDistance !== undefined
                 ? `${Number(directionsDistance).toFixed(2)} KM`
                 : '-';
+            const health = data.trackingHealth || {};
+            const coverage = health.tracking_coverage_percentage !== undefined
+                ? `${Number(health.tracking_coverage_percentage).toFixed(2)}%`
+                : '-';
+            const missingDuration = health.missing_tracking_duration || '-';
+            const gapCount = health.gap_count !== undefined ? health.gap_count : '-';
+            const attendance = data.attendanceSessions?.[0]?.attendance || data.attendances?.[0] || {};
+            const stats = timelineItemStats(data.timeLineItems || []);
 
             return `
                 <div class="bg-white rounded shadow-lg p-3">
+                    ${lowConfidenceRouteWarning(data)}
                     <div class="timeline-summary-card mb-3 shadow-lg">
                         <div class="card-body">
                             <dl class="row mb-0">
@@ -985,10 +1022,24 @@
                                 <dd class="col-6">${escapeHtml(data.totalTrackedTime || '00:00:00')}</dd>
                                 <dt class="col-6">Total attendance time</dt>
                                 <dd class="col-6">${escapeHtml(data.totalAttendanceTime || '00:00:00')}</dd>
+                                <dt class="col-6">Check-in time</dt>
+                                <dd class="col-6">${escapeHtml(attendance.check_in_time || '-')}</dd>
+                                <dt class="col-6">Check-out time</dt>
+                                <dd class="col-6">${escapeHtml(attendance.check_out_time || '-')}</dd>
+                                <dt class="col-6">Tracking accuracy</dt>
+                                <dd class="col-6">${escapeHtml(stats.accuracyLabel)}</dd>
+                                <dt class="col-6">Battery</dt>
+                                <dd class="col-6">${escapeHtml(stats.batteryLabel)}</dd>
                                 <dt class="col-6">Actual GPS distance</dt>
                                 <dd class="col-6" id="timelineGpsDistance">${escapeHtml(gpsDistance)}</dd>
                                 <dt class="col-6">Estimated road distance</dt>
                                 <dd class="col-6" id="timelineDirectionsDistance">${escapeHtml(roadDistance)}</dd>
+                                <dt class="col-6">Tracking coverage</dt>
+                                <dd class="col-6">${escapeHtml(coverage)}</dd>
+                                <dt class="col-6">Missing tracking time</dt>
+                                <dd class="col-6">${escapeHtml(missingDuration)}</dd>
+                                <dt class="col-6">Large gaps</dt>
+                                <dd class="col-6">${escapeHtml(gapCount)}</dd>
                                 <dt class="col-6">Device information</dt>
                                 <dd class="col-6">${escapeHtml(data.deviceInfo || '-')}</dd>
                             </dl>
@@ -997,6 +1048,24 @@
                     <div class="timeline mt-1" style="max-height:350px; overflow-y:auto;">${contents}</div>
                 </div>
             `;
+        }
+
+        function timelineItemStats(items) {
+            const validAccuracy = items
+                .map((item) => Number(item.accuracy))
+                .filter((value) => Number.isFinite(value));
+            const validBattery = items
+                .map((item) => Number(item.batteryPercentage))
+                .filter((value) => Number.isFinite(value));
+
+            const accuracyLabel = validAccuracy.length
+                ? `${Math.min(...validAccuracy).toFixed(0)}-${Math.max(...validAccuracy).toFixed(0)}m`
+                : '-';
+            const batteryLabel = validBattery.length
+                ? `${validBattery[0]}% - ${validBattery[validBattery.length - 1]}%`
+                : '-';
+
+            return {accuracyLabel, batteryLabel};
         }
 
         function updateDistanceDisplay(gpsDistance = null, directionsDistance = null) {
@@ -1012,7 +1081,7 @@
 
             const routeModeNode = document.getElementById('timelineRouteModeLabel');
             if (routeModeNode) {
-                routeModeNode.textContent = currentRouteMode() === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
+                routeModeNode.textContent = currentRouteMode(lastTimelinePayload) === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
             }
         }
 

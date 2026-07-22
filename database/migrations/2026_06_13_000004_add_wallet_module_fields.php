@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('wallet')) {
+            return;
+        }
+
         Schema::table('wallet', function (Blueprint $table) {
             if (! Schema::hasColumn('wallet', 'client_id')) {
                 $table->unsignedBigInteger('client_id')->nullable()->after('user_id');
@@ -30,11 +34,17 @@ return new class extends Migration
             }
         });
 
-        DB::statement('ALTER TABLE wallet MODIFY `current_date` DATETIME NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE wallet MODIFY `current_date` DATETIME NULL');
+        }
     }
 
     public function down(): void
     {
+        if (! Schema::hasTable('wallet')) {
+            return;
+        }
+
         Schema::table('wallet', function (Blueprint $table) {
             foreach (['client_id', 'project_id', 'payment_mode', 'stage_id', 'active_status', 'delete_status'] as $column) {
                 if (Schema::hasColumn('wallet', $column)) {

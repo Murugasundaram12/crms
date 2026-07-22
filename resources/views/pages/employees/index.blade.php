@@ -5,6 +5,13 @@
 
 @section('content')
     @include('partials.alerts')
+    @php
+        $permissionGroups = ($permissions ?? collect())->groupBy(function ($permission) {
+            return str_contains($permission->key, '-')
+                ? \Illuminate\Support\Str::beforeLast($permission->key, '-')
+                : explode('.', $permission->key)[0];
+        });
+    @endphp
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
@@ -179,6 +186,31 @@
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select></div>
+                @if($permissionGroups->isNotEmpty())
+                    <div class="col-12">
+                        <label class="form-label">Extra User Permissions</label>
+                        <p class="text-muted fs-13 mb-2">Additional permissions for this user only. Role permissions still apply.</p>
+                        <div class="border rounded p-3" style="max-height: 260px; overflow:auto;">
+                            <div class="row g-3">
+                                @foreach($permissionGroups as $module => $modulePermissions)
+                                    <div class="col-12 col-md-6">
+                                        <div class="fw-semibold mb-2">{{ \Illuminate\Support\Str::title(str_replace(['-', '_'], ' ', $module)) }}</div>
+                                        @foreach($modulePermissions as $permission)
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" name="direct_permissions[]"
+                                                    value="{{ $permission->id }}" id="add-direct-permission-{{ $permission->id }}"
+                                                    @checked(in_array($permission->id, old('direct_permissions', [])))>
+                                                <label class="form-check-label" for="add-direct-permission-{{ $permission->id }}">
+                                                    {{ $permission->name }} <small class="text-muted">({{ $permission->key }})</small>
+                                                </label>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
                 <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
                         data-bs-dismiss="offcanvas">Cancel</button><button type="submit" class="btn btn-primary">Save
                         User</button></div>
@@ -238,6 +270,50 @@
                                     <option value="active" @selected($employee->status === 'active')>Active</option>
                                     <option value="inactive" @selected($employee->status === 'inactive')>Inactive</option>
                                 </select></div>
+                            @if($permissionGroups->isNotEmpty())
+                                @php
+                                    $rolePermissionIds = $employee->roles
+                                        ->flatMap(fn($role) => $role->permissions->pluck('id'))
+                                        ->unique()
+                                        ->values()
+                                        ->all();
+                                    $selectedDirectPermissions = old('direct_permissions', $employee->directPermissions->pluck('id')->all());
+                                @endphp
+                                <div class="col-12">
+                                    <label class="form-label">Permissions</label>
+                                    <p class="text-muted fs-13 mb-2">Role permissions are already selected. Extra user permissions can be changed here.</p>
+                                    <div class="border rounded p-3" style="max-height: 260px; overflow:auto;">
+                                        <div class="row g-3">
+                                            @foreach($permissionGroups as $module => $modulePermissions)
+                                                <div class="col-12 col-md-6">
+                                                    <div class="fw-semibold mb-2">{{ \Illuminate\Support\Str::title(str_replace(['-', '_'], ' ', $module)) }}</div>
+                                                    @foreach($modulePermissions as $permission)
+                                                        @php
+                                                            $isRolePermission = in_array($permission->id, $rolePermissionIds);
+                                                            $isDirectPermission = in_array($permission->id, $selectedDirectPermissions);
+                                                        @endphp
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox"
+                                                                @if(! $isRolePermission) name="direct_permissions[]" @endif
+                                                                value="{{ $permission->id }}" id="edit-direct-permission-{{ $employee->id }}-{{ $permission->id }}"
+                                                                @checked($isRolePermission || $isDirectPermission)
+                                                                @disabled($isRolePermission)>
+                                                            <label class="form-check-label" for="edit-direct-permission-{{ $employee->id }}-{{ $permission->id }}">
+                                                                {{ $permission->name }} <small class="text-muted">({{ $permission->key }})</small>
+                                                                @if($isRolePermission)
+                                                                    <span class="badge bg-soft-primary text-primary ms-1">Role</span>
+                                                                @elseif($isDirectPermission)
+                                                                    <span class="badge bg-soft-info text-info ms-1">User</span>
+                                                                @endif
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                             <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
                                     data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Update
                                     User</button></div>

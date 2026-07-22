@@ -166,6 +166,7 @@ class EmployeeTrackingController extends Controller
 
         $attendanceSeconds = $this->attendanceSeconds($attendances);
         $timelineEvents = $this->groupTimelineEvents($timeLineItems);
+        $trackingHealth = $this->trackingHealthPayload($attendances, $trackings);
 
         $response = [
             'employeeId' => $employee->id,
@@ -176,6 +177,7 @@ class EmployeeTrackingController extends Controller
             'attendanceSessions' => $this->attendanceSessionPayloads($attendances, $timeline),
             'totalTrackedTime' => $this->formatSecondsAsClock($totalTrackedSeconds),
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
+            'trackingHealth' => $trackingHealth,
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
             'totalKM' => $timeline['totalKM'],
             'gpsDistanceKm' => $timeline['gpsDistanceKm'] ?? $timeline['totalKM'],
@@ -543,6 +545,97 @@ class EmployeeTrackingController extends Controller
         });
     }
 
+    private function trackingHealthPayload($attendances, $trackings): array
+    {
+        $intervalSeconds = max(1, (int) $this->settingValue('tracking_interval_seconds', 30));
+        $gapThresholdSeconds = max($intervalSeconds * 3, (int) $this->settingValue('gps_max_inactive_gap_seconds', 90));
+        $attendanceSeconds = $this->attendanceSeconds($attendances);
+        $savedRows = $trackings->count();
+        $expectedUpdates = $attendanceSeconds > 0 ? ((int) floor($attendanceSeconds / $intervalSeconds) + 1) : 0;
+        $trackingSpanSeconds = $this->trackingSpanSeconds($trackings);
+        $missingSeconds = max(0, $attendanceSeconds - $trackingSpanSeconds);
+        $gaps = $this->trackingGapReport($trackings, $gapThresholdSeconds);
+
+        return [
+            'tracking_interval_seconds' => $intervalSeconds,
+            'gap_threshold_seconds' => $gapThresholdSeconds,
+            'expected_updates' => $expectedUpdates,
+            'successful_updates' => $savedRows,
+            'tracking_coverage_percentage' => $expectedUpdates > 0 ? round(($savedRows / $expectedUpdates) * 100, 2) : 0,
+            'attendance_seconds' => $attendanceSeconds,
+            'attendance_duration' => $this->formatSecondsAsClock($attendanceSeconds),
+            'saved_tracking_span_seconds' => $trackingSpanSeconds,
+            'saved_tracking_span' => $this->formatSecondsAsClock($trackingSpanSeconds),
+            'missing_tracking_seconds' => $missingSeconds,
+            'missing_tracking_duration' => $this->formatSecondsAsClock($missingSeconds),
+            'gap_count' => count($gaps),
+            'largest_gaps' => array_slice($gaps, 0, 10),
+        ];
+    }
+
+    private function trackingSpanSeconds($trackings): int
+    {
+        $ordered = $trackings->values();
+        $first = $ordered->first();
+        $last = $ordered->last();
+
+        if (! $first || ! $last || ! $first->recorded_at || ! $last->recorded_at) {
+            return 0;
+        }
+
+        return (int) $first->recorded_at->diffInSeconds($last->recorded_at);
+    }
+
+    private function trackingGapReport($trackings, int $gapThresholdSeconds): array
+    {
+        $gaps = [];
+        $ordered = $trackings->values();
+
+        for ($index = 1; $index < $ordered->count(); $index++) {
+            $previous = $ordered->get($index - 1);
+            $current = $ordered->get($index);
+
+            if (! $previous?->recorded_at || ! $current?->recorded_at) {
+                continue;
+            }
+
+            $seconds = $previous->recorded_at->diffInSeconds($current->recorded_at);
+            if ($seconds < $gapThresholdSeconds) {
+                continue;
+            }
+
+            $distanceKm = $this->distanceInKm(
+                (float) $previous->latitude,
+                (float) $previous->longitude,
+                (float) $current->latitude,
+                (float) $current->longitude
+            );
+
+            $gaps[] = [
+                'previous_tracking_id' => $previous->id,
+                'current_tracking_id' => $current->id,
+                'previous_recorded_at' => $previous->recorded_at->toDateTimeString(),
+                'current_recorded_at' => $current->recorded_at->toDateTimeString(),
+                'gap_seconds' => $seconds,
+                'gap_minutes' => round($seconds / 60, 2),
+                'previous_coordinate' => [
+                    'latitude' => (float) $previous->latitude,
+                    'longitude' => (float) $previous->longitude,
+                ],
+                'current_coordinate' => [
+                    'latitude' => (float) $current->latitude,
+                    'longitude' => (float) $current->longitude,
+                ],
+                'distance_km' => round($distanceKm, 2),
+                'reason' => 'missing_periodic_updates',
+            ];
+        }
+
+        usort($gaps, fn (array $a, array $b): int => $b['gap_seconds'] <=> $a['gap_seconds']);
+
+        return $gaps;
+    }
+
     private function attendancePayload(Attendance $attendance): array
     {
         return [
@@ -749,7 +842,10 @@ class EmployeeTrackingController extends Controller
         $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        return $seconds > (int) $this->settingValue('gps_max_inactive_gap_seconds', 3600)
+        $intervalSeconds = max(1, (int) $this->settingValue('tracking_interval_seconds', 30));
+        $gapThresholdSeconds = max($intervalSeconds * 3, (int) $this->settingValue('gps_max_inactive_gap_seconds', 90));
+
+        return $seconds >= $gapThresholdSeconds
             || $distanceKm > 2
             || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
     }
@@ -814,11 +910,19 @@ class EmployeeTrackingController extends Controller
             return 'checkOut';
         }
 
-        if ($tracking->type === 'still') {
+        if ($this->isStationaryTimelinePoint($tracking, $previous, $next)) {
             return 'still';
         }
 
+        $trackingType = strtolower((string) $tracking->type);
         $activity = strtolower((string) $tracking->activity);
+
+        if (in_array($trackingType, ['travelling', 'vehicle', 'walking', 'walk'], true)) {
+            if (in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) || $trackingType === 'walking' || $trackingType === 'walk') {
+                return 'walk';
+            }
+            return 'vehicle';
+        }
 
         if (in_array($activity, ['activitytype.still', 'still'], true)) {
             return 'still';

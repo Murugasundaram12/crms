@@ -20,6 +20,8 @@ class EmployeeTimelineBuilder
             'gps_max_speed_mps' => isset($options['max_computed_speed_kmh']) ? (float) $options['max_computed_speed_kmh'] / 3.6 : null,
             'gps_max_bearing_change_degrees' => $options['max_bearing_change_degrees'] ?? null,
             'gps_bearing_min_distance_metres' => $options['bearing_drift_distance_meters'] ?? null,
+            'tracking_interval_seconds' => $options['tracking_interval_seconds'] ?? null,
+            'gps_max_inactive_gap_seconds' => $options['max_inactive_gap_seconds'] ?? null,
             'gps_douglas_peucker_tolerance_metres' => $options['douglas_peucker_tolerance_meters'] ?? null,
         ]);
 
@@ -244,6 +246,7 @@ class EmployeeTimelineBuilder
             $trackingType === 'proof_post' => 'proofPost',
             in_array($trackingType, ['walking', 'walk'], true) => 'walk',
             $trackingType === 'vehicle' => 'vehicle',
+            $trackingType === 'travelling' && in_array($activity, ['activitytype.still', 'still'], true) && $tracking->speed !== null && (float) $tracking->speed <= 0.0 => 'still',
             $trackingType === 'travelling' && in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
             $trackingType === 'travelling' => 'vehicle',
             in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
@@ -272,7 +275,10 @@ class EmployeeTimelineBuilder
         }
 
         $seconds = $current->recorded_at->getTimestamp() - $previous->recorded_at->getTimestamp();
-        if ($seconds <= 0 || $seconds > (int) ($settings['gps_max_inactive_gap_seconds'] ?? 600)) {
+        $intervalSeconds = max(1, (int) ($settings['tracking_interval_seconds'] ?? 30));
+        $gapThresholdSeconds = max($intervalSeconds * 3, (int) ($settings['gps_max_inactive_gap_seconds'] ?? 90));
+
+        if ($seconds <= 0 || $seconds >= $gapThresholdSeconds) {
             return true;
         }
 
@@ -306,10 +312,11 @@ class EmployeeTimelineBuilder
             'batteryPercentage' => $tracking->battery_percentage,
             'isGPSOn' => (bool) $tracking->is_gps_on,
             'isWifiOn' => false,
+            'isOffline' => (bool) ($tracking->is_offline ?? false),
             'latitude' => (float) $tracking->latitude,
             'longitude' => (float) $tracking->longitude,
             'address' => null,
-            'signalStrength' => null,
+            'signalStrength' => $tracking->signal_strength,
             'trackingType' => $tracking->type,
             'segmentBreakBefore' => $segmentBreak,
             'startTime' => $tracking->recorded_at?->format('h:i A'),
@@ -347,6 +354,8 @@ class EmployeeTimelineBuilder
             'recorded_at' => $tracking->recorded_at?->format('h:i A'),
             'activity' => $tracking->activity,
             'type' => $tracking->type,
+            'is_offline' => (bool) ($tracking->is_offline ?? false),
+            'signal_strength' => $tracking->signal_strength,
             'distance_metres' => $metrics['distance_metres'] ?? null,
             'speed_mps' => $metrics['speed_mps'] ?? null,
             'bearing' => $metrics['bearing'] ?? null,
@@ -378,10 +387,6 @@ class EmployeeTimelineBuilder
             ->map(function (array $segment): ?array {
                 $points = $segment['points'] ?? [];
                 if (count($points) < 2) {
-                    return null;
-                }
-
-                if ((float) ($segment['distance_km'] ?? 0) < 0.5) {
                     return null;
                 }
 

@@ -14,7 +14,8 @@ class GpsTrackingValidationService
     public const DEFAULT_MAX_SPEED_MPS = 25.0;
     public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 45.0;
     public const DEFAULT_BEARING_MIN_DISTANCE_METRES = 10.0;
-    public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 3600;
+    public const DEFAULT_TRACKING_INTERVAL_SECONDS = 30;
+    public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 600;
     public const DEFAULT_DOUGLAS_PEUCKER_TOLERANCE_METRES = 15.0;
 
     private static ?array $cachedSettings = null;
@@ -27,6 +28,7 @@ class GpsTrackingValidationService
             'gps_max_speed_mps' => self::DEFAULT_MAX_SPEED_MPS,
             'gps_max_bearing_change_degrees' => self::DEFAULT_MAX_BEARING_CHANGE_DEGREES,
             'gps_bearing_min_distance_metres' => self::DEFAULT_BEARING_MIN_DISTANCE_METRES,
+            'tracking_interval_seconds' => self::DEFAULT_TRACKING_INTERVAL_SECONDS,
             'gps_max_inactive_gap_seconds' => self::DEFAULT_MAX_INACTIVE_GAP_SECONDS,
             'gps_douglas_peucker_tolerance_metres' => self::DEFAULT_DOUGLAS_PEUCKER_TOLERANCE_METRES,
         ];
@@ -300,6 +302,7 @@ class GpsTrackingValidationService
                     'gps_max_bearing_change_degrees',
                     'gps_bearing_min_segment_distance_metres',
                     'gps_bearing_min_distance_metres',
+                    'tracking_interval_seconds',
                     'gps_max_inactive_gap_seconds',
                     'gps_douglas_peucker_tolerance_metres',
                     'timeline_max_accuracy_meters',
@@ -314,6 +317,10 @@ class GpsTrackingValidationService
             foreach ($values as $key => $value) {
                 if (str_starts_with($key, 'gps_')) {
                     $settings[$this->canonicalSettingKey($key)] = (float) $value;
+                }
+
+                if ($key === 'tracking_interval_seconds') {
+                    $settings[$key] = (float) $value;
                 }
             }
 

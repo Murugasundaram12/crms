@@ -7,6 +7,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement('ALTER TABLE expenses MODIFY amount INT NOT NULL AFTER id');
         DB::statement('ALTER TABLE expenses MODIFY main_category_id INT NULL AFTER amount');
         DB::statement('ALTER TABLE expenses MODIFY category_id INT UNSIGNED NOT NULL AFTER main_category_id');

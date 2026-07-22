@@ -40,17 +40,9 @@ class AppServiceProvider extends ServiceProvider
                         ->values()
                         ->all();
                 } else {
-                    $permissionKeys = [];
-
-                    foreach ($user->assignedRoles() as $role) {
-                        foreach ($role->permissions as $permission) {
-                            if (! empty($permission->key)) {
-                                $permissionKeys[] = $permission->key;
-                            }
-                        }
-                    }
-
-                    $permissionKeys = array_values(array_unique($permissionKeys));
+                    $permissionKeys = method_exists($user, 'effectivePermissionKeys')
+                        ? $user->effectivePermissionKeys()
+                        : [];
                 }
 
                 $permissionRoutes = [];

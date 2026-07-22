@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('payments')) {
+            return;
+        }
+
         Schema::table('payments', function (Blueprint $table) {
             if (Schema::hasColumn('payments', 'method') && ! Schema::hasColumn('payments', 'payment_method')) {
                 $table->renameColumn('method', 'payment_method');
@@ -26,11 +30,22 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('payments')) {
+            return;
+        }
+
         Schema::table('payments', function (Blueprint $table) {
-            $table->dropForeign(['quotation_id']);
-            $table->dropConstrainedForeignId('stage_id');
-            $table->string('payment_method')->change();
-            $table->renameColumn('payment_method', 'method');
+            if (Schema::hasColumn('payments', 'quotation_id')) {
+                $table->dropForeign(['quotation_id']);
+                $table->dropColumn('quotation_id');
+            }
+            if (Schema::hasColumn('payments', 'stage_id')) {
+                $table->dropConstrainedForeignId('stage_id');
+            }
+            if (Schema::hasColumn('payments', 'payment_method')) {
+                $table->string('payment_method')->change();
+                $table->renameColumn('payment_method', 'method');
+            }
         });
     }
 };
