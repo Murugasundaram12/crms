@@ -3,10 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\VendorExpenseTransaction;
-use App\Models\MainCategory;
-use App\Models\Category;
-use App\Models\Project;
-use App\Models\Vendor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,38 +25,12 @@ class VendorExpenseTransactionController extends Controller
 
     public function index(Request $request)
     {
-        $query = VendorExpenseTransaction::query()
-            ->where('delete_status', false)
-            ->with(['mainCategory', 'category', 'project', 'vendor']);
-
-        if ($request->filled('q')) {
-            $q = $request->string('q');
-            $query->where(function ($qq) use ($q) {
-                $qq->where('description', 'like', "%{$q}%")
-                    ->orWhere('payment_mode', 'like', "%{$q}%")
-                    ->orWhereHas('vendor', fn($vendor) => $vendor->where('name', 'like', "%{$q}%"));
-            });
-        }
-
-        $vendorExpenseTransactions = $query->latest()->paginate((int) $request->get('paginate', 12))->withQueryString();
-
-        return view('pages.vendor_expense_transactions.index', [
-            'vendorExpenseTransactions' => $vendorExpenseTransactions,
-        ]);
+        return redirect()->route('vendor-expenses.history', $request->query());
     }
 
     public function create()
     {
-        $mainCategories = MainCategory::query()->where('status', true)->orderBy('name')->get();
-        $projects = Project::query()->orderBy('name')->get();
-        $vendors = Vendor::query()->orderBy('name')->get();
-
-        return view('pages.vendor_expense_transactions.create', [
-            'mainCategories' => $mainCategories,
-            'projects' => $projects,
-            'vendors' => $vendors,
-            'paymentModes' => $this->paymentModes,
-        ]);
+        return redirect()->route('vendor-expenses.create.legacy');
     }
 
     public function store(Request $request): RedirectResponse
@@ -77,27 +47,12 @@ class VendorExpenseTransactionController extends Controller
 
         VendorExpenseTransaction::create($validated);
 
-        return redirect()->route('vendor-expense-transactions.index')->with('success', 'Vendor expense added successfully.');
+        return redirect()->route('vendor-expenses.history')->with('success', 'Vendor expense added successfully.');
     }
 
     public function edit(VendorExpenseTransaction $vendorExpenseTransaction)
     {
-        $mainCategories = MainCategory::query()->where('status', true)->orderBy('name')->get();
-        $categories = Category::query()->whereHas('mainCategories', function ($q) use ($vendorExpenseTransaction) {
-            $q->where('main_categories.id', $vendorExpenseTransaction->main_category_id);
-        })->orderBy('name')->get();
-
-        $projects = Project::query()->orderBy('name')->get();
-        $vendors = Vendor::query()->orderBy('name')->get();
-
-        return view('pages.vendor_expense_transactions.edit', [
-            'vendorExpenseTransaction' => $vendorExpenseTransaction,
-            'mainCategories' => $mainCategories,
-            'categories' => $categories,
-            'projects' => $projects,
-            'vendors' => $vendors,
-            'paymentModes' => $this->paymentModes,
-        ]);
+        return redirect()->route('vendor-expenses.edit.legacy', $vendorExpenseTransaction->id);
     }
 
     public function update(Request $request, VendorExpenseTransaction $vendorExpenseTransaction): RedirectResponse
@@ -116,7 +71,7 @@ class VendorExpenseTransactionController extends Controller
 
         $vendorExpenseTransaction->update($validated);
 
-        return redirect()->route('vendor-expense-transactions.index')->with('success', 'Vendor expense updated successfully.');
+        return redirect()->route('vendor-expenses.history')->with('success', 'Vendor expense updated successfully.');
     }
 
     public function destroy(VendorExpenseTransaction $vendorExpenseTransaction): RedirectResponse
@@ -129,7 +84,7 @@ class VendorExpenseTransactionController extends Controller
             Storage::disk('public')->delete($vendorExpenseTransaction->image_path);
         }
 
-        return redirect()->route('vendor-expense-transactions.index')->with('success', 'Vendor expense deleted successfully.');
+        return redirect()->route('vendor-expenses.history')->with('success', 'Vendor expense deleted successfully.');
     }
 
     private function validateVendorExpense(Request $request, ?VendorExpenseTransaction $existing = null): array

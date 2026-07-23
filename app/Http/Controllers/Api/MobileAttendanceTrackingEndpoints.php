@@ -735,6 +735,15 @@ trait MobileAttendanceTrackingEndpoints
         $validated = $this->validateTrackingPayload($request, 'travelling');
         $user = $request->user();
 
+        if ($this->isOfflinePayloadTooOld($validated)) {
+            return response()->json([
+                'success' => true,
+                'saved' => false,
+                'reason' => 'offline_record_too_old',
+                'message' => 'Location received but ignored because offline record is older than the allowed sync age.',
+            ]);
+        }
+
         $attendance = $this->attendanceForTrackingPayload($user->id, $validated);
 
         if (! $attendance) {
@@ -791,8 +800,9 @@ trait MobileAttendanceTrackingEndpoints
             ], 403);
         }
 
+        $bulkUploadLimit = min(500, max(1, (int) $this->settingValue('bulk_upload_limit', 100)));
         $validatedBatch = $request->validate([
-            'locations' => ['required', 'array', 'min:1', 'max:500'],
+            'locations' => ['required', 'array', 'min:1', 'max:' . $bulkUploadLimit],
             'locations.*' => ['required', 'array'],
         ]);
 
@@ -811,6 +821,19 @@ trait MobileAttendanceTrackingEndpoints
 
             try {
                 $validated = $this->validateTrackingPayload($pointRequest, 'travelling');
+
+                if ($this->isOfflinePayloadTooOld($validated)) {
+                    $ignoredCount++;
+                    $results[] = [
+                        'index' => $index,
+                        'success' => true,
+                        'saved' => false,
+                        'reason' => 'offline_record_too_old',
+                        'message' => 'Location received but ignored because offline record is older than the allowed sync age.',
+                    ];
+                    continue;
+                }
+
                 $attendance = $this->attendanceForTrackingPayload($user->id, $validated);
 
                 if (! $attendance) {
@@ -902,10 +925,17 @@ trait MobileAttendanceTrackingEndpoints
 
     public function trackingSettings()
     {
+        $settings = $this->trackingSettingsPayload();
+
         return response()->json([
-            'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 30),
-            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
-            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+            ...$settings,
+            'tracking_interval_seconds' => $settings['trackingIntervalSeconds'],
+            'location_update_interval' => $settings['locationUpdateInterval'],
+            'location_update_interval_type' => $settings['locationUpdateIntervalType'],
+            'minimum_accuracy' => $settings['minimumAccuracy'],
+            'minimum_distance_meters' => $settings['minimumDistanceMeters'],
+            'max_accuracy_meters' => $settings['minimumAccuracy'],
+            'maximum_speed_kmph' => $settings['maximumSpeedKmph'],
             'timeline_minimum_distance_meters' => $this->settingValue('gps_min_distance_metres', 30),
             'timeline_max_accuracy_meters' => $this->settingValue('gps_max_accuracy_metres', 50),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
@@ -916,15 +946,22 @@ trait MobileAttendanceTrackingEndpoints
             'timeline_max_computed_speed_kmh' => $this->settingValue('timeline_max_computed_speed_kmh', 90),
             'gps_max_accuracy_metres' => $this->settingValue('gps_max_accuracy_metres', 50),
             'gps_min_distance_metres' => $this->settingValue('gps_min_distance_metres', 30),
-            'gps_max_speed_mps' => $this->settingValue('gps_max_speed_mps', 25),
+            'gps_max_speed_mps' => $settings['maximumSpeedKmph'] / 3.6,
             'gps_max_bearing_change_degrees' => $this->settingValue('gps_max_bearing_change_degrees', 45),
             'gps_bearing_min_distance_metres' => $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
             'gps_douglas_peucker_tolerance_metres' => $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
-            'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 90),
-            'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
+            'gps_max_inactive_gap_seconds' => (int) round($settings['largeGapMinutes'] * 60),
+            'large_gap_minutes' => $settings['largeGapMinutes'],
+            'large_gap_distance_meters' => $settings['largeGapDistanceMeters'],
+            'mock_location_allowed' => $settings['mockLocationAllowed'],
             'history_retention_days' => $this->settingValue('history_retention_days', 90),
-            'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
-            'online_threshold_seconds' => $this->onlineThresholdSeconds(),
+            'offline_tracking_enabled' => $settings['offlineTrackingEnabled'],
+            'offline_check_time' => $settings['offlineCheckTime'],
+            'offline_check_time_type' => $settings['offlineCheckTimeType'],
+            'online_threshold_seconds' => $settings['onlineThresholdSeconds'],
+            'bulk_upload_limit' => $settings['bulkUploadLimit'],
+            'allow_sync_after_checkout' => $settings['allowSyncAfterCheckout'],
+            'low_signal_threshold' => $settings['lowSignalThreshold'],
         ]);
     }
 
@@ -1306,8 +1343,10 @@ trait MobileAttendanceTrackingEndpoints
             'invalid_timestamp' => 'Location received but ignored because recorded_at is not newer than the previous point.',
             'speed_exceeded' => 'Location received but ignored because movement speed was impossible.',
             'accuracy_exceeded' => 'Location received but ignored because GPS accuracy is above threshold.',
-            'invalid_coordinates' => 'Location received but ignored because coordinates are invalid or mock location was detected.',
+            'mock_location' => 'Location received but ignored because mock location is not allowed.',
+            'invalid_coordinates' => 'Location received but ignored because coordinates are invalid.',
             'duplicate_retry' => 'Location already saved earlier; duplicate retry ignored.',
+            'offline_record_too_old' => 'Location received but ignored because offline record is older than the allowed sync age.',
             default => 'Location received but ignored by GPS validation.',
         };
     }

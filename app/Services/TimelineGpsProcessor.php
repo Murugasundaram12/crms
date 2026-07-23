@@ -57,6 +57,14 @@ class TimelineGpsProcessor
             $result = $validator->validateWithSettings($tracking, $previous, $previousPrevious, $validatorSettings);
 
             if (! $result['accepted']) {
+                if ($this->shouldKeepTimelineMarker($tracking, $result)) {
+                    $filtered[] = $tracking;
+                    $seenCoordinates[$coordinateKey] = true;
+                    if ($timestampKey !== null) {
+                        $seenTimestamps[$timestampKey] = true;
+                    }
+                }
+
                 continue;
             }
 
@@ -113,6 +121,17 @@ class TimelineGpsProcessor
                 fn (LocationTracking $a, LocationTracking $b) => ($a->id ?? 0) <=> ($b->id ?? 0),
             ])
             ->values();
+    }
+
+    private function shouldKeepTimelineMarker(LocationTracking $tracking, array $validationResult): bool
+    {
+        $type = strtolower((string) $tracking->type);
+        $activity = strtolower((string) $tracking->activity);
+        if (in_array($type, ['checked_in', 'checked_out', 'still', 'proof_post'], true)) {
+            return true;
+        }
+
+        return in_array($activity, ['activitytype.still', 'still'], true);
     }
 
     private function trackingTimestamp(LocationTracking $tracking): int

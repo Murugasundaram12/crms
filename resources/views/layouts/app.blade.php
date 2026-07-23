@@ -18,7 +18,11 @@
     <link rel="stylesheet" href="{{ asset('assets/plugins/simplebar/simplebar.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/plugins/daterangepicker/daterangepicker.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="app-style">
-    <link rel="stylesheet" href="{{ asset('assets/css/crm-list-ui.css') }}">
+    @php($crmListCssVersion = max(
+        file_exists(public_path('assets/css/crm-list-ui.css')) ? filemtime(public_path('assets/css/crm-list-ui.css')) : 0,
+        file_exists(base_path('assets/css/crm-list-ui.css')) ? filemtime(base_path('assets/css/crm-list-ui.css')) : 0
+    ))
+    <link rel="stylesheet" href="{{ asset('assets/css/crm-list-ui.css') }}?v={{ $crmListCssVersion }}">
     @include('partials.required-field-stars')
 
     @stack('styles')

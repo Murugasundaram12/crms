@@ -36,7 +36,10 @@ class AuthController extends Controller
 
         // Attempt to log the user in with the validated credentials.
         $rememberUser = $request->boolean('remember');
-        $loginWasSuccessful = Auth::attempt($validatedCredentials, $rememberUser);
+        $loginWasSuccessful = Auth::attempt([
+            ...$validatedCredentials,
+            'status' => 'active',
+        ], $rememberUser);
 
         if ($loginWasSuccessful) {
             // Regenerate the session to prevent session fixation issues.

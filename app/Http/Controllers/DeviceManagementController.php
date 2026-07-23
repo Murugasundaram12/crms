@@ -88,8 +88,20 @@ class DeviceManagementController extends Controller
     private function onlineThresholdSeconds(): int
     {
         $setting = AppSetting::query()->where('key', 'online_threshold_seconds')->first();
+        if ($setting && $setting->value !== null && $setting->value !== '') {
+            return max(60, (int) $setting->value);
+        }
 
-        return max(60, (int) ($setting?->value ?? 1800));
+        $offlineCheckTime = AppSetting::query()->where('key', 'offline_check_time')->first();
+        $offlineCheckType = AppSetting::query()->where('key', 'offline_check_time_type')->first();
+        $value = (int) ($offlineCheckTime?->value ?: 15);
+        $type = (string) ($offlineCheckType?->value ?: 'minutes');
+
+        return max(60, match ($type) {
+            'seconds' => $value,
+            'hours' => $value * 3600,
+            default => $value * 60,
+        });
     }
 
     private function deviceLoginKey(int $employeeId, string $deviceId): string

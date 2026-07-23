@@ -12,6 +12,7 @@ class GpsTrackingValidationService
     public const DEFAULT_MAX_ACCURACY_METRES = 50.0;
     public const DEFAULT_MIN_DISTANCE_METRES = 30.0;
     public const DEFAULT_MAX_SPEED_MPS = 25.0;
+    public const DEFAULT_MAX_WALKING_SPEED_MPS = 3.5;
     public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 45.0;
     public const DEFAULT_BEARING_MIN_DISTANCE_METRES = 10.0;
     public const DEFAULT_TRACKING_INTERVAL_SECONDS = 30;
@@ -26,11 +27,14 @@ class GpsTrackingValidationService
             'gps_max_accuracy_metres' => self::DEFAULT_MAX_ACCURACY_METRES,
             'gps_min_distance_metres' => self::DEFAULT_MIN_DISTANCE_METRES,
             'gps_max_speed_mps' => self::DEFAULT_MAX_SPEED_MPS,
+            'gps_max_walking_speed_mps' => self::DEFAULT_MAX_WALKING_SPEED_MPS,
             'gps_max_bearing_change_degrees' => self::DEFAULT_MAX_BEARING_CHANGE_DEGREES,
             'gps_bearing_min_distance_metres' => self::DEFAULT_BEARING_MIN_DISTANCE_METRES,
             'tracking_interval_seconds' => self::DEFAULT_TRACKING_INTERVAL_SECONDS,
             'gps_max_inactive_gap_seconds' => self::DEFAULT_MAX_INACTIVE_GAP_SECONDS,
+            'large_gap_distance_meters' => 2000.0,
             'gps_douglas_peucker_tolerance_metres' => self::DEFAULT_DOUGLAS_PEUCKER_TOLERANCE_METRES,
+            'mock_location_allowed' => false,
         ];
 
         return [
@@ -53,8 +57,9 @@ class GpsTrackingValidationService
             return $this->rejected('invalid_coordinates');
         }
 
-        if ((bool) ($currentPoint['is_mock_location'] ?? false)) {
-            return $this->rejected('invalid_coordinates');
+        if ((bool) ($currentPoint['is_mock_location'] ?? false)
+            && ! (bool) ($settings['mock_location_allowed'] ?? false)) {
+            return $this->rejected('mock_location');
         }
 
         if ($currentPoint['accuracy'] === null
@@ -296,19 +301,28 @@ class GpsTrackingValidationService
 
             $values = AppSetting::query()
                 ->whereIn('key', [
+                    'minimum_accuracy',
+                    'minimum_distance_meters',
+                    'maximum_speed_kmph',
                     'gps_max_accuracy_metres',
                     'gps_min_distance_metres',
                     'gps_max_speed_mps',
+                    'gps_max_walking_speed_mps',
                     'gps_max_bearing_change_degrees',
                     'gps_bearing_min_segment_distance_metres',
                     'gps_bearing_min_distance_metres',
                     'tracking_interval_seconds',
+                    'location_update_interval',
+                    'location_update_interval_type',
                     'gps_max_inactive_gap_seconds',
+                    'large_gap_minutes',
+                    'large_gap_distance_meters',
                     'gps_douglas_peucker_tolerance_metres',
                     'timeline_max_accuracy_meters',
                     'timeline_minimum_distance_meters',
                     'timeline_max_computed_speed_kmh',
                     'timeline_max_bearing_change_degrees',
+                    'mock_location_allowed',
                 ])
                 ->pluck('value', 'key')
                 ->all();
@@ -322,11 +336,37 @@ class GpsTrackingValidationService
                 if ($key === 'tracking_interval_seconds') {
                     $settings[$key] = (float) $value;
                 }
+
+                if ($key === 'large_gap_distance_meters') {
+                    $settings[$key] = (float) $value;
+                }
+
+                if ($key === 'large_gap_minutes') {
+                    $settings['gps_max_inactive_gap_seconds'] = (float) $value * 60;
+                }
+
+                if ($key === 'maximum_speed_kmph') {
+                    $settings['gps_max_speed_mps'] = (float) $value / 3.6;
+                }
+
+                if ($key === 'mock_location_allowed') {
+                    $settings[$key] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                }
+            }
+
+            if (! array_key_exists('tracking_interval_seconds', $settings)
+                && isset($values['location_update_interval'])) {
+                $settings['tracking_interval_seconds'] = $this->secondsFrom(
+                    (int) $values['location_update_interval'],
+                    (string) ($values['location_update_interval_type'] ?? 'seconds')
+                );
             }
 
             $fallbacks = [
                 'timeline_max_accuracy_meters' => 'gps_max_accuracy_metres',
                 'timeline_minimum_distance_meters' => 'gps_min_distance_metres',
+                'minimum_accuracy' => 'gps_max_accuracy_metres',
+                'minimum_distance_meters' => 'gps_min_distance_metres',
                 'timeline_max_bearing_change_degrees' => 'gps_max_bearing_change_degrees',
                 'timeline_max_computed_speed_kmh' => 'gps_max_speed_mps',
             ];
@@ -350,9 +390,25 @@ class GpsTrackingValidationService
         return match ($key) {
             'timeline_max_accuracy_meters' => 'gps_max_accuracy_metres',
             'timeline_minimum_distance_meters' => 'gps_min_distance_metres',
+            'minimum_accuracy' => 'gps_max_accuracy_metres',
+            'minimum_distance_meters' => 'gps_min_distance_metres',
             'timeline_max_bearing_change_degrees' => 'gps_max_bearing_change_degrees',
             'gps_bearing_min_segment_distance_metres' => 'gps_bearing_min_distance_metres',
             default => $key,
+        };
+    }
+
+    public static function clearCachedSettings(): void
+    {
+        self::$cachedSettings = null;
+    }
+
+    private function secondsFrom(int $value, string $type): int
+    {
+        return match ($type) {
+            'minutes' => $value * 60,
+            'hours' => $value * 3600,
+            default => $value,
         };
     }
 }
