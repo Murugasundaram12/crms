@@ -496,12 +496,8 @@ trait MobileAttendanceTrackingEndpoints
             $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);
         }
 
-<<<<<<< HEAD
         $device = EmployeeDevice::query()->create($this->availableEmployeeDeviceAttributes(
             $this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
-=======
-        $device = EmployeeDevice::query()->create($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [
->>>>>>> 0d06b8c050d3766c18cb2b1128570ae695e11c8e
             'employee_id' => $user->id,
             'device_id' => $validated['device_id'],
             'device_name' => $validated['device_name'] ?? null,
@@ -512,13 +508,9 @@ trait MobileAttendanceTrackingEndpoints
             'model' => $validated['model'] ?? null,
             'battery_percentage' => $validated['battery_percentage'] ?? null,
             'last_seen_at' => now(),
-<<<<<<< HEAD
             ])
         ));
 
-=======
-        ]));
->>>>>>> 0d06b8c050d3766c18cb2b1128570ae695e11c8e
         $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);
 
         return response()->json([
