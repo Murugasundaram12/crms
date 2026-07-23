@@ -1,0 +1,31 @@
+[1mdiff --git a/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php b/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php[m
+[1mindex ed702ff0..4e1f6b4d 100644[m
+[1m--- a/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php[m
+[1m+++ b/app/Http/Controllers/Api/MobileAttendanceTrackingEndpoints.php[m
+[36m@@ -496,12 +496,8 @@[m [mpublic function registerDevice(Request $request)[m
+             $this->assertMobileTokenDeviceMatches($request, $validated['device_id']);[m
+         }[m
+ [m
+[31m-<<<<<<< HEAD[m
+         $device = EmployeeDevice::query()->create($this->availableEmployeeDeviceAttributes([m
+             $this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [[m
+[31m-=======[m
+[31m-        $device = EmployeeDevice::query()->create($this->deviceValuesWithLatestTrackingFallback($user->id, $validated['device_id'], [[m
+[31m->>>>>>> 0d06b8c050d3766c18cb2b1128570ae695e11c8e[m
+             'employee_id' => $user->id,[m
+             'device_id' => $validated['device_id'],[m
+             'device_name' => $validated['device_name'] ?? null,[m
+[36m@@ -512,13 +508,9 @@[m [mpublic function registerDevice(Request $request)[m
+             'model' => $validated['model'] ?? null,[m
+             'battery_percentage' => $validated['battery_percentage'] ?? null,[m
+             'last_seen_at' => now(),[m
+[31m-<<<<<<< HEAD[m
+             ])[m
+         ));[m
+ [m
+[31m-=======[m
+[31m-        ]));[m
+[31m->>>>>>> 0d06b8c050d3766c18cb2b1128570ae695e11c8e[m
+         $this->rebindCurrentMobileTokenDevice($request, $validated['device_id']);[m
+ [m
+         return response()->json([[m

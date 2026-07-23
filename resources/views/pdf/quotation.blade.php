@@ -48,40 +48,40 @@
         .top-band {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 16px;
+            margin-bottom: 10px;
         }
 
         .brand-cell {
             width: 56%;
             background: #fff;
             color: #102a43;
-            padding: 12px 16px;
+            padding: 8px 12px;
             border: 1px solid #d9e2ef;
             border-radius: 8px;
         }
 
         .brand-name {
-            font-size: 25px;
+            font-size: 20px;
             font-weight: 700;
             letter-spacing: 3px;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
 
         .brand-sub {
-            font-size: 10px;
+            font-size: 8.5px;
             letter-spacing: 1.5px;
             color: #1261a6;
         }
 
         .logo {
-            width: 285px;
-            max-height: 70px;
+            width: 220px;
+            max-height: 50px;
             object-fit: contain;
         }
 
         .quote-cell {
             width: 44%;
-            padding: 13px 16px;
+            padding: 8px 12px;
             background: #102a43;
             border: 1px solid #102a43;
             text-align: right;
@@ -89,7 +89,7 @@
         }
 
         .quote-title {
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 700;
             color: #fff;
             letter-spacing: 1px;
@@ -97,14 +97,14 @@
 
         .quote-no {
             display: inline-block;
-            margin-top: 8px;
-            padding: 5px 10px;
+            margin-top: 5px;
+            padding: 4px 8px;
             background: #fff;
             color: #102a43;
             border: 1px solid #fff;
             border-radius: 14px;
             font-weight: 700;
-            font-size: 12.5px;
+            font-size: 11px;
         }
 
         .meta-table {
@@ -414,7 +414,7 @@
             <td class="quote-cell">
                 <div class="quote-title">QUOTATION</div>
                 <div class="quote-no">{{ $quotation->quotation_number ?? ('QTN-' . $quotation->id) }}</div>
-                <div style="margin-top: 8px;" class="muted">
+                <div style="margin-top: 5px; font-size: 11px;" class="muted">
                     Create Date: {{ optional($quotation->quotation_date)->format('d M Y') ?? '-' }}
                 </div>
             </td>
