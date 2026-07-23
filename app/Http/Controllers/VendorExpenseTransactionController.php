@@ -3,25 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\VendorExpenseTransaction;
+use App\Models\PaymentMethod;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class VendorExpenseTransactionController extends Controller
 {
-    private array $paymentModes = [
-        'Cash',
-        'HDFC',
-        'SBI',
-        'Gpay',
-        'PhonePe',
-        'KVBL',
-        'Kotak Mahindra',
-        'TMB',
-        'Equitas',
-    ];
 
     public function index(Request $request)
     {
@@ -96,7 +85,7 @@ class VendorExpenseTransactionController extends Controller
             'project_id' => ['nullable', 'exists:projects,id'],
             'description' => ['nullable', 'string', 'max:2000'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
-            'payment_mode' => ['required', Rule::in($this->paymentModes)],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'current_date' => ['required', 'date_format:d/m/Y'],
             'current_time' => ['required', 'string', 'max:20'],
             'vendor_id' => ['required', 'exists:vendors,id'],

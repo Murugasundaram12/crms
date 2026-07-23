@@ -22,6 +22,7 @@ class Payment extends Model
         'stage_id',
         'transaction_id',
         'payment_method',
+        'payment_method_id',
         'amount',
         'due_date',
         'payment_date',
@@ -53,6 +54,11 @@ class Payment extends Model
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(Quotation::class);
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
     }
 
     public function getMethodAttribute($value): ?string

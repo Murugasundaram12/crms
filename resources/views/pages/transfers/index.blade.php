@@ -88,7 +88,7 @@
                                     {{ $transfer->vendor_id ?? '-' }}
                                 @endif
                             </td>
-                            <td>{{ $transfer->payment_mode }}</td>
+                            <td>{{ $transfer->paymentMethod?->name ?? $transfer->payment_mode ?? '-' }}</td>
                             <td>{{ number_format((float) $transfer->amount, 2) }}</td>
                             <td>{{ $transfer->current_date ? \Carbon\Carbon::parse($transfer->current_date)->format('d/m/Y') : '-' }}
                             </td>

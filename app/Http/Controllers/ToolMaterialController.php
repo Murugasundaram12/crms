@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Preorder;
 use App\Models\ToolMaterial;
+use App\Models\ToolMaterialAssignment;
 use App\Models\Unit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,25 +16,80 @@ class ToolMaterialController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = ToolMaterial::query()->with(['assignments.fromProject', 'assignments.toProject']);
+        $activeTab = $request->string('tab', 'purchase')->toString();
+        if (! in_array($activeTab, ['preorder', 'purchase', 'issue_to_site'], true)) {
+            $activeTab = 'purchase';
+        }
+
+        // 1. Preorder Query
+        $preorderQuery = Preorder::query()->with(['toolMaterial', 'vendor', 'paymentMethod', 'creator']);
+        if ($request->filled('q')) {
+            $search = $request->string('q')->toString();
+            $preorderQuery->where(function ($q) use ($search) {
+                $q->where('reference_no', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhereHas('toolMaterial', fn($toolQuery) => $toolQuery->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('vendor', fn($vendorQuery) => $vendorQuery->where('name', 'like', "%{$search}%"));
+            });
+        }
+        if ($request->filled('status') && $activeTab === 'preorder') {
+            $preorderQuery->where('status', $request->string('status')->toString());
+        }
+        if ($request->filled('date_from')) {
+            $preorderQuery->whereDate('preorder_date', '>=', $request->date('date_from')->toDateString());
+        }
+        if ($request->filled('date_to')) {
+            $preorderQuery->whereDate('preorder_date', '<=', $request->date('date_to')->toDateString());
+        }
+        $preorders = $preorderQuery->latest('preorder_date')->latest()->paginate((int) $request->input('paginate', 10), ['*'], 'preorders_page')->withQueryString();
+
+        // 2. Purchase / Stock List Query
+        $purchaseQuery = ToolMaterial::query()->with(['assignments.fromProject', 'assignments.toProject']);
+        if ($request->filled('q')) {
+            $search = $request->string('q')->toString();
+            $purchaseQuery->where('name', 'like', "%{$search}%");
+        }
+        if ($request->filled('date_from')) {
+            $purchaseQuery->whereDate('date', '>=', $request->date('date_from')->toDateString());
+        }
+        if ($request->filled('date_to')) {
+            $purchaseQuery->whereDate('date', '<=', $request->date('date_to')->toDateString());
+        }
+        if ($request->filled('status') && $activeTab === 'purchase') {
+            $status = $request->string('status')->toString();
+            if ($status === 'active') {
+                $purchaseQuery->where('active_status', true);
+            } elseif ($status === 'inactive') {
+                $purchaseQuery->where('active_status', false);
+            }
+        }
+        $toolsMaterials = $purchaseQuery->latest('date')->latest()->paginate((int) $request->input('paginate', 10), ['*'], 'purchases_page')->withQueryString();
+
+        // 3. Issue to Site Query
+        $issueQuery = ToolMaterialAssignment::query()
+            ->with(['toolMaterial', 'toProject', 'handler'])
+            ->where('transaction_type', 'issue_to_site');
 
         if ($request->filled('q')) {
             $search = $request->string('q')->toString();
-            $query->where('name', 'like', "%{$search}%");
+            $issueQuery->where(function ($q) use ($search) {
+                $q->where('reference_no', 'like', "%{$search}%")
+                    ->orWhere('receiver_name', 'like', "%{$search}%")
+                    ->orWhere('purpose', 'like', "%{$search}%")
+                    ->orWhereHas('toolMaterial', fn($toolQuery) => $toolQuery->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('toProject', fn($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+            });
         }
-
+        if ($request->filled('status') && $activeTab === 'issue_to_site') {
+            $issueQuery->where('status', $request->string('status')->toString());
+        }
         if ($request->filled('date_from')) {
-            $query->whereDate('date', '>=', $request->date('date_from')->toDateString());
+            $issueQuery->whereDate('transferred_at', '>=', $request->date('date_from')->toDateString());
         }
-
         if ($request->filled('date_to')) {
-            $query->whereDate('date', '<=', $request->date('date_to')->toDateString());
+            $issueQuery->whereDate('transferred_at', '<=', $request->date('date_to')->toDateString());
         }
-
-        $toolsMaterials = $query
-            ->latest('date')
-            ->latest()
-            ->paginate((int) $request->input('paginate', 10));
+        $issueAssignments = $issueQuery->latest('transferred_at')->latest()->paginate((int) $request->input('paginate', 10), ['*'], 'issues_page')->withQueryString();
 
         $allItems = ToolMaterial::query()->with(['assignments.fromProject', 'assignments.toProject'])->get();
         $summary = [
@@ -43,7 +100,7 @@ class ToolMaterialController extends Controller
             'low_stock' => $allItems->filter(fn(ToolMaterial $item) => $item->is_low_stock)->count(),
         ];
 
-        return view('pages.tools_materials.index', compact('toolsMaterials', 'summary'));
+        return view('pages.tools_materials.index', compact('toolsMaterials', 'preorders', 'issueAssignments', 'summary', 'activeTab'));
     }
 
     public function create(): View
@@ -65,7 +122,7 @@ class ToolMaterialController extends Controller
 
         ToolMaterial::query()->create($validated);
 
-        return redirect()->route('tools-materials.index')->with('success', 'Tool / material added successfully.');
+        return redirect()->route('tools-materials.index', ['tab' => 'purchase'])->with('success', 'Tool / material added successfully.');
     }
 
     public function edit(ToolMaterial $toolsMaterial): View
@@ -95,7 +152,7 @@ class ToolMaterialController extends Controller
 
         $toolsMaterial->update($validated);
 
-        return redirect()->route('tools-materials.index')->with('success', 'Tool / material updated successfully.');
+        return redirect()->route('tools-materials.index', ['tab' => 'purchase'])->with('success', 'Tool / material updated successfully.');
     }
 
     public function destroy(ToolMaterial $toolsMaterial): RedirectResponse
@@ -110,7 +167,7 @@ class ToolMaterialController extends Controller
 
         $toolsMaterial->delete();
 
-        return redirect()->route('tools-materials.index')->with('success', 'Tool / material deleted successfully.');
+        return redirect()->route('tools-materials.index', ['tab' => 'purchase'])->with('success', 'Tool / material deleted successfully.');
     }
 
     private function validateToolMaterial(Request $request): array

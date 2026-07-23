@@ -65,7 +65,7 @@ class BackfillWalletHistory extends Command
                     'client_id' => (int) $payment->client_id,
                     'project_id' => (int) $payment->project_id,
                     'amount' => (int) round((float) $payment->amount),
-                    'payment_mode' => $payment->payment_method === 'bank_transfer' ? 2 : 1,
+                    'payment_method_id' => $payment->payment_method === 'bank_transfer' ? 10 : 1,
                     'transfer_type' => 0,
                     'stage_id' => $payment->stage_id,
                     'description' => 'Payment income credit - ' . ($payment->quotation?->quotation_number ?? $payment->payment_code ?? $payment->id),

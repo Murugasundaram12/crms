@@ -26,7 +26,7 @@ class Expense extends Model
         'extra_amt',
         'image',
         'editedBy',
-        'payment_mode',
+        'payment_method_id',
         'reason',
         'labour_id',
         'vendor_id',
@@ -44,7 +44,6 @@ class Expense extends Model
         'unpaid_amt' => 'integer',
         'extra_amt' => 'integer',
         'editedBy' => 'integer',
-        'payment_mode' => 'integer',
         'labour_id' => 'integer',
         'vendor_id' => 'integer',
         'is_advance' => 'integer',
@@ -61,17 +60,6 @@ class Expense extends Model
         'payment_mode_label',
         'type',
     ];
-
-    public static function paymentModes(): array
-    {
-        return [
-            1 => 'Cash',
-            2 => 'Bank Transfer',
-            3 => 'UPI',
-            4 => 'Cheque',
-            5 => 'Card',
-        ];
-    }
 
     public function mainCategory(): BelongsTo
     {
@@ -113,6 +101,11 @@ class Expense extends Model
         return $this->belongsTo(Vendor::class, 'vendor_id');
     }
 
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
+    }
+
     protected function paidAmount(): Attribute
     {
         return Attribute::make(get: fn() => $this->paid_amt);
@@ -145,7 +138,7 @@ class Expense extends Model
 
     protected function paymentModeLabel(): Attribute
     {
-        return Attribute::make(get: fn() => self::paymentModes()[$this->payment_mode] ?? null);
+        return Attribute::make(get: fn() => $this->paymentMethod?->name);
     }
 
     protected function type(): Attribute

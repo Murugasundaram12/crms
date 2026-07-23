@@ -92,7 +92,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center">
-                                <span class="badge badge-tag badge-soft-info">{{ $tx->payment_mode }}</span>
+                                <span class="badge badge-tag badge-soft-info">{{ $tx->paymentMethod?->name ?? $tx->payment_mode }}</span>
                             </div>
                             <div class="table-action d-inline-flex align-items-center gap-1 flex-wrap">
                                 @can('expenses-edit')
@@ -222,13 +222,13 @@
 
                 <div class="col-md-6">
                     <label class="form-label">Payment Mode <span class="text-danger">*</span></label>
-                    <select name="payment_mode" class="form-select" required>
+                    <select name="payment_method_id" class="form-select" required>
                         <option value="">Select</option>
-                        @foreach(['Cash', 'HDFC', 'SBI', 'Gpay', 'PhonePe', 'KVBL', 'Kotak Mahindra', 'TMB', 'Equitas'] as $pm)
-                            <option value="{{ $pm }}" @selected(old('payment_mode') === $pm)>{{ $pm }}</option>
+                        @foreach($paymentMethods as $pm)
+                            <option value="{{ $pm->id }}" @selected((string) old('payment_method_id') === (string) $pm->id)>{{ $pm->name }}</option>
                         @endforeach
                     </select>
-                    @error('payment_mode')<div class="text-danger small">{{ $message }}</div>@enderror
+                    @error('payment_method_id')<div class="text-danger small">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="col-md-6">

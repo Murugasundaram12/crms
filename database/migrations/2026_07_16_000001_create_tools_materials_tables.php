@@ -20,7 +20,7 @@ return new class extends Migration
         Schema::create('tool_material_assignments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tool_material_id')->constrained('tools_materials')->cascadeOnDelete();
-            $table->foreignId('from_project_id')->constrained('projects')->cascadeOnDelete();
+            $table->foreignId('from_project_id')->nullable()->constrained('projects')->nullOnDelete();
             $table->foreignId('to_project_id')->nullable()->constrained('projects')->nullOnDelete();
             $table->enum('transfer_type', ['site_to_office', 'site_to_site']);
             $table->dateTime('transferred_at');

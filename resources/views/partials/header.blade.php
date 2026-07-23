@@ -24,6 +24,10 @@
     ['label' => 'Expenses Unpaid', 'route' => route('expenses.unpaid-history'), 'permission' => 'expenses-list', 'keywords' => ['expenses unpaid', 'unpaid expenses']],
     ['label' => 'Expenses Deleted', 'route' => route('expenses.deleted-history'), 'permission' => 'expenses-list', 'keywords' => ['expenses deleted', 'deleted expenses']],
     ['label' => 'Expense Report', 'route' => route('expenseReports.index'), 'permission' => 'expense-reports-list', 'keywords' => ['expense report', 'expense reports']],
+    ['label' => 'Preorders', 'route' => route('preorders.index'), 'permission' => 'tools-materials-list', 'keywords' => ['preorder', 'preorders', 'po']],
+    ['label' => 'Preorder Reports', 'route' => route('preorders.reports'), 'permission' => 'tools-materials-list', 'keywords' => ['preorder report', 'preorder analytics']],
+    ['label' => 'Purchase List', 'route' => route('tools-materials.index'), 'permission' => 'tools-materials-list', 'keywords' => ['tools', 'materials', 'purchase list', 'stock']],
+    ['label' => 'Assign / Transfer', 'route' => route('tools-material-assignments.index'), 'permission' => 'tools-materials-list', 'keywords' => ['assign', 'transfer', 'site transfer']],
     ['label' => 'Roles', 'route' => route('roles.index'), 'permission' => 'roles-list', 'keywords' => ['role', 'roles']],
     ['label' => 'Permissions', 'route' => route('permissions.index'), 'permission' => 'permissions-list', 'keywords' => ['permission', 'permissions']],
 ])->map(fn ($item) => $item + ['allowed' => blank($item['permission']) || ($currentUser?->hasPermission($item['permission']) ?? false)]))

@@ -58,9 +58,9 @@ class UnpaidExpensesController extends Controller
         $employees = User::query()->orderBy('name')->get();
         $mainCategories = MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->pluck('name');
         $categories = Category::query()->orderBy('name')->pluck('name');
-        $paymentModes = Expense::paymentModes();
+        $paymentMethods = \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
 
-        return view('pages.expenses.index', compact('expenses', 'projects', 'employees', 'totals', 'mainCategories', 'categories', 'paymentModes'));
+        return view('pages.expenses.index', compact('expenses', 'projects', 'employees', 'totals', 'mainCategories', 'categories', 'paymentMethods'));
     }
 
     public function store(Request $request): RedirectResponse

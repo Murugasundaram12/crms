@@ -211,16 +211,20 @@ class EmployeeController extends Controller
             'role' => ['required', 'string', Rule::exists('roles', 'name')],
             'phone' => ['nullable', 'regex:/^[6-9]\d{9}$/'],
             'designation' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string', 'max:255'],
+            'address' => ['required', 'string', 'max:255'],
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
-            'hire_date' => ['nullable', 'date'],
+            'hire_date' => ['required', 'date'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'password' => [$employee ? 'nullable' : 'required', 'string', 'min:6', 'confirmed'],
-            'direct_permissions' => ['nullable', 'array'],
+            'direct_permissions' => [$employee ? 'nullable' : 'required', 'array', 'min:1'],
             'direct_permissions.*' => ['integer', 'exists:permissions,id'],
         ], [
             'phone.regex' => 'Enter a valid 10 digit Indian mobile number.',
+            'hire_date.required' => 'Hire date is required.',
+            'address.required' => 'Address is required.',
+            'direct_permissions.required' => 'At least one extra user permission must be selected.',
+            'direct_permissions.min' => 'At least one extra user permission must be selected.',
         ]);
 
 

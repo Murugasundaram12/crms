@@ -14,7 +14,7 @@ class Wallet extends Model
         'client_id',
         'project_id',
         'amount',
-        'payment_mode',
+        'payment_method_id',
         'transfer_type',
         'stage_id',
         'description',
@@ -48,5 +48,10 @@ class Wallet extends Model
     public function stage(): BelongsTo
     {
         return $this->belongsTo(PaymentStage::class, 'stage_id');
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 }

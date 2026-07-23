@@ -302,7 +302,8 @@ trait MobileTaskWalletEndpoints
                 ->where('status', '!=', 'inactive')
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'wallet']),
-            'payment_modes' => self::PAYMENT_MODES,
+            'payment_modes' => \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'type']),
+            'payment_methods' => \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'type']),
             'stages' => PaymentStage::query()
                 ->orderBy('stage_name')
                 ->get(['id', 'stage_name']),

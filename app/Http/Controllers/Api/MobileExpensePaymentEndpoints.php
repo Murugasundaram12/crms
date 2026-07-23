@@ -49,7 +49,8 @@ trait MobileExpensePaymentEndpoints
             'projects' => $this->scopeProjectsForAppUser(Project::query(), $request->user())->orderBy('name')->get(['id', 'name', 'client_id', 'status']),
             'main_categories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'main_category_id']),
-            'payment_modes' => self::PAYMENT_MODES,
+            'payment_modes' => \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'type']),
+            'payment_methods' => \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'type']),
         ]);
     }
 

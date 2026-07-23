@@ -132,7 +132,7 @@
                                         {{ (int) $wallet->transfer_type === 0 ? 'Credited' : 'Debited' }}
                                     </span>
                                 </td>
-                                <td>{{ $paymentModes[(int) $wallet->payment_mode] ?? '-' }}</td>
+                                <td>{{ $wallet->paymentMethod?->name ?? '-' }}</td>
                                 <td>{{ $wallet->description ?? '-' }}</td>
                                 <td>{{ $wallet->stage?->name ?? '-' }}</td>
                             </tr>

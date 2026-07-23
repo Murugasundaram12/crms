@@ -155,6 +155,7 @@ class ReportService
             ->leftJoin('vendors', 'vendors.id', '=', 'expenses.vendor_id')
             ->leftJoin('users as entry_users', 'entry_users.id', '=', 'expenses.user_id')
             ->leftJoin('users as edit_users', 'edit_users.id', '=', 'expenses.editedBy')
+            ->leftJoin('payment_methods', 'payment_methods.id', '=', 'expenses.payment_method_id')
             ->whereNull('expenses.deleted_at')
             ->select([
                 DB::raw('DATE(COALESCE(expenses.current_date, expenses.created_at)) as date'),
@@ -168,7 +169,7 @@ class ReportService
                 DB::raw('CAST(COALESCE(expenses.paid_amt, 0) AS DECIMAL(15,2)) as paid'),
                 DB::raw('CAST(COALESCE(expenses.unpaid_amt, 0) AS DECIMAL(15,2)) as unpaid'),
                 DB::raw("COALESCE(expenses.description, '-') as description"),
-                DB::raw($this->paymentModeCaseSql('expenses.payment_mode') . ' as payment_mode'),
+                DB::raw("COALESCE(payment_methods.name, '-') as payment_mode"),
                 DB::raw("COALESCE(entry_users.name, 'System') as entry_name"),
                 DB::raw("COALESCE(edit_users.name, 'System') as edit_name"),
                 DB::raw('COALESCE(expenses.current_date, expenses.created_at) as sort_date'),
@@ -261,15 +262,6 @@ class ReportService
             'entry_name' => $row->entry_name ?? 'System',
             'edit_name' => $row->edit_name ?? 'System',
         ];
-    }
-
-    private function paymentModeCaseSql(string $column): string
-    {
-        $cases = collect(Expense::paymentModes())
-            ->map(fn(string $label, int $id) => "WHEN {$id} THEN '" . str_replace("'", "''", $label) . "'")
-            ->implode(' ');
-
-        return "CASE {$column} {$cases} ELSE '-' END";
     }
 
     private function applyDateFilters(Builder $query, array $filters, string $dateColumn): void

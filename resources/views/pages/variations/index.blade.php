@@ -229,6 +229,17 @@
                     </select>
                 </div>
                 <div class="col-md-6">
+                    <label class="form-label">Payment Method</label>
+                    <select name="payment_method_id" class="form-select">
+                        <option value="">Select Payment Method</option>
+                        @foreach ($paymentMethods as $paymentMethod)
+                            <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id') === (string) $paymentMethod->id)>
+                                {{ $paymentMethod->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-6">
                     <label class="form-label">Status</label>
                     <select name="status" class="form-select">
                         <option value="pending" @selected(old('status', 'pending') === 'pending')>Pending</option>
@@ -297,6 +308,17 @@
                                     @foreach ($employees as $employee)
                                         <option value="{{ $employee->id }}" @selected($variation->approved_by === $employee->id)>
                                             {{ $employee->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Payment Method</label>
+                                <select name="payment_method_id" class="form-select">
+                                    <option value="">Select Payment Method</option>
+                                    @foreach ($paymentMethods as $paymentMethod)
+                                        <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id', $variation->payment_method_id) === (string) $paymentMethod->id)>
+                                            {{ $paymentMethod->name }}
+                                        </option>
                                     @endforeach
                                 </select>
                             </div>

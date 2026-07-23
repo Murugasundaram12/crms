@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\PaymentMethod;
 use App\Models\PaymentStage;
 use App\Models\Project;
 use App\Models\User;
@@ -17,19 +18,13 @@ use Illuminate\Validation\ValidationException;
 
 class WalletController extends Controller
 {
-    private const PAYMENT_MODES = [
-        1 => 'Cash',
-        2 => 'Bank Transfer',
-        3 => 'UPI',
-        4 => 'Cheque',
-        5 => 'Card',
-    ];
-
     public function index(Request $request)
     {
+        $paymentMethods = PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
+
         $query = Wallet::query()
             ->where('delete_status', 0)
-            ->with(['user', 'client', 'project', 'stage'])
+            ->with(['user', 'client', 'project', 'stage', 'paymentMethod'])
             ->when($request->filled('user_id'), fn($q) => $q->where('user_id', $request->integer('user_id')))
             ->when($request->filled('client_id'), fn($q) => $q->where('client_id', $request->integer('client_id')))
             ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
@@ -48,23 +43,24 @@ class WalletController extends Controller
                     $q->whereDate('current_date', '<=', Carbon::parse($to)->toDateString());
                 }
             })
-            ->when($request->filled('search'), function ($query) use ($request) {
+            ->when($request->filled('search'), function ($query) use ($request, $paymentMethods) {
                 $search = $request->string('search')->toString();
                 $lower = strtolower($search);
-                $matchingPaymentModeIds = collect(self::PAYMENT_MODES)
-                    ->filter(fn(string $label) => str_contains(strtolower($label), $lower))
-                    ->keys()
+
+                $matchingPaymentMethodIds = $paymentMethods
+                    ->filter(fn($pm) => str_contains(strtolower($pm->name), $lower))
+                    ->pluck('id')
                     ->all();
 
-                $query->where(function ($q) use ($search, $lower, $matchingPaymentModeIds) {
+                $query->where(function ($q) use ($search, $lower, $matchingPaymentMethodIds) {
                     if (str_contains('credited', $lower)) {
                         $q->orWhere('transfer_type', 0);
                     }
                     if (str_contains('debited', $lower)) {
                         $q->orWhere('transfer_type', 1);
                     }
-                    if ($matchingPaymentModeIds !== []) {
-                        $q->orWhereIn('payment_mode', $matchingPaymentModeIds);
+                    if ($matchingPaymentMethodIds !== []) {
+                        $q->orWhereIn('payment_method_id', $matchingPaymentMethodIds);
                     }
 
                     $q->orWhere('amount', 'like', "%{$search}%")
@@ -93,7 +89,7 @@ class WalletController extends Controller
                 ->whereKeyNot(Auth::id())
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'wallet']),
-            'paymentModes' => self::PAYMENT_MODES,
+            'paymentMethods' => $paymentMethods,
             'totalAmount' => $totalAmount,
         ]);
     }
@@ -104,7 +100,7 @@ class WalletController extends Controller
             'clients' => Client::query()->where('status', '!=', 'inactive')->orderBy('name')->get(),
             'projects' => Project::query()->whereIn('status', ['planning', 'active', 'on_hold'])->orderBy('name')->get(),
             'users' => User::query()->where('status', '!=', 'inactive')->orderBy('name')->get(['id', 'name', 'email', 'wallet']),
-            'paymentModes' => self::PAYMENT_MODES,
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
             'stages' => PaymentStage::query()->orderBy('stage_name')->get(),
             'walletBalance' => (float) (Auth::user()->wallet ?? 0),
         ]);
@@ -117,7 +113,7 @@ class WalletController extends Controller
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
             'amount' => ['required', 'integer', 'min:1'],
-            'payment_mode' => ['required', 'integer', 'in:' . implode(',', array_keys(self::PAYMENT_MODES))],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'transfer_type' => ['required', 'integer', 'in:0,1'],
             'stage_id' => ['nullable', 'exists:payment_stages,id'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -153,7 +149,7 @@ class WalletController extends Controller
                 'client_id' => $validated['client_id'],
                 'project_id' => $validated['project_id'],
                 'amount' => $amount,
-                'payment_mode' => $validated['payment_mode'],
+                'payment_method_id' => $validated['payment_method_id'],
                 'transfer_type' => $validated['transfer_type'],
                 'stage_id' => $validated['stage_id'] ?? null,
                 'description' => $description,

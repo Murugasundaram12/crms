@@ -73,13 +73,13 @@
 
             <div class="col-md-6">
                 <label class="form-label">Payment Mode <span class="text-danger">*</span></label>
-                <select name="payment_mode" class="form-select" required>
-                    @foreach(['Cash', 'HDFC', 'SBI', 'Gpay', 'PhonePe', 'KVBL', 'Kotak Mahindra', 'TMB', 'Equitas'] as $pm)
-                        <option value="{{ $pm }}" @selected(old('payment_mode', $expenseTransaction->payment_mode) === $pm)>
-                            {{ $pm }}</option>
+                <select name="payment_method_id" class="form-select" required>
+                    @foreach($paymentMethods as $pm)
+                        <option value="{{ $pm->id }}" @selected((string) old('payment_method_id', $expenseTransaction->payment_method_id) === (string) $pm->id)>
+                            {{ $pm->name }}</option>
                     @endforeach
                 </select>
-                @error('payment_mode')<div class="text-danger small">{{ $message }}</div>@enderror
+                @error('payment_method_id')<div class="text-danger small">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-6">

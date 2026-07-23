@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Expense;
 use App\Models\MainCategory;
+use App\Models\PaymentMethod;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -167,7 +168,7 @@ class ExpensesController extends Controller
             'categories' => Category::query()->orderBy('name')->pluck('name'),
             'mainCategoryOptions' => MainCategory::query()->whereIn('status', ['active', 1])->orderBy('name')->get(),
             'categoryOptions' => Category::query()->orderBy('name')->get(),
-            'paymentModes' => Expense::paymentModes(),
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
         ];
     }
 
@@ -198,7 +199,7 @@ class ExpensesController extends Controller
             'project_id' => ['nullable', 'integer', 'exists:projects,id'],
             'amount' => ['required', 'integer', 'min:0'],
             'paid_amt' => ['required', 'integer', 'min:0'],
-            'payment_mode' => ['nullable', 'integer'],
+            'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
             'image' => ['nullable', 'string', 'max:250'],
             'description' => ['nullable', 'string'],
             'current_date' => ['required', 'date'],

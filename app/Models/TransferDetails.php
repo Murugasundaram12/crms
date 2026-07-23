@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TransferDetails extends Model
 {
@@ -15,10 +16,16 @@ class TransferDetails extends Model
         'transfer_type',
         'amount',
         'payment_mode',
+        'payment_method_id',
         'description',
         'current_date',
         'current_time',
         'active_status',
         'delete_status',
     ];
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
+    }
 }

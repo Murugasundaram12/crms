@@ -9,8 +9,10 @@
     @php($isVendorExpensesMenuActive = request()->routeIs('vendor-expenses.*'))
     @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('vendor-expenses.history'))
     @php($isTrackingMenuActive = request()->routeIs('tracking.*'))
-    @php($isToolsMaterialsMenuActive = request()->routeIs('tools-materials.*') || request()->routeIs('tools-material-assignments.*'))
+    @php($isToolsMaterialsMenuActive = request()->routeIs('tools-materials.*') || request()->routeIs('tools-material-assignments.*') || request()->routeIs('preorders.*'))
     @php($isDeviceManagementActive = request()->routeIs('device-management.*'))
+    @php($isSalariesMenuActive = request()->routeIs('employee-salaries.*') || request()->routeIs('labour-salaries.*'))
+    @php($isSettingsMenuActive = request()->routeIs('main_categories.*') || request()->routeIs('categories.*') || request()->routeIs('units.*') || request()->routeIs('payment-stages.*') || request()->routeIs('payment-methods.*'))
 
     <!-- Start Logo -->
     <div class="sidebar-logo">
@@ -70,13 +72,19 @@
                             <li class="submenu {{ $isToolsMaterialsMenuActive ? 'active' : '' }}">
                                 <a href="javascript:void(0);"
                                     class="{{ $isToolsMaterialsMenuActive ? 'subdrop active' : '' }}">
-                                    <i class="ti ti-tool"></i><span>Tools & Materials</span><span class="menu-arrow"></span>
+                                    <i class="ti ti-shopping-cart"></i><span>Tools & Materials</span><span
+                                        class="menu-arrow"></span>
                                 </a>
                                 <ul style="{{ $isToolsMaterialsMenuActive ? 'display: block;' : 'display: none;' }}">
+                                    <li><a class="{{ request()->routeIs('preorders.index') || request()->routeIs('preorders.show') || request()->routeIs('preorders.create') || request()->routeIs('preorders.edit') ? 'active' : '' }}"
+                                            href="{{ route('preorders.index') }}">Preorders</a></li>
+                                    <li><a class="{{ request()->routeIs('preorders.reports') ? 'active' : '' }}"
+                                            href="{{ route('preorders.reports') }}">Preorder Reports</a></li>
                                     <li><a class="{{ request()->routeIs('tools-materials.*') ? 'active' : '' }}"
-                                            href="{{ route('tools-materials.index') }}">List</a></li>
+                                            href="{{ route('tools-materials.index') }}">Purchase List</a></li>
                                     <li><a class="{{ request()->routeIs('tools-material-assignments.*') ? 'active' : '' }}"
-                                            href="{{ route('tools-material-assignments.index') }}">Assign / Transfer</a></li>
+                                            href="{{ route('tools-material-assignments.index') }}">Assign / Transfer</a>
+                                    </li>
                                 </ul>
                             </li>
                         @endif
@@ -86,23 +94,35 @@
                                         class="ti ti-report-money"></i><span>Payments</span></a></li>
                         @endif
 
-                        @if($currentUser && $currentUser->hasPermission('payment-stages-list'))
-                            <li><a href="{{ route('payment-stages.index') }}"><i
-                                        class="ti ti-list-numbers"></i><span>Payment Stages</span></a></li>
-                        @endif
-
                         @if($currentUser && $currentUser->hasPermission('variations-list'))
                             <li><a href="{{ route('variations.index') }}"><i
                                         class="ti ti-git-branch"></i><span>Variations</span></a></li>
                         @endif
 
+                        @if($currentUser && ($currentUser->hasPermission('employees-salary-list') || $currentUser->hasPermission('labour-salaries-list')))
+                            <li class="submenu {{ $isSalariesMenuActive ? 'active' : '' }}">
+                                <a href="javascript:void(0);" class="{{ $isSalariesMenuActive ? 'subdrop active' : '' }}">
+                                    <i class="ti ti-cash me-2"></i><span>Salaries</span><span class="menu-arrow"></span>
+                                </a>
+                                <ul style="{{ $isSalariesMenuActive ? 'display: block;' : 'display: none;' }}">
+                                    @if($currentUser->hasPermission('employees-salary-list'))
+                                        <li><a class="{{ request()->routeIs('employee-salaries.*') ? 'active' : '' }}"
+                                                href="{{ route('employee-salaries.index') }}">Employee Salaries</a></li>
+                                    @endif
+                                    @if($currentUser->hasPermission('labour-salaries-list'))
+                                        <li><a class="{{ request()->routeIs('labour-salaries.*') ? 'active' : '' }}"
+                                                href="{{ route('labour-salaries.index') }}">Labour Salaries</a></li>
+                                    @endif
+                                </ul>
+                            </li>
+                        @endif
+
                         @if($currentUser && $currentUser->hasPermission('employees-list'))
-                            <li><a href="{{ route('manage-users') }}"><i class="ti ti-users"></i><span>Manage Users</span></a></li>
-                            <li><a href="{{ route('device-management.index') }}" class="{{ $isDeviceManagementActive ? 'active' : '' }}"><i class="ti ti-device-mobile"></i><span>Device Management</span></a></li>
-                            @if($currentUser && $currentUser->hasPermission('employees-salary-list'))
-                                <li class="sidebar-submenu"><a href="{{ route('employee-salaries.index') }}"><i
-                                            class="ti ti-cash me-2"></i><span>Employee Salaries</span></a></li>
-                            @endif
+                            <li><a href="{{ route('manage-users') }}"><i class="ti ti-users"></i><span>Manage
+                                        Users</span></a></li>
+                            <li><a href="{{ route('device-management.index') }}"
+                                    class="{{ $isDeviceManagementActive ? 'active' : '' }}"><i
+                                        class="ti ti-device-mobile"></i><span>Device Management</span></a></li>
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('attendance-list'))
@@ -112,9 +132,9 @@
 
                         @if($currentUser && $currentUser->hasPermission('employees-list'))
                             <li class="submenu {{ $isTrackingMenuActive ? 'active' : '' }}">
-                                <a href="javascript:void(0);"
-                                    class="{{ $isTrackingMenuActive ? 'subdrop active' : '' }}">
-                                    <i class="ti ti-map-pin"></i><span>Employee Tracking</span><span class="menu-arrow"></span>
+                                <a href="javascript:void(0);" class="{{ $isTrackingMenuActive ? 'subdrop active' : '' }}">
+                                    <i class="ti ti-map-pin"></i><span>Employee Tracking</span><span
+                                        class="menu-arrow"></span>
                                 </a>
                                 <ul style="{{ $isTrackingMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('tracking.index') ? 'active' : '' }}"
@@ -146,21 +166,6 @@
                                         class="ti ti-building-warehouse"></i><span>Vendors</span></a></li>
                         @endif
 
-                        @if($currentUser && $currentUser->hasPermission('main-categories-list'))
-                            <li><a href="{{ route('main_categories.index') }}"><i class="ti ti-list-tree"></i><span>Main
-                                        Categories</span></a></li>
-                        @endif
-
-                        @if($currentUser && $currentUser->hasPermission('categories-list'))
-                            <li><a href="{{ route('categories.index') }}"><i
-                                        class="ti ti-list-details"></i><span>Categories</span></a></li>
-                        @endif
-
-                        @if($currentUser && $currentUser->hasPermission('units-list'))
-                            <li><a href="{{ route('units.index') }}"><i
-                                        class="ti ti-ruler-measure"></i><span>Unit Master</span></a></li>
-                        @endif
-
                         @if($currentUser && $currentUser->hasPermission('quotations-list'))
                             <li><a href="{{ route('quotations.list') }}"><i
                                         class="ti ti-file-dollar"></i><span>Quotations</span></a></li>
@@ -168,8 +173,7 @@
 
                         @if($currentUser && $currentUser->hasPermission('expenses-list'))
                             <li class="submenu {{ $isExpensesMenuActive ? 'active' : '' }}">
-                                <a href="javascript:void(0);"
-                                    class="{{ $isExpensesMenuActive ? 'subdrop active' : '' }}">
+                                <a href="javascript:void(0);" class="{{ $isExpensesMenuActive ? 'subdrop active' : '' }}">
                                     <i class="ti ti-receipt-2"></i><span>Expenses</span><span class="menu-arrow"></span>
                                 </a>
                                 <ul style="{{ $isExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
@@ -192,8 +196,7 @@
                                     <i class="ti ti-user-cog"></i><span>Labour Expenses</span><span
                                         class="menu-arrow"></span>
                                 </a>
-                                <ul
-                                    style="{{ $isLabourExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
+                                <ul style="{{ $isLabourExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('labour-expenses.history') ? 'active' : '' }}"
                                             href="{{ route('labour-expenses.history') }}">Expense History</a></li>
                                     <li><a class="{{ request()->routeIs('labour-expenses.weekly') ? 'active' : '' }}"
@@ -213,8 +216,7 @@
                                     <i class="ti ti-building-warehouse"></i><span>Vendor Expenses</span><span
                                         class="menu-arrow"></span>
                                 </a>
-                                <ul
-                                    style="{{ $isVendorExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
+                                <ul style="{{ $isVendorExpensesMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('vendor-expenses.history') ? 'active' : '' }}"
                                             href="{{ route('vendor-expenses.history') }}">Expense History</a></li>
                                     <li><a class="{{ request()->routeIs('vendor-expenses.unpaid-history') ? 'active' : '' }}"
@@ -229,13 +231,11 @@
 
                         @if($currentUser && $currentUser->hasPermission('transfers-list'))
                             <li class="submenu {{ $isHistoryMenuActive ? 'active' : '' }}">
-                                <a href="javascript:void(0);"
-                                    class="{{ $isHistoryMenuActive ? 'subdrop active' : '' }}">
+                                <a href="javascript:void(0);" class="{{ $isHistoryMenuActive ? 'subdrop active' : '' }}">
                                     <i class="ti ti-arrows-transfer-up-down"></i><span>History</span><span
                                         class="menu-arrow"></span>
                                 </a>
-                                <ul
-                                    style="{{ $isHistoryMenuActive ? 'display: block;' : 'display: none;' }}">
+                                <ul style="{{ $isHistoryMenuActive ? 'display: block;' : 'display: none;' }}">
                                     <li><a class="{{ request()->routeIs('transfers.*') ? 'active' : '' }}"
                                             href="{{ route('transfers.index') }}">Transfer History</a></li>
                                     <li><a class="{{ request()->routeIs('wallet.*') ? 'active' : '' }}"
@@ -263,6 +263,34 @@
                             </li>
                         @endif
 
+                        <li class="submenu {{ $isSettingsMenuActive ? 'active' : '' }}">
+                            <a href="javascript:void(0);" class="{{ $isSettingsMenuActive ? 'subdrop active' : '' }}">
+                                <i class="ti ti-settings"></i><span>Settings</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul style="{{ $isSettingsMenuActive ? 'display: block;' : 'display: none;' }}">
+                                @if($currentUser && $currentUser->hasPermission('main-categories-list'))
+                                    <li><a class="{{ request()->routeIs('main_categories.*') ? 'active' : '' }}"
+                                            href="{{ route('main_categories.index') }}">Main Categories</a></li>
+                                @endif
+                                @if($currentUser && $currentUser->hasPermission('categories-list'))
+                                    <li><a class="{{ request()->routeIs('categories.*') ? 'active' : '' }}"
+                                            href="{{ route('categories.index') }}">Categories</a></li>
+                                @endif
+                                @if($currentUser && $currentUser->hasPermission('units-list'))
+                                    <li><a class="{{ request()->routeIs('units.*') ? 'active' : '' }}"
+                                            href="{{ route('units.index') }}">Unit Master</a></li>
+                                @endif
+                                @if($currentUser && $currentUser->hasPermission('payment-stages-list'))
+                                    <li><a class="{{ request()->routeIs('payment-stages.*') ? 'active' : '' }}"
+                                            href="{{ route('payment-stages.index') }}">Payment Stages</a></li>
+                                @endif
+                                @if($currentUser && $currentUser->hasPermission('payment-methods-list'))
+                                    <li><a class="{{ request()->routeIs('payment-methods.*') ? 'active' : '' }}"
+                                            href="{{ route('payment-methods.index') }}">Payment Method Master</a></li>
+                                @endif
+                            </ul>
+                        </li>
+
                         @if($currentUser && $currentUser->hasPermission('roles-list'))
                             <li class="sidebar-submenu">
                                 <a href="{{ route('roles.index') }}">
@@ -271,30 +299,28 @@
                             </li>
                         @endif
 
+                        @if($currentUser)
+                        @php($canLeaveRequests = $currentUser->hasPermission('leave-requests-list') || $currentUser->hasPermission('leave-requests-edit') || $currentUser->hasPermission('leave-requests-delete'))
+                        @if($canLeaveRequests)
+                            <li class="sidebar-submenu">
+                                <a href="{{ route('leaveRequests.index') }}" class="sidebar-link">
+                                    <i class="ti ti-message-star"></i>
+                                    <span>Leave Requests</span>
+                                </a>
+                            </li>
+                        @endif
+                        @endif
 
-                @if($currentUser)
-                @php($canLeaveRequests = $currentUser->hasPermission('leave-requests-list') || $currentUser->hasPermission('leave-requests-edit') || $currentUser->hasPermission('leave-requests-delete'))
-                @if($canLeaveRequests)
-                    <li class="sidebar-submenu">
-                        <a href="{{ route('leaveRequests.index') }}" class="sidebar-link">
-                            <i class="ti ti-message-star"></i>
-                            <span>Leave Requests</span>
-                        </a>
-                    </li>
-                @endif
-                @endif
-                @if($currentUser && $currentUser->hasPermission('permissions-list'))
-                    <li>
-                        <a href="{{ route('permissions.index') }}">
-                            <i class="ti ti-shield-check"></i><span>Permissions</span>
-                        </a>
-                    </li>
-                @endif
-
-            </ul>
-            </li>
+                        @if($currentUser && $currentUser->hasPermission('permissions-list'))
+                            <li>
+                                <a href="{{ route('permissions.index') }}">
+                                    <i class="ti ti-shield-check"></i><span>Permissions</span>
+                                </a>
+                            </li>
+                        @endif
+                    </ul>
+                </li>
             </ul>
         </div>
     </div>
-
 </div>

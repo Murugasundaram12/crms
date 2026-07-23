@@ -59,10 +59,11 @@ class PaymentController extends Controller
             ->get();
 
         $stages = \App\Models\PaymentStage::orderBy('stage_name')->get();
+        $paymentMethods = \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
 
         $expenses = Expense::with(['project', 'employee'])->latest()->take(5)->get();
 
-        return view('pages.payments.index', compact('payments', 'projects', 'clients', 'quotations', 'stages', 'expenses'));
+        return view('pages.payments.index', compact('payments', 'projects', 'clients', 'quotations', 'stages', 'expenses', 'paymentMethods'));
     }
 
     /**
@@ -352,14 +353,14 @@ class PaymentController extends Controller
             'project_id' => ['required', 'exists:projects,id'],
 
             'transaction_id' => [
-                'required_if:method,bank_transfer',
                 'nullable',
                 'string',
                 'max:255',
                 Rule::unique('payments', 'transaction_id')->ignore($payment?->id),
             ],
 
-            'method' => ['required', Rule::in(['cash', 'bank_transfer'])],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
+            'method' => ['nullable', 'string'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'paid_at' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
@@ -522,7 +523,7 @@ class PaymentController extends Controller
             'client_id' => (int) $payment->client_id,
             'project_id' => (int) $payment->project_id,
             'amount' => (int) round($amount),
-            'payment_mode' => $payment->payment_method === 'bank_transfer' ? 2 : 1,
+            'payment_method_id' => $payment->payment_method_id,
             'transfer_type' => $transferType,
             'stage_id' => $payment->stage_id,
             'description' => $description . ' - ' . ($payment->quotation?->quotation_number ?? $payment->payment_code ?? $payment->id),

@@ -5,38 +5,26 @@ namespace App\Http\Controllers;
 use App\Models\ExpenseTransaction;
 use App\Models\MainCategory;
 use App\Models\Category;
+use App\Models\PaymentMethod;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class ExpenseTransactionController extends Controller
 {
-    private array $paymentModes = [
-        'Cash',
-        'HDFC',
-        'SBI',
-        'Gpay',
-        'PhonePe',
-        'KVBL',
-        'Kotak Mahindra',
-        'TMB',
-        'Equitas',
-    ];
-
     public function index(Request $request)
     {
         $query = ExpenseTransaction::query()
             ->where('delete_status', false)
-            ->with(['mainCategory', 'category', 'project']);
+            ->with(['mainCategory', 'category', 'project', 'paymentMethod']);
 
         if ($request->filled('q')) {
             $q = $request->string('q');
             $query->where(function ($qq) use ($q) {
                 $qq->where('description', 'like', "%{$q}%")
-                    ->orWhere('payment_mode', 'like', "%{$q}%")
+                    ->orWhereHas('paymentMethod', fn($pm) => $pm->where('name', 'like', "%{$q}%"))
                     ->orWhereHas('mainCategory', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
                     ->orWhereHas('category', fn($categoryQuery) => $categoryQuery->where('name', 'like', "%{$q}%"))
                     ->orWhereHas('project', fn($projectQuery) => $projectQuery->where('name', 'like', "%{$q}%"));
@@ -70,6 +58,7 @@ class ExpenseTransactionController extends Controller
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
             'projects' => Project::query()->orderBy('name')->get(),
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
         ]);
     }
 
@@ -86,7 +75,7 @@ class ExpenseTransactionController extends Controller
             'mainCategories' => $mainCategories,
             'projects' => $projects,
             'categories' => $categories,
-            'paymentModes' => $this->paymentModes,
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
         ]);
     }
 
@@ -121,7 +110,7 @@ class ExpenseTransactionController extends Controller
             'mainCategories' => $mainCategories,
             'categories' => $categories,
             'projects' => $projects,
-            'paymentModes' => $this->paymentModes,
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
         ]);
     }
 
@@ -166,7 +155,7 @@ class ExpenseTransactionController extends Controller
             'project_id' => ['nullable', 'exists:projects,id'],
             'description' => ['nullable', 'string', 'max:2000'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
-            'payment_mode' => ['required', Rule::in($this->paymentModes)],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'current_date' => ['required', 'date_format:d/m/Y'],
             'current_time' => ['required', 'string', 'max:20'],
         ]);

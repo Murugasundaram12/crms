@@ -26,6 +26,9 @@ use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ExpenseImportController;
+use App\Http\Controllers\PaymentMethodController;
+use App\Http\Controllers\PreorderController;
+use App\Http\Controllers\LabourSalaryController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
@@ -109,7 +112,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/user', [EmployeeController::class, 'index'])
         ->middleware('permission:employees-list')
         ->name('user-index');
-    Route::get('/user/create', fn () => redirect()->route('employees.index'))
+    Route::get('/user/create', fn() => redirect()->route('employees.index'))
         ->middleware('permission:employees-create')
         ->name('user-create');
     Route::post('/user/store', [EmployeeController::class, 'store'])
@@ -118,35 +121,35 @@ Route::middleware('auth')->group(function () {
     Route::get('/user/show/{employee}', [EmployeeController::class, 'show'])
         ->middleware('permission:employees-list')
         ->name('user-show');
-    Route::get('/user/edit/{employee}', fn (User $employee) => redirect()->route('employees.index', ['edit' => $employee->id]))
+    Route::get('/user/edit/{employee}', fn(User $employee) => redirect()->route('employees.index', ['edit' => $employee->id]))
         ->middleware('permission:employees-edit')
         ->name('user-edit');
     Route::put('/user/update/{employee}', [EmployeeController::class, 'update'])
         ->middleware('permission:employees-edit')
         ->name('user.update');
 
-    Route::get('/client', fn () => redirect()->route('clients.index'))->middleware('permission:clients-list')->name('client-index');
-    Route::get('/client/create', fn () => redirect()->route('clients.create'))->middleware('permission:clients-create')->name('client-create');
-    Route::get('/client/show/{client}', fn (\App\Models\Client $client) => redirect()->route('clients.show', $client))->middleware('permission:clients-list')->name('client-show');
-    Route::get('/client/edit/{client}', fn (\App\Models\Client $client) => redirect()->route('clients.edit', $client))->middleware('permission:clients-edit')->name('client-edit');
+    Route::get('/client', fn() => redirect()->route('clients.index'))->middleware('permission:clients-list')->name('client-index');
+    Route::get('/client/create', fn() => redirect()->route('clients.create'))->middleware('permission:clients-create')->name('client-create');
+    Route::get('/client/show/{client}', fn(\App\Models\Client $client) => redirect()->route('clients.show', $client))->middleware('permission:clients-list')->name('client-show');
+    Route::get('/client/edit/{client}', fn(\App\Models\Client $client) => redirect()->route('clients.edit', $client))->middleware('permission:clients-edit')->name('client-edit');
 
-    Route::get('/project', fn () => redirect()->route('projects.index'))->middleware('permission:projects-list')->name('project-index');
-    Route::get('/project/create', fn () => redirect()->route('projects.create'))->middleware('permission:projects-create')->name('project-create');
-    Route::get('/project/show/{project}', fn (\App\Models\Project $project) => redirect()->route('projects.show', $project))->middleware('permission:projects-list')->name('project-show');
-    Route::get('/project/edit/{project}', fn (\App\Models\Project $project) => redirect()->route('projects.edit', $project))->middleware('permission:projects-edit')->name('project-edit');
+    Route::get('/project', fn() => redirect()->route('projects.index'))->middleware('permission:projects-list')->name('project-index');
+    Route::get('/project/create', fn() => redirect()->route('projects.create'))->middleware('permission:projects-create')->name('project-create');
+    Route::get('/project/show/{project}', fn(\App\Models\Project $project) => redirect()->route('projects.show', $project))->middleware('permission:projects-list')->name('project-show');
+    Route::get('/project/edit/{project}', fn(\App\Models\Project $project) => redirect()->route('projects.edit', $project))->middleware('permission:projects-edit')->name('project-edit');
 
-    Route::get('/payment', fn () => redirect()->route('payments.index'))->middleware('permission:payments-list')->name('payment-index');
-    Route::get('/stage', fn () => redirect()->route('payment-stages.index'))->middleware('permission:payment-stages-list')->name('stage-index');
-    Route::get('/maincategory', fn () => redirect()->route('main_categories.index'))->middleware('permission:main-categories-list')->name('maincategory.index');
-    Route::get('/category', fn () => redirect()->route('categories.index'))->middleware('permission:categories-list')->name('category-index');
-    Route::get('/unit', fn () => redirect()->route('units.index'))->middleware('permission:units-list')->name('unit.index');
-    Route::get('/vendor', fn () => redirect()->route('vendors.index'))->middleware('permission:vendors-list')->name('vendor-index');
-    Route::get('/labour', fn () => redirect()->route('labours.index'))->middleware('permission:labours-list')->name('labour-index');
-    Route::get('/labour-role', fn () => redirect()->route('labour_roles.index'))->middleware('permission:labour-roles-list')->name('labourrole-index');
-    Route::get('/client-summary', fn () => redirect()->route('reports.index', ['type' => 'site']))->middleware('permission:reports-list')->name('client-summary');
-    Route::get('/payment-summary', fn () => redirect()->route('reports.index', ['type' => 'office']))->middleware('permission:reports-list')->name('payment-summary');
-    Route::get('/payment-income/{project}', fn (\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'total', 'project_id' => $project->id]))->middleware('permission:reports-list')->name('payment-income');
-    Route::get('/payment-expenses/{project}', fn (\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'site', 'project_id' => $project->id]))->middleware('permission:reports-list')->name('payment-expenses');
+    Route::get('/payment', fn() => redirect()->route('payments.index'))->middleware('permission:payments-list')->name('payment-index');
+    Route::get('/stage', fn() => redirect()->route('payment-stages.index'))->middleware('permission:payment-stages-list')->name('stage-index');
+    Route::get('/maincategory', fn() => redirect()->route('main_categories.index'))->middleware('permission:main-categories-list')->name('maincategory.index');
+    Route::get('/category', fn() => redirect()->route('categories.index'))->middleware('permission:categories-list')->name('category-index');
+    Route::get('/unit', fn() => redirect()->route('units.index'))->middleware('permission:units-list')->name('unit.index');
+    Route::get('/vendor', fn() => redirect()->route('vendors.index'))->middleware('permission:vendors-list')->name('vendor-index');
+    Route::get('/labour', fn() => redirect()->route('labours.index'))->middleware('permission:labours-list')->name('labour-index');
+    Route::get('/labour-role', fn() => redirect()->route('labour_roles.index'))->middleware('permission:labour-roles-list')->name('labourrole-index');
+    Route::get('/client-summary', fn() => redirect()->route('reports.index', ['type' => 'site']))->middleware('permission:reports-list')->name('client-summary');
+    Route::get('/payment-summary', fn() => redirect()->route('reports.index', ['type' => 'office']))->middleware('permission:reports-list')->name('payment-summary');
+    Route::get('/payment-income/{project}', fn(\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'total', 'project_id' => $project->id]))->middleware('permission:reports-list')->name('payment-income');
+    Route::get('/payment-expenses/{project}', fn(\App\Models\Project $project) => redirect()->route('reports.index', ['type' => 'site', 'project_id' => $project->id]))->middleware('permission:reports-list')->name('payment-expenses');
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
@@ -243,10 +246,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/expenses-history', [ExpensesController::class, 'history'])
         ->middleware('permission:expenses-list')
         ->name('expenses.history');
-    Route::get('/expenses-create', fn () => redirect()->route('expenses.history', ['create' => 1]))
+    Route::get('/expenses-create', fn() => redirect()->route('expenses.history', ['create' => 1]))
         ->middleware('permission:expenses-create')
         ->name('expenses.create.legacy');
-    Route::get('/expenses/edit/{id}', fn (int $id) => redirect()->route('expenses.history', ['edit' => $id]))
+    Route::get('/expenses/edit/{id}', fn(int $id) => redirect()->route('expenses.history', ['edit' => $id]))
         ->middleware('permission:expenses-edit')
         ->name('expenses.edit.legacy');
     Route::post('/expenses/store', [ExpensesController::class, 'store'])
@@ -265,7 +268,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/unpaid-history', [UnpaidExpensesController::class, 'history'])
         ->middleware('permission:expenses-list')
         ->name('expenses.unpaid-history');
-    Route::get('/unpaid-create/{id}', fn (int $id) => redirect()->route('expenses.unpaid-history', ['edit' => $id]))
+    Route::get('/unpaid-create/{id}', fn(int $id) => redirect()->route('expenses.unpaid-history', ['edit' => $id]))
         ->middleware('permission:expenses-edit')
         ->name('expenses.unpaid-create.legacy');
     Route::post('/unpaid-store', [UnpaidExpensesController::class, 'store'])
@@ -278,10 +281,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/labour-expenses/store', [LabourExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('labour-expenses.store');
-    Route::get('/labour-expenses/create', fn () => redirect()->route('labour-expenses.history', ['create' => 1]))
+    Route::get('/labour-expenses/create', fn() => redirect()->route('labour-expenses.history', ['create' => 1]))
         ->middleware('permission:expenses-create')
         ->name('labour-expenses.create.legacy');
-    Route::get('/labour-expenses/edit/{id}', fn (int $id) => redirect()->route('labour-expenses.history', ['edit' => $id]))
+    Route::get('/labour-expenses/edit/{id}', fn(int $id) => redirect()->route('labour-expenses.history', ['edit' => $id]))
         ->middleware('permission:expenses-edit')
         ->name('labour-expenses.edit.legacy');
     Route::put('/labour-expenses/update/{id}', [LabourExpensesController::class, 'update'])
@@ -312,10 +315,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendor-expenses/store', [VendorExpensesController::class, 'store'])
         ->middleware('permission:expenses-create')
         ->name('vendor-expenses.store');
-    Route::get('/vendor-expenses/create', fn () => redirect()->route('vendor-expenses.history', ['create' => 1]))
+    Route::get('/vendor-expenses/create', fn() => redirect()->route('vendor-expenses.history', ['create' => 1]))
         ->middleware('permission:expenses-create')
         ->name('vendor-expenses.create.legacy');
-    Route::get('/vendor-expenses/edit/{id}', fn (int $id) => redirect()->route('vendor-expenses.history', ['edit' => $id]))
+    Route::get('/vendor-expenses/edit/{id}', fn(int $id) => redirect()->route('vendor-expenses.history', ['edit' => $id]))
         ->middleware('permission:expenses-edit')
         ->name('vendor-expenses.edit.legacy');
     Route::put('/vendor-expenses/update/{id}', [VendorExpensesController::class, 'update'])
@@ -324,7 +327,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/vendor-expenses-unpaid-history', [VendorExpensesController::class, 'unpaidHistory'])
         ->middleware('permission:expenses-list')
         ->name('vendor-expenses.unpaid-history');
-    Route::get('/vendor-expenses-unpaid-edit/{id}', fn (int $id) => redirect()->route('vendor-expenses.unpaid-history', ['edit' => $id]))
+    Route::get('/vendor-expenses-unpaid-edit/{id}', fn(int $id) => redirect()->route('vendor-expenses.unpaid-history', ['edit' => $id]))
         ->middleware('permission:expenses-edit')
         ->name('vendor-expenses.unpaid-edit.legacy');
     Route::post('/vendor-expenses-unpaid-store', [VendorExpensesController::class, 'unpaidStore'])
@@ -597,6 +600,23 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    Route::prefix('labour-salaries')->name('labour-salaries.')->group(function () {
+        Route::middleware('permission:labour-salaries-list')->group(function () {
+            Route::get('/', [LabourSalaryController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:labour-salaries-create')->group(function () {
+            Route::get('/create', [LabourSalaryController::class, 'create'])->name('create');
+            Route::post('/store', [LabourSalaryController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:labour-salaries-edit')->group(function () {
+            Route::get('/{labourSalary}/edit', [LabourSalaryController::class, 'edit'])->name('edit');
+            Route::put('/{labourSalary}/update', [LabourSalaryController::class, 'update'])->name('update');
+        });
+        Route::middleware('permission:labour-salaries-delete')->group(function () {
+            Route::delete('/{labourSalary}', [LabourSalaryController::class, 'destroy'])->name('destroy');
+        });
+    });
+
     Route::prefix('vendors')->name('vendors.')->group(function () {
         Route::middleware('permission:vendors-list')->group(function () {
             Route::get('/', [\App\Http\Controllers\VendorController::class, 'index'])->name('index');
@@ -707,20 +727,77 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:expenses-create')
         ->name('excel.import');
 
-    // Route::prefix('quotations')->name('quotations.')->group(function () {
-    //     Route::middleware('permission:quotations-list')->group(function () {
-    //         Route::get('/', [QuotationController::class, 'index'])->name('index');
-    //     });
-    //     Route::middleware('permission:quotations-create')->group(function () {
-    //         Route::get('/create', [QuotationController::class, 'create'])->name('create');
-    //         Route::post('/store', [QuotationController::class, 'store'])->name('store');
-    //     });
-    //     Route::middleware('permission:quotations-edit')->group(function () {
-    //         Route::get('/{quotation}/edit', [QuotationController::class, 'edit'])->name('edit');
-    //         Route::post('/{quotation}/update', [QuotationController::class, 'update'])->name('update');
-    //     });
-    //     Route::middleware('permission:quotations-delete')->group(function () {
-    //         Route::delete('/{quotation}', [QuotationController::class, 'destroy'])->name('destroy');
-    //     });
-    // });
+    Route::prefix('payment-methods')->name('payment-methods.')->group(function () {
+        Route::middleware('permission:payment-methods-list')->group(function () {
+            Route::get('/', [PaymentMethodController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:payment-methods-create')->group(function () {
+            Route::get('/create', [PaymentMethodController::class, 'create'])->name('create');
+            Route::post('/store', [PaymentMethodController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:payment-methods-edit')->group(function () {
+            Route::get('/{paymentMethod}/edit', [PaymentMethodController::class, 'edit'])->name('edit');
+            Route::put('/{paymentMethod}/update', [PaymentMethodController::class, 'update'])->name('update');
+            Route::post('/{paymentMethod}/toggle', [PaymentMethodController::class, 'toggle'])->name('toggle');
+        });
+        Route::middleware('permission:payment-methods-delete')->group(function () {
+            Route::delete('/{paymentMethod}', [PaymentMethodController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    Route::prefix('preorders')->name('preorders.')->group(function () {
+        // 1. Static creation route BEFORE dynamic /{preorder} parameter routes
+        Route::middleware('permission:tools-materials-create')->group(function () {
+            Route::get('/create', [PreorderController::class, 'create'])->name('create');
+            Route::post('/store', [PreorderController::class, 'store'])->name('store');
+        });
+
+        // 2. Static listing & summary report routes
+        Route::middleware('permission:tools-materials-list')->group(function () {
+            Route::get('/', [PreorderController::class, 'index'])->name('index');
+            Route::get('/reports/summary', [\App\Http\Controllers\PreorderReportController::class, 'index'])->name('reports');
+        });
+
+        // 3. Document deletion
+        Route::middleware('permission:tools-materials-create')->group(function () {
+            Route::delete('/documents/{document}', [PreorderController::class, 'deleteDocument'])->name('documents.destroy');
+        });
+
+        // 4. Dynamic /{preorder} model routes (constrained with whereNumber)
+        Route::middleware('permission:tools-materials-list')->group(function () {
+            Route::get('/convert/{preorder}', [PreorderController::class, 'showConvertToPurchase'])
+                ->whereNumber('preorder')->name('convert.form');
+            Route::get('/{preorder}', [PreorderController::class, 'show'])
+                ->whereNumber('preorder')->name('show');
+        });
+
+        Route::middleware('permission:tools-materials-create')->group(function () {
+            Route::post('/convert/{preorder}', [PreorderController::class, 'convertToPurchase'])
+                ->whereNumber('preorder')->name('convert');
+            Route::post('/{preorder}/advances', [PreorderController::class, 'addAdvance'])
+                ->whereNumber('preorder')->name('advances.store');
+            Route::post('/{preorder}/deliveries', [PreorderController::class, 'recordDelivery'])
+                ->whereNumber('preorder')->name('deliveries.store');
+            Route::post('/{preorder}/documents', [PreorderController::class, 'uploadDocument'])
+                ->whereNumber('preorder')->name('documents.store');
+        });
+
+        Route::middleware('permission:tools-materials-edit')->group(function () {
+            Route::get('/{preorder}/edit', [PreorderController::class, 'edit'])
+                ->whereNumber('preorder')->name('edit');
+            Route::put('/{preorder}/update', [PreorderController::class, 'update'])
+                ->whereNumber('preorder')->name('update');
+            Route::post('/{preorder}/approve', [PreorderController::class, 'approve'])
+                ->whereNumber('preorder')->name('approve');
+            Route::post('/{preorder}/reject', [PreorderController::class, 'reject'])
+                ->whereNumber('preorder')->name('reject');
+            Route::post('/{preorder}/change-status', [PreorderController::class, 'changeStatus'])
+                ->whereNumber('preorder')->name('change-status');
+        });
+
+        Route::middleware('permission:tools-materials-delete')->group(function () {
+            Route::delete('/{preorder}', [PreorderController::class, 'destroy'])
+                ->whereNumber('preorder')->name('destroy');
+        });
+    });
 });

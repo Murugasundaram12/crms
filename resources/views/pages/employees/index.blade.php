@@ -176,10 +176,20 @@
                         class="form-control" required></div>
                 <div class="col-md-6"><label class="form-label">Confirm Password</label><input type="password"
                         name="password_confirmation" class="form-control" required></div>
-                <div class="col-md-6"><label class="form-label">Hire Date</label><input type="date" name="hire_date"
-                        class="form-control"></div>
-                <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
-                        class="form-control"></div>
+                <div class="col-md-6">
+                    <label class="form-label">Hire Date <span class="text-danger">*</span></label>
+                    <input type="date" name="hire_date" class="form-control @error('hire_date') is-invalid @enderror" value="{{ old('hire_date') }}" required>
+                    @error('hire_date')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Address <span class="text-danger">*</span></label>
+                    <input type="text" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}" required>
+                    @error('address')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
                 <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
                         class="form-control"></div>
                 <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
@@ -188,9 +198,12 @@
                     </select></div>
                 @if($permissionGroups->isNotEmpty())
                     <div class="col-12">
-                        <label class="form-label">Extra User Permissions</label>
-                        <p class="text-muted fs-13 mb-2">Additional permissions for this user only. Role permissions still apply.</p>
-                        <div class="border rounded p-3" style="max-height: 260px; overflow:auto;">
+                        <label class="form-label">Extra User Permissions <span class="text-danger">*</span></label>
+                        <p class="text-muted fs-13 mb-2">Additional permissions for this user only. Role permissions still apply. (At least one required)</p>
+                        @error('direct_permissions')
+                            <div class="text-danger small mb-2">{{ $message }}</div>
+                        @enderror
+                        <div class="border rounded p-3 @error('direct_permissions') border-danger @enderror" style="max-height: 260px; overflow:auto;">
                             <div class="row g-3">
                                 @foreach($permissionGroups as $module => $modulePermissions)
                                     <div class="col-12 col-md-6">
@@ -325,3 +338,20 @@
     @endforeach
     @endcan
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const addForm = document.querySelector('form[action="{{ route('employees.store') }}"]');
+            if (addForm) {
+                addForm.addEventListener('submit', function (e) {
+                    const checkedPermissions = addForm.querySelectorAll('input[name="direct_permissions[]"]:checked');
+                    if (checkedPermissions.length === 0) {
+                        e.preventDefault();
+                        alert('Please select at least one Extra User Permission.');
+                    }
+                });
+            }
+        });
+    </script>
+@endpush

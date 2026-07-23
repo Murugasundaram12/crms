@@ -388,16 +388,16 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Payment Mode</label>
-                                <select name="payment_mode" class="form-select">
-                                    <option value="">Select payment mode</option>
-                                    @foreach($paymentModes as $modeId => $modeLabel)
-                                        <option value="{{ $modeId }}" @selected((string) old('payment_mode') === (string) $modeId)>
-                                            {{ $modeLabel }}
+                                <label class="form-label">Payment Method</label>
+                                <select name="payment_method_id" class="form-select">
+                                    <option value="">Select Payment Method</option>
+                                    @foreach($paymentMethods as $paymentMethod)
+                                        <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id') === (string) $paymentMethod->id)>
+                                            {{ $paymentMethod->name }}
                                         </option>
                                     @endforeach
                                 </select>
-                                @error('payment_mode')<div class="text-danger small">{{ $message }}</div>@enderror
+                                @error('payment_method_id')<div class="text-danger small">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
@@ -504,16 +504,16 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Payment Mode</label>
-                                <select name="payment_mode" class="form-select">
-                                    <option value="">Select payment mode</option>
-                                    @foreach($paymentModes as $modeId => $modeLabel)
-                                        <option value="{{ $modeId }}" @selected((string) old('payment_mode', $editingExpense->payment_mode) === (string) $modeId)>
-                                            {{ $modeLabel }}
+                                <label class="form-label">Payment Method</label>
+                                <select name="payment_method_id" class="form-select">
+                                    <option value="">Select Payment Method</option>
+                                    @foreach($paymentMethods as $paymentMethod)
+                                        <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id', $editingExpense->payment_method_id) === (string) $paymentMethod->id)>
+                                            {{ $paymentMethod->name }}
                                         </option>
                                     @endforeach
                                 </select>
-                                @error('payment_mode')<div class="text-danger small">{{ $message }}</div>@enderror
+                                @error('payment_method_id')<div class="text-danger small">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">

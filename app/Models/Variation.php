@@ -15,8 +15,10 @@ class Variation extends Model
         'description',
         'type',
         'amount',
+        'payment_method_id',
         'date',
         'approved_by',
+        'employee_id',
         'status',
     ];
 
@@ -33,5 +35,15 @@ class Variation extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'approved_by');
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'employee_id');
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 }

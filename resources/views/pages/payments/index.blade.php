@@ -100,7 +100,7 @@
                             <td>{{ $payment->stage->name ?? '-' }}</td>
                             <td class="fw-semibold">Rs. {{ number_format($payment->amount, 2) }}</td>
                             <td>{{ optional($payment->due_date)->format('d M Y') ?? '-' }}</td>
-                            <td>{{ $payment->method ? ucfirst(str_replace('_', ' ', $payment->method)) : '-' }}</td>
+                            <td>{{ $payment->paymentMethod?->name ?? ($payment->method ? ucfirst(str_replace('_', ' ', $payment->method)) : '-') }}</td>
                             {{-- <td>{{ $payment->transaction_id ?: '-' }}</td> --}}
                             <td>
                                 <span
@@ -239,10 +239,13 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                    <select name="method" class="form-select payment-method-select" required>
-                        <option value="">Select</option>
-                        <option value="cash">Cash</option>
-                        <option value="bank_transfer">Bank Transfer</option>
+                    <select name="payment_method_id" class="form-select payment-method-select" required>
+                        <option value="">Select Payment Method</option>
+                        @foreach ($paymentMethods as $paymentMethod)
+                            <option value="{{ $paymentMethod->id }}" data-code="{{ strtolower($paymentMethod->code ?? '') }}" data-name="{{ strtolower($paymentMethod->name) }}">
+                                {{ $paymentMethod->name }}
+                            </option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-6">
@@ -337,12 +340,14 @@
                                 <div class="invalid-feedback payment-amount-error">Amount cannot exceed remaining quotation amount.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Payment Method</label>
-                                <select name="method" class="form-select payment-method-select" required>
-                                    <option value="">Select</option>
-                                    <option value="cash" {{ $payment->method == 'cash' ? 'selected' : '' }}>Cash</option>
-                                    <option value="bank_transfer" {{ $payment->method == 'bank_transfer' ? 'selected' : '' }}>Bank
-                                        Transfer</option>
+                                <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                                <select name="payment_method_id" class="form-select payment-method-select" required>
+                                    <option value="">Select Payment Method</option>
+                                    @foreach ($paymentMethods as $paymentMethod)
+                                        <option value="{{ $paymentMethod->id }}" data-code="{{ strtolower($paymentMethod->code ?? '') }}" data-name="{{ strtolower($paymentMethod->name) }}" @selected((string) old('payment_method_id', $payment->payment_method_id) === (string) $paymentMethod->id)>
+                                            {{ $paymentMethod->name }}
+                                        </option>
+                                    @endforeach
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -398,11 +403,13 @@
             }
 
             function syncPaymentMethodFields($form) {
-                var method = $form.find('.payment-method-select').val();
+                var $opt = $form.find('.payment-method-select option:selected');
+                var text = ($opt.attr('data-name') || $opt.text() || '').toLowerCase();
+                var code = ($opt.attr('data-code') || '').toLowerCase();
                 var $field = $form.find('.transaction-id-field');
                 var $input = $field.find('input[name="transaction_id"]');
 
-                if (method === 'bank_transfer') {
+                if (text.includes('bank') || code.includes('bank') || text.includes('transfer') || text.includes('upi') || text.includes('cheque') || text.includes('card')) {
                     $field.removeClass('d-none');
                     $input.prop('required', true);
                     return;

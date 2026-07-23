@@ -80,15 +80,16 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Payment Mode</label>
-                            <select name="payment_mode" class="form-select form-select-sm">
-                                <option value="">Select Payment Mode</option>
-                                @foreach($paymentModes as $mode)
-                                    <option value="{{ $mode }}" {{ old('payment_mode') === $mode ? 'selected' : '' }}>{{ $mode }}
+                            <label class="form-label">Payment Method</label>
+                            <select name="payment_method_id" class="form-select form-select-sm" required>
+                                <option value="">Select Payment Method</option>
+                                @foreach($paymentMethods as $paymentMethod)
+                                    <option value="{{ $paymentMethod->id }}" {{ (string) old('payment_method_id') === (string) $paymentMethod->id ? 'selected' : '' }}>
+                                        {{ $paymentMethod->name }}
                                     </option>
                                 @endforeach
                             </select>
-                            @error('payment_mode')
+                            @error('payment_method_id')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror
                         </div>

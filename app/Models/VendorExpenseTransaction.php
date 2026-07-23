@@ -20,7 +20,7 @@ class VendorExpenseTransaction extends Model
         'paid_amount',
         'unpaid_amount',
         'extra_amount',
-        'payment_mode',
+        'payment_method_id',
         'vendor_id',
         'salary',
         'current_date',
@@ -64,5 +64,10 @@ class VendorExpenseTransaction extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 }

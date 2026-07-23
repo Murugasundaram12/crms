@@ -68,10 +68,10 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Payment Mode</label>
-                        <select name="payment_mode" class="form-select" required>
+                        <select name="payment_method_id" class="form-select" required>
                             <option value="">Select Payment Mode</option>
-                            @foreach($paymentModes as $id => $mode)
-                                <option value="{{ $id }}" @selected((string) old('payment_mode') === (string) $id)>{{ $mode }}</option>
+                            @foreach($paymentMethods as $pm)
+                                <option value="{{ $pm->id }}" @selected((string) old('payment_method_id') === (string) $pm->id)>{{ $pm->name }}</option>
                             @endforeach
                         </select>
                     </div>

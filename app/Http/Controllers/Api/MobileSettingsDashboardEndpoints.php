@@ -103,8 +103,8 @@ trait MobileSettingsDashboardEndpoints
             'client_statuses' => ['enquiry', 'active', 'inactive'],
             'project_statuses' => ['planning', 'active', 'on_hold', 'completed', 'cancelled'],
             'payment_statuses' => ['pending', 'paid', 'overdue', 'partial'],
-            'payment_methods' => ['cash', 'bank_transfer'],
-            'expense_payment_modes' => self::PAYMENT_MODES,
+            'payment_methods' => \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'type']),
+            'expense_payment_modes' => \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'type']),
             'leave_statuses' => ['pending', 'approved', 'rejected'],
         ]);
     }

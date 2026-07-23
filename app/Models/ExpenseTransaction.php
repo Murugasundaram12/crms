@@ -17,7 +17,7 @@ class ExpenseTransaction extends Model
         'project_id',
         'description',
         'paid_amount',
-        'payment_mode',
+        'payment_method_id',
         'current_date',
         'current_time',
         'active_status',
@@ -49,5 +49,10 @@ class ExpenseTransaction extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 }

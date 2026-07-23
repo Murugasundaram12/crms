@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TransferDetails;
 use App\Models\Employee;
 use App\Models\Vendor;
+use App\Models\PaymentMethod;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -15,28 +16,16 @@ use Illuminate\Http\Request;
 
 class TransferDetailsController extends Controller
 {
-    private array $paymentModes = [
-        'Cash',
-        'HDFC',
-        'SBI',
-        'Gpay',
-        'PhonePe',
-        'KVBL',
-        'Kotak Mahindra',
-        'TMB',
-        'Equitas',
-    ];
-
     public function index(Request $request)
     {
-        $query = TransferDetails::query()->where('delete_status', false);
-
+        $query = TransferDetails::query()->where('delete_status', false)->with(['paymentMethod']);
 
         if ($request->filled('search')) {
             $search = $request->string('search');
             $query->where(function ($q) use ($search) {
                 $q->where('transfer_type', 'like', "%{$search}%")
                     ->orWhere('payment_mode', 'like', "%{$search}%")
+                    ->orWhereHas('paymentMethod', fn($pm) => $pm->where('name', 'like', "%{$search}%"))
                     ->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('amount', 'like', "%{$search}%");
             });
@@ -67,11 +56,12 @@ class TransferDetailsController extends Controller
     {
         $employees = Employee::query()->latest()->get();
         $vendors = Vendor::query()->latest()->get();
+        $paymentMethods = PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
 
         return view('pages.transfers.create', [
             'employees' => $employees,
             'vendors' => $vendors,
-            'paymentModes' => $this->paymentModes,
+            'paymentMethods' => $paymentMethods,
         ]);
     }
 
@@ -96,12 +86,13 @@ class TransferDetailsController extends Controller
         $transfer = TransferDetails::where('id', $id)->where('delete_status', false)->firstOrFail();
         $employees = Employee::query()->latest()->get();
         $vendors = Vendor::query()->latest()->get();
+        $paymentMethods = PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
 
         return view('pages.transfers.edit', [
             'transfer' => $transfer,
             'employees' => $employees,
             'vendors' => $vendors,
-            'paymentModes' => $this->paymentModes,
+            'paymentMethods' => $paymentMethods,
         ]);
     }
 
@@ -142,21 +133,20 @@ class TransferDetailsController extends Controller
 
     private function validateTransfer(Request $request): array
     {
-        $paymentModes = $this->paymentModes;
-
         $validated = $request->validate([
             'transfer_type' => ['required', 'in:employee,vendor'],
             'employee_id' => ['nullable', 'integer'],
             'vendor_id' => ['nullable', 'integer'],
 
             'amount' => ['required', 'numeric', 'min:0.01'],
-            'payment_mode' => ['required', 'in:' . implode(',', $paymentModes)],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'description' => ['nullable', 'string', 'max:1000'],
             'current_date' => ['required', 'date_format:Y-m-d'],
             'current_time' => ['required', 'string', 'max:20'],
         ], [], [
             'employee_id' => 'Employee',
             'vendor_id' => 'Vendor',
+            'payment_method_id' => 'Payment Method',
         ]);
 
         if ($validated['transfer_type'] === 'employee' && empty($validated['employee_id'])) {

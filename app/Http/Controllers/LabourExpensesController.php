@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Labour;
 use App\Models\MainCategory;
+use App\Models\PaymentMethod;
 use App\Models\Project;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
@@ -75,7 +76,7 @@ class LabourExpensesController extends Controller
                 'paid_amt' => $paidAmount,
                 'unpaid_amt' => $unpaidAmount,
                 'extra_amt' => $extraAmount,
-                'payment_mode' => $validated['payment_mode'] ?? null,
+                'payment_method_id' => $validated['payment_method_id'] ?? null,
                 'labour_id' => $validated['labour_id'],
                 'current_date' => $validated['current_date'] ?? now(),
                 'image' => $validated['image'] ?? null,
@@ -140,7 +141,7 @@ class LabourExpensesController extends Controller
                 'paid_amt' => $paidAmount,
                 'unpaid_amt' => $unpaidAmount,
                 'extra_amt' => $extraAmount,
-                'payment_mode' => $validated['payment_mode'] ?? null,
+                'payment_method_id' => $validated['payment_method_id'] ?? null,
                 'current_date' => $validated['current_date'] ?? now(),
                 'image' => $validated['image'] ?? null,
                 'editedBy' => Auth::id(),
@@ -358,7 +359,7 @@ class LabourExpensesController extends Controller
             'projects' => Project::query()->orderBy('name')->get(),
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
-            'paymentModes' => Expense::paymentModes(),
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
         ];
     }
 
@@ -369,7 +370,7 @@ class LabourExpensesController extends Controller
         }
 
         return Expense::query()
-            ->with(['labour', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
+            ->with(['labour', 'project', 'mainCategory', 'category', 'user', 'editedByUser', 'paymentMethod'])
             ->whereNotNull('labour_id')
             ->whereNull('deleted_at')
             ->find($request->integer('edit'));
@@ -389,7 +390,7 @@ class LabourExpensesController extends Controller
             'description' => ['nullable', 'string'],
             'amount' => ['required', 'integer', 'min:0'],
             'paid_amount' => ['required', 'integer', 'min:0'],
-            'payment_mode' => ['nullable', 'integer'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'current_date' => ['nullable', 'date'],
             'image' => ['nullable', 'string', 'max:250'],
         ]);

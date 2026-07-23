@@ -2,15 +2,60 @@
 
 namespace App\Services;
 
+use App\Models\Wallet;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class CrmBalanceService
 {
-    public function debitUserWallet(int $userId, float $amount, string $description, string $referenceType, int $referenceId): void
+    public function recordWalletTransaction(
+        int $userId,
+        float $amount,
+        string $direction, // 'credit' or 'debit'
+        string $sourceType,
+        int $sourceId,
+        ?int $paymentMethodId = null,
+        string $description = '',
+        ?int $createdBy = null,
+        ?int $projectId = null,
+        ?int $clientId = null
+    ): void {
+        if ($amount <= 0.0) {
+            return;
+        }
+
+        $transferType = strtolower($direction) === 'credit' ? 0 : 1;
+
+        if ($transferType === 1) {
+            $this->debitUserWallet($userId, $amount, $description, $sourceType, $sourceId);
+        } else {
+            $this->creditUserWallet($userId, $amount, $description, $sourceType, $sourceId);
+        }
+
+        if (Schema::hasTable('wallet')) {
+            Wallet::query()->create([
+                'user_id' => $userId,
+                'client_id' => $clientId,
+                'project_id' => $projectId,
+                'amount' => (int) round($amount),
+                'payment_mode' => $paymentMethodId ?? 1,
+                'payment_method_id' => $paymentMethodId,
+                'transfer_type' => $transferType,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'description' => $description,
+                'created_by' => $createdBy,
+                'current_date' => now(),
+                'active_status' => 1,
+                'delete_status' => 0,
+            ]);
+        }
+    }
+
+    public function debitUserWallet(int $userId, float $amount, string $description = '', string $referenceType = 'wallet', int $referenceId = 0): void
     {
-        if ($amount == 0.0 || ! Schema::hasColumn('users', 'wallet')) {
+        if ($amount <= 0.0 || ! Schema::hasColumn('users', 'wallet')) {
             return;
         }
 
@@ -21,9 +66,9 @@ class CrmBalanceService
 
         if ($wallet < $amount) {
             throw ValidationException::withMessages([
-                'amount' => 'Insufficient wallet balance.',
-                'paid_amt' => 'Insufficient wallet balance.',
-                'paid_amount' => 'Insufficient wallet balance.',
+                'amount' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
+                'paid_amt' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
+                'paid_amount' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
             ]);
         }
 
@@ -34,8 +79,12 @@ class CrmBalanceService
         $this->syncEmployeeWalletFromUser($userId);
     }
 
-    public function creditUserWallet(int $userId, float $amount, string $description, string $referenceType, int $referenceId): void
+    public function creditUserWallet(int $userId, float $amount, string $description = '', string $referenceType = 'wallet', int $referenceId = 0): void
     {
+        if ($amount <= 0.0) {
+            return;
+        }
+
         $this->adjustColumn('users', $userId, 'wallet', $amount);
         $this->syncEmployeeWalletFromUser($userId);
     }
@@ -63,7 +112,7 @@ class CrmBalanceService
         $this->syncEmployeeWalletFromUser($userId);
     }
 
-    private function syncEmployeeWalletFromUser(int $userId): void
+    public function syncEmployeeWalletFromUser(int $userId): void
     {
         if (! Schema::hasColumn('users', 'wallet') || ! Schema::hasColumn('employees', 'wallet')) {
             return;
@@ -81,7 +130,7 @@ class CrmBalanceService
             ->update(['wallet' => $user->wallet]);
     }
 
-    private function userIdFromEmployeeId(int $employeeId): ?int
+    public function userIdFromEmployeeId(int $employeeId): ?int
     {
         if (! Schema::hasTable('employees')) {
             return null;

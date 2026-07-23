@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Expense;
 use App\Models\ExpenseUnpaidDate;
 use App\Models\MainCategory;
+use App\Models\PaymentMethod;
 use App\Models\Project;
 use App\Models\Vendor;
 use App\Services\CrmBalanceService;
@@ -47,7 +48,7 @@ class VendorExpensesController extends Controller
                 'paid_amt' => $paidAmount,
                 'unpaid_amt' => $unpaidAmount,
                 'extra_amt' => $extraAmount,
-                'payment_mode' => $validated['payment_mode'] ?? null,
+                'payment_method_id' => $validated['payment_method_id'] ?? null,
                 'vendor_id' => $validated['vendor_id'],
                 'current_date' => $validated['current_date'] ?? now(),
                 'image' => $validated['image'] ?? null,
@@ -310,7 +311,7 @@ class VendorExpensesController extends Controller
             'projects' => Project::query()->orderBy('name')->get(),
             'mainCategories' => MainCategory::query()->where('status', 'active')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
-            'paymentModes' => Expense::paymentModes(),
+            'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
         ];
     }
 
@@ -346,7 +347,7 @@ class VendorExpensesController extends Controller
             'description' => ['nullable', 'string'],
             'amount' => ['required', 'integer', 'min:0'],
             'paid_amount' => ['required', 'integer', 'min:0'],
-            'payment_mode' => ['nullable', 'integer'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'current_date' => ['nullable', 'date'],
             'image' => ['nullable', 'string', 'max:250'],
         ]);

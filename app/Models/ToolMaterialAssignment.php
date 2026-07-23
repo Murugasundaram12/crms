@@ -12,6 +12,8 @@ class ToolMaterialAssignment extends Model
     protected $fillable = [
         'reference_no',
         'status',
+        'preorder_id',
+        'payment_method_id',
         'tool_material_id',
         'from_project_id',
         'to_project_id',
@@ -25,6 +27,7 @@ class ToolMaterialAssignment extends Model
         'unit',
         'rate',
         'amount',
+        'advance_amount',
         'receiver_name',
         'vehicle_no',
         'purpose',
@@ -37,11 +40,22 @@ class ToolMaterialAssignment extends Model
         'quantity' => 'decimal:2',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
+        'advance_amount' => 'decimal:2',
     ];
 
     public function toolMaterial(): BelongsTo
     {
         return $this->belongsTo(ToolMaterial::class);
+    }
+
+    public function preorder(): BelongsTo
+    {
+        return $this->belongsTo(Preorder::class);
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 
     public function fromProject(): BelongsTo

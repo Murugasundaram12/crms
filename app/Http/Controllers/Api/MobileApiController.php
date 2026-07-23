@@ -334,7 +334,8 @@ class MobileApiController extends Controller
             'paid_amt' => ['required', 'integer', 'min:0'],
             'current_date' => ['required', 'date'],
             'project_id' => ['nullable', 'exists:projects,id'],
-            'payment_mode' => ['nullable', 'integer'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
+            'payment_mode' => ['nullable'],
             'description' => ['nullable', 'string'],
         ]);
     }
@@ -432,7 +433,8 @@ class MobileApiController extends Controller
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
             'amount' => ['required', 'integer', 'min:1'],
-            'payment_mode' => ['required', 'integer', 'in:' . implode(',', array_keys(self::PAYMENT_MODES))],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
+            'payment_mode' => ['nullable'],
             'transfer_type' => ['required', 'integer', 'in:0,1'],
             'stage_id' => ['nullable', 'exists:payment_stages,id'],
             'description' => ['nullable', 'string', 'max:1000'],
