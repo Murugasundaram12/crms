@@ -24,17 +24,21 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
 
     public function test_actual_mode_draws_validated_polyline_segments_without_directions_service(): void
     {
-        $this->assertStringContainsString("defaultRouteMode: @json(request('route_mode', 'road'))", $this->source);
+        $this->assertStringContainsString("defaultRouteMode: @json(request('route_mode', \$mapSettings['default_route_mode'] ?? 'actual'))", $this->source);
         $this->assertStringContainsString('Actual GPS Route', $this->source);
+        $this->assertStringContainsString('Partial Actual GPS Route', $this->source);
         $this->assertStringContainsString('const movementPaths = buildMovementPathsFromSegments(data.polylineSegments);', $this->source);
         $this->assertStringContainsString('drawRoutePolyline(routePath);', $this->source);
         $this->assertStringContainsString('new google.maps.Polyline', $this->source);
+        $this->assertStringNotContainsString("if (routeMode === 'markers')", $this->source);
     }
 
     public function test_google_maps_uses_estimated_road_route_only_when_tracking_is_reliable(): void
     {
-        $this->assertStringContainsString("defaultRouteMode: @json(request('route_mode', 'road'))", $this->source);
-        $this->assertStringContainsString("return timelineMapProvider === 'google' && isRoadRouteReliable(data) ? 'road' : 'actual';", $this->source);
+        $this->assertStringContainsString("defaultRouteMode: @json(request('route_mode', \$mapSettings['default_route_mode'] ?? 'actual'))", $this->source);
+        $this->assertStringContainsString("timelineConfig.defaultRouteMode === 'road'", $this->source);
+        $this->assertStringContainsString('hasDirectionsSegments(data) && isRoadRouteReliable(data)', $this->source);
+        $this->assertStringContainsString("return 'actual';", $this->source);
         $this->assertStringContainsString('function isRoadRouteReliable(data = {})', $this->source);
         $this->assertStringContainsString('coverage < 60', $this->source);
         $this->assertStringContainsString('gapCount > 0', $this->source);
@@ -69,30 +73,39 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringNotContainsString('drawDirectionsSegments(data.polylineSegments', $this->source);
     }
 
-    public function test_frontend_displays_gps_and_directions_distances_separately(): void
+    public function test_frontend_displays_field_style_basic_summary_card(): void
     {
-        $this->assertStringContainsString('Actual GPS distance', $this->source);
-        $this->assertStringContainsString('Estimated road distance', $this->source);
+        $this->assertStringContainsString('Employee', $this->source);
+        $this->assertStringContainsString('Total tracked time', $this->source);
+        $this->assertStringContainsString('Total attendance time', $this->source);
+        $this->assertStringContainsString('Total travelled distance', $this->source);
+        $this->assertStringContainsString('Device information', $this->source);
         $this->assertStringContainsString('timelineGpsDistance', $this->source);
-        $this->assertStringContainsString('timelineDirectionsDistance', $this->source);
+        $this->assertStringNotContainsString('<dt class="col-6">Tracking coverage</dt>', $this->source);
+        $this->assertStringNotContainsString('<dt class="col-6">Missing tracking time</dt>', $this->source);
+        $this->assertStringNotContainsString('<dt class="col-6">Route segments</dt>', $this->source);
     }
 
     public function test_frontend_displays_tracking_health_metrics(): void
     {
-        $this->assertStringContainsString('Tracking coverage', $this->source);
-        $this->assertStringContainsString('Missing tracking time', $this->source);
-        $this->assertStringContainsString('Large gaps', $this->source);
-        $this->assertStringContainsString('data.trackingHealth || {}', $this->source);
-        $this->assertStringContainsString('Low tracking coverage. Estimated road route is hidden', $this->source);
+        $this->assertStringContainsString('Showing partial actual GPS route only; missing periods are disconnected.', $this->source);
+        $this->assertStringContainsString('Estimated road route is hidden because sparse GPS points can create wrong loops or jumps.', $this->source);
+        $this->assertStringContainsString('Tracking started late after check-in', $this->source);
+    }
+
+    public function test_frontend_marks_offline_segments_and_missing_gaps_separately(): void
+    {
+        $this->assertStringContainsString('path.isOfflineSegment', $this->source);
+        $this->assertStringContainsString("strokeColor: latLngs.isOfflineSegment && timelineConfig.showOfflinePoints ? '#7c3aed' : '#0000FF'", $this->source);
+        $this->assertStringContainsString('function drawGapIndicators(gaps)', $this->source);
+        $this->assertStringContainsString("strokeColor: '#f59e0b'", $this->source);
+        $this->assertStringContainsString('Missing tracking gap:', $this->source);
     }
 
     public function test_frontend_displays_attendance_accuracy_and_battery_separately(): void
     {
-        $this->assertStringContainsString('Check-in time', $this->source);
-        $this->assertStringContainsString('Check-out time', $this->source);
-        $this->assertStringContainsString('Tracking accuracy', $this->source);
-        $this->assertStringContainsString('Battery', $this->source);
-        $this->assertStringContainsString('timelineItemStats(data.timeLineItems || [])', $this->source);
+        $this->assertStringNotContainsString('Check-in time', $this->source);
+        $this->assertStringNotContainsString('Average accuracy', $this->source);
         $this->assertStringContainsString('Check-in GPS marker not available', $this->source);
         $this->assertStringContainsString('Check-out GPS marker not available', $this->source);
     }

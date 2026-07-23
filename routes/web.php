@@ -19,6 +19,7 @@ use App\Http\Controllers\Reports\ExpenseReportController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\ToolMaterialAssignmentController;
 use App\Http\Controllers\ToolMaterialController;
+use App\Http\Controllers\TrackingSettingsController;
 use App\Http\Controllers\UnpaidExpensesController;
 use App\Http\Controllers\VendorExpensesController;
 use App\Http\Controllers\WalletController;
@@ -79,6 +80,10 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('employee-tracking')->name('tracking.')->middleware('permission:employees-list')->group(function () {
         Route::get('/', [EmployeeTrackingController::class, 'index'])->name('index');
+        Route::get('/settings', [TrackingSettingsController::class, 'edit'])->name('settings');
+        Route::put('/settings', [TrackingSettingsController::class, 'update'])->name('settings.update');
+        Route::get('/debug-report', [EmployeeTrackingController::class, 'debugReport'])->name('debug-report');
+        Route::post('/debug-report/data', [EmployeeTrackingController::class, 'debugReportData'])->name('debug-report.data');
         Route::get('/live-location', [EmployeeTrackingController::class, 'liveMap'])->name('live-map');
         Route::get('/live', [EmployeeTrackingController::class, 'liveLocations'])->name('live');
         Route::get('/card-view', [EmployeeTrackingController::class, 'cardView'])->name('card-view');

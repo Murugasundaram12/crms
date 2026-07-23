@@ -80,7 +80,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
         $trackings = collect([
             $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
-            $this->point(11.000500, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $this->point(11.000020, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
         ]);
 
         $timeline = $builder->build($trackings, $this->builderOptions());
@@ -88,6 +88,23 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame(['still', 'still'], $timeline['items']->pluck('type')->all());
         $this->assertSame([], $timeline['polylineSegments']);
         $this->assertSame(0.0, (float) $timeline['gpsDistanceKm']);
+    }
+
+    public function test_legacy_travelling_rows_with_still_activity_use_coordinate_movement_for_route(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+        $trackings = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $this->point(11.000500, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $this->point(11.001000, 77.000000, '2026-07-21 10:02:00', id: 3, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+        ]);
+
+        $timeline = $builder->build($trackings, $this->builderOptions());
+
+        $this->assertSame(['still', 'vehicle', 'vehicle'], $timeline['items']->pluck('type')->all());
+        $this->assertCount(1, $timeline['polylineSegments']);
+        $this->assertSame([2, 3], collect($timeline['polylineSegments'][0]['points'])->pluck('id')->all());
     }
 
     public function test_low_speed_walking_jitter_does_not_create_route_lines(): void
@@ -101,7 +118,6 @@ class EmployeeTimelineRouteRulesTest extends TestCase
 
         $items = $this->invoke($controller, 'timelineModuleItems', [$trackings]);
 
-        $this->assertSame(['walk', 'still', 'still'], $items->pluck('type')->all());
         $this->assertSame(0.0, (float) $items->sum('distance'));
         $this->assertSame([], $this->invoke($controller, 'polylineSegmentsFromItems', [$items]));
     }
@@ -111,17 +127,76 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $controller = new EmployeeTrackingController();
         $trackings = collect([
             $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1),
-            $this->point(11.000100, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1),
-            $this->point(11.000200, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1),
-            $this->point(11.000300, 77.000000, '2026-07-21 10:03:00', id: 4, activity: 'still', speed: 0, attendanceId: 1),
-            $this->point(11.000400, 77.000000, '2026-07-21 10:04:00', id: 5, attendanceId: 2),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1),
+            $this->point(11.000900, 77.000000, '2026-07-21 10:03:00', id: 4, activity: 'still', speed: 0, attendanceId: 1),
+            $this->point(11.001200, 77.000000, '2026-07-21 10:04:00', id: 5, attendanceId: 2),
         ]);
 
         $items = $this->invoke($controller, 'timelineModuleItems', [$trackings]);
 
-        $this->assertSame(0.02, round((float) $items->sum('distance'), 2));
+        $this->assertSame(0.06, round((float) $items->sum('distance'), 2));
         $this->assertCount(1, $this->invoke($controller, 'polylineSegmentsFromItems', [$items]));
         $this->assertCount(3, $this->invoke($controller, 'polylinePointsFromItems', [$items]));
+    }
+
+    public function test_old_tracking_rows_without_recorded_at_use_created_at_for_route_line(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 09:55:00', '2026-07-21 10:10:00');
+
+        $first = $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)
+            ->setRelation('attendance', $attendance);
+        $second = $this->point(11.000500, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)
+            ->setRelation('attendance', $attendance);
+
+        $first->recorded_at = null;
+        $second->recorded_at = null;
+
+        $result = $builder->build(collect([$second, $first]), [
+            'minimum_distance_meters' => 5,
+            'max_accuracy_meters' => 50,
+            'max_computed_speed_kmh' => 120,
+        ]);
+
+        $this->assertCount(1, $result['polylineSegments']);
+        $this->assertCount(2, $result['polylineSegments'][0]['points']);
+        $this->assertSame([1, 2], collect($result['polylineSegments'][0]['points'])->pluck('id')->all());
+    }
+
+    public function test_old_noisy_tracking_history_is_cleaned_without_connecting_bad_points(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendanceOne = $this->attendance(1, '2026-07-21 08:00:00', '2026-07-21 09:00:00');
+        $attendanceTwo = $this->attendance(2, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+
+        $trackings = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 08:00:00', id: 1, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.000300, 77.000000, '2026-07-21 08:00:15', id: 2, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.000300, 77.000000, '2026-07-21 08:00:20', id: 3, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.000600, 77.000000, '2026-07-21 08:00:30', id: 4, activity: 'vehicle', accuracy: 80, attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.008000, 77.000000, '2026-07-21 08:00:45', id: 5, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.000700, 77.000000, '2026-07-21 08:01:00', id: 6, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendanceOne),
+            $this->point(11.000710, 77.000010, '2026-07-21 08:01:10', id: 7, activity: 'walking', speed: 0.2, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendanceOne),
+            $this->point(11.001000, 77.000000, '2026-07-21 08:20:00', id: 8, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.001500, 77.000000, '2026-07-21 08:20:15', id: 9, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendanceOne),
+            $this->point(11.002000, 77.000000, '2026-07-21 10:00:00', id: 10, activity: 'vehicle', attendanceId: 2, deviceId: 'device-b')->setRelation('attendance', $attendanceTwo),
+            $this->point(11.002500, 77.000000, '2026-07-21 10:00:15', id: 11, activity: 'vehicle', attendanceId: 2, deviceId: 'device-b')->setRelation('attendance', $attendanceTwo),
+        ]);
+
+        $result = $builder->build($trackings->reverse(), [
+            ...$this->builderOptions(),
+            'tracking_interval_seconds' => 15,
+            'minimum_distance_meters' => 10,
+            'max_accuracy_meters' => 50,
+        ]);
+
+        $this->assertSame(1, $result['rejectionReasons']['duplicate_location'] ?? 0);
+        $this->assertSame(1, $result['rejectionReasons']['accuracy_exceeded'] ?? 0);
+        $this->assertCount(3, $result['polylineSegments']);
+        $this->assertSame([[1, 2], [8, 9], [10, 11]], collect($result['polylineSegments'])
+            ->map(fn (array $segment) => collect($segment['unsimplified_points'])->pluck('id')->all())
+            ->all());
     }
 
     public function test_authoritative_builder_returns_independent_segments_by_attendance_and_device(): void
@@ -239,7 +314,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertCount(1, $timeline['directionsSegments']);
         $this->assertSame(1, $timeline['directionsSegments'][0]['origin']['id']);
         $this->assertSame(3, $timeline['directionsSegments'][0]['destination']['id']);
-        $this->assertSame([1, 3], $timeline['directionsSegments'][0]['source_point_ids']);
+        $this->assertSame([1, 2, 3], $timeline['directionsSegments'][0]['source_point_ids']);
         $this->assertSame([], collect($timeline['directionsSegments'][0]['waypoints'])->pluck('id')->all());
     }
 
@@ -312,15 +387,15 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $builder = app(EmployeeTimelineBuilder::class);
         $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
         $trackings = collect([
-            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendance),
-            $this->point(11.002000, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendance),
-            $this->point(11.003000, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.002000, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.003000, 77.000000, '2026-07-21 10:02:00', id: 3, activity: 'vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
         ]);
 
         $timeline = $builder->build($trackings, $this->builderOptions());
 
         $this->assertCount(1, $timeline['directionsSegments']);
-        $this->assertSame([1, 3], $timeline['directionsSegments'][0]['source_point_ids']);
+        $this->assertSame([1, 2, 3], $timeline['directionsSegments'][0]['source_point_ids']);
         $this->assertLessThan(0.5, $timeline['polylineSegments'][0]['distance_km']);
     }
 
@@ -335,7 +410,10 @@ class EmployeeTimelineRouteRulesTest extends TestCase
             $this->point(11.000240, 77.000000, '2026-07-21 10:03:00', id: 4, attendanceId: 1)->setRelation('attendance', $attendance),
         ]);
 
-        $timeline = $builder->build($trackings, $this->builderOptions());
+        $timeline = $builder->build($trackings, [
+            ...$this->builderOptions(),
+            'simplify_after_points' => 3,
+        ]);
 
         $this->assertCount(4, $timeline['polylineSegments'][0]['unsimplified_points']);
         $this->assertCount(2, $timeline['polylineSegments'][0]['points']);
@@ -411,7 +489,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
             'max_computed_speed_kmh' => 90,
             'max_bearing_change_degrees' => 45,
             'bearing_drift_distance_meters' => 10,
-            'tracking_interval_seconds' => 60,
+            'tracking_interval_seconds' => 300,
             'max_inactive_gap_seconds' => 3600,
             'douglas_peucker_tolerance_meters' => 3,
         ];

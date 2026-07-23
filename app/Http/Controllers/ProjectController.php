@@ -41,6 +41,11 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')->with('success', 'Project created successfully.');
     }
 
+    public function create()
+    {
+        return redirect()->route('projects.index', ['create' => 1]);
+    }
+
     public function show(Project $project)
     {
         // Load the full project details page relationships.

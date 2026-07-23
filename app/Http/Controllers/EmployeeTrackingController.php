@@ -12,6 +12,7 @@ use App\Services\GpsTrackingValidationService;
 use App\Services\TimelineGpsProcessor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
@@ -26,6 +27,23 @@ class EmployeeTrackingController extends Controller
                 ->get(['id', 'name', 'email']),
             'mapSettings' => $this->mapSettings(),
         ]);
+    }
+
+    public function debugReport(): View
+    {
+        return view('pages.employee_tracking.debug_report', [
+            'employees' => User::query()
+                ->where('status', '!=', 'inactive')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
+        ]);
+    }
+
+    public function debugReportData(Request $request): JsonResponse
+    {
+        $request->merge(['gps_debug' => true]);
+
+        return $this->getTimeLineAjax($request);
     }
 
     public function liveMap(): View
@@ -110,11 +128,7 @@ class EmployeeTrackingController extends Controller
         $date = $validated['date'];
         [$timelineStart, $timelineEnd] = $this->timelineDateBounds($date);
 
-        $attendances = Attendance::query()
-            ->where('user_id', $employee->id)
-            ->whereDate('attendance_date', $date)
-            ->orderBy('check_in_at')
-            ->get();
+        $attendances = $this->timelineAttendances($employee, $date, $timelineStart, $timelineEnd);
         $attendance = $attendances->last();
 
         $device = EmployeeDevice::query()
@@ -122,14 +136,7 @@ class EmployeeTrackingController extends Controller
             ->latest('last_seen_at')
             ->first();
 
-        $trackings = $attendances->isEmpty()
-            ? collect()
-            : LocationTracking::query()
-                ->with('attendance')
-                ->whereIn('attendance_id', $attendances->pluck('id'))
-                ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
-                ->orderBy('id')
-                ->get();
+        $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd);
 
         if ($attendances->isEmpty()) {
             $response = [
@@ -166,7 +173,7 @@ class EmployeeTrackingController extends Controller
 
         $attendanceSeconds = $this->attendanceSeconds($attendances);
         $timelineEvents = $this->groupTimelineEvents($timeLineItems);
-        $trackingHealth = $this->trackingHealthPayload($attendances, $trackings);
+        $trackingHealth = $this->trackingHealthPayload($attendances, $trackings, $timeline);
 
         $response = [
             'employeeId' => $employee->id,
@@ -206,21 +213,10 @@ class EmployeeTrackingController extends Controller
         $date = $validated['date'];
         [$timelineStart, $timelineEnd] = $this->timelineDateBounds($date);
 
-        $attendances = Attendance::query()
-            ->where('user_id', $employee->id)
-            ->whereDate('attendance_date', $date)
-            ->orderBy('check_in_at')
-            ->get();
+        $attendances = $this->timelineAttendances($employee, $date, $timelineStart, $timelineEnd);
         $attendance = $attendances->last();
 
-        $trackings = $attendances->isEmpty()
-            ? collect()
-            : LocationTracking::query()
-                ->with('attendance')
-                ->whereIn('attendance_id', $attendances->pluck('id'))
-                ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
-                ->orderBy('id')
-                ->get();
+        $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd);
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
 
@@ -302,6 +298,15 @@ class EmployeeTrackingController extends Controller
             'center_latitude' => (float) $this->settingValue('map_center_latitude', 20.5937),
             'center_longitude' => (float) $this->settingValue('map_center_longitude', 78.9629),
             'zoom_level' => (int) $this->settingValue('map_zoom_level', 5),
+            'map_provider' => $this->settingValue('map_provider', 'google'),
+            'distance_unit' => $this->settingValue('distance_unit', 'km'),
+            'default_route_mode' => $this->settingValue('default_route_mode', 'actual'),
+            'actual_gps_route_enabled' => (bool) $this->settingValue('actual_gps_route_enabled', true),
+            'road_route_enabled' => (bool) $this->settingValue('road_route_enabled', true),
+            'show_offline_points' => (bool) $this->settingValue('show_offline_points', true),
+            'show_low_signal_points' => (bool) $this->settingValue('show_low_signal_points', true),
+            'show_gaps' => (bool) $this->settingValue('show_gaps', true),
+            'low_signal_threshold' => (int) $this->settingValue('low_signal_threshold', 2),
             'google_maps_api_key' => (string) $this->settingValue(
                 'google_maps_api_key',
                 config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
@@ -359,7 +364,13 @@ class EmployeeTrackingController extends Controller
 
     private function onlineThresholdSeconds(): int
     {
-        return max(60, (int) $this->settingValue('online_threshold_seconds', 1800));
+        return max(60, (int) $this->settingValue(
+            'online_threshold_seconds',
+            $this->secondsFromSetting(
+                (int) $this->settingValue('offline_check_time', 15),
+                (string) $this->settingValue('offline_check_time_type', 'minutes')
+            )
+        ));
     }
 
     private function isDeviceOnline(EmployeeDevice $device, int $thresholdSeconds): bool
@@ -398,17 +409,19 @@ class EmployeeTrackingController extends Controller
                     'activity' => $tracking->activity,
                     'batteryPercentage' => $tracking->battery_percentage,
                     'isGPSOn' => (bool) $tracking->is_gps_on,
-                    'isWifiOn' => false,
+                    'isWifiOn' => (bool) ($tracking->is_wifi_on ?? false),
+                    'isOffline' => (bool) ($tracking->is_offline ?? false),
                     'latitude' => (float) $tracking->latitude,
                     'longitude' => (float) $tracking->longitude,
                     'address' => null,
-                    'signalStrength' => null,
+                    'signalStrength' => $tracking->signal_strength,
                     'trackingType' => $tracking->type,
                     'segmentBreakBefore' => $previousTracking ? $this->shouldBreakTimelineSegment($previousTracking, $tracking) : false,
-                    'startTime' => $tracking->recorded_at?->format('h:i A'),
-                    'endTime' => $nextTracking?->recorded_at?->format('h:i A') ?? $tracking->recorded_at?->format('h:i A'),
-                    'elapseTime' => $nextTracking && $tracking->recorded_at
-                        ? $this->formatSecondsAsClock($tracking->recorded_at->diffInSeconds($nextTracking->recorded_at))
+                    'startTime' => $this->trackingTime($tracking)?->format('h:i A'),
+                    'endTime' => ($nextTracking ? $this->trackingTime($nextTracking) : null)?->format('h:i A')
+                        ?? $this->trackingTime($tracking)?->format('h:i A'),
+                    'elapseTime' => $nextTracking && $this->trackingTime($tracking) && $this->trackingTime($nextTracking)
+                        ? $this->formatSecondsAsClock($this->trackingTime($tracking)->diffInSeconds($this->trackingTime($nextTracking)))
                         : '00:00:00',
                     'distance' => round($distance, 2),
                 ];
@@ -480,7 +493,7 @@ class EmployeeTrackingController extends Controller
                 'id' => $tracking->id,
                 'accepted' => (bool) $result['accepted'],
                 'reason' => $result['reason'],
-                'recorded_at' => ($tracking->recorded_at ?? $tracking->created_at)?->toDateTimeString(),
+                'recorded_at' => $this->trackingTime($tracking)?->toDateTimeString(),
                 'attendance_id' => $tracking->attendance_id,
                 'activity' => $tracking->activity,
                 'type' => $tracking->type,
@@ -528,8 +541,11 @@ class EmployeeTrackingController extends Controller
                     ->map(function (LocationTracking $tracking, int $index) use ($ordered): int {
                         $nextTracking = $ordered->get($index + 1);
 
-                        return $nextTracking && $tracking->recorded_at
-                            ? $tracking->recorded_at->diffInSeconds($nextTracking->recorded_at)
+                        $trackingTime = $this->trackingTime($tracking);
+                        $nextTrackingTime = $nextTracking ? $this->trackingTime($nextTracking) : null;
+
+                        return $trackingTime && $nextTrackingTime
+                            ? $trackingTime->diffInSeconds($nextTrackingTime)
                             : 0;
                     })
                     ->sum();
@@ -545,22 +561,94 @@ class EmployeeTrackingController extends Controller
         });
     }
 
-    private function trackingHealthPayload($attendances, $trackings): array
+    private function trackingHealthPayload($attendances, $trackings, ?array $timeline = null): array
     {
-        $intervalSeconds = max(1, (int) $this->settingValue('tracking_interval_seconds', 30));
-        $gapThresholdSeconds = max($intervalSeconds * 3, (int) $this->settingValue('gps_max_inactive_gap_seconds', 90));
+        $intervalSeconds = $this->trackingIntervalSeconds();
+        $gapThresholdSeconds = max($intervalSeconds * 3, $this->largeGapSeconds());
         $attendanceSeconds = $this->attendanceSeconds($attendances);
         $savedRows = $trackings->count();
         $expectedUpdates = $attendanceSeconds > 0 ? ((int) floor($attendanceSeconds / $intervalSeconds) + 1) : 0;
         $trackingSpanSeconds = $this->trackingSpanSeconds($trackings);
         $missingSeconds = max(0, $attendanceSeconds - $trackingSpanSeconds);
         $gaps = $this->trackingGapReport($trackings, $gapThresholdSeconds);
+        $lowSignalThreshold = (int) $this->settingValue('low_signal_threshold', 2);
+        $lowSignalRows = $trackings->filter(fn (LocationTracking $tracking): bool => $this->signalValue($tracking->signal_strength) !== null
+            && $this->signalValue($tracking->signal_strength) <= $lowSignalThreshold);
+        $offlineRows = $trackings->filter(fn (LocationTracking $tracking): bool => (bool) ($tracking->is_offline ?? false));
+        $accuracyValues = $trackings
+            ->pluck('accuracy')
+            ->filter(fn ($value): bool => $value !== null && $value !== '')
+            ->map(fn ($value): float => (float) $value);
+        $batteryValues = $trackings
+            ->pluck('battery_percentage')
+            ->filter(fn ($value): bool => $value !== null && $value !== '')
+            ->map(fn ($value): int => (int) $value)
+            ->values();
+        $signalValues = $trackings
+            ->map(fn (LocationTracking $tracking): ?int => $this->signalValue($tracking->signal_strength))
+            ->filter(fn (?int $value): bool => $value !== null)
+            ->values();
+        $routePointsCount = (int) collect($timeline['polylineSegments'] ?? [])
+            ->pluck('points')
+            ->flatten(1)
+            ->count();
+        $mockRows = $trackings->filter(fn (LocationTracking $tracking): bool => (bool) ($tracking->is_mock_location ?? false));
+        $gpsOffRows = $trackings->filter(fn (LocationTracking $tracking): bool => ! (bool) ($tracking->is_gps_on ?? true));
+        $wifiOnRows = $trackings->filter(fn (LocationTracking $tracking): bool => (bool) ($tracking->is_wifi_on ?? false));
+        $lastMobileSyncAt = $trackings
+            ->map(fn (LocationTracking $tracking) => $tracking->created_at)
+            ->filter()
+            ->max();
+        $firstTracking = $trackings->first();
+        $lastTracking = $trackings->last();
+        $firstTrackingAt = $firstTracking ? $this->trackingTime($firstTracking) : null;
+        $lastTrackingAt = $lastTracking ? $this->trackingTime($lastTracking) : null;
+        $firstCheckInAt = $attendances
+            ->map(fn (Attendance $attendance) => $attendance->check_in_at)
+            ->filter()
+            ->sort()
+            ->first();
+        $firstTrackingDelaySeconds = $firstCheckInAt && $firstTrackingAt
+            ? max(0, $firstCheckInAt->diffInSeconds($firstTrackingAt))
+            : null;
+        $lateTrackingThresholdSeconds = max(120, $intervalSeconds * 2);
 
         return [
             'tracking_interval_seconds' => $intervalSeconds,
             'gap_threshold_seconds' => $gapThresholdSeconds,
             'expected_updates' => $expectedUpdates,
             'successful_updates' => $savedRows,
+            'saved_points_count' => $savedRows,
+            'route_points_count' => $routePointsCount,
+            'route_segments_count' => count($timeline['polylineSegments'] ?? []),
+            'offline_synced_points_count' => $offlineRows->count(),
+            'online_points_count' => max(0, $savedRows - $offlineRows->count()),
+            'low_signal_points_count' => $lowSignalRows->count(),
+            'low_signal_threshold' => $lowSignalThreshold,
+            'accuracy_min' => $accuracyValues->isNotEmpty() ? round($accuracyValues->min(), 2) : null,
+            'accuracy_max' => $accuracyValues->isNotEmpty() ? round($accuracyValues->max(), 2) : null,
+            'accuracy_avg' => $accuracyValues->isNotEmpty() ? round($accuracyValues->avg(), 2) : null,
+            'battery_start' => $batteryValues->first(),
+            'battery_end' => $batteryValues->last(),
+            'signal_min' => $signalValues->isNotEmpty() ? $signalValues->min() : null,
+            'signal_max' => $signalValues->isNotEmpty() ? $signalValues->max() : null,
+            'mock_points_count' => $mockRows->count(),
+            'gps_off_points_count' => $gpsOffRows->count(),
+            'wifi_on_points_count' => $wifiOnRows->count(),
+            'last_mobile_sync_at' => $lastMobileSyncAt
+                ? Carbon::parse($lastMobileSyncAt)->toDateTimeString()
+                : null,
+            'first_check_in_at' => $firstCheckInAt?->toDateTimeString(),
+            'first_tracking_at' => $firstTrackingAt?->toDateTimeString(),
+            'last_tracking_at' => $lastTrackingAt?->toDateTimeString(),
+            'first_tracking_delay_seconds' => $firstTrackingDelaySeconds,
+            'first_tracking_delay_duration' => $firstTrackingDelaySeconds !== null
+                ? $this->formatSecondsAsClock($firstTrackingDelaySeconds)
+                : null,
+            'tracking_started_late' => $firstTrackingDelaySeconds !== null && $firstTrackingDelaySeconds > $lateTrackingThresholdSeconds,
+            'late_tracking_threshold_seconds' => $lateTrackingThresholdSeconds,
+            'ignored_points_count' => (int) collect($timeline['rejectionReasons'] ?? [])->sum(),
+            'ignored_reasons' => $timeline['rejectionReasons'] ?? [],
             'tracking_coverage_percentage' => $expectedUpdates > 0 ? round(($savedRows / $expectedUpdates) * 100, 2) : 0,
             'attendance_seconds' => $attendanceSeconds,
             'attendance_duration' => $this->formatSecondsAsClock($attendanceSeconds),
@@ -573,17 +661,37 @@ class EmployeeTrackingController extends Controller
         ];
     }
 
+    private function signalValue(mixed $signalStrength): ?int
+    {
+        if ($signalStrength === null || $signalStrength === '') {
+            return null;
+        }
+
+        if (is_numeric($signalStrength)) {
+            return (int) $signalStrength;
+        }
+
+        if (preg_match('/-?\d+/', (string) $signalStrength, $matches)) {
+            return (int) $matches[0];
+        }
+
+        return null;
+    }
+
     private function trackingSpanSeconds($trackings): int
     {
         $ordered = $trackings->values();
         $first = $ordered->first();
         $last = $ordered->last();
 
-        if (! $first || ! $last || ! $first->recorded_at || ! $last->recorded_at) {
+        $firstTime = $first ? $this->trackingTime($first) : null;
+        $lastTime = $last ? $this->trackingTime($last) : null;
+
+        if (! $firstTime || ! $lastTime) {
             return 0;
         }
 
-        return (int) $first->recorded_at->diffInSeconds($last->recorded_at);
+        return (int) $firstTime->diffInSeconds($lastTime);
     }
 
     private function trackingGapReport($trackings, int $gapThresholdSeconds): array
@@ -595,11 +703,14 @@ class EmployeeTrackingController extends Controller
             $previous = $ordered->get($index - 1);
             $current = $ordered->get($index);
 
-            if (! $previous?->recorded_at || ! $current?->recorded_at) {
+            $previousTime = $previous ? $this->trackingTime($previous) : null;
+            $currentTime = $current ? $this->trackingTime($current) : null;
+
+            if (! $previousTime || ! $currentTime) {
                 continue;
             }
 
-            $seconds = $previous->recorded_at->diffInSeconds($current->recorded_at);
+            $seconds = $previousTime->diffInSeconds($currentTime);
             if ($seconds < $gapThresholdSeconds) {
                 continue;
             }
@@ -614,8 +725,8 @@ class EmployeeTrackingController extends Controller
             $gaps[] = [
                 'previous_tracking_id' => $previous->id,
                 'current_tracking_id' => $current->id,
-                'previous_recorded_at' => $previous->recorded_at->toDateTimeString(),
-                'current_recorded_at' => $current->recorded_at->toDateTimeString(),
+                'previous_recorded_at' => $previousTime->toDateTimeString(),
+                'current_recorded_at' => $currentTime->toDateTimeString(),
                 'gap_seconds' => $seconds,
                 'gap_minutes' => round($seconds / 60, 2),
                 'previous_coordinate' => [
@@ -813,11 +924,14 @@ class EmployeeTrackingController extends Controller
 
     private function isUnrealisticTimelineJump(LocationTracking $previous, LocationTracking $current, float $distanceKm): bool
     {
-        if (! $previous->recorded_at || ! $current->recorded_at) {
+        $previousTime = $this->trackingTime($previous);
+        $currentTime = $this->trackingTime($current);
+
+        if (! $previousTime || ! $currentTime) {
             return false;
         }
 
-        $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+        $seconds = max(1, $previousTime->diffInSeconds($currentTime));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
         return $speedKmh > 120;
@@ -829,7 +943,10 @@ class EmployeeTrackingController extends Controller
             return true;
         }
 
-        if (! $previous->recorded_at || ! $current->recorded_at) {
+        $previousTime = $this->trackingTime($previous);
+        $currentTime = $this->trackingTime($current);
+
+        if (! $previousTime || ! $currentTime) {
             return false;
         }
 
@@ -839,15 +956,16 @@ class EmployeeTrackingController extends Controller
             (float) $current->latitude,
             (float) $current->longitude
         );
-        $seconds = max(1, $previous->recorded_at->diffInSeconds($current->recorded_at));
+        $seconds = max(1, $previousTime->diffInSeconds($currentTime));
         $speedKmh = ($distanceKm / $seconds) * 3600;
 
-        $intervalSeconds = max(1, (int) $this->settingValue('tracking_interval_seconds', 30));
-        $gapThresholdSeconds = max($intervalSeconds * 3, (int) $this->settingValue('gps_max_inactive_gap_seconds', 90));
+        $intervalSeconds = $this->trackingIntervalSeconds();
+        $gapThresholdSeconds = max($intervalSeconds * 3, $this->largeGapSeconds());
+        $largeGapDistanceKm = ((float) $this->settingValue('large_gap_distance_meters', 2000)) / 1000;
 
         return $seconds >= $gapThresholdSeconds
-            || $distanceKm > 2
-            || $speedKmh > ((float) $this->settingValue('gps_max_speed_mps', 25) * 3.6);
+            || $distanceKm > $largeGapDistanceKm
+            || $speedKmh > ((float) $this->settingValue('maximum_speed_kmph', (float) $this->settingValue('gps_max_speed_mps', 25) * 3.6));
     }
 
     private function snapPointsToRoads(array $points, string $googleMapsKey): array
@@ -1002,16 +1120,47 @@ class EmployeeTrackingController extends Controller
     private function timelineGpsOptions(): array
     {
         return [
-            'minimum_distance_meters' => (float) $this->settingValue('gps_min_distance_metres', 5),
-            'max_accuracy_meters' => (float) $this->settingValue('gps_max_accuracy_metres', 50),
+            'minimum_distance_meters' => (float) $this->settingValue('gps_min_distance_metres', $this->settingValue('minimum_distance_meters', 30)),
+            'max_accuracy_meters' => (float) $this->settingValue('gps_max_accuracy_metres', $this->settingValue('minimum_accuracy', 50)),
             'simplify_after_points' => (int) $this->settingValue('timeline_simplify_after_points', 1000),
             'simplification_tolerance_meters' => (float) $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
             'douglas_peucker_tolerance_meters' => (float) $this->settingValue('gps_douglas_peucker_tolerance_metres', 3),
             'bearing_drift_distance_meters' => (float) $this->settingValue('gps_bearing_min_segment_distance_metres', $this->settingValue('gps_bearing_min_distance_metres', 10)),
             'bearing_change_degrees' => (float) $this->settingValue('timeline_bearing_change_degrees', 60),
             'max_bearing_change_degrees' => (float) $this->settingValue('gps_max_bearing_change_degrees', 45),
-            'max_computed_speed_kmh' => (float) $this->settingValue('gps_max_speed_mps', 25) * 3.6,
+            'max_computed_speed_kmh' => (float) $this->settingValue('maximum_speed_kmph', (float) $this->settingValue('gps_max_speed_mps', 25) * 3.6),
+            'tracking_interval_seconds' => $this->trackingIntervalSeconds(),
+            'gps_max_inactive_gap_seconds' => $this->largeGapSeconds(),
+            'large_gap_distance_meters' => (float) $this->settingValue('large_gap_distance_meters', 2000),
         ];
+    }
+
+    private function trackingIntervalSeconds(): int
+    {
+        return max(1, (int) $this->settingValue(
+            'tracking_interval_seconds',
+            $this->secondsFromSetting(
+                (int) $this->settingValue('location_update_interval', 15),
+                (string) $this->settingValue('location_update_interval_type', 'seconds')
+            )
+        ));
+    }
+
+    private function largeGapSeconds(): int
+    {
+        return max(1, (int) $this->settingValue(
+            'gps_max_inactive_gap_seconds',
+            (int) round(((float) $this->settingValue('large_gap_minutes', 10)) * 60)
+        ));
+    }
+
+    private function secondsFromSetting(int $value, string $type): int
+    {
+        return match ($type) {
+            'minutes' => $value * 60,
+            'hours' => $value * 3600,
+            default => $value,
+        };
     }
 
     private function timelineDateBounds(string $date): array
@@ -1020,6 +1169,47 @@ class EmployeeTrackingController extends Controller
         $start = \Illuminate\Support\Carbon::parse($date, $timezone)->startOfDay();
 
         return [$start, $start->copy()->endOfDay()];
+    }
+
+    private function timelineAttendances(User $employee, string $date, Carbon $timelineStart, Carbon $timelineEnd)
+    {
+        $start = $timelineStart->toDateTimeString();
+        $end = $timelineEnd->toDateTimeString();
+
+        return Attendance::query()
+            ->where('user_id', $employee->id)
+            ->where(function ($query) use ($date, $start, $end): void {
+                $query->whereDate('attendance_date', $date)
+                    ->orWhereBetween('check_in_at', [$start, $end])
+                    ->orWhereBetween('check_out_at', [$start, $end])
+                    ->orWhereExists(function ($subQuery) use ($start, $end): void {
+                        $subQuery->selectRaw('1')
+                            ->from('location_trackings')
+                            ->whereColumn('location_trackings.attendance_id', 'attendances.id')
+                            ->whereRaw('COALESCE(location_trackings.recorded_at, location_trackings.created_at) BETWEEN ? AND ?', [$start, $end]);
+                    });
+            })
+            ->orderBy('check_in_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function timelineTrackings($attendances, Carbon $timelineStart, Carbon $timelineEnd)
+    {
+        if ($attendances->isEmpty()) {
+            return collect();
+        }
+
+        return LocationTracking::query()
+            ->with('attendance')
+            ->whereIn('attendance_id', $attendances->pluck('id'))
+            ->whereRaw('COALESCE(recorded_at, created_at) BETWEEN ? AND ?', [
+                $timelineStart->toDateTimeString(),
+                $timelineEnd->toDateTimeString(),
+            ])
+            ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
+            ->orderBy('id')
+            ->get();
     }
 
     private function polylinePointsFromItems($items, string $latitudeKey = 'latitude', string $longitudeKey = 'longitude')
@@ -1126,5 +1316,10 @@ class EmployeeTrackingController extends Controller
             'travelling' => 'Travelling',
             default => filled($tracking->activity) ? (string) $tracking->activity : ucfirst((string) $tracking->type),
         };
+    }
+
+    private function trackingTime(LocationTracking $tracking): ?Carbon
+    {
+        return $tracking->recorded_at ?? $tracking->created_at;
     }
 }

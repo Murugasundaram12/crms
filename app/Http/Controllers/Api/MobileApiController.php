@@ -524,7 +524,6 @@ class MobileApiController extends Controller
 
     protected function validateTrackingPayload(Request $request, string $defaultType): array
     {
-        $maxAccuracyMeters = $this->settingValue('max_accuracy_meters', 50);
         $request->merge([
             'device_id' => $this->normalizeDeviceIdFromRequest($request) ?? $this->mobileTokenDeviceId($request),
         ]);
@@ -553,7 +552,7 @@ class MobileApiController extends Controller
             'model' => ['nullable', 'string', 'max:100'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
-            'accuracy' => ['nullable', 'numeric', 'min:0', 'max:' . $maxAccuracyMeters],
+            'accuracy' => ['nullable', 'numeric', 'min:0'],
             'speed' => ['nullable', 'numeric', 'min:0'],
             'bearing' => ['nullable', 'numeric', 'min:0', 'max:360'],
             'activity' => ['nullable', 'string', 'max:100'],
@@ -586,12 +585,6 @@ class MobileApiController extends Controller
         if (! $isGpsOn) {
             throw ValidationException::withMessages([
                 'is_gps_on' => 'GPS must be enabled.',
-            ]);
-        }
-
-        if ($isMock) {
-            throw ValidationException::withMessages([
-                'is_mock_location' => 'Mock location is not allowed.',
             ]);
         }
 
@@ -760,7 +753,25 @@ class MobileApiController extends Controller
             ->latest('check_in_at')
             ->first();
 
+        if ($attendance
+            && (bool) ($payload['is_offline'] ?? false)
+            && $attendance->check_out_at
+            && ! $this->settingValue('allow_sync_after_checkout', true)) {
+            $attendance = null;
+        }
+
         return $attendance ?? $this->activeAttendance($userId);
+    }
+
+    protected function isOfflinePayloadTooOld(array $payload): bool
+    {
+        if (! (bool) ($payload['is_offline'] ?? false) || empty($payload['recorded_at'])) {
+            return false;
+        }
+
+        $maxAgeHours = max(1, (int) $this->settingValue('max_offline_sync_age_hours', 72));
+
+        return Carbon::parse($payload['recorded_at'])->lt(now()->subHours($maxAgeHours));
     }
 
     protected function trackingPointRequest(Request $parent, array $payload): Request
@@ -1085,14 +1096,19 @@ class MobileApiController extends Controller
 
     protected function appSettingsPayload(): array
     {
+        $trackingSettings = $this->trackingSettingsPayload();
+
         return [
             'app_version' => $this->settingValue('app_version', '1.0.0'),
             'minimum_supported_version' => $this->settingValue('minimum_supported_version', '1.0.0'),
             'force_update' => $this->settingValue('force_update', false),
             'privacy_policy_url' => $this->settingValue('privacy_policy_url', ''),
-            'tracking_interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
-            'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
-            'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+            'tracking_settings' => $trackingSettings,
+            'tracking_interval_seconds' => $trackingSettings['trackingIntervalSeconds'],
+            'location_update_interval' => $trackingSettings['locationUpdateInterval'],
+            'location_update_interval_type' => $trackingSettings['locationUpdateIntervalType'],
+            'minimum_distance_meters' => $trackingSettings['minimumDistanceMeters'],
+            'max_accuracy_meters' => $trackingSettings['minimumAccuracy'],
             'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 30),
             'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 50),
             'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
@@ -1105,7 +1121,7 @@ class MobileApiController extends Controller
             'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
             'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
             'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
-            'online_threshold_seconds' => $this->onlineThresholdSeconds(),
+            'online_threshold_seconds' => $trackingSettings['onlineThresholdSeconds'],
             'attendance_time_type' => $this->settingValue('attendance_time_type', 'server_time'),
             'server_time' => now()->toISOString(),
             'timezone' => config('app.timezone'),
@@ -1128,11 +1144,13 @@ class MobileApiController extends Controller
             ],
             'tracking' => [
                 'enabled' => $this->settingValue('tracking_enabled', true),
-                'background_tracking_enabled' => $this->settingValue('tracking_enabled', true),
+                'live_location_enabled' => $this->settingValue('live_location_enabled', true),
+                'timeline_enabled' => $this->settingValue('timeline_enabled', true),
+                'background_tracking_enabled' => $this->settingValue('background_tracking_required', true),
                 'offline_tracking_enabled' => $this->settingValue('offline_tracking_enabled', true),
-                'interval_seconds' => $this->settingValue('tracking_interval_seconds', 60),
+                'interval_seconds' => $this->trackingIntervalSeconds(),
                 'minimum_distance_meters' => $this->settingValue('minimum_distance_meters', 30),
-                'max_accuracy_meters' => $this->settingValue('max_accuracy_meters', 50),
+                'max_accuracy_meters' => $this->settingValue('minimum_accuracy', $this->settingValue('max_accuracy_meters', 50)),
                 'timeline_minimum_distance_meters' => $this->settingValue('timeline_minimum_distance_meters', 30),
                 'timeline_max_accuracy_meters' => $this->settingValue('timeline_max_accuracy_meters', 50),
                 'timeline_simplify_after_points' => $this->settingValue('timeline_simplify_after_points', 1000),
@@ -1145,6 +1163,9 @@ class MobileApiController extends Controller
                 'gps_max_inactive_gap_seconds' => $this->settingValue('gps_max_inactive_gap_seconds', 3600),
                 'mock_location_allowed' => $this->settingValue('mock_location_allowed', false),
                 'online_threshold_seconds' => $this->onlineThresholdSeconds(),
+                'large_gap_minutes' => $this->settingValue('large_gap_minutes', 10),
+                'large_gap_distance_meters' => $this->settingValue('large_gap_distance_meters', 2000),
+                'low_signal_threshold' => $this->settingValue('low_signal_threshold', 2),
             ],
             'modules' => [
                 'tasks' => $this->settingValue('tasks_enabled', true),
@@ -1162,6 +1183,11 @@ class MobileApiController extends Controller
             'center_latitude' => $this->settingValue('map_center_latitude', 11.016844),
             'center_longitude' => $this->settingValue('map_center_longitude', 76.955832),
             'zoom_level' => $this->settingValue('map_zoom_level', 12),
+            'map_provider' => $this->settingValue('map_provider', 'google'),
+            'distance_unit' => $this->settingValue('distance_unit', 'km'),
+            'default_route_mode' => $this->settingValue('default_route_mode', 'actual'),
+            'actual_gps_route_enabled' => $this->settingValue('actual_gps_route_enabled', true),
+            'road_route_enabled' => $this->settingValue('road_route_enabled', true),
             'google_maps_api_key' => $this->settingValue(
                 'google_maps_api_key',
                 config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
@@ -1208,7 +1234,75 @@ class MobileApiController extends Controller
 
     protected function onlineThresholdSeconds(): int
     {
-        return max(60, (int) $this->settingValue('online_threshold_seconds', 1800));
+        return max(60, (int) $this->settingValue(
+            'online_threshold_seconds',
+            $this->secondsFromSetting(
+                (int) $this->settingValue('offline_check_time', 15),
+                (string) $this->settingValue('offline_check_time_type', 'minutes')
+            )
+        ));
+    }
+
+    protected function trackingIntervalSeconds(): int
+    {
+        return max(1, (int) $this->settingValue(
+            'tracking_interval_seconds',
+            $this->secondsFromSetting(
+                (int) $this->settingValue('location_update_interval', 15),
+                (string) $this->settingValue('location_update_interval_type', 'seconds')
+            )
+        ));
+    }
+
+    protected function trackingSettingsPayload(): array
+    {
+        $intervalSeconds = $this->trackingIntervalSeconds();
+        $onlineThresholdSeconds = $this->onlineThresholdSeconds();
+        $maximumSpeedKmph = (float) $this->settingValue(
+            'maximum_speed_kmph',
+            (float) $this->settingValue('gps_max_speed_mps', 33.3333) * 3.6
+        );
+        $lastUpdatedAt = Schema::hasTable('app_settings') ? AppSetting::query()->max('updated_at') : null;
+        $settingsVersion = $lastUpdatedAt ? Carbon::parse($lastUpdatedAt)->getTimestamp() : now()->getTimestamp();
+
+        return [
+            'settingsVersion' => $settingsVersion,
+            'trackingEnabled' => $this->settingValue('tracking_enabled', true),
+            'liveLocationEnabled' => $this->settingValue('live_location_enabled', true),
+            'timelineEnabled' => $this->settingValue('timeline_enabled', true),
+            'locationUpdateInterval' => $this->settingValue('location_update_interval', 15),
+            'locationUpdateIntervalType' => $this->settingValue('location_update_interval_type', 'seconds'),
+            'trackingIntervalSeconds' => $intervalSeconds,
+            'backgroundTrackingRequired' => $this->settingValue('background_tracking_required', true),
+            'offlineTrackingEnabled' => $this->settingValue('offline_tracking_enabled', true),
+            'minimumAccuracy' => (float) $this->settingValue('minimum_accuracy', $this->settingValue('max_accuracy_meters', 50)),
+            'minimumDistanceMeters' => (float) $this->settingValue('minimum_distance_meters', 30),
+            'maximumSpeedKmph' => $maximumSpeedKmph,
+            'mockLocationAllowed' => $this->settingValue('mock_location_allowed', false),
+            'bulkUploadLimit' => (int) $this->settingValue('bulk_upload_limit', 100),
+            'allowSyncAfterCheckout' => $this->settingValue('allow_sync_after_checkout', true),
+            'maxOfflineSyncAgeHours' => (int) $this->settingValue('max_offline_sync_age_hours', 72),
+            'offlineCheckTime' => (int) $this->settingValue('offline_check_time', 15),
+            'offlineCheckTimeType' => $this->settingValue('offline_check_time_type', 'minutes'),
+            'onlineThresholdSeconds' => $onlineThresholdSeconds,
+            'largeGapMinutes' => (float) $this->settingValue('large_gap_minutes', 10),
+            'largeGapDistanceMeters' => (float) $this->settingValue('large_gap_distance_meters', 2000),
+            'lowSignalThreshold' => (int) $this->settingValue('low_signal_threshold', 2),
+            'mapProvider' => $this->settingValue('map_provider', 'google'),
+            'defaultRouteMode' => $this->settingValue('default_route_mode', 'actual'),
+            'actualGpsRouteEnabled' => $this->settingValue('actual_gps_route_enabled', true),
+            'roadRouteEnabled' => $this->settingValue('road_route_enabled', true),
+            'distanceUnit' => $this->settingValue('distance_unit', 'km'),
+        ];
+    }
+
+    protected function secondsFromSetting(int $value, string $type): int
+    {
+        return match ($type) {
+            'minutes' => $value * 60,
+            'hours' => $value * 3600,
+            default => $value,
+        };
     }
 
     protected function isDeviceOnline(EmployeeDevice $device, ?int $thresholdSeconds = null): bool

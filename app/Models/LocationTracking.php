@@ -26,6 +26,10 @@ class LocationTracking extends Model
         'signal_strength',
         'type',
         'recorded_at',
+        'is_ignored',
+        'ignored_reason',
+        'processed_at',
+        'segment_index',
     ];
 
     protected $casts = [
@@ -40,6 +44,9 @@ class LocationTracking extends Model
         'is_offline' => 'boolean',
         'battery_percentage' => 'integer',
         'recorded_at' => 'datetime',
+        'is_ignored' => 'boolean',
+        'processed_at' => 'datetime',
+        'segment_index' => 'integer',
     ];
 
     public function attendance(): BelongsTo

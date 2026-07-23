@@ -3,7 +3,8 @@
 @section('title', 'Timeline')
 @section('content_class', 'pb-0')
 
-@php($googleMapsKey = $mapSettings['google_maps_api_key'] ?? '')
+@php($mapProvider = $mapSettings['map_provider'] ?? 'google')
+@php($googleMapsKey = $mapProvider === 'google' ? ($mapSettings['google_maps_api_key'] ?? '') : '')
 
 @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -75,6 +76,14 @@
             color: #fff;
         }
 
+        .bg-soft-purple {
+            background: #f3e8ff;
+        }
+
+        .text-purple {
+            color: #7c3aed;
+        }
+
         .attendance-session-card {
             border-radius: 6px;
         }
@@ -133,6 +142,14 @@
 
         .timeline-leaflet-pin.attendance-pin {
             background: #0d6efd;
+        }
+
+        .timeline-leaflet-pin.low-signal-pin {
+            background: #f59e0b;
+        }
+
+        .timeline-leaflet-pin.offline-pin {
+            background: #7c3aed;
         }
 
         .timeline-leaflet-pin.route-start-pin {
@@ -202,7 +219,14 @@
             selectedDate: @json(request('date')),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),
             gpsDebug: @json(request()->boolean('gps_debug')),
-            defaultRouteMode: @json(request('route_mode', 'road')),
+            defaultRouteMode: @json(request('route_mode', $mapSettings['default_route_mode'] ?? 'actual')),
+            actualGpsRouteEnabled: @json($mapSettings['actual_gps_route_enabled'] ?? true),
+            roadRouteEnabled: @json($mapSettings['road_route_enabled'] ?? true),
+            distanceUnit: @json($mapSettings['distance_unit'] ?? 'km'),
+            showOfflinePoints: @json($mapSettings['show_offline_points'] ?? true),
+            showLowSignalPoints: @json($mapSettings['show_low_signal_points'] ?? true),
+            showGaps: @json($mapSettings['show_gaps'] ?? true),
+            lowSignalThreshold: Number(@json($mapSettings['low_signal_threshold'] ?? 2)),
         };
 
         let timelineMap;
@@ -379,6 +403,8 @@
                         const isUnroutedMovementPoint = isMovementPoint && !routedPointIds.has(Number(item.id));
                         const shouldShowMarker = (isAttendancePoint || !isMovementPoint || items.length === 1 || isUnroutedMovementPoint) && !isCollapsedStill;
                         const markerNumber = shouldShowMarker ? ++visibleMarkerNumber : null;
+                        const isLowSignalPoint = isLowSignal(item);
+                        const isOfflinePoint = Boolean(item.isOffline);
 
                         if (shouldShowMarker) {
                             if (timelineMapProvider === 'google') {
@@ -389,6 +415,7 @@
                                         url: timelineConfig.iconBase + (isAttendancePoint ? 'location_pin_blue.png' : 'location_pin.png'),
                                         scaledSize: isAttendancePoint ? new google.maps.Size(34, 34) : new google.maps.Size(42, 42),
                                     },
+                                    title: markerTitle(item, isLowSignalPoint, isOfflinePoint),
                                     draggable: false,
                                 });
 
@@ -397,13 +424,19 @@
                                 });
                                 timelineMarkers.push(marker);
                             } else if (timelineMapProvider === 'leaflet') {
+                                const pinClasses = [
+                                    'timeline-leaflet-pin',
+                                    isAttendancePoint ? 'attendance-pin' : '',
+                                    isLowSignalPoint ? 'low-signal-pin' : '',
+                                    isOfflinePoint ? 'offline-pin' : '',
+                                ].filter(Boolean).join(' ');
                                 const icon = L.divIcon({
                                     className: '',
-                                    html: `<div class="timeline-leaflet-pin ${isAttendancePoint ? 'attendance-pin' : ''}"></div>`,
+                                    html: `<div class="${pinClasses}"></div>`,
                                     iconSize: [32, 32],
                                     iconAnchor: [16, 16],
                                 });
-                                const marker = L.marker([latitude, longitude], {icon, title: item.type || 'Tracking'})
+                                const marker = L.marker([latitude, longitude], {icon, title: markerTitle(item, isLowSignalPoint, isOfflinePoint)})
                                     .addTo(timelineMap);
                                 marker.on('click', function () {
                                     focusTimelinePoint(latitude, longitude);
@@ -445,6 +478,7 @@
                                     <h6 class="text-primary mb-1"><span class="badge bg-primary me-1">${displayNumber}</span>${escapeHtml(item.type || 'Tracking')}</h6>
                                     <span class="small">${accuracyHtml(item.accuracy)}</span>
                                 </div>
+                                ${trackingBadges(item)}
                                 <div class="small text-muted" id="${addressId}">${address}</div>
                             </div>
                         </div>
@@ -585,6 +619,7 @@
             }
 
             movementPaths.forEach(drawRouteBoundaryMarkers);
+            drawGapIndicators(data?.trackingHealth?.largest_gaps || []);
 
             if (routeMode === 'road' && timelineMapProvider === 'google') {
                 const directionsDistanceKm = await drawDirectionsSegments(directionsSegments, renderToken);
@@ -605,7 +640,19 @@
         }
 
         function currentRouteMode(data = lastTimelinePayload) {
-            return timelineMapProvider === 'google' && isRoadRouteReliable(data) ? 'road' : 'actual';
+            if (!timelineConfig.actualGpsRouteEnabled && timelineConfig.roadRouteEnabled && timelineMapProvider === 'google' && hasDirectionsSegments(data) && isRoadRouteReliable(data)) {
+                return 'road';
+            }
+
+            if (timelineConfig.defaultRouteMode === 'road' && timelineConfig.roadRouteEnabled && timelineMapProvider === 'google' && hasDirectionsSegments(data) && isRoadRouteReliable(data)) {
+                return 'road';
+            }
+
+            return 'actual';
+        }
+
+        function hasDirectionsSegments(data = {}) {
+            return Array.isArray(data?.directionsSegments) && data.directionsSegments.length > 0;
         }
 
         function isRoadRouteReliable(data = {}) {
@@ -624,20 +671,43 @@
             return true;
         }
 
-        function lowConfidenceRouteWarning(data = {}) {
+        function isLowConfidenceRoute(data = {}) {
             const health = data?.trackingHealth || {};
             const coverage = Number(health.tracking_coverage_percentage);
             const gapCount = Number(health.gap_count);
 
-            if ((Number.isFinite(coverage) && coverage < 60) || (Number.isFinite(gapCount) && gapCount > 0)) {
+            return (Number.isFinite(coverage) && coverage < 60)
+                || (Number.isFinite(gapCount) && gapCount > 0);
+        }
+
+        function lowConfidenceRouteWarning(data = {}) {
+            const health = data?.trackingHealth || {};
+
+            if (isLowConfidenceRoute(data)) {
+                const lateStart = health.tracking_started_late
+                    ? `<br>Tracking started late after check-in: ${escapeHtml(health.first_tracking_delay_duration || '-')}`
+                    : '';
+
                 return `
                     <div class="alert alert-warning py-2 px-3 mb-3 small">
-                        Low tracking coverage. Estimated road route is hidden because sparse GPS points can create wrong loops or jumps.
+                        Low tracking coverage. Showing partial actual GPS route only; missing periods are disconnected. Estimated road route is hidden because sparse GPS points can create wrong loops or jumps.${lateStart}
                     </div>
                 `;
             }
 
             return '';
+        }
+
+        function routeModeLabel(data = lastTimelinePayload) {
+            const routeMode = currentRouteMode(data);
+
+            if (routeMode === 'road') {
+                return 'Estimated Road Route';
+            }
+
+            return isLowConfidenceRoute(data)
+                ? 'Partial Actual GPS Route'
+                : 'Actual GPS Route';
         }
 
         function computeDistanceMeters(p1, p2) {
@@ -687,9 +757,12 @@
             return segments
                 .map((segment) => {
                     const points = Array.isArray(segment) ? segment : segment?.points;
-                    return Array.isArray(points)
+                    const path = Array.isArray(points)
                         ? filterPolylineCoordinates(points.map((point) => itemLatLng(point)).filter(Boolean), 3)
                         : [];
+                    path.isOfflineSegment = Array.isArray(points) && points.some((point) => Boolean(point?.isOffline || point?.is_offline));
+
+                    return path;
                 })
                 .filter((segment) => segment.length >= 2);
         }
@@ -762,19 +835,76 @@
                 const polyline = new google.maps.Polyline({
                     path: gPath,
                     geodesic: false,
-                    strokeColor: '#0000FF',
+                    strokeColor: latLngs.isOfflineSegment && timelineConfig.showOfflinePoints ? '#7c3aed' : '#0000FF',
+                    strokeOpacity: latLngs.isOfflineSegment && timelineConfig.showOfflinePoints ? 0 : 1,
                     strokeWeight: 3,
+                    icons: latLngs.isOfflineSegment && timelineConfig.showOfflinePoints ? [{
+                        icon: {path: 'M 0,-1 0,1', strokeColor: '#7c3aed', strokeOpacity: 1, scale: 3},
+                        offset: '0',
+                        repeat: '16px',
+                    }] : undefined,
                     map: timelineMap,
                 });
                 timelinePolylines.push(polyline);
             } else if (timelineMapProvider === 'leaflet') {
                 const coords = cleanPath.map((p) => [p.lat, p.lng]);
                 const polyline = L.polyline(coords, {
-                    color: '#0000FF',
+                    color: latLngs.isOfflineSegment && timelineConfig.showOfflinePoints ? '#7c3aed' : '#0000FF',
                     weight: 3,
+                    dashArray: latLngs.isOfflineSegment && timelineConfig.showOfflinePoints ? '8 8' : null,
                 }).addTo(timelineMap);
                 timelinePolylines.push(polyline);
             }
+        }
+
+        function drawGapIndicators(gaps) {
+            if (!timelineConfig.showGaps || !Array.isArray(gaps) || !gaps.length) {
+                return;
+            }
+
+            gaps.forEach((gap) => {
+                const previous = itemLatLng(gap.previous_coordinate || {});
+                const current = itemLatLng(gap.current_coordinate || {});
+
+                if (!previous || !current) {
+                    return;
+                }
+
+                const title = `Missing tracking gap: ${gap.gap_minutes || '-'} minutes`;
+                if (timelineMapProvider === 'google') {
+                    const line = new google.maps.Polyline({
+                        path: [
+                            new google.maps.LatLng(previous.lat, previous.lng),
+                            new google.maps.LatLng(current.lat, current.lng),
+                        ],
+                        geodesic: false,
+                        strokeColor: '#f59e0b',
+                        strokeOpacity: 0,
+                        strokeWeight: 3,
+                        icons: [{
+                            icon: {path: 'M 0,-1 0,1', strokeColor: '#f59e0b', strokeOpacity: 1, scale: 3},
+                            offset: '0',
+                            repeat: '14px',
+                        }],
+                        map: timelineMap,
+                    });
+                    line.addListener('click', function () {
+                        focusTimelinePoint(current.lat, current.lng);
+                    });
+                    timelinePolylines.push(line);
+                    return;
+                }
+
+                if (timelineMapProvider === 'leaflet') {
+                    const line = L.polyline([[previous.lat, previous.lng], [current.lat, current.lng]], {
+                        color: '#f59e0b',
+                        weight: 3,
+                        dashArray: '8 8',
+                    }).addTo(timelineMap);
+                    line.bindTooltip(title);
+                    timelinePolylines.push(line);
+                }
+            });
         }
 
         function drawRouteBoundaryMarkers(latLngs) {
@@ -997,49 +1127,20 @@
         }
 
         function overlayShell(contents, data = {}, gpsDistance = '-', directionsDistance = null) {
-            const routeModeLabel = currentRouteMode(data) === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
-            const roadDistance = directionsDistance !== null && directionsDistance !== undefined
-                ? `${Number(directionsDistance).toFixed(2)} KM`
-                : '-';
-            const health = data.trackingHealth || {};
-            const coverage = health.tracking_coverage_percentage !== undefined
-                ? `${Number(health.tracking_coverage_percentage).toFixed(2)}%`
-                : '-';
-            const missingDuration = health.missing_tracking_duration || '-';
-            const gapCount = health.gap_count !== undefined ? health.gap_count : '-';
-            const attendance = data.attendanceSessions?.[0]?.attendance || data.attendances?.[0] || {};
-            const stats = timelineItemStats(data.timeLineItems || []);
-
             return `
                 <div class="bg-white rounded shadow-lg p-3">
                     ${lowConfidenceRouteWarning(data)}
                     <div class="timeline-summary-card mb-3 shadow-lg">
                         <div class="card-body">
                             <dl class="row mb-0">
-                                <dt class="col-6">Route mode</dt>
-                                <dd class="col-6" id="timelineRouteModeLabel">${escapeHtml(routeModeLabel)}</dd>
+                                <dt class="col-6">Employee</dt>
+                                <dd class="col-6">${escapeHtml(data.employeeName || '-')}</dd>
                                 <dt class="col-6">Total tracked time</dt>
                                 <dd class="col-6">${escapeHtml(data.totalTrackedTime || '00:00:00')}</dd>
                                 <dt class="col-6">Total attendance time</dt>
                                 <dd class="col-6">${escapeHtml(data.totalAttendanceTime || '00:00:00')}</dd>
-                                <dt class="col-6">Check-in time</dt>
-                                <dd class="col-6">${escapeHtml(attendance.check_in_time || '-')}</dd>
-                                <dt class="col-6">Check-out time</dt>
-                                <dd class="col-6">${escapeHtml(attendance.check_out_time || '-')}</dd>
-                                <dt class="col-6">Tracking accuracy</dt>
-                                <dd class="col-6">${escapeHtml(stats.accuracyLabel)}</dd>
-                                <dt class="col-6">Battery</dt>
-                                <dd class="col-6">${escapeHtml(stats.batteryLabel)}</dd>
-                                <dt class="col-6">Actual GPS distance</dt>
+                                <dt class="col-6">Total travelled distance</dt>
                                 <dd class="col-6" id="timelineGpsDistance">${escapeHtml(gpsDistance)}</dd>
-                                <dt class="col-6">Estimated road distance</dt>
-                                <dd class="col-6" id="timelineDirectionsDistance">${escapeHtml(roadDistance)}</dd>
-                                <dt class="col-6">Tracking coverage</dt>
-                                <dd class="col-6">${escapeHtml(coverage)}</dd>
-                                <dt class="col-6">Missing tracking time</dt>
-                                <dd class="col-6">${escapeHtml(missingDuration)}</dd>
-                                <dt class="col-6">Large gaps</dt>
-                                <dd class="col-6">${escapeHtml(gapCount)}</dd>
                                 <dt class="col-6">Device information</dt>
                                 <dd class="col-6">${escapeHtml(data.deviceInfo || '-')}</dd>
                             </dl>
@@ -1048,6 +1149,97 @@
                     <div class="timeline mt-1" style="max-height:350px; overflow-y:auto;">${contents}</div>
                 </div>
             `;
+        }
+
+        function trackingSummaryWarnings(health = {}) {
+            const warnings = [];
+            const coverage = Number(health.tracking_coverage_percentage);
+            const gaps = Number(health.gap_count);
+            const offline = Number(health.offline_synced_points_count);
+            const mock = Number(health.mock_points_count);
+
+            if (health.tracking_started_late) {
+                warnings.push(`Tracking started late after check-in (${health.first_tracking_delay_duration || '-'})`);
+            }
+            if (Number.isFinite(coverage) && coverage < 80) {
+                warnings.push(`Low tracking coverage (${coverage.toFixed(2)}%)`);
+            }
+            if (Number.isFinite(gaps) && gaps > 0) {
+                warnings.push(`Large tracking gaps detected (${gaps})`);
+            }
+            if (Number.isFinite(offline) && offline > 0) {
+                warnings.push(`Offline points recovered (${offline})`);
+            }
+            if (Number.isFinite(mock) && mock > 0) {
+                warnings.push(`Mock location detected (${mock})`);
+            }
+
+            if (!warnings.length) {
+                return '';
+            }
+
+            return `<div class="alert alert-warning py-2 px-3 mb-3 small">${warnings.map(escapeHtml).join('<br>')}</div>`;
+        }
+
+        function coverageBadge(value) {
+            const coverage = Number(value);
+            if (!Number.isFinite(coverage)) {
+                return '-';
+            }
+
+            const cls = coverage >= 90 ? 'bg-success' : (coverage >= 60 ? 'bg-warning text-dark' : 'bg-danger');
+            return `<span class="badge ${cls}">${coverage.toFixed(2)}%</span>`;
+        }
+
+        function gapBadge(value) {
+            const gaps = Number(value);
+            if (!Number.isFinite(gaps)) {
+                return '-';
+            }
+
+            return gaps > 0
+                ? `<span class="badge bg-warning text-dark">${gaps}</span>`
+                : '<span class="badge bg-success">0</span>';
+        }
+
+        function mockBadge(count) {
+            const mockCount = Number(count);
+            return mockCount > 0
+                ? `<span class="badge bg-danger">${mockCount}</span>`
+                : '<span class="badge bg-success">No</span>';
+        }
+
+        function accuracySummary(health, stats) {
+            if (health.accuracy_min !== null && health.accuracy_min !== undefined && health.accuracy_max !== null && health.accuracy_max !== undefined) {
+                return `${Number(health.accuracy_min).toFixed(0)}m - ${Number(health.accuracy_max).toFixed(0)}m`;
+            }
+
+            return stats.accuracyLabel;
+        }
+
+        function batterySummary(health, stats) {
+            if (health.battery_start !== null && health.battery_start !== undefined && health.battery_end !== null && health.battery_end !== undefined) {
+                return `${health.battery_start}% - ${health.battery_end}%`;
+            }
+
+            return stats.batteryLabel;
+        }
+
+        function signalSummary(health) {
+            if (health.signal_min !== null && health.signal_min !== undefined && health.signal_max !== null && health.signal_max !== undefined) {
+                return `${health.signal_min} - ${health.signal_max}`;
+            }
+
+            return '-';
+        }
+
+        function formatDateTimeTime(value) {
+            if (!value) {
+                return '-';
+            }
+
+            const parts = String(value).split(' ');
+            return parts.length > 1 ? parts[1] : value;
         }
 
         function timelineItemStats(items) {
@@ -1068,6 +1260,51 @@
             return {accuracyLabel, batteryLabel};
         }
 
+        function trackingBadges(item) {
+            const badges = [];
+            if (item.isOffline && timelineConfig.showOfflinePoints) {
+                badges.push('<span class="badge bg-soft-purple text-purple me-1">Offline synced</span>');
+            }
+            if (isLowSignal(item) && timelineConfig.showLowSignalPoints) {
+                badges.push(`<span class="badge bg-soft-warning text-warning me-1">Low signal ${escapeHtml(item.signalStrength)}</span>`);
+            }
+            if (!item.isGPSOn) {
+                badges.push('<span class="badge bg-soft-danger text-danger me-1">GPS off</span>');
+            }
+
+            return badges.length ? `<div class="mb-2">${badges.join('')}</div>` : '';
+        }
+
+        function isLowSignal(item) {
+            if (!timelineConfig.showLowSignalPoints) {
+                return false;
+            }
+            const signal = signalNumber(item.signalStrength);
+            return signal !== null && signal <= timelineConfig.lowSignalThreshold;
+        }
+
+        function signalNumber(value) {
+            if (value === null || value === undefined || value === '') {
+                return null;
+            }
+            if (Number.isFinite(Number(value))) {
+                return Number(value);
+            }
+            const match = String(value).match(/-?\d+/);
+            return match ? Number(match[0]) : null;
+        }
+
+        function markerTitle(item, isLowSignalPoint, isOfflinePoint) {
+            const parts = [item.type || 'Tracking'];
+            if (isOfflinePoint) {
+                parts.push('Offline synced');
+            }
+            if (isLowSignalPoint) {
+                parts.push(`Low signal ${item.signalStrength}`);
+            }
+            return parts.join(' - ');
+        }
+
         function updateDistanceDisplay(gpsDistance = null, directionsDistance = null) {
             const gpsNode = document.getElementById('timelineGpsDistance');
             if (gpsNode && gpsDistance !== null) {
@@ -1081,7 +1318,7 @@
 
             const routeModeNode = document.getElementById('timelineRouteModeLabel');
             if (routeModeNode) {
-                routeModeNode.textContent = currentRouteMode(lastTimelinePayload) === 'road' ? 'Estimated Road Route' : 'Actual GPS Route';
+                routeModeNode.textContent = routeModeLabel(lastTimelinePayload);
             }
         }
 

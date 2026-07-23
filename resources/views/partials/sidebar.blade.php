@@ -123,6 +123,10 @@
                                             href="{{ route('tracking.live-map') }}">Live Location</a></li>
                                     <li><a class="{{ request()->routeIs('tracking.card-view') ? 'active' : '' }}"
                                             href="{{ route('tracking.card-view') }}">Card View</a></li>
+                                    <li><a class="{{ request()->routeIs('tracking.debug-report') ? 'active' : '' }}"
+                                            href="{{ route('tracking.debug-report') }}">Debug Report</a></li>
+                                    <li><a class="{{ request()->routeIs('tracking.settings') ? 'active' : '' }}"
+                                            href="{{ route('tracking.settings') }}">Settings</a></li>
                                 </ul>
                             </li>
                         @endif

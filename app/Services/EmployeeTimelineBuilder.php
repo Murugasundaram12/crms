@@ -23,6 +23,7 @@ class EmployeeTimelineBuilder
             'tracking_interval_seconds' => $options['tracking_interval_seconds'] ?? null,
             'gps_max_inactive_gap_seconds' => $options['max_inactive_gap_seconds'] ?? null,
             'gps_douglas_peucker_tolerance_metres' => $options['douglas_peucker_tolerance_meters'] ?? null,
+            'timeline_simplify_after_points' => $options['simplify_after_points'] ?? null,
         ]);
 
         $items = collect();
@@ -165,6 +166,14 @@ class EmployeeTimelineBuilder
                 continue;
             }
 
+            if ($this->isWalkingActivity($tracking)
+                && ($metrics['speed_mps'] ?? 0) > (float) ($settings['gps_max_walking_speed_mps'] ?? 3.5)) {
+                $this->rejectDiagnostic($diagnostic, 'walking_speed_exceeded', $reasons);
+                $diagnostics[] = $diagnostic;
+                $previousRaw = $tracking;
+                continue;
+            }
+
             $spike = $previousPrevious
                 ? $this->spikeDecision($previousPrevious, $previous, $tracking, $settings)
                 : ['reject_previous' => false, 'metrics' => []];
@@ -246,7 +255,11 @@ class EmployeeTimelineBuilder
             $trackingType === 'proof_post' => 'proofPost',
             in_array($trackingType, ['walking', 'walk'], true) => 'walk',
             $trackingType === 'vehicle' => 'vehicle',
-            $trackingType === 'travelling' && in_array($activity, ['activitytype.still', 'still'], true) && $tracking->speed !== null && (float) $tracking->speed <= 0.0 => 'still',
+            $trackingType === 'travelling'
+                && in_array($activity, ['activitytype.still', 'still'], true)
+                && $tracking->speed !== null
+                && (float) $tracking->speed <= 0.0
+                && (! $previous || $this->distanceMetres($previous, $tracking) <= (float) $this->gpsValidator->settings()['gps_min_distance_metres']) => 'still',
             $trackingType === 'travelling' && in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
             $trackingType === 'travelling' => 'vehicle',
             in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
@@ -266,33 +279,38 @@ class EmployeeTimelineBuilder
             return true;
         }
 
-        if (! $previous->recorded_at || ! $current->recorded_at) {
+        $previousTime = $this->trackingTime($previous);
+        $currentTime = $this->trackingTime($current);
+
+        if (! $previousTime || ! $currentTime) {
             return false;
         }
 
-        if ($previous->recorded_at->toDateString() !== $current->recorded_at->toDateString()) {
+        if ($previousTime->toDateString() !== $currentTime->toDateString()) {
             return true;
         }
 
-        $seconds = $current->recorded_at->getTimestamp() - $previous->recorded_at->getTimestamp();
+        $seconds = $currentTime->getTimestamp() - $previousTime->getTimestamp();
         $intervalSeconds = max(1, (int) ($settings['tracking_interval_seconds'] ?? 30));
-        $gapThresholdSeconds = max($intervalSeconds * 3, (int) ($settings['gps_max_inactive_gap_seconds'] ?? 90));
+        $missedUpdateThresholdSeconds = $intervalSeconds * 3;
+        $gapThresholdSeconds = max(1, (int) ($settings['gps_max_inactive_gap_seconds'] ?? 90));
 
-        if ($seconds <= 0 || $seconds >= $gapThresholdSeconds) {
+        if ($seconds <= 0 || $seconds >= $missedUpdateThresholdSeconds || $seconds >= $gapThresholdSeconds) {
             return true;
         }
 
         $distanceKm = $this->distanceMetres($previous, $current) / 1000;
         $speedKmh = ($distanceKm / max(1, $seconds)) * 3600;
+        $largeGapDistanceKm = ((float) ($settings['large_gap_distance_meters'] ?? 2000)) / 1000;
 
-        return $distanceKm > 2 || $speedKmh > ((float) ($settings['gps_max_speed_mps'] ?? 25) * 3.6);
+        return $distanceKm > $largeGapDistanceKm || $speedKmh > ((float) ($settings['gps_max_speed_mps'] ?? 25) * 3.6);
     }
 
     private function orderedTrackings(Collection $trackings): Collection
     {
         return $trackings
             ->sortBy([
-                fn (LocationTracking $a, LocationTracking $b) => (($a->recorded_at ?? $a->created_at)?->getTimestamp() ?? 0) <=> (($b->recorded_at ?? $b->created_at)?->getTimestamp() ?? 0),
+                fn (LocationTracking $a, LocationTracking $b) => ($this->trackingTime($a)?->getTimestamp() ?? 0) <=> ($this->trackingTime($b)?->getTimestamp() ?? 0),
                 fn (LocationTracking $a, LocationTracking $b) => ($a->id ?? 0) <=> ($b->id ?? 0),
             ])
             ->values();
@@ -319,8 +337,8 @@ class EmployeeTimelineBuilder
             'signalStrength' => $tracking->signal_strength,
             'trackingType' => $tracking->type,
             'segmentBreakBefore' => $segmentBreak,
-            'startTime' => $tracking->recorded_at?->format('h:i A'),
-            'endTime' => $tracking->recorded_at?->format('h:i A'),
+            'startTime' => $this->trackingTime($tracking)?->format('h:i A'),
+            'endTime' => $this->trackingTime($tracking)?->format('h:i A'),
             'elapseTime' => '00:00:00',
             'distance' => 0,
         ];
@@ -351,7 +369,7 @@ class EmployeeTimelineBuilder
             'lat' => (float) $tracking->latitude,
             'lng' => (float) $tracking->longitude,
             'id' => $tracking->id,
-            'recorded_at' => $tracking->recorded_at?->format('h:i A'),
+            'recorded_at' => $this->trackingTime($tracking)?->format('h:i A'),
             'activity' => $tracking->activity,
             'type' => $tracking->type,
             'is_offline' => (bool) ($tracking->is_offline ?? false),
@@ -371,10 +389,13 @@ class EmployeeTimelineBuilder
 
         if (count($segment['unsimplified_points']) >= 2) {
             $segment['distance_km'] = round($this->pointsDistanceKm($segment['unsimplified_points']), 2);
-            $segment['points'] = $this->simplifyPoints(
-                $segment['unsimplified_points'],
-                (float) ($settings['gps_douglas_peucker_tolerance_metres'] ?? 3)
-            );
+            $simplifyAfterPoints = max(2, (int) ($settings['timeline_simplify_after_points'] ?? 1000));
+            $segment['points'] = count($segment['unsimplified_points']) > $simplifyAfterPoints
+                ? $this->simplifyPoints(
+                    $segment['unsimplified_points'],
+                    (float) ($settings['gps_douglas_peucker_tolerance_metres'] ?? 3)
+                )
+                : array_values($segment['unsimplified_points']);
             $segments[] = $segment;
         }
 
@@ -504,8 +525,10 @@ class EmployeeTimelineBuilder
     private function movementMetrics(LocationTracking $previous, LocationTracking $current, ?LocationTracking $previousPrevious, array $settings): array
     {
         $distance = $this->distanceMetres($previous, $current);
-        $time = $current->recorded_at && $previous->recorded_at
-            ? $current->recorded_at->getTimestamp() - $previous->recorded_at->getTimestamp()
+        $previousTime = $this->trackingTime($previous);
+        $currentTime = $this->trackingTime($current);
+        $time = $currentTime && $previousTime
+            ? $currentTime->getTimestamp() - $previousTime->getTimestamp()
             : 0;
         $speed = $time > 0 ? $distance / $time : null;
         $bearing = $this->gpsValidator->bearingDegrees(
@@ -553,8 +576,11 @@ class EmployeeTimelineBuilder
         $bAccuracy = (float) ($b->accuracy ?? 999);
         $edgeAccuracy = max((float) ($a->accuracy ?? 999), (float) ($c->accuracy ?? 999));
         $detourRatio = ($ab + $bc) / max(1.0, $ac);
-        $timeAb = $b->recorded_at && $a->recorded_at ? max(1, $b->recorded_at->getTimestamp() - $a->recorded_at->getTimestamp()) : 1;
-        $timeBc = $c->recorded_at && $b->recorded_at ? max(1, $c->recorded_at->getTimestamp() - $b->recorded_at->getTimestamp()) : 1;
+        $aTime = $this->trackingTime($a);
+        $bTime = $this->trackingTime($b);
+        $cTime = $this->trackingTime($c);
+        $timeAb = $bTime && $aTime ? max(1, $bTime->getTimestamp() - $aTime->getTimestamp()) : 1;
+        $timeBc = $cTime && $bTime ? max(1, $cTime->getTimestamp() - $bTime->getTimestamp()) : 1;
         $detourSpeed = ($ab + $bc) / ($timeAb + $timeBc);
 
         $reject = $ab >= (float) $settings['gps_bearing_min_distance_metres']
@@ -701,7 +727,10 @@ class EmployeeTimelineBuilder
 
     private function isPostStillDrift(LocationTracking $still, LocationTracking $current, array $settings): bool
     {
-        if (! $still->recorded_at || ! $current->recorded_at) {
+        $stillTime = $this->trackingTime($still);
+        $currentTime = $this->trackingTime($current);
+
+        if (! $stillTime || ! $currentTime) {
             return false;
         }
 
@@ -710,7 +739,7 @@ class EmployeeTimelineBuilder
             return false;
         }
 
-        $seconds = max(1, $current->recorded_at->getTimestamp() - $still->recorded_at->getTimestamp());
+        $seconds = max(1, $currentTime->getTimestamp() - $stillTime->getTimestamp());
         $computedSpeed = $distance / $seconds;
         $reportedSpeed = $current->speed !== null ? (float) $current->speed : null;
 
@@ -719,9 +748,19 @@ class EmployeeTimelineBuilder
             && (float) ($current->accuracy ?? 999) <= (float) $settings['gps_max_accuracy_metres'];
     }
 
+    private function isWalkingActivity(LocationTracking $tracking): bool
+    {
+        return in_array(strtolower((string) $tracking->activity), ['activitytype.walking', 'walking', 'walk'], true);
+    }
+
     private function timestampKey(LocationTracking $tracking): ?string
     {
-        return $tracking->recorded_at ? (string) $tracking->recorded_at->getTimestamp() : null;
+        return $this->trackingTime($tracking) ? (string) $this->trackingTime($tracking)->getTimestamp() : null;
+    }
+
+    private function trackingTime(LocationTracking $tracking)
+    {
+        return $tracking->recorded_at ?? $tracking->created_at;
     }
 
     private function coordinateKey(LocationTracking $tracking): string
@@ -742,7 +781,7 @@ class EmployeeTimelineBuilder
             'latitude' => $tracking->latitude !== null ? (float) $tracking->latitude : null,
             'longitude' => $tracking->longitude !== null ? (float) $tracking->longitude : null,
             'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : null,
-            'recorded_at' => $tracking->recorded_at?->toDateTimeString(),
+            'recorded_at' => $this->trackingTime($tracking)?->toDateTimeString(),
             'distance_metres' => null,
             'time_difference_seconds' => null,
             'speed_mps' => null,

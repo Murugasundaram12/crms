@@ -18,6 +18,7 @@ Route::post('/auth/login', [MobileAuthController::class, 'login']);
 Route::get('/V1/getAppSettings', [MobileSettingsDashboardController::class, 'getAppSettings']);
 Route::get('/V1/getModuleSettings', [MobileSettingsDashboardController::class, 'getModuleSettings']);
 Route::get('/V1/getMapSettings', [MobileSettingsDashboardController::class, 'getMapSettings']);
+Route::get('/tracking/settings', [MobileAttendanceTrackingController::class, 'trackingSettings']);
 
 Route::middleware('mobile.api')->group(function () {
     Route::post('/logout', [MobileAuthController::class, 'logout']);
