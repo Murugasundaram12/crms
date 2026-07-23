@@ -3,6 +3,7 @@
 @php($selectedSourceType = old('source_type', $assignment?->source_type ?? ($prefill['source_type'] ?? 'office')))
 @php($selectedDestinationType = old('destination_type', $assignment?->destination_type ?? ($prefill['destination_type'] ?? 'site')))
 @php($selectedToolMaterialId = old('tool_material_id', $assignment?->tool_material_id ?? ($selectedToolMaterialId ?? null)))
+@php($selectedStatus = old('status', $assignment?->status ?? ($prefill['status'] ?? 'transferred')))
 @php($lockTransaction = filter_var($prefill['lock_transaction'] ?? false, FILTER_VALIDATE_BOOLEAN))
 
 <div class="card border-0 shadow-sm">
@@ -10,7 +11,8 @@
         <div class="row g-3">
             <div class="col-md-6">
                 <label class="form-label">Reference No</label>
-                <input type="text" name="reference_no" class="form-control" value="{{ old('reference_no', $assignment?->reference_no) }}" placeholder="Auto generated if empty">
+                <input type="text" name="reference_no" class="form-control"
+                    value="{{ old('reference_no', $assignment?->reference_no) }}" placeholder="Auto generated if empty">
                 @error('reference_no')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
@@ -18,7 +20,7 @@
                 <label class="form-label">Status</label>
                 <select name="status" class="form-select" required>
                     @foreach($statuses as $value => $label)
-                        <option value="{{ $value }}" @selected(old('status', $assignment?->status ?? ($prefill['status'] ?? 'draft')) === $value)>{{ $label }}</option>
+                        <option value="{{ $value }}" @selected($selectedStatus === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
                 @error('status')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
@@ -42,7 +44,8 @@
                 @if($lockTransaction)
                     <input type="hidden" name="transaction_type" value="{{ $selectedTransactionType }}">
                 @endif
-                <select name="{{ $lockTransaction ? '_transaction_type_display' : 'transaction_type' }}" id="toolTransactionType" class="form-select" required @disabled($lockTransaction)>
+                <select name="{{ $lockTransaction ? '_transaction_type_display' : 'transaction_type' }}"
+                    id="toolTransactionType" class="form-select" required @disabled($lockTransaction)>
                     @foreach($transactionTypes as $value => $label)
                         <option value="{{ $value }}" @selected($selectedTransactionType === $value)>{{ $label }}</option>
                     @endforeach
@@ -107,19 +110,22 @@
 
             <div class="col-md-4">
                 <label class="form-label">Quantity</label>
-                <input type="number" step="0.01" name="quantity" id="toolQuantity" class="form-control" value="{{ old('quantity', $assignment?->quantity ?? ($prefill['quantity'] ?? 1)) }}" required>
+                <input type="number" step="0.01" name="quantity" id="toolQuantity" class="form-control"
+                    value="{{ old('quantity', $assignment?->quantity ?? ($prefill['quantity'] ?? 1)) }}" required>
                 @error('quantity')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Rate</label>
-                <input type="number" step="0.01" name="rate" id="toolRate" class="form-control" value="{{ old('rate', $assignment?->rate ?? ($prefill['rate'] ?? 0)) }}" required>
+                <input type="number" step="0.01" name="rate" id="toolRate" class="form-control"
+                    value="{{ old('rate', $assignment?->rate ?? ($prefill['rate'] ?? 0)) }}" required>
                 @error('rate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Amount</label>
-                <input type="number" step="0.01" name="amount" id="toolAmount" class="form-control" value="{{ old('amount', $assignment?->amount ?? ($prefill['amount'] ?? 0)) }}">
+                <input type="number" step="0.01" name="amount" id="toolAmount" class="form-control"
+                    value="{{ old('amount', $assignment?->amount ?? ($prefill['amount'] ?? 0)) }}">
                 @error('amount')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
@@ -141,26 +147,30 @@
 
             <div class="col-md-4">
                 <label class="form-label">Vehicle No</label>
-                <input type="text" name="vehicle_no" class="form-control" value="{{ old('vehicle_no', $assignment?->vehicle_no ?? ($prefill['vehicle_no'] ?? null)) }}">
+                <input type="text" name="vehicle_no" class="form-control"
+                    value="{{ old('vehicle_no', $assignment?->vehicle_no ?? ($prefill['vehicle_no'] ?? null)) }}">
                 @error('vehicle_no')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Purpose</label>
-                <input type="text" name="purpose" class="form-control" value="{{ old('purpose', $assignment?->purpose ?? ($prefill['purpose'] ?? null)) }}">
+                <input type="text" name="purpose" class="form-control"
+                    value="{{ old('purpose', $assignment?->purpose ?? ($prefill['purpose'] ?? null)) }}">
                 @error('purpose')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-6">
                 <label class="form-label">Date & Time</label>
                 <input type="datetime-local" name="transferred_at" class="form-control"
-                    value="{{ old('transferred_at', $assignment?->transferred_at?->format('Y-m-d\TH:i') ?? now()->format('Y-m-d\TH:i')) }}" required>
+                    value="{{ old('transferred_at', $assignment?->transferred_at?->format('Y-m-d\TH:i') ?? now()->format('Y-m-d\TH:i')) }}"
+                    required>
                 @error('transferred_at')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="col-md-6">
                 <label class="form-label">Notes</label>
-                <textarea name="notes" class="form-control" rows="2">{{ old('notes', $assignment?->notes ?? ($prefill['notes'] ?? null)) }}</textarea>
+                <textarea name="notes" class="form-control"
+                    rows="2">{{ old('notes', $assignment?->notes ?? ($prefill['notes'] ?? null)) }}</textarea>
                 @error('notes')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 

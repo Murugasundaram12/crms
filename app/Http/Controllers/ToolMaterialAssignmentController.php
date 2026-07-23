@@ -166,7 +166,7 @@ class ToolMaterialAssignmentController extends Controller
 
     public function update(Request $request, ToolMaterialAssignment $toolsMaterialAssignment): RedirectResponse
     {
-        $validated = $this->validateAssignment($request);
+        $validated = $this->validateAssignment($request, $toolsMaterialAssignment);
 
         DB::transaction(function () use ($toolsMaterialAssignment, $validated) {
             $this->applyVendorReturnBalance($toolsMaterialAssignment, -1);
@@ -187,12 +187,12 @@ class ToolMaterialAssignmentController extends Controller
         return redirect()->route('tools-material-assignments.index')->with('success', 'Tool / material transfer deleted successfully.');
     }
 
-    private function validateAssignment(Request $request): array
+    private function validateAssignment(Request $request, ?ToolMaterialAssignment $editingAssignment = null): array
     {
         $validated = $request->validate([
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'reference_no' => ['nullable', 'string', 'max:100', Rule::unique('tool_material_assignments', 'reference_no')->ignore($request->route('toolsMaterialAssignment')?->id)],
-            'status' => ['required', Rule::in([...array_keys(self::STATUSES), 'completed'])],
+            'status' => ['nullable', Rule::in([...array_keys(self::STATUSES), 'completed'])],
             'from_project_id' => ['nullable', 'exists:projects,id'],
             'to_project_id' => ['nullable', 'exists:projects,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
@@ -220,6 +220,9 @@ class ToolMaterialAssignmentController extends Controller
         $validated['reference_no'] = filled($validated['reference_no'] ?? null)
             ? $validated['reference_no']
             : $this->nextReferenceNumber();
+        $validated['status'] = filled($validated['status'] ?? null)
+            ? $validated['status']
+            : $this->defaultAssignmentStatus($validated['transaction_type'] ?? null);
         $validated['handled_by'] = Auth::id();
         $amount = (float) ($validated['amount'] ?? 0);
         if ($amount <= 0 && (float) $validated['rate'] > 0) {
@@ -232,7 +235,7 @@ class ToolMaterialAssignmentController extends Controller
 
         $this->normalizeTransactionLocations($validated);
         if (ToolMaterialAssignment::isStockEffectiveStatus($validated['status'])) {
-            $this->ensureStockAvailable($validated, $request->route('toolsMaterialAssignment'));
+            $this->ensureStockAvailable($validated, $editingAssignment);
         }
 
         return $validated;
@@ -409,6 +412,19 @@ class ToolMaterialAssignmentController extends Controller
                 ? 'site:' . (int) $validated['from_project_id']
                 : 'office',
             default => null,
+        };
+    }
+
+    private function defaultAssignmentStatus(?string $transactionType): string
+    {
+        return match ($transactionType) {
+            'purchase',
+            'issue_to_site',
+            'return_to_office',
+            'site_to_site',
+            'return_to_vendor',
+            'damage_wastage' => 'transferred',
+            default => 'draft',
         };
     }
 

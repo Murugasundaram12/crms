@@ -400,7 +400,9 @@ trait MobileInventoryEndpoints
         $validated['reference_no'] = filled($validated['reference_no'] ?? null)
             ? $validated['reference_no']
             : $this->nextInventoryReferenceNumber();
-        $validated['status'] = $validated['status'] ?? 'draft';
+        $validated['status'] = filled($validated['status'] ?? null)
+            ? $validated['status']
+            : $this->defaultInventoryStatus($validated['transaction_type'] ?? null);
         $validated['handled_by'] = $request->user()->id;
         $validated['transferred_at'] = $validated['transferred_at'] ?? now();
         $validated['amount'] = round((float) ($validated['amount'] ?? 0) > 0
@@ -559,6 +561,19 @@ trait MobileInventoryEndpoints
         }
 
         app(CrmBalanceService::class)->adjustVendorAdvance((int) $assignment->vendor_id, (float) $assignment->amount * $direction);
+    }
+
+    private function defaultInventoryStatus(?string $transactionType): string
+    {
+        return match ($transactionType) {
+            'purchase',
+            'issue_to_site',
+            'return_to_office',
+            'site_to_site',
+            'return_to_vendor',
+            'damage_wastage' => 'transferred',
+            default => 'draft',
+        };
     }
 
     private function nextInventoryReferenceNumber(): string

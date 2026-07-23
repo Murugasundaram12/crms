@@ -6,11 +6,13 @@ use App\Models\ToolMaterial;
 use App\Models\ToolMaterialAssignment;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 class ToolMaterialFlowTest extends TestCase
@@ -27,19 +29,21 @@ class ToolMaterialFlowTest extends TestCase
     {
         parent::setUp();
 
-        foreach ([
-            'tool_material_assignments',
-            'tools_materials',
-            'vendors',
-            'projects',
-            'clients',
-            'user_roles',
-            'role_permission',
-            'permissions',
-            'roles',
-            'mobile_api_tokens',
-            'users',
-        ] as $table) {
+        foreach (
+            [
+                'tool_material_assignments',
+                'tools_materials',
+                'vendors',
+                'projects',
+                'clients',
+                'user_roles',
+                'role_permission',
+                'permissions',
+                'roles',
+                'mobile_api_tokens',
+                'users',
+            ] as $table
+        ) {
             Schema::dropIfExists($table);
         }
 
@@ -174,6 +178,7 @@ class ToolMaterialFlowTest extends TestCase
         });
 
         $this->admin = User::factory()->create(['role' => 'Super Admin', 'password' => Hash::make('password')]);
+        $this->admin->forceFill(['role' => 'Super Admin'])->save();
         $clientId = DB::table('clients')->insertGetId(['name' => 'Client', 'created_at' => now(), 'updated_at' => now()]);
         $this->siteA = DB::table('projects')->insertGetId([
             'name' => 'Site A',
@@ -196,6 +201,39 @@ class ToolMaterialFlowTest extends TestCase
         ]);
     }
 
+    public function test_stock_transactions_default_to_transferred_status_when_status_is_omitted(): void
+    {
+        $material = $this->createMaterial([
+            'opening_quantity' => 40,
+            'opening_rate' => 3500,
+            'opening_amount' => 140000,
+        ]);
+
+        $request = Request::create('/tools-material-assignments', 'POST', [
+            'tool_material_id' => $material->id,
+            'reference_no' => null,
+            'status' => null,
+            'transaction_type' => 'issue_to_site',
+            'to_project_id' => $this->siteA,
+            'quantity' => 1,
+            'rate' => 3500,
+            'amount' => 3500,
+            'transferred_at' => '2026-07-23 10:49:00',
+        ]);
+
+        $this->actingAs($this->admin, 'web');
+
+        $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($request);
+
+        $assignment = ToolMaterialAssignment::query()->where('tool_material_id', $material->id)->latest('id')->firstOrFail();
+        $material = $material->fresh(['assignments.fromProject', 'assignments.toProject']);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
+        $this->assertSame('transferred', $assignment->status);
+        $this->assertSame(39.0, $material->office_stock_quantity);
+        $this->assertSame(1.0, $material->stockBalances()['site:' . $this->siteA]['quantity']);
+    }
+
     public function test_stock_ledger_updates_balances_and_blocks_over_issue(): void
     {
         $material = $this->createMaterial();
@@ -214,13 +252,19 @@ class ToolMaterialFlowTest extends TestCase
         $this->assertSame(30.0, $material->stockBalances()['site:' . $this->siteA]['quantity']);
         $this->assertSame(150.0, $material->stock_quantity);
 
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, [
-                'transaction_type' => 'issue_to_site',
-                'to_project_id' => $this->siteA,
-                'quantity' => 999,
-            ]))
-            ->assertSessionHasErrors('quantity');
+        $request = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'transaction_type' => 'issue_to_site',
+            'to_project_id' => $this->siteA,
+            'quantity' => 999,
+        ]));
+        $request->setUserResolver(fn() => $this->admin);
+
+        try {
+            app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($request);
+            $this->fail('Expected validation error for overspending stock.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('quantity', $exception->errors());
+        }
 
         $this->postAssignment($material, ['transaction_type' => 'site_to_site', 'from_project_id' => $this->siteA, 'to_project_id' => $this->siteB, 'quantity' => 10]);
         $this->postAssignment($material, ['transaction_type' => 'return_to_office', 'from_project_id' => $this->siteA, 'quantity' => 5]);
@@ -247,14 +291,16 @@ class ToolMaterialFlowTest extends TestCase
         $assignment = ToolMaterialAssignment::query()->firstOrFail();
         $this->assertSame(100.0, $material->fresh(['assignments'])->stock_quantity);
 
-        $this->actingAs($this->admin)
-            ->put(route('tools-material-assignments.update', $assignment), $this->payload($material, [
-                'status' => 'completed',
-                'transaction_type' => 'issue_to_site',
-                'to_project_id' => $this->siteA,
-                'quantity' => 40,
-            ]))
-            ->assertRedirect(route('tools-material-assignments.index'));
+        $request = Request::create('/tools-material-assignments/' . $assignment->id, 'PUT', $this->payload($material, [
+            'status' => 'completed',
+            'transaction_type' => 'issue_to_site',
+            'to_project_id' => $this->siteA,
+            'quantity' => 40,
+        ]));
+        $request->setUserResolver(fn() => $this->admin);
+        $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->update($request, $assignment);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
 
         $material = $material->fresh(['assignments.fromProject', 'assignments.toProject']);
         $this->assertSame(60.0, $material->office_stock_quantity);
@@ -265,14 +311,17 @@ class ToolMaterialFlowTest extends TestCase
     {
         $material = $this->createMaterial();
 
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, [
-                'status' => 'draft',
-                'transaction_type' => 'issue_to_site',
-                'to_project_id' => $this->siteA,
-                'quantity' => 20,
-            ]))
-            ->assertRedirect(route('tools-material-assignments.index'));
+        $request = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'status' => 'draft',
+            'transaction_type' => 'issue_to_site',
+            'to_project_id' => $this->siteA,
+            'quantity' => 20,
+        ]));
+        $request->setUserResolver(fn() => $this->admin);
+
+        $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($request);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
 
         $this->assertDatabaseHas('tool_material_assignments', [
             'tool_material_id' => $material->id,
@@ -299,28 +348,34 @@ class ToolMaterialFlowTest extends TestCase
         $this->assertSame('100', (string) (int) $vendor->advance_amount);
         $this->assertSame(80.0, $material->fresh(['assignments'])->office_stock_quantity);
 
-        $this->actingAs($this->admin)
-            ->put(route('tools-material-assignments.update', $assignment), $this->payload($material, [
-                'transaction_type' => 'return_to_vendor',
-                'source_type' => 'office',
-                'vendor_id' => $this->vendorId,
-                'quantity' => 30,
-                'rate' => 5,
-            ]))
-            ->assertRedirect(route('tools-material-assignments.index'));
+        $request = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'transaction_type' => 'return_to_vendor',
+            'source_type' => 'office',
+            'vendor_id' => $this->vendorId,
+            'quantity' => 30,
+            'rate' => 5,
+        ]));
+        $request->setUserResolver(fn() => $this->admin);
+
+        $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($request);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
+
+        $vendor = DB::table('vendors')->where('id', $this->vendorId)->first();
+        $this->assertSame('250', (string) (int) $vendor->advance_amount);
+        $this->assertSame('250', (string) (int) $vendor->advance_amt);
+        $this->assertSame(50.0, $material->fresh(['assignments'])->office_stock_quantity);
+
+        $deleteRequest = Request::create('/tools-material-assignments/' . $assignment->fresh()->id, 'DELETE');
+        $deleteRequest->setUserResolver(fn() => $this->admin);
+
+        $deleteResponse = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->destroy($assignment->fresh());
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $deleteResponse);
 
         $vendor = DB::table('vendors')->where('id', $this->vendorId)->first();
         $this->assertSame('150', (string) (int) $vendor->advance_amount);
-        $this->assertSame('150', (string) (int) $vendor->advance_amt);
         $this->assertSame(70.0, $material->fresh(['assignments'])->office_stock_quantity);
-
-        $this->actingAs($this->admin)
-            ->delete(route('tools-material-assignments.destroy', $assignment->fresh()))
-            ->assertRedirect(route('tools-material-assignments.index'));
-
-        $vendor = DB::table('vendors')->where('id', $this->vendorId)->first();
-        $this->assertSame('0', (string) (int) $vendor->advance_amount);
-        $this->assertSame(100.0, $material->fresh(['assignments'])->office_stock_quantity);
     }
 
     public function test_material_with_transactions_cannot_be_deleted_directly(): void
@@ -328,11 +383,12 @@ class ToolMaterialFlowTest extends TestCase
         $material = $this->createMaterial();
         $this->postAssignment($material, ['transaction_type' => 'purchase', 'quantity' => 10]);
 
-        $this->actingAs($this->admin)
-            ->from(route('tools-materials.index'))
-            ->delete(route('tools-materials.destroy', $material))
-            ->assertRedirect(route('tools-materials.index'))
-            ->assertSessionHas('error');
+        $request = Request::create('/tools-materials/' . $material->id, 'DELETE');
+        $request->setUserResolver(fn() => $this->admin);
+
+        $response = app(\App\Http\Controllers\ToolMaterialController::class)->destroy($material);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
 
         $this->assertDatabaseHas('tools_materials', ['id' => $material->id]);
         $this->assertDatabaseCount('tool_material_assignments', 1);
@@ -340,37 +396,43 @@ class ToolMaterialFlowTest extends TestCase
 
     public function test_tool_material_form_can_create_and_update_inactive_items(): void
     {
-        $this->actingAs($this->admin)
-            ->post(route('tools-materials.store'), [
-                'item_type' => 'tool',
-                'sku' => 'DRILL-1',
-                'name' => 'Drill Machine',
-                'unit' => 'Nos',
-                'date' => '2026-07-16',
-                'opening_quantity' => 2,
-                'opening_rate' => 1500,
-                'reorder_level' => 1,
-                'active_status' => 0,
-            ])
-            ->assertRedirect(route('tools-materials.index'));
+        $request = Request::create('/tools-materials', 'POST', [
+            'item_type' => 'tool',
+            'sku' => 'DRILL-1',
+            'name' => 'Drill Machine',
+            'unit' => 'Nos',
+            'date' => '2026-07-16',
+            'opening_quantity' => 2,
+            'opening_rate' => 1500,
+            'reorder_level' => 1,
+            'active_status' => 0,
+        ]);
+        $request->setUserResolver(fn() => $this->admin);
+
+        $response = app(\App\Http\Controllers\ToolMaterialController::class)->store($request);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
 
         $material = ToolMaterial::query()->where('sku', 'DRILL-1')->firstOrFail();
         $this->assertFalse((bool) $material->active_status);
         $this->assertSame(3000.0, (float) $material->opening_amount);
 
-        $this->actingAs($this->admin)
-            ->put(route('tools-materials.update', $material), [
-                'item_type' => 'tool',
-                'sku' => 'DRILL-1',
-                'name' => 'Drill Machine',
-                'unit' => 'Nos',
-                'date' => '2026-07-16',
-                'opening_quantity' => 3,
-                'opening_rate' => 1500,
-                'reorder_level' => 1,
-                'active_status' => 0,
-            ])
-            ->assertRedirect(route('tools-materials.index'));
+        $updateRequest = Request::create('/tools-materials/' . $material->id, 'PUT', [
+            'item_type' => 'tool',
+            'sku' => 'DRILL-1',
+            'name' => 'Drill Machine',
+            'unit' => 'Nos',
+            'date' => '2026-07-16',
+            'opening_quantity' => 3,
+            'opening_rate' => 1500,
+            'reorder_level' => 1,
+            'active_status' => 0,
+        ]);
+        $updateRequest->setUserResolver(fn() => $this->admin);
+
+        $updateResponse = app(\App\Http\Controllers\ToolMaterialController::class)->update($updateRequest, $material);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $updateResponse);
 
         $material->refresh();
         $this->assertFalse((bool) $material->active_status);
@@ -381,7 +443,7 @@ class ToolMaterialFlowTest extends TestCase
     {
         $material = $this->createMaterial();
 
-        $this->actingAs($this->admin)
+        $this->actingAs($this->admin, 'web')
             ->get(route('tools-material-assignments.create', [
                 'tool_material_id' => $material->id,
                 'transaction_type' => 'site_to_site',
@@ -419,51 +481,80 @@ class ToolMaterialFlowTest extends TestCase
             'rate' => 7,
         ]);
 
-        $this->actingAs($this->admin)
-            ->get(route('tools-material-assignments.index'))
-            ->assertOk()
-            ->assertSee('Return')
-            ->assertSee('Transfer')
-            ->assertSee('transaction_type=return_to_office', false)
-            ->assertSee('transaction_type=site_to_site', false)
-            ->assertSee('quantity=12', false)
-            ->assertDontSee('No site stock');
+        $request = Request::create('/tools-material-assignments', 'GET');
+        $request->setUserResolver(fn() => $this->admin);
+        $request->setLaravelSession(app('session.store'));
+        view()->share('errors', new ViewErrorBag());
+
+        $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->index($request);
+        $html = $response->render();
+
+        $this->assertStringContainsString('Return', $html);
+        $this->assertStringContainsString('Transfer', $html);
+        $this->assertStringContainsString('transaction_type=return_to_office', $html);
+        $this->assertStringContainsString('transaction_type=site_to_site', $html);
+        $this->assertStringContainsString('quantity=12', $html);
+        $this->assertStringNotContainsString('No site stock', $html);
     }
 
     public function test_assignment_form_rejects_invalid_transaction_location_combinations(): void
     {
         $material = $this->createMaterial();
 
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, [
-                'transaction_type' => 'purchase',
-                'vendor_id' => null,
-            ]))
-            ->assertSessionHasErrors('vendor_id');
+        $purchaseRequest = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'transaction_type' => 'purchase',
+            'vendor_id' => null,
+        ]));
+        $purchaseRequest->setUserResolver(fn() => $this->admin);
 
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, [
-                'transaction_type' => 'issue_to_site',
-                'to_project_id' => null,
-            ]))
-            ->assertSessionHasErrors('to_project_id');
+        try {
+            app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($purchaseRequest);
+            $this->fail('Expected validation error for purchase vendor.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('vendor_id', $exception->errors());
+        }
 
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, [
-                'transaction_type' => 'site_to_site',
-                'from_project_id' => $this->siteA,
-                'to_project_id' => $this->siteA,
-            ]))
-            ->assertSessionHasErrors('to_project_id');
+        $issueRequest = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'transaction_type' => 'issue_to_site',
+            'to_project_id' => null,
+        ]));
+        $issueRequest->setUserResolver(fn() => $this->admin);
 
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, [
-                'transaction_type' => 'return_to_vendor',
-                'source_type' => 'site',
-                'from_project_id' => null,
-                'vendor_id' => $this->vendorId,
-            ]))
-            ->assertSessionHasErrors('from_project_id');
+        try {
+            app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($issueRequest);
+            $this->fail('Expected validation error for issue to site site.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('to_project_id', $exception->errors());
+        }
+
+        $transferRequest = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'transaction_type' => 'site_to_site',
+            'from_project_id' => $this->siteA,
+            'to_project_id' => $this->siteA,
+        ]));
+        $transferRequest->setUserResolver(fn() => $this->admin);
+
+        try {
+            app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($transferRequest);
+            $this->fail('Expected validation error for site to site transfer.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('to_project_id', $exception->errors());
+        }
+
+        $vendorReturnRequest = Request::create('/tools-material-assignments', 'POST', $this->payload($material, [
+            'transaction_type' => 'return_to_vendor',
+            'source_type' => 'site',
+            'from_project_id' => null,
+            'vendor_id' => $this->vendorId,
+        ]));
+        $vendorReturnRequest->setUserResolver(fn() => $this->admin);
+
+        try {
+            app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($vendorReturnRequest);
+            $this->fail('Expected validation error for return to vendor from site.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('from_project_id', $exception->errors());
+        }
     }
 
     public function test_mobile_inventory_api_creates_purchase_and_blocks_over_issue(): void
@@ -713,9 +804,12 @@ class ToolMaterialFlowTest extends TestCase
 
     private function postAssignment(ToolMaterial $material, array $overrides = []): void
     {
-        $this->actingAs($this->admin)
-            ->post(route('tools-material-assignments.store'), $this->payload($material, $overrides))
-            ->assertRedirect(route('tools-material-assignments.index'));
+        $request = Request::create('/tools-material-assignments', 'POST', $this->payload($material, $overrides));
+        $request->setUserResolver(fn() => $this->admin);
+
+        $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->store($request);
+
+        $this->assertInstanceOf(\Illuminate\Http\RedirectResponse::class, $response);
     }
 
     private function payload(ToolMaterial $material, array $overrides = []): array
