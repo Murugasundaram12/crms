@@ -11,11 +11,11 @@ class SingleLoginService
 {
     public function invalidateOtherLogins(int $userId, ?string $exceptSessionId = null, ?int $exceptTokenId = null): void
     {
-        $this->deleteWebSessions($userId, $exceptSessionId);
-        $this->deleteApiTokens($userId, $exceptTokenId);
-
         if ($exceptSessionId) {
+            $this->deleteWebSessions($userId, $exceptSessionId);
             Cache::put($this->webSessionCacheKey($userId), $exceptSessionId, now()->addMinutes((int) config('session.lifetime', 120)));
+        } else {
+            $this->deleteApiTokens($userId, $exceptTokenId);
         }
     }
 

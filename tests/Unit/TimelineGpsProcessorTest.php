@@ -55,7 +55,7 @@ class TimelineGpsProcessorTest extends TestCase
         $this->assertSame(11.017020, (float) $filtered[1]->latitude);
     }
 
-    public function test_it_removes_non_consecutive_duplicate_coordinates(): void
+    public function test_it_does_not_remove_non_consecutive_duplicate_coordinates(): void
     {
         $processor = new TimelineGpsProcessor();
 
@@ -71,7 +71,7 @@ class TimelineGpsProcessorTest extends TestCase
             'max_accuracy_meters' => 20,
         ]);
 
-        $this->assertSame([1, 2, 4], array_map(fn (LocationTracking $point) => $point->id, $filtered));
+        $this->assertSame([1, 2, 3, 4], array_map(fn (LocationTracking $point) => $point->id, $filtered));
     }
 
     public function test_it_orders_timeline_points_by_created_at_then_id(): void

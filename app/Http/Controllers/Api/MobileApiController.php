@@ -762,7 +762,17 @@ class MobileApiController extends Controller
             $attendance = null;
         }
 
-        return $attendance ?? $this->activeAttendance($userId);
+        if (!$attendance) {
+            $active = $this->activeAttendance($userId);
+            if ($active) {
+                $checkInTime = Carbon::parse($active->check_in_at);
+                if ($recordedAt->gte($checkInTime->subMinutes(5))) {
+                    $attendance = $active;
+                }
+            }
+        }
+
+        return $attendance;
     }
 
     protected function isOfflinePayloadTooOld(array $payload): bool

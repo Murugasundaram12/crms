@@ -47,8 +47,9 @@ class TimelineGpsProcessor
                 continue;
             }
 
+            $previousCoordinateKey = isset($filtered[count($filtered) - 1]) ? $this->coordinateKey($filtered[count($filtered) - 1]) : null;
             $coordinateKey = $this->coordinateKey($tracking);
-            if (isset($seenCoordinates[$coordinateKey])) {
+            if ($previousCoordinateKey && $previousCoordinateKey === $coordinateKey) {
                 continue;
             }
 

@@ -106,8 +106,26 @@
                 return;
             }
 
-            document.getElementById('refreshLiveMap')?.addEventListener('click', loadLiveLocationMap);
+            let liveLocationTimer = null;
+
+            function startLiveLocationRefresh() {
+                stopLiveLocationRefresh();
+                liveLocationTimer = setInterval(loadLiveLocationMap, 15000);
+            }
+
+            function stopLiveLocationRefresh() {
+                if (liveLocationTimer) {
+                    clearInterval(liveLocationTimer);
+                    liveLocationTimer = null;
+                }
+            }
+
+            document.getElementById('refreshLiveMap')?.addEventListener('click', function () {
+                loadLiveLocationMap();
+                startLiveLocationRefresh();
+            });
             loadLiveLocationMap();
+            startLiveLocationRefresh();
         }
 
         function initLeafletLiveMap(lat, lng) {

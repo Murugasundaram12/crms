@@ -658,13 +658,8 @@
         function isRoadRouteReliable(data = {}) {
             const health = data?.trackingHealth || {};
             const coverage = Number(health.tracking_coverage_percentage);
-            const gapCount = Number(health.gap_count);
 
-            if (Number.isFinite(coverage) && coverage < 60) {
-                return false;
-            }
-
-            if (Number.isFinite(gapCount) && gapCount > 0) {
+            if (Number.isFinite(coverage) && coverage < 15) {
                 return false;
             }
 
@@ -1007,6 +1002,7 @@
                         strokeWeight: 3,
                     },
                 });
+                timelineDirectionsRenderers.push(renderer);
 
                 service.route({
                     origin: new google.maps.LatLng(origin.lat, origin.lng),

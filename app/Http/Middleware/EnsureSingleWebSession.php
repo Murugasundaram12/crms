@@ -26,23 +26,29 @@ class EnsureSingleWebSession
 
         if (! $activeSessionId) {
             Cache::put($cacheKey, $sessionId, now()->addMinutes((int) config('session.lifetime', 120)));
+            $request->session()->put('validated_web_session', $sessionId);
 
             return $next($request);
         }
 
-        if (! hash_equals((string) $activeSessionId, (string) $sessionId)) {
-            Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+        if ($request->session()->get('validated_web_session') === $sessionId) {
+            if (! hash_equals((string) $activeSessionId, (string) $sessionId)) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
 
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Your session expired because this account was logged in on another device.',
-                ], 401);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Your session expired because this account was logged in on another device.',
+                    ], 401);
+                }
+
+                return redirect()->route('login')
+                    ->with('error', 'Your session expired because this account was logged in on another device.');
             }
-
-            return redirect()->route('login')
-                ->with('error', 'Your session expired because this account was logged in on another device.');
+        } else {
+            Cache::put($cacheKey, $sessionId, now()->addMinutes((int) config('session.lifetime', 120)));
+            $request->session()->put('validated_web_session', $sessionId);
         }
 
         Cache::put($cacheKey, $sessionId, now()->addMinutes((int) config('session.lifetime', 120)));

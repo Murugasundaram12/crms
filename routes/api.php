@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\MobileEmployeeRoleController;
 use App\Http\Controllers\Api\MobileExpensePaymentController;
 use App\Http\Controllers\Api\MobileInventoryController;
 use App\Http\Controllers\Api\MobileLeaveMasterController;
+use App\Http\Controllers\Api\MobilePreorderController;
 use App\Http\Controllers\Api\MobileSettingsDashboardController;
 use App\Http\Controllers\Api\MobileTaskWalletController;
 use Illuminate\Support\Facades\Route;
@@ -119,6 +120,7 @@ Route::middleware('mobile.api')->group(function () {
     Route::post('/tools-materials', [MobileInventoryController::class, 'storeInventoryItem']);
     Route::get('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'showInventoryItem'])->whereNumber('toolMaterial');
     Route::put('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
+    Route::patch('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
     Route::post('/tools-materials/{toolMaterial}/update', [MobileInventoryController::class, 'updateInventoryItem'])->whereNumber('toolMaterial');
     Route::delete('/tools-materials/{toolMaterial}', [MobileInventoryController::class, 'deleteInventoryItem'])->whereNumber('toolMaterial');
     Route::get('/tools-material-assignments', [MobileInventoryController::class, 'inventoryTransactions']);
@@ -127,6 +129,14 @@ Route::middleware('mobile.api')->group(function () {
     Route::put('/tools-material-assignments/{assignment}', [MobileInventoryController::class, 'updateInventoryTransaction'])->whereNumber('assignment');
     Route::post('/tools-material-assignments/{assignment}/update', [MobileInventoryController::class, 'updateInventoryTransaction'])->whereNumber('assignment');
     Route::delete('/tools-material-assignments/{assignment}', [MobileInventoryController::class, 'deleteInventoryTransaction'])->whereNumber('assignment');
+
+    Route::get('/preorders/options', [MobilePreorderController::class, 'preorderOptions']);
+    Route::get('/preorders', [MobilePreorderController::class, 'preorders']);
+    Route::post('/preorders', [MobilePreorderController::class, 'storePreorder']);
+    Route::get('/preorders/{preorder}', [MobilePreorderController::class, 'showPreorder'])->whereNumber('preorder');
+    Route::put('/preorders/{preorder}', [MobilePreorderController::class, 'updatePreorder'])->whereNumber('preorder');
+    Route::patch('/preorders/{preorder}', [MobilePreorderController::class, 'updatePreorder'])->whereNumber('preorder');
+    Route::delete('/preorders/{preorder}', [MobilePreorderController::class, 'deletePreorder'])->whereNumber('preorder');
 
     Route::get('/leave-requests/options', [MobileLeaveMasterController::class, 'leaveOptions']);
     Route::get('/leave-requests', [MobileLeaveMasterController::class, 'leaveRequests']);

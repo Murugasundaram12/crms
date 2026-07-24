@@ -3678,6 +3678,287 @@
       ]
     },
     {
+      "name": "Preorders",
+      "item": [
+        {
+          "name": "Preorder Options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/options",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "options"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Preorders List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/preorders?q=&status=pending_approval&vendor_id=1&material_id=1&payment_status=unpaid&delivery_status=pending&date_from=2026-07-01&date_to=2026-07-31&sort_by=id&sort_order=desc&per_page=15",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "pending_approval"
+                },
+                {
+                  "key": "vendor_id",
+                  "value": "1"
+                },
+                {
+                  "key": "material_id",
+                  "value": "1"
+                },
+                {
+                  "key": "payment_status",
+                  "value": "unpaid"
+                },
+                {
+                  "key": "delivery_status",
+                  "value": "pending"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-07-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-07-31"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "id"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc"
+                },
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Preorder",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": 1,\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit\": \"Bag\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 100,\n  \"preorder_date\": \"2026-07-21\",\n  \"status\": \"pending_approval\",\n  \"payment_method_id\": 1,\n  \"notes\": \"Create preorder via API\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Preorder",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Preorder",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tool_material_id\": 1,\n  \"vendor_id\": 1,\n  \"quantity\": 12,\n  \"unit\": \"Bag\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"preorder_date\": \"2026-07-21\",\n  \"status\": \"pending_approval\",\n  \"payment_method_id\": 1,\n  \"notes\": \"Update preorder via API\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Preorder",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Mobile Settings",
       "item": [
         {

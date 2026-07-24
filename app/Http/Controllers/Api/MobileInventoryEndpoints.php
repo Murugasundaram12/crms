@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Category;
 use App\Models\Project;
 use App\Models\ToolMaterial;
 use App\Models\ToolMaterialAssignment;
@@ -40,7 +41,63 @@ trait MobileInventoryEndpoints
             return $forbidden;
         }
 
+        $materials = ToolMaterial::query()
+            ->with(['assignments.fromProject', 'assignments.toProject'])
+            ->where('active_status', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item));
+
+        $vendors = Vendor::query()->orderBy('name')->get()->map(fn(Vendor $vendor) => $this->vendorPayload($vendor));
+
+        $units = Schema::hasTable('units')
+            ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code'])->map(fn(Unit $unit) => [
+                'id' => $unit->id,
+                'name' => $unit->code, // Use code as option name
+            ])
+            : [];
+
+        $paymentMethods = \App\Models\PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get()->map(fn($pm) => [
+            'id' => $pm->id,
+            'name' => $pm->name,
+        ]);
+
+        $preorderStatuses = [];
+        foreach (\App\Http\Controllers\PreorderController::STATUSES as $id => $name) {
+            $preorderStatuses[] = [
+                'id' => $id,
+                'name' => $name,
+            ];
+        }
+
+        $categories = Category::query()->orderBy('name')->get()->map(fn($c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+        ]);
+
+        $data = [
+            'materials' => $materials,
+            'vendors' => $vendors,
+            'units' => $units,
+            'payment_methods' => $paymentMethods,
+            'preorder_statuses' => $preorderStatuses,
+            'delivery_statuses' => [
+                ['id' => 'pending', 'name' => 'Pending'],
+                ['id' => 'partially_delivered', 'name' => 'Partially Delivered'],
+                ['id' => 'delivered', 'name' => 'Delivered'],
+            ],
+            'payment_statuses' => [
+                ['id' => 'unpaid', 'name' => 'Unpaid'],
+                ['id' => 'partially_paid', 'name' => 'Partially Paid'],
+                ['id' => 'paid', 'name' => 'Paid'],
+            ],
+            'categories' => $categories,
+        ];
+
         return response()->json([
+            'success' => true,
+            'data' => $data,
+            // Keep old keys for backward compatibility
             'transaction_types' => self::INVENTORY_TRANSACTION_TYPES,
             'transaction_type_options' => $this->enumOptions(self::INVENTORY_TRANSACTION_TYPES),
             'statuses' => self::INVENTORY_STATUSES,
@@ -51,9 +108,7 @@ trait MobileInventoryEndpoints
             'destination_type_options' => $this->enumOptions(['office' => 'Office', 'site' => 'Site', 'vendor' => 'Vendor', 'wastage' => 'Wastage']),
             'item_types' => ['material' => 'Material', 'tool' => 'Tool'],
             'item_type_options' => $this->enumOptions(['material' => 'Material', 'tool' => 'Tool']),
-            'units' => Schema::hasTable('units')
-                ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code'])
-                : [],
+            'units' => Schema::hasTable('units') ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code']) : [],
             'unit_options' => Schema::hasTable('units')
                 ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code'])->map(fn(Unit $unit) => [
                     'id' => $unit->id,
@@ -61,16 +116,11 @@ trait MobileInventoryEndpoints
                     'label' => $unit->display_name,
                 ])
                 : [],
-            'tools_materials' => ToolMaterial::query()
-                ->with(['assignments.fromProject', 'assignments.toProject'])
-                ->where('active_status', true)
-                ->orderBy('name')
-                ->get()
-                ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item)),
+            'tools_materials' => $materials,
             'projects' => $this->scopeProjectsForAppUser(Project::query(), $request->user())
                 ->orderBy('name')
                 ->get(['id', 'name', 'project_code']),
-            'vendors' => Vendor::query()->orderBy('name')->get()->map(fn(Vendor $vendor) => $this->vendorPayload($vendor)),
+            'vendors' => $vendors,
         ]);
     }
 
@@ -82,21 +132,45 @@ trait MobileInventoryEndpoints
 
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
+            'search' => ['nullable', 'string', 'max:255'],
             'item_type' => ['nullable', Rule::in(['tool', 'material'])],
             'low_stock' => ['nullable', 'boolean'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
+            'status' => ['nullable', 'string'],
+            'vendor_id' => ['nullable', 'integer'],
+            'material_id' => ['nullable', 'integer'],
+            'sort_by' => ['nullable', 'string'],
+            'sort_order' => ['nullable', 'string'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
+        $search = $validated['search'] ?? $validated['q'] ?? null;
+        $vendorId = $validated['vendor_id'] ?? null;
+        $materialId = $validated['material_id'] ?? null;
+        $status = $validated['status'] ?? null;
+
         $query = ToolMaterial::query()
             ->with(['assignments.fromProject', 'assignments.toProject'])
-            ->when($validated['q'] ?? null, fn($q, string $search) => $q->where('name', 'like', "%{$search}%"))
+            ->when($search, fn($q) => $q->where('name', 'like', "%{$search}%"))
             ->when($validated['item_type'] ?? null, fn($q, string $type) => $q->where('item_type', $type))
+            ->when($materialId, fn($q) => $q->where('id', $materialId))
+            ->when($vendorId, fn($q) => $q->whereHas('assignments', fn($inner) => $inner->where('vendor_id', $vendorId)))
+            ->when($status !== null, function($q) use ($status) {
+                if ($status === 'active' || $status === '1') {
+                    $q->where('active_status', true);
+                } elseif ($status === 'inactive' || $status === '0') {
+                    $q->where('active_status', false);
+                }
+            })
             ->when($validated['date_from'] ?? null, fn($q) => $q->whereDate('date', '>=', $request->date('date_from')->toDateString()))
-            ->when($validated['date_to'] ?? null, fn($q) => $q->whereDate('date', '<=', $request->date('date_to')->toDateString()))
-            ->latest('date')
-            ->latest();
+            ->when($validated['date_to'] ?? null, fn($q) => $q->whereDate('date', '<=', $request->date('date_to')->toDateString()));
+
+        // Safe sorting
+        $allowedSortColumns = ['id', 'name', 'created_at', 'updated_at', 'sku', 'date', 'opening_quantity', 'opening_rate', 'opening_amount', 'reorder_level', 'active_status'];
+        $sortBy = in_array($request->input('sort_by'), $allowedSortColumns, true) ? $request->input('sort_by') : 'id';
+        $sortOrder = in_array(strtolower($request->input('sort_order', '')), ['asc', 'desc'], true) ? $request->input('sort_order') : 'desc';
+        $query->orderBy($sortBy, $sortOrder);
 
         $summaryItems = (clone $query)->get();
         $summary = [
@@ -108,14 +182,26 @@ trait MobileInventoryEndpoints
         ];
 
         $items = $query->paginate((int) ($validated['per_page'] ?? 15));
-        $items->setCollection($items->getCollection()
+        $collection = $items->getCollection()
             ->filter(fn(ToolMaterial $item) => ! $request->boolean('low_stock') || $item->is_low_stock)
             ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item))
-            ->values());
+            ->values();
+        $items->setCollection($collection);
+
+        $paginated = $items->toArray();
 
         return response()->json([
+            'success' => true,
             'summary' => $summary,
-            ...$items->toArray(),
+            'data' => $collection->all(),
+            'pagination' => [
+                'current_page' => $paginated['current_page'],
+                'per_page' => $paginated['per_page'],
+                'total' => $paginated['total'],
+                'last_page' => $paginated['last_page'],
+            ],
+            // Keep old fields at root for backward compatibility
+            ...$paginated,
         ]);
     }
 
@@ -134,10 +220,13 @@ trait MobileInventoryEndpoints
         }
 
         $item = ToolMaterial::query()->create($validated);
+        $payload = $this->toolMaterialPayload($item->load(['assignments.fromProject', 'assignments.toProject']));
 
         return response()->json([
+            'success' => true,
             'message' => 'Tool / material created successfully.',
-            'tool_material' => $this->toolMaterialPayload($item->load(['assignments.fromProject', 'assignments.toProject'])),
+            'data' => $payload,
+            'tool_material' => $payload,
         ], 201);
     }
 
@@ -147,8 +236,12 @@ trait MobileInventoryEndpoints
             return $forbidden;
         }
 
+        $payload = $this->toolMaterialPayload($toolMaterial->load(['assignments.fromProject', 'assignments.toProject']));
+
         return response()->json([
-            'tool_material' => $this->toolMaterialPayload($toolMaterial->load(['assignments.fromProject', 'assignments.toProject'])),
+            'success' => true,
+            'data' => $payload,
+            'tool_material' => $payload,
         ]);
     }
 
@@ -171,10 +264,13 @@ trait MobileInventoryEndpoints
         }
 
         $toolMaterial->update($validated);
+        $payload = $this->toolMaterialPayload($toolMaterial->fresh(['assignments.fromProject', 'assignments.toProject']));
 
         return response()->json([
+            'success' => true,
             'message' => 'Tool / material updated successfully.',
-            'tool_material' => $this->toolMaterialPayload($toolMaterial->fresh(['assignments.fromProject', 'assignments.toProject'])),
+            'data' => $payload,
+            'tool_material' => $payload,
         ]);
     }
 
@@ -186,6 +282,7 @@ trait MobileInventoryEndpoints
 
         if ($toolMaterial->assignments()->exists()) {
             return response()->json([
+                'success' => false,
                 'message' => 'This tool / material has stock transactions. Delete the transactions before deleting this item.',
             ], 409);
         }
@@ -196,7 +293,10 @@ trait MobileInventoryEndpoints
 
         $toolMaterial->delete();
 
-        return response()->json(['message' => 'Tool / material deleted successfully.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Tool / material deleted successfully.',
+        ]);
     }
 
     public function inventoryTransactions(Request $request)

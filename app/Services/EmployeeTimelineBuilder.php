@@ -98,8 +98,9 @@ class EmployeeTimelineBuilder
                 continue;
             }
 
+            $previousCoordinateKey = $previousRaw ? $this->coordinateKey($previousRaw) : null;
             $coordinateKey = $this->coordinateKey($tracking);
-            if (isset($seenCoordinates[$coordinateKey])) {
+            if ($previousCoordinateKey && $previousCoordinateKey === $coordinateKey) {
                 $this->rejectDiagnostic($diagnostic, 'duplicate_location', $reasons);
                 $diagnostics[] = $diagnostic;
                 $previousRaw = $tracking;
@@ -154,6 +155,16 @@ class EmployeeTimelineBuilder
 
             if (($metrics['distance_metres'] ?? 0) <= (float) $settings['gps_min_distance_metres']) {
                 $this->rejectDiagnostic($diagnostic, 'distance_below_threshold', $reasons);
+                $diagnostics[] = $diagnostic;
+                $previousRaw = $tracking;
+                continue;
+            }
+
+            $distanceKm = ($metrics['distance_metres'] ?? 0) / 1000;
+            $seconds = $metrics['time_difference_seconds'] ?? 1;
+            $speedKmh = ($distanceKm / max(1, $seconds)) * 3600;
+            if (($metrics['distance_metres'] ?? 0) > 500 && $seconds < 30 && $speedKmh > 120) {
+                $this->rejectDiagnostic($diagnostic, 'unrealistic_jump', $reasons);
                 $diagnostics[] = $diagnostic;
                 $previousRaw = $tracking;
                 continue;
@@ -295,7 +306,7 @@ class EmployeeTimelineBuilder
         $missedUpdateThresholdSeconds = $intervalSeconds * 3;
         $gapThresholdSeconds = max(1, (int) ($settings['gps_max_inactive_gap_seconds'] ?? 90));
 
-        if ($seconds <= 0 || $seconds >= $missedUpdateThresholdSeconds || $seconds >= $gapThresholdSeconds) {
+        if ($seconds <= 0 || $seconds >= $gapThresholdSeconds) {
             return true;
         }
 
