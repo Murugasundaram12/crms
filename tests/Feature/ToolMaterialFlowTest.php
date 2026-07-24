@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
@@ -485,6 +486,8 @@ class ToolMaterialFlowTest extends TestCase
         $request->setUserResolver(fn() => $this->admin);
         $request->setLaravelSession(app('session.store'));
         view()->share('errors', new ViewErrorBag());
+
+        Auth::login($this->admin);
 
         $response = app(\App\Http\Controllers\ToolMaterialAssignmentController::class)->index($request);
         $html = $response->render();

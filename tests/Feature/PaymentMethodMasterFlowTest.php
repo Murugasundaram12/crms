@@ -6,6 +6,7 @@ use App\Models\PaymentMethod;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PaymentMethodMasterFlowTest extends TestCase

@@ -160,7 +160,21 @@ class PreorderController extends Controller
             'unit' => ['required', 'string', 'max:50'],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'advance_amount' => ['nullable', 'numeric', 'min:0'],
+            'advance_amount' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                function ($attribute, $value, $fail) use ($request) {
+                    $qty = (float) $request->input('quantity', 0);
+                    $rate = (float) $request->input('expected_rate', 0);
+                    $gstPercent = (float) $request->input('gst_percent', 0);
+                    $estimated = $qty * $rate;
+                    $total = $estimated + ($estimated * ($gstPercent / 100));
+                    if ((float) $value > $total) {
+                        $fail('The initial advance amount cannot exceed the calculated total amount (Rs. ' . number_format($total, 2) . ').');
+                    }
+                }
+            ],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
             'preorder_date' => ['required', 'date'],
@@ -283,7 +297,18 @@ class PreorderController extends Controller
     public function addAdvance(Request $request, Preorder $preorder): RedirectResponse
     {
         $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                function ($attribute, $value, $fail) use ($preorder) {
+                    $totalPaid = $preorder->totalAdvancePaid();
+                    $limit = (float) $preorder->total_amount - $totalPaid;
+                    if ((float) $value > $limit + 0.01) { // allow a margin of 0.01 for rounding
+                        $fail('The advance payment amount (Rs. ' . number_format($value, 2) . ') cannot exceed the remaining payable amount (Rs. ' . number_format($limit, 2) . ').');
+                    }
+                }
+            ],
             'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'payment_date' => ['required', 'date'],
             'reference_number' => ['nullable', 'string', 'max:100'],

@@ -348,9 +348,13 @@ class PreorderService
                 'assignment_id' => $assignment->id,
             ]);
 
+            $totalDelivered = $preorder->totalDeliveredQuantity();
+            $orderedQty = (float) $preorder->quantity;
+            $newStatus = ($totalDelivered >= $orderedQty && $orderedQty > 0) ? Preorder::STATUS_DELIVERED : Preorder::STATUS_PARTIALLY_DELIVERED;
+
             $preorder->vendor_id = $vendorId;
             $preorder->rate = $rate;
-            $preorder->status = Preorder::STATUS_DELIVERED;
+            $preorder->status = $newStatus;
             $preorder->purchase_date = $transferredAt;
             $preorder->updated_by = $userId;
             $preorder->save();
@@ -360,7 +364,7 @@ class PreorderService
             PreorderStatusHistory::create([
                 'preorder_id' => $preorder->id,
                 'from_status' => $preorder->getOriginal('status'),
-                'to_status' => Preorder::STATUS_DELIVERED,
+                'to_status' => $newStatus,
                 'changed_by' => $userId,
                 'notes' => 'Converted to Purchase ' . $referenceNo,
             ]);

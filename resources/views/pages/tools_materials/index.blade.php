@@ -89,10 +89,9 @@
                     <select name="status" class="form-select">
                         <option value="">All Statuses</option>
                         @if($activeTab === 'preorder')
-                            <option value="preorder" @selected(request('status') === 'preorder')>Preorder</option>
-                            <option value="purchase" @selected(request('status') === 'purchase')>Converted to Purchase</option>
-                            <option value="delivered" @selected(request('status') === 'delivered')>Delivered</option>
-                            <option value="hold" @selected(request('status') === 'hold')>On Hold</option>
+                            @foreach(\App\Http\Controllers\PreorderController::STATUSES as $val => $lbl)
+                                <option value="{{ $val }}" @selected(request('status') === $val)>{{ $lbl }}</option>
+                            @endforeach
                         @elseif($activeTab === 'purchase')
                             <option value="active" @selected(request('status') === 'active')>Active Stock</option>
                             <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
@@ -143,7 +142,7 @@
                         <tbody>
                             @forelse ($preorders as $po)
                                 <tr>
-                                    <td><span class="fw-semibold text-primary">{{ $po->reference_no }}</span></td>
+                                    <td><a href="{{ route('preorders.show', $po->id) }}" class="fw-semibold text-primary">{{ $po->reference_no }}</a></td>
                                     <td>{{ $po->preorder_date?->format('d M Y') }}</td>
                                     <td class="fw-semibold text-dark">{{ $po->toolMaterial->name }}</td>
                                     <td>{{ $po->vendor?->name ?: 'N/A' }}</td>
@@ -153,13 +152,16 @@
                                     <td class="fw-bold text-danger">Rs {{ number_format($po->remaining_amount, 2) }}</td>
                                     <td>
                                         <span class="badge {{ match($po->status) {
-                                            'delivered' => 'badge-soft-success',
-                                            'purchase' => 'badge-soft-info',
-                                            'hold' => 'badge-soft-danger',
-                                            default => 'badge-soft-warning'
-                                        } }}">
-                                            {{ ucfirst($po->status) }}
-                                        </span>
+                                             'delivered', 'closed' => 'badge-soft-dark',
+                                             'approved' => 'badge-soft-success',
+                                             'ordered' => 'badge-soft-primary',
+                                             'partially_delivered' => 'badge-soft-info',
+                                             'rejected', 'cancelled' => 'badge-soft-danger',
+                                             'hold' => 'badge-soft-warning',
+                                             default => 'badge-soft-secondary'
+                                         } }}">
+                                             {{ \App\Http\Controllers\PreorderController::STATUSES[$po->status] ?? ucfirst($po->status) }}
+                                         </span>
                                     </td>
                                     <td class="text-end">
                                         <div class="d-inline-flex align-items-center gap-1">
