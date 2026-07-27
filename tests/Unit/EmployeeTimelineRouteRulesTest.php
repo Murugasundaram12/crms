@@ -74,6 +74,27 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame([], $this->invoke($controller, 'polylineSegmentsFromItems', [$items]));
     }
 
+    public function test_legacy_still_status_rows_keep_wifi_and_do_not_create_route_lines(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+
+        $first = $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'ActivityType.STILL', speed: 0, attendanceId: 1, trackingType: 'still')
+            ->setRelation('attendance', $attendance);
+        $second = $this->point(11.000050, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'ActivityType.STILL', speed: 0, attendanceId: 1, trackingType: 'still')
+            ->setRelation('attendance', $attendance);
+
+        $first->is_wifi_on = true;
+        $second->is_wifi_on = true;
+
+        $timeline = $builder->build(collect([$first, $second]), $this->builderOptions());
+
+        $this->assertSame(['still', 'still'], $timeline['items']->pluck('type')->all());
+        $this->assertSame([true, true], $timeline['items']->pluck('isWifiOn')->all());
+        $this->assertSame([], $timeline['polylineSegments']);
+        $this->assertSame(0.0, (float) $timeline['gpsDistanceKm']);
+    }
+
     public function test_travelling_type_with_still_activity_does_not_create_route(): void
     {
         $builder = app(EmployeeTimelineBuilder::class);
@@ -293,6 +314,34 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $timeline = $builder->build($trackings, $this->builderOptions());
 
         $this->assertSame('still', $timeline['items']->firstWhere('id', 4)['type']);
+        $this->assertCount(1, $timeline['polylineSegments']);
+        $this->assertSame([1, 2], collect($timeline['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+    }
+
+    public function test_still_activity_after_large_gap_does_not_create_route_line(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-24 20:20:00', '2026-07-24 20:50:00');
+
+        $stillAfterMovement = $this->point(9.5838217, 77.7254526, '2026-07-24 20:30:12', id: 3, activity: 'still', attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance);
+        $stillAfterGap = $this->point(9.5186910, 77.6328194, '2026-07-24 20:47:18', id: 4, activity: 'still', attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance);
+        $stillAfterMovement->speed = null;
+        $stillAfterGap->speed = null;
+
+        $trackings = collect([
+            $this->point(9.6243833, 77.7619617, '2026-07-24 20:23:24', id: 1, activity: 'travelling', attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $this->point(9.6218333, 77.7599683, '2026-07-24 20:23:43', id: 2, activity: 'travelling', attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
+            $stillAfterMovement,
+            $stillAfterGap,
+        ]);
+
+        $timeline = $builder->build($trackings, [
+            ...$this->builderOptions(),
+            'max_accuracy_meters' => 50,
+            'max_inactive_gap_seconds' => 600,
+        ]);
+
+        $this->assertSame(['vehicle', 'vehicle', 'vehicle', 'still'], $timeline['items']->pluck('type')->all());
         $this->assertCount(1, $timeline['polylineSegments']);
         $this->assertSame([1, 2], collect($timeline['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
     }

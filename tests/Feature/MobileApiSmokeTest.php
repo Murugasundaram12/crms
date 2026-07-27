@@ -589,20 +589,22 @@ class MobileApiSmokeTest extends TestCase
             'device_id' => 'settings-device',
             'latitude' => 11.016844,
             'longitude' => 76.955832,
-            'accuracy' => 60,
+            'accuracy' => 100,
             'isGpsOn' => true,
             'isMock' => false,
         ];
 
         DB::table('app_settings')->updateOrInsert(
             ['key' => 'max_accuracy_meters'],
-            ['group' => 'tracking', 'value' => '75', 'type' => 'integer', 'is_public' => true, 'updated_at' => now(), 'created_at' => now()]
+            ['group' => 'tracking', 'value' => '50', 'type' => 'integer', 'is_public' => true, 'updated_at' => now(), 'created_at' => now()]
         );
 
         $this->withHeaders($headers)
             ->postJson('/api/check_in', $trackingPayload)
             ->assertCreated()
-            ->assertJsonPath('tracking.accuracy', 60);
+            ->assertJsonPath('tracking.accuracy', 100)
+            ->assertJsonPath('route_accepted', false)
+            ->assertJsonPath('reason', 'accuracy_exceeded');
 
         DB::table('app_settings')->updateOrInsert(
             ['key' => 'tracking_enabled'],
