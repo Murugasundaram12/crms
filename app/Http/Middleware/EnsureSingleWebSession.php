@@ -12,6 +12,10 @@ class EnsureSingleWebSession
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if (! config('session.single_web_session', false)) {
+            return $next($request);
+        }
+
         if ($this->isAuthenticationRoute($request)) {
             return $next($request);
         }

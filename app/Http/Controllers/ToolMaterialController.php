@@ -9,6 +9,7 @@ use App\Models\Unit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -114,6 +115,7 @@ class ToolMaterialController extends Controller
     {
         $validated = $this->validateToolMaterial($request);
         $validated = $this->normalizeToolMaterialStockFields($validated);
+        $this->ensureOpeningStockWillNotBreakBalances($validated);
         $validated['active_status'] = $request->boolean('active_status', true);
 
         if ($request->hasFile('image')) {
@@ -138,8 +140,9 @@ class ToolMaterialController extends Controller
 
     public function update(Request $request, ToolMaterial $toolsMaterial): RedirectResponse
     {
-        $validated = $this->validateToolMaterial($request);
+        $validated = $this->validateToolMaterial($request, $toolsMaterial);
         $validated = $this->normalizeToolMaterialStockFields($validated);
+        $this->ensureOpeningStockWillNotBreakBalances($validated, $toolsMaterial);
         $validated['active_status'] = $request->boolean('active_status', true);
 
         if ($request->hasFile('image')) {
@@ -170,13 +173,25 @@ class ToolMaterialController extends Controller
         return redirect()->route('tools-materials.index', ['tab' => 'purchase'])->with('success', 'Tool / material deleted successfully.');
     }
 
-    private function validateToolMaterial(Request $request): array
+    private function validateToolMaterial(Request $request, ?ToolMaterial $editingItem = null): array
     {
+        $unitRule = Rule::exists('units', 'code')->where('active_status', true);
+        if ($editingItem?->unit) {
+            $unitRule = Rule::exists('units', 'code')->where(function ($query) use ($editingItem) {
+                $query->where('active_status', true)
+                    ->orWhere('code', $editingItem->unit);
+            });
+        }
+
         return $request->validate([
             'item_type' => ['required', Rule::in(['tool', 'material'])],
             'sku' => ['nullable', 'string', 'max:100'],
             'name' => ['required', 'string', 'max:255'],
-            'unit' => ['required_if:item_type,material', 'nullable', 'string', 'max:50'],
+            'unit' => [
+                'required_if:item_type,material',
+                'nullable',
+                $unitRule,
+            ],
             'image' => ['nullable', 'image', 'max:2048'],
             'description' => ['nullable', 'string', 'max:1000'],
             'date' => ['required', 'date'],
@@ -199,5 +214,33 @@ class ToolMaterialController extends Controller
         $validated['reorder_level'] = (float) ($validated['reorder_level'] ?? 0);
 
         return $validated;
+    }
+
+    private function ensureOpeningStockWillNotBreakBalances(array $validated, ?ToolMaterial $editingItem = null): void
+    {
+        if (! $editingItem || ! $editingItem->assignments()->exists()) {
+            return;
+        }
+
+        $oldOpeningQuantity = (float) $editingItem->opening_quantity;
+        $oldOpeningAmount = (float) $editingItem->opening_amount;
+        $newOpeningQuantity = (float) ($validated['opening_quantity'] ?? 0);
+        $newOpeningAmount = (float) ($validated['opening_amount'] ?? 0);
+
+        $balances = $editingItem->load(['assignments.fromProject', 'assignments.toProject'])->stockBalances();
+        $officeQuantity = (float) ($balances['office']['quantity'] ?? 0) - $oldOpeningQuantity + $newOpeningQuantity;
+        $officeAmount = (float) ($balances['office']['amount'] ?? 0) - $oldOpeningAmount + $newOpeningAmount;
+
+        if ($officeQuantity < -0.0001) {
+            throw ValidationException::withMessages([
+                'opening_quantity' => 'Opening quantity cannot be reduced below stock already moved from office. Minimum required is ' . number_format($oldOpeningQuantity - ($balances['office']['quantity'] ?? 0), 2) . '.',
+            ]);
+        }
+
+        if ($officeAmount < -0.01) {
+            throw ValidationException::withMessages([
+                'opening_rate' => 'Opening stock value cannot be lower than stock value already moved from office.',
+            ]);
+        }
     }
 }

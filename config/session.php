@@ -36,6 +36,8 @@ return [
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
+    'single_web_session' => env('ENABLE_SINGLE_WEB_SESSION', false),
+
     /*
     |--------------------------------------------------------------------------
     | Session Encryption

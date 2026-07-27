@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\PaymentMethod;
 use App\Models\ToolMaterial;
 use App\Models\ToolMaterialAssignment;
 use App\Models\User;
@@ -31,12 +32,13 @@ class ToolMaterialAssignmentController extends Controller
         'draft' => 'Draft',
         'transferred' => 'Transferred',
         'returned' => 'Returned',
+        'cancelled' => 'Cancelled',
     ];
 
     public function index(Request $request): View
     {
         $query = ToolMaterialAssignment::query()
-            ->with(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler']);
+            ->with(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler', 'paymentMethod']);
 
         if ($request->filled('q')) {
             $search = $request->string('q')->toString();
@@ -117,6 +119,7 @@ class ToolMaterialAssignmentController extends Controller
             'quantity',
             'rate',
             'amount',
+            'advance_amount',
             'receiver_name',
             'vehicle_no',
             'purpose',
@@ -129,6 +132,7 @@ class ToolMaterialAssignmentController extends Controller
             'toolsMaterials' => $this->toolsMaterials($selectedToolMaterialId),
             'projects' => $this->projects(),
             'vendors' => $this->vendors(),
+            'paymentMethods' => $this->paymentMethods(),
             'employees' => User::query()->orderBy('name')->get(['id', 'name']),
             'transactionTypes' => self::TRANSACTION_TYPES,
             'statuses' => self::STATUSES,
@@ -156,6 +160,7 @@ class ToolMaterialAssignmentController extends Controller
             'toolsMaterials' => $this->toolsMaterials((int) $toolsMaterialAssignment->tool_material_id),
             'projects' => $this->projects(),
             'vendors' => $this->vendors(),
+            'paymentMethods' => $this->paymentMethods(),
             'employees' => User::query()->orderBy('name')->get(['id', 'name']),
             'transactionTypes' => self::TRANSACTION_TYPES,
             'statuses' => self::STATUSES,
@@ -196,12 +201,14 @@ class ToolMaterialAssignmentController extends Controller
             'from_project_id' => ['nullable', 'exists:projects,id'],
             'to_project_id' => ['nullable', 'exists:projects,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'transaction_type' => ['required', Rule::in(array_keys(self::TRANSACTION_TYPES))],
             'source_type' => ['nullable', Rule::in(['office', 'site', 'vendor'])],
             'destination_type' => ['nullable', Rule::in(['office', 'site', 'vendor', 'wastage'])],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'rate' => ['required', 'numeric', 'min:0'],
             'amount' => ['nullable', 'numeric', 'min:0'],
+            'advance_amount' => ['nullable', 'numeric', 'min:0'],
             'receiver_name' => ['nullable', 'string', 'max:255'],
             'vehicle_no' => ['nullable', 'string', 'max:255'],
             'purpose' => ['nullable', 'string', 'max:255'],
@@ -230,10 +237,12 @@ class ToolMaterialAssignmentController extends Controller
         }
 
         $validated['amount'] = round($amount, 2);
+        $validated['advance_amount'] = round((float) ($validated['advance_amount'] ?? 0), 2);
         $validated['unit'] = ToolMaterial::query()->whereKey($validated['tool_material_id'])->value('unit') ?: 'Nos';
         $validated['transfer_type'] = $validated['transaction_type'];
 
         $this->normalizeTransactionLocations($validated);
+        $this->validatePaymentFields($validated);
         if (ToolMaterialAssignment::isStockEffectiveStatus($validated['status'])) {
             $this->ensureStockAvailable($validated, $editingAssignment);
         }
@@ -340,6 +349,28 @@ class ToolMaterialAssignmentController extends Controller
         app(CrmBalanceService::class)->adjustVendorAdvance((int) $assignment->vendor_id, (float) $assignment->amount * $direction);
     }
 
+    private function validatePaymentFields(array &$validated): void
+    {
+        if (! in_array($validated['transaction_type'], ['purchase', 'return_to_vendor'], true)) {
+            $validated['payment_method_id'] = null;
+            $validated['advance_amount'] = 0;
+
+            return;
+        }
+
+        if ((float) $validated['advance_amount'] > (float) $validated['amount'] + 0.01) {
+            throw ValidationException::withMessages([
+                'advance_amount' => 'Paid amount cannot exceed transaction amount.',
+            ]);
+        }
+
+        if ((float) $validated['advance_amount'] > 0 && empty($validated['payment_method_id'])) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'Payment method is required when paid amount is entered.',
+            ]);
+        }
+    }
+
     private function toolsMaterials(?int $selectedToolMaterialId = null)
     {
         return ToolMaterial::query()
@@ -363,6 +394,11 @@ class ToolMaterialAssignmentController extends Controller
     private function vendors()
     {
         return Vendor::query()->orderBy('name')->get(['id', 'name']);
+    }
+
+    private function paymentMethods()
+    {
+        return PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name']);
     }
 
     private function ensureStockAvailable(array $validated, ?ToolMaterialAssignment $editingAssignment = null): void

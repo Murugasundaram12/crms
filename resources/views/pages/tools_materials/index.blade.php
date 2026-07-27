@@ -170,7 +170,7 @@
                                                 <i class="ti ti-eye"></i>
                                             </a>
                                             @if($po->canBeConvertedToPurchase())
-                                                <a href="{{ route('preorders.convert.form', $po) }}" class="btn btn-sm btn-success" title="Convert to Purchase">
+                                                <a href="{{ route('preorders.convert.form', $po) }}" class="btn btn-sm btn-outline-success" title="Convert to Purchase">
                                                     <i class="ti ti-shopping-cart-check"></i>
                                                 </a>
                                             @endif
@@ -260,7 +260,7 @@
                                     <td class="text-end">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             @can('tools-materials-create')
-                                                <a class="btn btn-sm btn-success" title="Purchase Stock" href="{{ route('tools-material-assignments.create', [
+                                                <a class="btn btn-sm btn-info" title="Purchase Stock" href="{{ route('tools-material-assignments.create', [
                                                     'tool_material_id' => $item->id,
                                                     'transaction_type' => 'purchase',
                                                     'destination_type' => 'office',

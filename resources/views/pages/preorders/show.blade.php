@@ -459,6 +459,14 @@
     </div>
 
     <!-- Modal: Record Delivery Receipt -->
+    @php
+        $deliveryAppliedAdvance = $preorder->deliveries->sum(fn($delivery) => (float) ($delivery->assignment?->advance_amount ?? 0));
+        $availableAdvanceForDelivery = max(0, (float) $preorder->totalAdvancePaid() - $deliveryAppliedAdvance);
+        $defaultDeliveryRate = (float) ($preorder->rate ?: $preorder->expected_rate);
+        $defaultDeliveryAmount = $preorder->remainingQuantity() * $defaultDeliveryRate;
+        $defaultDeliveryAdvance = min($availableAdvanceForDelivery, $defaultDeliveryAmount);
+        $defaultDeliveryDue = max(0, $defaultDeliveryAmount - $defaultDeliveryAdvance);
+    @endphp
     <div class="modal fade" id="modal_delivery" tabindex="-1">
         <div class="modal-dialog">
             <form action="{{ route('preorders.deliveries.store', $preorder->id) }}" method="POST">
@@ -470,9 +478,44 @@
                     </div>
                     <div class="modal-body row g-3">
                         <div class="col-12">
+                            <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor_id" class="form-select" required>
+                                <option value="">Select Vendor</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', $preorder->vendor_id) === (string) $vendor->id)>{{ $vendor->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">Quantity Delivered ({{ $preorder->unit }}) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" name="quantity" class="form-control" max="{{ $preorder->remainingQuantity() }}" min="0.01" required>
+                            <input type="number" step="0.01" name="quantity" id="delivery_quantity" class="form-control" max="{{ $preorder->remainingQuantity() }}" min="0.01" value="{{ old('quantity', $preorder->remainingQuantity()) }}" required>
                             <small class="text-muted">Remaining Undelivered Qty: {{ number_format($preorder->remainingQuantity(), 2) }} {{ $preorder->unit }}</small>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Unit Rate (Rs.) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0.01" name="rate" id="delivery_rate" class="form-control" value="{{ old('rate', number_format($defaultDeliveryRate, 2, '.', '')) }}" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Purchase Amount (Rs.) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0.01" name="purchase_amount" id="delivery_purchase_amount" class="form-control" value="{{ old('purchase_amount', number_format($defaultDeliveryAmount, 2, '.', '')) }}" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Available Advance Applied</label>
+                            <input type="number" step="0.01" id="delivery_advance_applied" class="form-control bg-light fw-bold text-success" value="{{ number_format($defaultDeliveryAdvance, 2, '.', '') }}" readonly data-available-advance="{{ number_format($availableAdvanceForDelivery, 2, '.', '') }}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Pay Now From Wallet (Rs.)</label>
+                            <input type="number" step="0.01" min="0" name="purchase_paid_amount" id="delivery_paid_now" class="form-control" value="{{ old('purchase_paid_amount', number_format($defaultDeliveryDue, 2, '.', '')) }}">
+                            <small class="text-muted">Required after advance: Rs. <span id="delivery_due_now">{{ number_format($defaultDeliveryDue, 2) }}</span></small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Payment Method <span class="text-muted small">(required if pay now &gt; 0)</span></label>
+                            <select name="payment_method_id" class="form-select">
+                                <option value="">Select Payment Method</option>
+                                @foreach($paymentMethods as $pm)
+                                    <option value="{{ $pm->id }}" @selected((string) old('payment_method_id', $preorder->payment_method_id) === (string) $pm->id)>{{ $pm->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Delivery Date <span class="text-danger">*</span></label>
@@ -558,4 +601,30 @@
             </form>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const deliveryQty = document.getElementById('delivery_quantity');
+            const deliveryRate = document.getElementById('delivery_rate');
+            const deliveryAmount = document.getElementById('delivery_purchase_amount');
+            const deliveryAdvance = document.getElementById('delivery_advance_applied');
+            const deliveryPaidNow = document.getElementById('delivery_paid_now');
+            const deliveryDueNow = document.getElementById('delivery_due_now');
+
+            function updateDeliveryPayment() {
+                if (!deliveryQty || !deliveryRate || !deliveryAmount || !deliveryAdvance || !deliveryPaidNow) return;
+                const amount = Math.max(0, parseFloat(deliveryQty.value || 0) * parseFloat(deliveryRate.value || 0));
+                const availableAdvance = Math.max(0, parseFloat(deliveryAdvance.dataset.availableAdvance || 0));
+                const appliedAdvance = Math.min(availableAdvance, amount);
+                const dueNow = Math.max(0, amount - appliedAdvance);
+
+                deliveryAmount.value = amount.toFixed(2);
+                deliveryAdvance.value = appliedAdvance.toFixed(2);
+                deliveryPaidNow.value = dueNow.toFixed(2);
+                if (deliveryDueNow) deliveryDueNow.textContent = dueNow.toFixed(2);
+            }
+
+            deliveryQty?.addEventListener('input', updateDeliveryPayment);
+            deliveryRate?.addEventListener('input', updateDeliveryPayment);
+        });
+    </script>
 @endsection

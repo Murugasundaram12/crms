@@ -108,6 +108,26 @@
                 @error('vendor_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
+            <div class="col-md-6" id="paymentMethodField">
+                <label class="form-label">Payment Method</label>
+                <select name="payment_method_id" class="form-select">
+                    <option value="">Select Payment Method</option>
+                    @foreach($paymentMethods as $paymentMethod)
+                        <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id', $assignment?->payment_method_id ?? null) === (string) $paymentMethod->id)>
+                            {{ $paymentMethod->name }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('payment_method_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-6" id="paidAmountField">
+                <label class="form-label">Paid Amount</label>
+                <input type="number" step="0.01" name="advance_amount" id="toolPaidAmount" class="form-control"
+                    value="{{ old('advance_amount', $assignment?->advance_amount ?? 0) }}">
+                @error('advance_amount')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            </div>
+
             <div class="col-md-4">
                 <label class="form-label">Quantity</label>
                 <input type="number" step="0.01" name="quantity" id="toolQuantity" class="form-control"
@@ -192,6 +212,9 @@
             const fromProjectField = document.getElementById('fromProjectField');
             const toProjectField = document.getElementById('toProjectField');
             const vendorField = document.getElementById('vendorField');
+            const paymentMethodField = document.getElementById('paymentMethodField');
+            const paidAmountField = document.getElementById('paidAmountField');
+            const paidAmount = document.getElementById('toolPaidAmount');
             const quantity = document.getElementById('toolQuantity');
             const rate = document.getElementById('toolRate');
             const amount = document.getElementById('toolAmount');
@@ -207,20 +230,28 @@
                 const fromSiteVisible = ['return_to_office', 'site_to_site'].includes(type) || (sourceChoiceVisible && sourceType?.value === 'site');
                 const toSiteVisible = ['issue_to_site', 'site_to_site'].includes(type) || (destinationChoiceVisible && destinationType?.value === 'site');
                 const vendorVisible = ['purchase', 'return_to_vendor'].includes(type);
+                const paymentMethodVisible = ['purchase', 'return_to_vendor'].includes(type);
 
                 if (sourceTypeField) sourceTypeField.style.display = sourceChoiceVisible ? '' : 'none';
                 if (destinationTypeField) destinationTypeField.style.display = destinationChoiceVisible ? '' : 'none';
                 if (fromProjectField) fromProjectField.style.display = fromSiteVisible ? '' : 'none';
                 if (toProjectField) toProjectField.style.display = toSiteVisible ? '' : 'none';
                 if (vendorField) vendorField.style.display = vendorVisible ? '' : 'none';
+                if (paymentMethodField) paymentMethodField.style.display = paymentMethodVisible ? '' : 'none';
+                if (paidAmountField) paidAmountField.style.display = paymentMethodVisible ? '' : 'none';
+                if (!paymentMethodVisible && paidAmount) paidAmount.value = '0';
             }
 
             let amountTouched = false;
+            let paidTouched = Number(paidAmount?.value || 0) > 0;
 
             function syncAmount() {
                 const calculated = (Number(quantity?.value || 0) * Number(rate?.value || 0)).toFixed(2);
                 if (amount && !amountTouched) {
                     amount.value = calculated;
+                }
+                if (paidAmount && !paidTouched && transactionType?.value === 'purchase') {
+                    paidAmount.value = calculated;
                 }
             }
 
@@ -231,6 +262,12 @@
             rate?.addEventListener('input', syncAmount);
             amount?.addEventListener('input', function () {
                 amountTouched = true;
+                if (paidAmount && !paidTouched && transactionType?.value === 'purchase') {
+                    paidAmount.value = Number(amount.value || 0).toFixed(2);
+                }
+            });
+            paidAmount?.addEventListener('input', function () {
+                paidTouched = true;
             });
             syncTransactionFields();
             syncAmount();

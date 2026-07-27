@@ -38,7 +38,9 @@ trait MobilePreorderEndpoints
         $units = Schema::hasTable('units')
             ? Unit::query()->active()->orderBy('name')->get()->map(fn($u) => [
                 'id' => $u->id,
-                'name' => $u->code ?: $u->name,
+                'name' => $u->name,
+                'code' => $u->code,
+                'display_name' => $u->display_name,
             ])
             : [];
 
@@ -157,14 +159,18 @@ trait MobilePreorderEndpoints
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'unit' => ['nullable', 'string', 'max:50'],
+            'unit' => ['nullable', Rule::exists('units', 'code')->where('active_status', true)],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'advance_amount' => ['nullable', 'numeric', 'min:0'],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
             'preorder_date' => ['nullable', 'date'],
-            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
+            'payment_method_id' => [
+                Rule::requiredIf(fn() => (float) $request->input('advance_amount', 0) > 0),
+                'nullable',
+                'exists:payment_methods,id',
+            ],
             'status' => ['nullable', Rule::in(array_keys(\App\Http\Controllers\PreorderController::STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -234,7 +240,7 @@ trait MobilePreorderEndpoints
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'unit' => ['nullable', 'string', 'max:50'],
+            'unit' => ['nullable', Rule::exists('units', 'code')],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'required_date' => ['nullable', 'date'],
@@ -403,12 +409,21 @@ trait MobilePreorderEndpoints
 
         $remaining = $preorder->remainingQuantity();
         $validated = $request->validate([
+            'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01', 'max:' . $remaining],
+            'rate' => ['nullable', 'numeric', 'min:0.01'],
+            'purchase_amount' => ['nullable', 'numeric', 'min:0.01'],
+            'purchase_paid_amount' => ['nullable', 'numeric', 'min:0'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'delivery_date' => ['nullable', 'date'],
             'challan_no' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $validated['vendor_id'] = $validated['vendor_id'] ?? $preorder->vendor_id;
+        $validated['rate'] = $validated['rate'] ?? $preorder->rate ?? $preorder->expected_rate;
+        $validated['purchase_amount'] = $validated['purchase_amount'] ?? round((float) $validated['quantity'] * (float) $validated['rate'], 2);
+        $validated['payment_method_id'] = $validated['payment_method_id'] ?? $preorder->payment_method_id;
         $validated['delivery_date'] = $validated['delivery_date'] ?? now()->toDateString();
         app(PreorderService::class)->recordDelivery($preorder, $validated, $request->user()->id);
 
@@ -435,8 +450,8 @@ trait MobilePreorderEndpoints
         $validated = $request->validate([
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['nullable', 'numeric', 'min:0.01', 'max:' . $preorder->remainingQuantity()],
-            'rate' => ['nullable', 'numeric', 'min:0'],
-            'purchase_amount' => ['nullable', 'numeric', 'min:0'],
+            'rate' => ['nullable', 'numeric', 'min:0.01'],
+            'purchase_amount' => ['nullable', 'numeric', 'min:0.01'],
             'purchase_paid_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'transferred_at' => ['nullable', 'date'],

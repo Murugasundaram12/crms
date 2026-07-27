@@ -6,6 +6,7 @@ use App\Models\PaymentMethod;
 use App\Models\Preorder;
 use App\Models\PreorderDocument;
 use App\Models\ToolMaterial;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\PreorderService;
@@ -138,6 +139,7 @@ class PreorderController extends Controller
             'preorder' => $preorder,
             'statuses' => self::STATUSES,
             'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
+            'vendors' => Vendor::query()->orderBy('name')->get(),
         ]);
     }
 
@@ -145,6 +147,7 @@ class PreorderController extends Controller
     {
         return view('pages.preorders.create', [
             'toolsMaterials' => ToolMaterial::query()->where('active_status', true)->orderBy('name')->get(),
+            'units' => Unit::query()->active()->orderBy('name')->get(),
             'vendors' => Vendor::query()->orderBy('name')->get(),
             'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
             'statuses' => self::STATUSES,
@@ -157,7 +160,7 @@ class PreorderController extends Controller
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'unit' => ['required', 'string', 'max:50'],
+            'unit' => ['required', Rule::exists('units', 'code')->where('active_status', true)],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'advance_amount' => [
@@ -178,7 +181,11 @@ class PreorderController extends Controller
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
             'preorder_date' => ['nullable', 'date'],
-            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
+            'payment_method_id' => [
+                Rule::requiredIf(fn() => (float) $request->input('advance_amount', 0) > 0),
+                'nullable',
+                'exists:payment_methods,id',
+            ],
             'status' => ['nullable', Rule::in(array_keys(self::STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
             'attachment' => ['nullable', 'file', 'max:10240'],
@@ -197,6 +204,11 @@ class PreorderController extends Controller
         return view('pages.preorders.edit', [
             'preorder' => $preorder,
             'toolsMaterials' => ToolMaterial::query()->orderBy('name')->get(),
+            'units' => Unit::query()
+                ->where('active_status', true)
+                ->orWhere('code', $preorder->unit)
+                ->orderBy('name')
+                ->get(),
             'vendors' => Vendor::query()->orderBy('name')->get(),
             'paymentMethods' => PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
             'statuses' => self::STATUSES,
@@ -209,7 +221,7 @@ class PreorderController extends Controller
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'unit' => ['required', 'string', 'max:50'],
+            'unit' => ['required', Rule::exists('units', 'code')],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'required_date' => ['nullable', 'date'],
@@ -333,7 +345,12 @@ class PreorderController extends Controller
         $remaining = $preorder->remainingQuantity();
 
         $validated = $request->validate([
+            'vendor_id' => ['required', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01', 'max:' . $remaining],
+            'rate' => ['required', 'numeric', 'min:0.01'],
+            'purchase_amount' => ['required', 'numeric', 'min:0.01'],
+            'purchase_paid_amount' => ['nullable', 'numeric', 'min:0'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'delivery_date' => ['required', 'date'],
             'challan_no' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -373,6 +390,8 @@ class PreorderController extends Controller
 
     public function showConvertToPurchase(Preorder $preorder): View
     {
+        $preorder->loadMissing(['deliveries.assignment']);
+
         if (! $preorder->canBeConvertedToPurchase()) {
             throw ValidationException::withMessages(['status' => 'This preorder cannot be converted to purchase. It must be approved and have remaining undelivered quantity.']);
         }
@@ -397,8 +416,8 @@ class PreorderController extends Controller
         $validated = $request->validate([
             'vendor_id' => ['required', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01', 'max:' . $preorder->remainingQuantity()],
-            'rate' => ['required', 'numeric', 'min:0'],
-            'purchase_amount' => ['required', 'numeric', 'min:0'],
+            'rate' => ['required', 'numeric', 'min:0.01'],
+            'purchase_amount' => ['required', 'numeric', 'min:0.01'],
             'purchase_paid_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'transferred_at' => ['required', 'date'],

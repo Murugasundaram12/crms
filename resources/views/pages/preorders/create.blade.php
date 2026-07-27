@@ -63,7 +63,14 @@
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Unit <span class="text-danger">*</span></label>
-                            <input type="text" name="unit" id="unit" class="form-control @error('unit') is-invalid @enderror" value="{{ old('unit', 'pcs') }}" required>
+                            <select name="unit" id="unit" class="form-select @error('unit') is-invalid @enderror" required>
+                                <option value="">Select Unit</option>
+                                @foreach($units as $unit)
+                                    <option value="{{ $unit->code }}" @selected((string) old('unit', 'pcs') === (string) $unit->code)>
+                                        {{ $unit->name }} ({{ $unit->code }})
+                                    </option>
+                                @endforeach
+                            </select>
                             @error('unit')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                         </div>
 
@@ -113,13 +120,14 @@
                             <input type="number" step="0.01" min="0" name="advance_amount" class="form-control" value="{{ old('advance_amount', 0) }}">
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label">Payment Method Master</label>
-                            <select name="payment_method_id" class="form-select">
+                            <label class="form-label">Payment Method Master <span class="text-muted small">(required for advance)</span></label>
+                            <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror">
                                 <option value="">Select Payment Method</option>
                                 @foreach($paymentMethods as $pm)
                                     <option value="{{ $pm->id }}" @selected((string) old('payment_method_id') === (string) $pm->id)>{{ $pm->name }}</option>
                                 @endforeach
                             </select>
+                            @error('payment_method_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                         </div>
                     </div>
                 </div>
@@ -136,13 +144,19 @@
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 const materialSelect = document.getElementById('tool_material_id');
-                const unitInput = document.getElementById('unit');
+                const unitSelect = document.getElementById('unit');
                 const expectedRateInput = document.getElementById('expected_rate');
                 const quantityInput = document.getElementById('quantity');
                 const gstPercentInput = document.getElementById('gst_percent');
 
                 const estAmtInput = document.getElementById('estimated_amount');
                 const totalAmtInput = document.getElementById('total_amount');
+
+                function selectUnit(unit) {
+                    if (!unit) return;
+                    const exists = Array.from(unitSelect.options).some(option => option.value === unit);
+                    if (exists) unitSelect.value = unit;
+                }
 
                 function calculateAmounts() {
                     const qty = parseFloat(quantityInput.value || 0);
@@ -159,7 +173,7 @@
 
                 materialSelect.addEventListener('change', function () {
                     const opt = this.options[this.selectedIndex];
-                    if (opt.dataset.unit) unitInput.value = opt.dataset.unit;
+                    selectUnit(opt.dataset.unit);
                     if (opt.dataset.rate && parseFloat(opt.dataset.rate) > 0) {
                         expectedRateInput.value = opt.dataset.rate;
                     }

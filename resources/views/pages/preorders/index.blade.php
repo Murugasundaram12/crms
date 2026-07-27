@@ -235,7 +235,7 @@
                                             @endcan
                                             @if($preorder->canBeConvertedToPurchase())
                                                 @can('tools-materials-create')
-                                                    <a class="btn btn-sm btn-success" href="{{ route('preorders.convert.form', $preorder->id) }}" title="Convert / Receive Purchase">
+                                                    <a class="btn btn-sm btn-outline-success" href="{{ route('preorders.convert.form', $preorder->id) }}" title="Convert / Receive Purchase">
                                                         <i class="ti ti-shopping-cart-plus"></i>
                                                     </a>
                                                 @endcan

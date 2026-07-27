@@ -53,7 +53,9 @@ trait MobileInventoryEndpoints
         $units = Schema::hasTable('units')
             ? Unit::query()->active()->orderBy('name')->get(['id', 'name', 'code'])->map(fn(Unit $unit) => [
                 'id' => $unit->id,
-                'name' => $unit->code, // Use code as option name
+                'name' => $unit->code,
+                'code' => $unit->code,
+                'display_name' => $unit->name,
             ])
             : [];
 
@@ -172,6 +174,13 @@ trait MobileInventoryEndpoints
         $sortOrder = in_array(strtolower($request->input('sort_order', '')), ['asc', 'desc'], true) ? $request->input('sort_order') : 'desc';
         $query->orderBy($sortBy, $sortOrder);
 
+        if ($request->boolean('low_stock')) {
+            $lowStockIds = (clone $query)->get()
+                ->filter(fn(ToolMaterial $item) => $item->is_low_stock)
+                ->pluck('id');
+            $query->whereIn('id', $lowStockIds->all() ?: [0]);
+        }
+
         $summaryItems = (clone $query)->get();
         $summary = [
             'items' => $summaryItems->count(),
@@ -183,7 +192,6 @@ trait MobileInventoryEndpoints
 
         $items = $query->paginate((int) ($validated['per_page'] ?? 15));
         $collection = $items->getCollection()
-            ->filter(fn(ToolMaterial $item) => ! $request->boolean('low_stock') || $item->is_low_stock)
             ->map(fn(ToolMaterial $item) => $this->toolMaterialPayload($item))
             ->values();
         $items->setCollection($collection);
@@ -251,8 +259,9 @@ trait MobileInventoryEndpoints
             return $forbidden;
         }
 
-        $validated = $this->validateInventoryItem($request);
+        $validated = $this->validateInventoryItem($request, $toolMaterial);
         $validated = $this->normalizeInventoryItemStockFields($validated);
+        $this->ensureInventoryOpeningStockWillNotBreakBalances($validated, $toolMaterial);
         $validated['active_status'] = $request->boolean('active_status', true);
 
         if ($request->hasFile('image')) {
@@ -318,7 +327,7 @@ trait MobileInventoryEndpoints
         ]);
 
         $query = ToolMaterialAssignment::query()
-            ->with(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])
+            ->with(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler', 'paymentMethod'])
             ->when($validated['q'] ?? null, function ($q, string $search) {
                 $q->where(function ($inner) use ($search) {
                     $inner->where('reference_no', 'like', "%{$search}%")
@@ -378,7 +387,7 @@ trait MobileInventoryEndpoints
 
         return response()->json([
             'message' => 'Inventory transaction saved successfully.',
-            'transaction' => $this->toolMaterialTransactionPayload($assignment->load(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])),
+            'transaction' => $this->toolMaterialTransactionPayload($assignment->load(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler', 'paymentMethod'])),
         ], 201);
     }
 
@@ -389,7 +398,7 @@ trait MobileInventoryEndpoints
         }
 
         return response()->json([
-            'transaction' => $this->toolMaterialTransactionPayload($assignment->load(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])),
+            'transaction' => $this->toolMaterialTransactionPayload($assignment->load(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler', 'paymentMethod'])),
         ]);
     }
 
@@ -409,7 +418,7 @@ trait MobileInventoryEndpoints
 
         return response()->json([
             'message' => 'Inventory transaction updated successfully.',
-            'transaction' => $this->toolMaterialTransactionPayload($assignment->fresh(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler'])),
+            'transaction' => $this->toolMaterialTransactionPayload($assignment->fresh(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler', 'paymentMethod'])),
         ]);
     }
 
@@ -427,13 +436,25 @@ trait MobileInventoryEndpoints
         return response()->json(['message' => 'Inventory transaction deleted successfully.']);
     }
 
-    private function validateInventoryItem(Request $request): array
+    private function validateInventoryItem(Request $request, ?ToolMaterial $editingItem = null): array
     {
+        $unitRule = Rule::exists('units', 'code')->where('active_status', true);
+        if ($editingItem?->unit) {
+            $unitRule = Rule::exists('units', 'code')->where(function ($query) use ($editingItem) {
+                $query->where('active_status', true)
+                    ->orWhere('code', $editingItem->unit);
+            });
+        }
+
         return $request->validate([
             'item_type' => ['required', Rule::in(['tool', 'material'])],
             'sku' => ['nullable', 'string', 'max:100'],
             'name' => ['required', 'string', 'max:255'],
-            'unit' => ['required_if:item_type,material', 'nullable', 'string', 'max:50'],
+            'unit' => [
+                'required_if:item_type,material',
+                'nullable',
+                $unitRule,
+            ],
             'image' => ['nullable', 'image', 'max:2048'],
             'description' => ['nullable', 'string', 'max:1000'],
             'date' => ['required', 'date'],
@@ -475,6 +496,34 @@ trait MobileInventoryEndpoints
         return $validated;
     }
 
+    private function ensureInventoryOpeningStockWillNotBreakBalances(array $validated, ToolMaterial $editingItem): void
+    {
+        if (! $editingItem->assignments()->exists()) {
+            return;
+        }
+
+        $oldOpeningQuantity = (float) $editingItem->opening_quantity;
+        $oldOpeningAmount = (float) $editingItem->opening_amount;
+        $newOpeningQuantity = (float) ($validated['opening_quantity'] ?? 0);
+        $newOpeningAmount = (float) ($validated['opening_amount'] ?? 0);
+
+        $balances = $editingItem->load(['assignments.fromProject', 'assignments.toProject'])->stockBalances();
+        $officeQuantity = (float) ($balances['office']['quantity'] ?? 0) - $oldOpeningQuantity + $newOpeningQuantity;
+        $officeAmount = (float) ($balances['office']['amount'] ?? 0) - $oldOpeningAmount + $newOpeningAmount;
+
+        if ($officeQuantity < -0.0001) {
+            throw ValidationException::withMessages([
+                'opening_quantity' => 'Opening quantity cannot be reduced below stock already moved from office.',
+            ]);
+        }
+
+        if ($officeAmount < -0.01) {
+            throw ValidationException::withMessages([
+                'opening_rate' => 'Opening stock value cannot be lower than stock value already moved from office.',
+            ]);
+        }
+    }
+
     private function validateInventoryTransaction(Request $request, ?ToolMaterialAssignment $assignment = null): array
     {
         $validated = $request->validate([
@@ -484,12 +533,14 @@ trait MobileInventoryEndpoints
             'from_project_id' => ['nullable', 'exists:projects,id'],
             'to_project_id' => ['nullable', 'exists:projects,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'transaction_type' => ['required', Rule::in(array_keys(self::INVENTORY_TRANSACTION_TYPES))],
             'source_type' => ['nullable', Rule::in(['office', 'site', 'vendor'])],
             'destination_type' => ['nullable', Rule::in(['office', 'site', 'vendor', 'wastage'])],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'rate' => ['required', 'numeric', 'min:0'],
             'amount' => ['nullable', 'numeric', 'min:0'],
+            'advance_amount' => ['nullable', 'numeric', 'min:0'],
             'receiver_name' => ['nullable', 'string', 'max:255'],
             'vehicle_no' => ['nullable', 'string', 'max:255'],
             'purpose' => ['nullable', 'string', 'max:255'],
@@ -508,10 +559,12 @@ trait MobileInventoryEndpoints
         $validated['amount'] = round((float) ($validated['amount'] ?? 0) > 0
             ? (float) $validated['amount']
             : (float) $validated['quantity'] * (float) $validated['rate'], 2);
+        $validated['advance_amount'] = round((float) ($validated['advance_amount'] ?? 0), 2);
         $validated['unit'] = ToolMaterial::query()->whereKey($validated['tool_material_id'])->value('unit') ?: 'Nos';
         $validated['transfer_type'] = $validated['transaction_type'];
 
         $this->normalizeInventoryLocations($validated);
+        $this->validateInventoryPaymentFields($validated);
 
         if (ToolMaterialAssignment::isStockEffectiveStatus($validated['status'])) {
             $this->ensureInventoryStockAvailable($validated, $assignment);
@@ -663,6 +716,28 @@ trait MobileInventoryEndpoints
         app(CrmBalanceService::class)->adjustVendorAdvance((int) $assignment->vendor_id, (float) $assignment->amount * $direction);
     }
 
+    private function validateInventoryPaymentFields(array &$validated): void
+    {
+        if (! in_array($validated['transaction_type'], ['purchase', 'return_to_vendor'], true)) {
+            $validated['payment_method_id'] = null;
+            $validated['advance_amount'] = 0;
+
+            return;
+        }
+
+        if ((float) $validated['advance_amount'] > (float) $validated['amount'] + 0.01) {
+            throw ValidationException::withMessages([
+                'advance_amount' => 'Paid amount cannot exceed transaction amount.',
+            ]);
+        }
+
+        if ((float) $validated['advance_amount'] > 0 && empty($validated['payment_method_id'])) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'Payment method is required when paid amount is entered.',
+            ]);
+        }
+    }
+
     private function defaultInventoryStatus(?string $transactionType): string
     {
         return match ($transactionType) {
@@ -727,6 +802,12 @@ trait MobileInventoryEndpoints
             'from_project' => $assignment->fromProject ? ['id' => $assignment->fromProject->id, 'name' => $assignment->fromProject->name] : null,
             'to_project' => $assignment->toProject ? ['id' => $assignment->toProject->id, 'name' => $assignment->toProject->name] : null,
             'vendor' => $assignment->vendor ? $this->vendorPayload($assignment->vendor) : null,
+            'payment_method' => $assignment->paymentMethod ? [
+                'id' => $assignment->paymentMethod->id,
+                'name' => $assignment->paymentMethod->name,
+                'code' => $assignment->paymentMethod->code,
+            ] : null,
+            'payment_method_id' => $assignment->payment_method_id,
             'handled_by' => $assignment->handler ? $this->userPayload($assignment->handler) : null,
             'source_type' => $assignment->source_type,
             'destination_type' => $assignment->destination_type,
@@ -734,6 +815,8 @@ trait MobileInventoryEndpoints
             'unit' => $assignment->unit,
             'rate' => (float) $assignment->rate,
             'amount' => (float) $assignment->amount,
+            'advance_amount' => (float) $assignment->advance_amount,
+            'remaining_amount' => max(round((float) $assignment->amount - (float) $assignment->advance_amount, 2), 0),
             'receiver_name' => $assignment->receiver_name,
             'vehicle_no' => $assignment->vehicle_no,
             'purpose' => $assignment->purpose,

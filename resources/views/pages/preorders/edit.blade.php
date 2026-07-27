@@ -64,7 +64,14 @@
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Unit <span class="text-danger">*</span></label>
-                            <input type="text" name="unit" id="unit" class="form-control @error('unit') is-invalid @enderror" value="{{ old('unit', $preorder->unit) }}" required>
+                            <select name="unit" id="unit" class="form-select @error('unit') is-invalid @enderror" required>
+                                <option value="">Select Unit</option>
+                                @foreach($units as $unit)
+                                    <option value="{{ $unit->code }}" @selected((string) old('unit', $preorder->unit) === (string) $unit->code)>
+                                        {{ $unit->name }} ({{ $unit->code }})
+                                    </option>
+                                @endforeach
+                            </select>
                             @error('unit')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                         </div>
 
@@ -134,11 +141,19 @@
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', function () {
+                const materialSelect = document.getElementById('tool_material_id');
+                const unitSelect = document.getElementById('unit');
                 const expectedRateInput = document.getElementById('expected_rate');
                 const quantityInput = document.getElementById('quantity');
                 const gstPercentInput = document.getElementById('gst_percent');
                 const estAmtInput = document.getElementById('estimated_amount');
                 const totalAmtInput = document.getElementById('total_amount');
+
+                function selectUnit(unit) {
+                    if (!unit) return;
+                    const exists = Array.from(unitSelect.options).some(option => option.value === unit);
+                    if (exists) unitSelect.value = unit;
+                }
 
                 function calculateAmounts() {
                     const qty = parseFloat(quantityInput.value || 0);
@@ -152,6 +167,15 @@
                     estAmtInput.value = est.toFixed(2);
                     totalAmtInput.value = total.toFixed(2);
                 }
+
+                materialSelect.addEventListener('change', function () {
+                    const opt = this.options[this.selectedIndex];
+                    selectUnit(opt.dataset.unit);
+                    if (opt.dataset.rate && parseFloat(opt.dataset.rate) > 0) {
+                        expectedRateInput.value = opt.dataset.rate;
+                    }
+                    calculateAmounts();
+                });
 
                 quantityInput.addEventListener('input', calculateAmounts);
                 expectedRateInput.addEventListener('input', calculateAmounts);

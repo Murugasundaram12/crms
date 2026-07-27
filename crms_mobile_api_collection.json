@@ -2591,7 +2591,7 @@
         {
           "name": "Get Wallets List",
           "request": {
-            "description": "Returns only the authenticated employee/user wallet history. user_id and employee_id filters are ignored for this list endpoint.",
+            "description": "Returns the authenticated employee/user wallet history by default. Admin users can pass scope=all for all wallets or user_id/employee_id for a specific wallet.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2692,7 +2692,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": 1,\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_mode\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Employee wallet advance credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
+              "raw": "{\n  \"user_id\": 1,\n  \"client_id\": 1,\n  \"project_id\": 1,\n  \"amount\": 500,\n  \"payment_method_id\": 1,\n  \"transfer_type\": 0,\n  \"stage_id\": 1,\n  \"description\": \"Employee wallet advance credited\",\n  \"current_date\": \"2026-07-10\",\n  \"time\": \"13:00\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/wallet/transfer",
@@ -2827,7 +2827,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"transaction_types\": {\n    \"purchase\": \"Purchase\",\n    \"issue_to_site\": \"Issue to Site\",\n    \"return_to_office\": \"Return to Office\",\n    \"site_to_site\": \"Site to Site\",\n    \"return_to_vendor\": \"Return to Vendor\",\n    \"damage_wastage\": \"Damage / Wastage\"\n  },\n  \"transaction_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"purchase\",\n      \"label\": \"Purchase\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"issue_to_site\",\n      \"label\": \"Issue to Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"return_to_office\",\n      \"label\": \"Return to Office\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"site_to_site\",\n      \"label\": \"Site to Site\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"return_to_vendor\",\n      \"label\": \"Return to Vendor\"\n    },\n    {\n      \"id\": 6,\n      \"value\": \"damage_wastage\",\n      \"label\": \"Damage / Wastage\"\n    }\n  ],\n  \"statuses\": {\n    \"draft\": \"Draft\",\n    \"transferred\": \"Transferred\",\n    \"returned\": \"Returned\",\n    \"completed\": \"Completed\",\n    \"cancelled\": \"Cancelled\"\n  },\n  \"status_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"draft\",\n      \"label\": \"Draft\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"transferred\",\n      \"label\": \"Transferred\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"returned\",\n      \"label\": \"Returned\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    }\n  ],\n  \"source_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\"\n  },\n  \"source_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    }\n  ],\n  \"destination_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\",\n    \"wastage\": \"Wastage\"\n  },\n  \"destination_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"wastage\",\n      \"label\": \"Wastage\"\n    }\n  ],\n  \"item_types\": {\n    \"material\": \"Material\",\n    \"tool\": \"Tool\"\n  },\n  \"item_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"material\",\n      \"label\": \"Material\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"tool\",\n      \"label\": \"Tool\"\n    }\n  ],\n  \"units\": [\n    {\n      \"id\": 1,\n      \"name\": \"Bags\",\n      \"code\": \"Bag\"\n    }\n  ],\n  \"unit_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"Bag\",\n      \"label\": \"Bag (Bags)\"\n    }\n  ],\n  \"tools_materials\": [\n    {\n      \"id\": 1,\n      \"item_type\": \"material\",\n      \"name\": \"Cement\",\n      \"unit\": \"Bag\",\n      \"stock_quantity\": 100,\n      \"active_status\": true,\n      \"date\": \"2026-07-21\"\n    }\n  ],\n  \"projects\": [\n    {\n      \"id\": 1,\n      \"name\": \"Demo Site\",\n      \"project_code\": \"PRJ-001\"\n    }\n  ],\n  \"vendors\": [\n    {\n      \"id\": 1,\n      \"name\": \"ABC Traders\"\n    }\n  ]\n}"
+              "body": "{\n  \"transaction_types\": {\n    \"purchase\": \"Purchase\",\n    \"issue_to_site\": \"Issue to Site\",\n    \"return_to_office\": \"Return to Office\",\n    \"site_to_site\": \"Site to Site\",\n    \"return_to_vendor\": \"Return to Vendor\",\n    \"damage_wastage\": \"Damage / Wastage\"\n  },\n  \"transaction_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"purchase\",\n      \"label\": \"Purchase\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"issue_to_site\",\n      \"label\": \"Issue to Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"return_to_office\",\n      \"label\": \"Return to Office\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"site_to_site\",\n      \"label\": \"Site to Site\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"return_to_vendor\",\n      \"label\": \"Return to Vendor\"\n    },\n    {\n      \"id\": 6,\n      \"value\": \"damage_wastage\",\n      \"label\": \"Damage / Wastage\"\n    }\n  ],\n  \"statuses\": {\n    \"draft\": \"Draft\",\n    \"transferred\": \"Transferred\",\n    \"returned\": \"Returned\",\n    \"completed\": \"Completed\",\n    \"cancelled\": \"Cancelled\"\n  },\n  \"status_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"draft\",\n      \"label\": \"Draft\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"transferred\",\n      \"label\": \"Transferred\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"returned\",\n      \"label\": \"Returned\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    {\n      \"id\": 5,\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    }\n  ],\n  \"source_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\"\n  },\n  \"source_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    }\n  ],\n  \"destination_types\": {\n    \"office\": \"Office\",\n    \"site\": \"Site\",\n    \"vendor\": \"Vendor\",\n    \"wastage\": \"Wastage\"\n  },\n  \"destination_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"office\",\n      \"label\": \"Office\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"site\",\n      \"label\": \"Site\"\n    },\n    {\n      \"id\": 3,\n      \"value\": \"vendor\",\n      \"label\": \"Vendor\"\n    },\n    {\n      \"id\": 4,\n      \"value\": \"wastage\",\n      \"label\": \"Wastage\"\n    }\n  ],\n  \"item_types\": {\n    \"material\": \"Material\",\n    \"tool\": \"Tool\"\n  },\n  \"item_type_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"material\",\n      \"label\": \"Material\"\n    },\n    {\n      \"id\": 2,\n      \"value\": \"tool\",\n      \"label\": \"Tool\"\n    }\n  ],\n  \"units\": [\n    {\n      \"id\": 1,\n      \"name\": \"Bag\",\n      \"code\": \"Bag\",\n      \"display_name\": \"Bags\"\n    }\n  ],\n  \"unit_options\": [\n    {\n      \"id\": 1,\n      \"value\": \"Bag\",\n      \"label\": \"Bag (Bags)\"\n    }\n  ],\n  \"tools_materials\": [\n    {\n      \"id\": 1,\n      \"item_type\": \"material\",\n      \"name\": \"Cement\",\n      \"unit\": \"Bag\",\n      \"stock_quantity\": 100,\n      \"active_status\": true,\n      \"date\": \"2026-07-21\"\n    }\n  ],\n  \"projects\": [\n    {\n      \"id\": 1,\n      \"name\": \"Demo Site\",\n      \"project_code\": \"PRJ-001\"\n    }\n  ],\n  \"vendors\": [\n    {\n      \"id\": 1,\n      \"name\": \"ABC Traders\"\n    }\n  ]\n}"
             }
           ]
         },
@@ -3339,7 +3339,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"purchase\",\n  \"destination_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 50,\n  \"rate\": 10,\n  \"amount\": null,\n  \"receiver_name\": \"Store Keeper\",\n  \"vehicle_no\": \"TN-00-AB-1234\",\n  \"purpose\": \"Stock purchase\",\n  \"notes\": \"Created from API\",\n  \"transferred_at\": \"2026-07-21 10:00:00\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"purchase\",\n  \"destination_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 50,\n  \"rate\": 10,\n  \"amount\": null,\n  \"advance_amount\": 500,\n  \"payment_method_id\": 1,\n  \"receiver_name\": \"Store Keeper\",\n  \"vehicle_no\": \"TN-00-AB-1234\",\n  \"purpose\": \"Stock purchase\",\n  \"notes\": \"Created from API\",\n  \"transferred_at\": \"2026-07-21 10:00:00\"\n}"
             }
           },
           "response": []
@@ -3511,7 +3511,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"returned\",\n  \"transaction_type\": \"return_to_vendor\",\n  \"source_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 10,\n  \"amount\": null,\n  \"purpose\": \"Return excess stock to vendor\",\n  \"transferred_at\": \"2026-07-21 14:00:00\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"returned\",\n  \"transaction_type\": \"return_to_vendor\",\n  \"source_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 10,\n  \"amount\": null,\n  \"advance_amount\": 50,\n  \"payment_method_id\": 1,\n  \"purpose\": \"Return excess stock to vendor\",\n  \"transferred_at\": \"2026-07-21 14:00:00\"\n}"
             }
           },
           "response": []
@@ -3823,7 +3823,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 0,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit\": \"Nos\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 0,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders",
@@ -4126,7 +4126,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"quantity\": 5,\n  \"delivery_date\": \"2026-07-22\",\n  \"challan_no\": \"CH-API-001\",\n  \"notes\": \"Partial delivery received\"\n}"
+              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_amount\": 500,\n  \"purchase_paid_amount\": 500,\n  \"payment_method_id\": 1,\n  \"delivery_date\": \"2026-07-22\",\n  \"challan_no\": \"CH-API-001\",\n  \"notes\": \"Paid delivery received\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/deliveries",
@@ -4171,7 +4171,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_paid_amount\": 0,\n  \"payment_method_id\": 1,\n  \"transferred_at\": \"2026-07-22\",\n  \"notes\": \"Convert remaining preorder quantity to stock purchase\"\n}"
+              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_amount\": 500,\n  \"purchase_paid_amount\": 500,\n  \"payment_method_id\": 1,\n  \"transferred_at\": \"2026-07-22\",\n  \"notes\": \"Convert paid preorder quantity to stock purchase\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/convert",

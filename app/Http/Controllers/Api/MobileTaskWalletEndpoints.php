@@ -209,21 +209,31 @@ trait MobileTaskWalletEndpoints
             'date_to' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'all' => ['nullable', 'boolean'],
+            'include_all' => ['nullable', 'boolean'],
+            'scope' => ['nullable', Rule::in(['mine', 'all'])],
         ]);
 
         $query = Wallet::query()
             ->where('delete_status', 0)
-            ->with(['user', 'client', 'project', 'stage'])
+            ->with(['user', 'client', 'project', 'stage', 'paymentMethod'])
             ->when($validated['client_id'] ?? null, fn($q, $clientId) => $q->where('client_id', $clientId))
             ->when($validated['project_id'] ?? null, fn($q, $projectId) => $q->where('project_id', $projectId));
 
-        if ($this->canViewAllAppData($request->user())) {
-            if (! blank($validated['user_id'] ?? null)) {
-                $query->where('user_id', (int) $validated['user_id']);
-            } elseif (! blank($validated['employee_id'] ?? null)) {
-                $walletUserId = $this->userIdFromEmployeeId((int) $validated['employee_id']);
-                $query->where('user_id', $walletUserId ?: 0);
-            }
+        $showAllWallets = $this->canViewAllAppData($request->user())
+            && (
+                $request->boolean('all')
+                || $request->boolean('include_all')
+                || ($validated['scope'] ?? null) === 'all'
+            );
+
+        if ($this->canViewAllAppData($request->user()) && ! blank($validated['user_id'] ?? null)) {
+            $query->where('user_id', (int) $validated['user_id']);
+        } elseif ($this->canViewAllAppData($request->user()) && ! blank($validated['employee_id'] ?? null)) {
+            $walletUserId = $this->userIdFromEmployeeId((int) $validated['employee_id']);
+            $query->where('user_id', $walletUserId ?: 0);
+        } elseif ($showAllWallets) {
+            $query->whereNotNull('user_id');
         } else {
             $query->where('user_id', $request->user()->id);
         }
@@ -257,6 +267,7 @@ trait MobileTaskWalletEndpoints
 
                 $q->orWhere('amount', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhereHas('paymentMethod', fn($paymentMethodQuery) => $paymentMethodQuery->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('client', fn($clientQuery) => $clientQuery->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('project', fn($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"))
                     ->orWhereHas('user', fn($userQuery) => $userQuery->where('name', 'like', "%{$search}%"))
@@ -358,6 +369,7 @@ trait MobileTaskWalletEndpoints
                 'project_id' => $validated['project_id'],
                 'amount' => $amount,
                 'payment_mode' => $validated['payment_mode'],
+                'payment_method_id' => $validated['payment_method_id'],
                 'transfer_type' => $transferType,
                 'stage_id' => $validated['stage_id'] ?? null,
                 'description' => $description,
@@ -381,6 +393,7 @@ trait MobileTaskWalletEndpoints
                         'project_id' => $validated['project_id'],
                         'amount' => $amount,
                         'payment_mode' => $validated['payment_mode'],
+                        'payment_method_id' => $validated['payment_method_id'],
                         'transfer_type' => 1,
                         'stage_id' => $validated['stage_id'] ?? null,
                         'description' => $description,
@@ -402,9 +415,10 @@ trait MobileTaskWalletEndpoints
                     'user_id' => $actor->id,
                     'client_id' => $validated['client_id'],
                     'project_id' => $validated['project_id'],
-                    'amount' => $amount,
-                    'payment_mode' => $validated['payment_mode'],
-                    'transfer_type' => 0,
+                        'amount' => $amount,
+                        'payment_mode' => $validated['payment_mode'],
+                        'payment_method_id' => $validated['payment_method_id'],
+                        'transfer_type' => 0,
                     'stage_id' => $validated['stage_id'] ?? null,
                     'description' => $description,
                     'current_date' => $dateTime,
@@ -418,8 +432,8 @@ trait MobileTaskWalletEndpoints
 
         return response()->json([
             'message' => 'Wallet entry saved successfully.',
-            'wallet' => $this->walletPayload($wallet->load(['user', 'client', 'project', 'stage'])),
-            'counter_wallet' => $counterWallet ? $this->walletPayload($counterWallet->load(['user', 'client', 'project', 'stage'])) : null,
+            'wallet' => $this->walletPayload($wallet->load(['user', 'client', 'project', 'stage', 'paymentMethod'])),
+            'counter_wallet' => $counterWallet ? $this->walletPayload($counterWallet->load(['user', 'client', 'project', 'stage', 'paymentMethod'])) : null,
             'wallet_balance' => (float) $targetUser->fresh()->wallet,
             'sender_wallet_balance' => (float) $actor->fresh()->wallet,
         ], 201);

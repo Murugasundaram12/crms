@@ -415,20 +415,25 @@ class MobileApiController extends Controller
 
     protected function validateWalletData(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'employee_id' => ['nullable', 'integer'],
             'user_id' => ['nullable', 'exists:users,id'],
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
             'amount' => ['required', 'integer', 'min:1'],
-            'payment_method_id' => ['required', 'exists:payment_methods,id'],
-            'payment_mode' => ['nullable'],
+            'payment_method_id' => ['required_without:payment_mode', 'nullable', 'exists:payment_methods,id'],
+            'payment_mode' => ['required_without:payment_method_id', 'nullable', 'exists:payment_methods,id'],
             'transfer_type' => ['required', 'integer', 'in:0,1'],
             'stage_id' => ['nullable', 'exists:payment_stages,id'],
             'description' => ['nullable', 'string', 'max:1000'],
             'current_date' => ['required', 'date'],
             'time' => ['nullable', 'date_format:H:i'],
         ]);
+
+        $validated['payment_method_id'] = $validated['payment_method_id'] ?? $validated['payment_mode'];
+        $validated['payment_mode'] = $validated['payment_mode'] ?? $validated['payment_method_id'];
+
+        return $validated;
     }
 
     protected function resolveWalletUser(array $validated, User $fallbackUser): User
@@ -2015,8 +2020,16 @@ class MobileApiController extends Controller
             'project_id' => $wallet->project_id,
             'project_name' => $wallet->project?->name,
             'amount' => (int) $wallet->amount,
-            'payment_mode' => $wallet->payment_mode,
-            'payment_mode_name' => self::PAYMENT_MODES[(int) $wallet->payment_mode] ?? null,
+            'payment_method_id' => $wallet->payment_method_id,
+            'payment_method' => $wallet->paymentMethod ? [
+                'id' => $wallet->paymentMethod->id,
+                'name' => $wallet->paymentMethod->name,
+                'code' => $wallet->paymentMethod->code,
+                'type' => $wallet->paymentMethod->type,
+            ] : null,
+            'payment_method_name' => $wallet->paymentMethod?->name,
+            'payment_mode' => $wallet->payment_mode ?? $wallet->payment_method_id,
+            'payment_mode_name' => $wallet->paymentMethod?->name ?? (self::PAYMENT_MODES[(int) ($wallet->payment_mode ?? 0)] ?? null),
             'transfer_type' => (int) $wallet->transfer_type,
             'transfer_type_name' => (int) $wallet->transfer_type === 0 ? 'Credited' : 'Debited',
             'stage_id' => $wallet->stage_id,

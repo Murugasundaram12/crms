@@ -185,6 +185,7 @@ class ToolMaterialAssignment extends Model
         return match ($this->status) {
             'transferred' => 'Transferred',
             'returned', 'completed' => 'Returned',
+            'cancelled' => 'Cancelled',
             default => ucfirst((string) $this->status),
         };
     }

@@ -12,6 +12,7 @@ use App\Models\PreorderStatusHistory;
 use App\Models\ToolMaterialAssignment;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PreorderService
 {
@@ -142,6 +143,12 @@ class PreorderService
     public function changeStatus(Preorder $preorder, string $newStatus, int $userId, ?string $notes = null): Preorder
     {
         return DB::transaction(function () use ($preorder, $newStatus, $userId, $notes) {
+            if (in_array($newStatus, [Preorder::STATUS_PARTIALLY_DELIVERED, Preorder::STATUS_DELIVERED], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Delivery status can be updated only through the paid delivery / purchase receipt flow.',
+                ]);
+            }
+
             $fromStatus = $preorder->status;
             $preorder->status = $newStatus;
             $preorder->updated_by = $userId;
@@ -213,9 +220,20 @@ class PreorderService
     {
         return DB::transaction(function () use ($preorder, $data, $userId) {
             $quantity = (float) $data['quantity'];
+            $rate = (float) ($data['rate'] ?? $preorder->rate ?? $preorder->expected_rate ?? 0);
+            $purchaseAmount = (float) ($data['purchase_amount'] ?? ($quantity * $rate));
+            $paidNow = (float) ($data['purchase_paid_amount'] ?? 0);
+            $paymentMethodId = $data['payment_method_id'] ?? $preorder->payment_method_id;
+            $vendorId = $data['vendor_id'] ?? $preorder->vendor_id;
             $deliveryDate = $data['delivery_date'] ?? now()->toDateString();
             $challanNo = $data['challan_no'] ?? null;
             $notes = $data['notes'] ?? null;
+
+            if (! $vendorId) {
+                throw ValidationException::withMessages(['vendor_id' => 'Vendor is required before recording a paid delivery.']);
+            }
+
+            $payment = $this->settlePurchaseReceiptPayment($preorder, $purchaseAmount, $paidNow, $paymentMethodId, $userId, 'delivery receipt');
 
             $nextDeliveryCount = $preorder->deliveries()->count() + 1;
             $deliveryNumber = 'DEL-' . $preorder->reference_no . '-' . $nextDeliveryCount;
@@ -227,7 +245,7 @@ class PreorderService
             $assignment = ToolMaterialAssignment::create([
                 'preorder_id' => $preorder->id,
                 'tool_material_id' => $preorder->tool_material_id,
-                'vendor_id' => $preorder->vendor_id,
+                'vendor_id' => $vendorId,
                 'reference_no' => $refNo,
                 'status' => 'transferred', // Stock effective
                 'handled_by' => $userId,
@@ -237,12 +255,15 @@ class PreorderService
                 'destination_type' => 'office',
                 'quantity' => $quantity,
                 'unit' => $preorder->unit,
-                'rate' => $preorder->rate,
-                'amount' => $quantity * (float) $preorder->rate,
-                'advance_amount' => 0,
-                'payment_method_id' => $preorder->payment_method_id,
+                'rate' => $rate,
+                'amount' => $purchaseAmount,
+                'advance_amount' => $payment['applied_total'],
+                'payment_method_id' => $paymentMethodId,
                 'transferred_at' => $deliveryDate,
-                'notes' => 'Delivery Receipt ' . $deliveryNumber . ' for Preorder ' . $preorder->reference_no . '. ' . ($notes ?? ''),
+                'notes' => 'Delivery Receipt ' . $deliveryNumber . ' for Preorder ' . $preorder->reference_no
+                    . '. Advance Applied: ' . number_format($payment['existing_advance_applied'], 2)
+                    . '. Paid Now: ' . number_format($paidNow, 2)
+                    . '. ' . ($notes ?? ''),
             ]);
 
             $delivery = PreorderDelivery::create([
@@ -266,6 +287,8 @@ class PreorderService
                 $preorder->status = Preorder::STATUS_PARTIALLY_DELIVERED;
             }
             $preorder->updated_by = $userId;
+            $preorder->vendor_id = $vendorId;
+            $preorder->rate = $rate;
             $preorder->save();
 
             $preorder->recalculateStatuses();
@@ -282,6 +305,9 @@ class PreorderService
                 'delivery_id' => $delivery->id,
                 'quantity' => $quantity,
                 'delivery_number' => $deliveryNumber,
+                'purchase_amount' => $purchaseAmount,
+                'advance_applied' => $payment['applied_total'],
+                'paid_now' => $paidNow,
             ]);
 
             return $delivery;
@@ -300,20 +326,14 @@ class PreorderService
             $transferredAt = $data['transferred_at'] ?? now()->toDateString();
             $notes = $data['notes'] ?? null;
 
-            $totalAdvance = $preorder->totalAdvancePaid();
-            $balanceDue = max(0, $totalAmount - $totalAdvance - $paidNow);
+            if (! $vendorId) {
+                throw ValidationException::withMessages(['vendor_id' => 'Vendor is required to convert preorder to purchase.']);
+            }
+
+            $payment = $this->settlePurchaseReceiptPayment($preorder, $totalAmount, $paidNow, $paymentMethodId, $userId, 'purchase conversion');
 
             $nextRefId = ((int) ToolMaterialAssignment::query()->max('id')) + 1;
             $referenceNo = 'PUR-' . now()->format('ymd') . '-' . str_pad((string) $nextRefId, 4, '0', STR_PAD_LEFT);
-
-            // Deduct paidNow from wallet if paidNow > 0
-            if ($paidNow > 0 && $paymentMethodId) {
-                $pm = PaymentMethod::find($paymentMethodId);
-                $pmName = $pm?->name ?? 'Payment Method';
-                $description = 'Purchase Payment for Preorder ' . $preorder->reference_no . ' via ' . $pmName;
-
-                $this->balanceService->debitUserWallet($userId, $paidNow, $description, 'purchase_conversion', (int) $preorder->id);
-            }
 
             $assignment = ToolMaterialAssignment::create([
                 'preorder_id' => $preorder->id,
@@ -330,10 +350,13 @@ class PreorderService
                 'unit' => $preorder->unit,
                 'rate' => $rate,
                 'amount' => $totalAmount,
-                'advance_amount' => $totalAdvance,
+                'advance_amount' => $payment['applied_total'],
                 'payment_method_id' => $paymentMethodId,
                 'transferred_at' => $transferredAt,
-                'notes' => 'Converted from Preorder ' . $preorder->reference_no . '. Total Advance: ' . number_format($totalAdvance, 2) . '. Paid Now: ' . number_format($paidNow, 2) . '. Balance Due: ' . number_format($balanceDue, 2) . '. ' . ($notes ?? ''),
+                'notes' => 'Converted from Preorder ' . $preorder->reference_no
+                    . '. Advance Applied: ' . number_format($payment['existing_advance_applied'], 2)
+                    . '. Paid Now: ' . number_format($paidNow, 2)
+                    . '. Balance Due: 0.00. ' . ($notes ?? ''),
             ]);
 
             // Create Delivery entry
@@ -372,6 +395,9 @@ class PreorderService
             $this->logAudit($preorder->id, 'converted_to_purchase', 'Preorder converted to Purchase ' . $referenceNo, $userId, [
                 'assignment_id' => $assignment->id,
                 'reference_no' => $referenceNo,
+                'purchase_amount' => $totalAmount,
+                'advance_applied' => $payment['applied_total'],
+                'paid_now' => $paidNow,
             ]);
 
             return $assignment;
@@ -418,5 +444,67 @@ class PreorderService
         } while (Preorder::query()->where('reference_no', $reference)->exists());
 
         return $reference;
+    }
+
+    private function settlePurchaseReceiptPayment(
+        Preorder $preorder,
+        float $purchaseAmount,
+        float $paidNow,
+        mixed $paymentMethodId,
+        int $userId,
+        string $source
+    ): array {
+        if ($purchaseAmount <= 0) {
+            throw ValidationException::withMessages(['purchase_amount' => 'Purchase amount must be greater than zero.']);
+        }
+
+        $existingAdvanceApplied = min($this->unappliedAdvanceAmount($preorder), $purchaseAmount);
+        $dueNow = round(max(0, $purchaseAmount - $existingAdvanceApplied), 2);
+        $paidNow = round($paidNow, 2);
+
+        if ($paidNow + 0.01 < $dueNow) {
+            throw ValidationException::withMessages([
+                'purchase_paid_amount' => 'Payment is required before delivery. Pay Rs. ' . number_format($dueNow, 2) . ' after applying available advance.',
+            ]);
+        }
+
+        if ($paidNow > $dueNow + 0.01) {
+            throw ValidationException::withMessages([
+                'purchase_paid_amount' => 'Paid amount cannot exceed payable balance Rs. ' . number_format($dueNow, 2) . ' for this receipt.',
+            ]);
+        }
+
+        if ($paidNow > 0 && ! $paymentMethodId) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'Payment method is required when paid amount is entered.',
+            ]);
+        }
+
+        if ($paidNow > 0) {
+            $this->addAdvancePayment($preorder, [
+                'amount' => $paidNow,
+                'payment_method_id' => $paymentMethodId,
+                'payment_date' => now()->toDateString(),
+                'notes' => 'Paid during preorder ' . $source,
+                'deduct_wallet' => true,
+            ], $userId);
+        }
+
+        return [
+            'existing_advance_applied' => $existingAdvanceApplied,
+            'paid_now' => $paidNow,
+            'applied_total' => round($existingAdvanceApplied + $paidNow, 2),
+            'due_now' => $dueNow,
+        ];
+    }
+
+    private function unappliedAdvanceAmount(Preorder $preorder): float
+    {
+        $totalPaid = $preorder->totalAdvancePaid();
+        $alreadyApplied = (float) ToolMaterialAssignment::query()
+            ->where('preorder_id', $preorder->id)
+            ->sum('advance_amount');
+
+        return round(max(0, $totalPaid - $alreadyApplied), 2);
     }
 }

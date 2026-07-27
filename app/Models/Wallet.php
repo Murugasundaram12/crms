@@ -14,6 +14,7 @@ class Wallet extends Model
         'client_id',
         'project_id',
         'amount',
+        'payment_mode',
         'payment_method_id',
         'transfer_type',
         'stage_id',

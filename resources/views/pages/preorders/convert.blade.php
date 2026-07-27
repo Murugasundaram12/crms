@@ -20,6 +20,14 @@
 
         @include('partials.alerts')
 
+        @php
+            $appliedAdvance = $preorder->deliveries->sum(fn($delivery) => (float) ($delivery->assignment?->advance_amount ?? 0));
+            $availableAdvance = max(0, (float) $preorder->totalAdvancePaid() - $appliedAdvance);
+            $defaultPurchaseAmount = $preorder->remainingQuantity() * (float) $preorder->expected_rate;
+            $defaultAdvanceApplied = min($availableAdvance, $defaultPurchaseAmount);
+            $defaultDueNow = max(0, $defaultPurchaseAmount - $defaultAdvanceApplied);
+        @endphp
+
         <div class="row g-4">
             <!-- Preorder Pre-filled Summary Card -->
             <div class="col-12 col-lg-4">
@@ -38,6 +46,7 @@
                             <tr><th class="text-muted">Expected Rate:</th><td>Rs. {{ number_format((float) $preorder->expected_rate, 2) }}</td></tr>
                             <tr><th class="text-muted">Estimated Total:</th><td>Rs. {{ number_format((float) $preorder->total_amount, 2) }}</td></tr>
                             <tr><th class="text-muted">Total Advance Paid:</th><td class="text-success fw-bold">Rs. {{ number_format((float) $preorder->advance_amount, 2) }}</td></tr>
+                            <tr><th class="text-muted">Available Advance:</th><td class="text-success fw-bold">Rs. {{ number_format($availableAdvance, 2) }}</td></tr>
                         </table>
                     </div>
                 </div>
@@ -87,23 +96,23 @@
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Total Purchase Amount (Rs.) <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" min="0" name="purchase_amount" id="purchase_amount" class="form-control @error('purchase_amount') is-invalid @enderror" value="{{ old('purchase_amount', $preorder->remainingQuantity() * $preorder->expected_rate) }}" required>
+                                    <input type="number" step="0.01" min="0.01" name="purchase_amount" id="purchase_amount" class="form-control @error('purchase_amount') is-invalid @enderror" value="{{ old('purchase_amount', number_format($defaultPurchaseAmount, 2, '.', '')) }}" required>
                                     @error('purchase_amount')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
-                                    <label class="form-label">Advance Paid Applied</label>
-                                    <input type="number" step="0.01" class="form-control bg-light fw-bold text-success" readonly value="{{ $preorder->advance_amount }}">
+                                    <label class="form-label">Available Advance Applied</label>
+                                    <input type="number" step="0.01" id="advance_applied" class="form-control bg-light fw-bold text-success" readonly value="{{ number_format($defaultAdvanceApplied, 2, '.', '') }}" data-available-advance="{{ number_format($availableAdvance, 2, '.', '') }}">
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Additional Payment Paid Now (Rs.)</label>
-                                    <input type="number" step="0.01" min="0" name="purchase_paid_amount" class="form-control" value="{{ old('purchase_paid_amount', 0) }}">
-                                    <small class="text-muted">Will be debited from your wallet if entered</small>
+                                    <input type="number" step="0.01" min="0" name="purchase_paid_amount" id="purchase_paid_amount" class="form-control" value="{{ old('purchase_paid_amount', number_format($defaultDueNow, 2, '.', '')) }}">
+                                    <small class="text-muted">Required after advance: Rs. <span id="due_now">{{ number_format($defaultDueNow, 2) }}</span></small>
                                 </div>
 
                                 <div class="col-12 col-md-6">
-                                    <label class="form-label">Payment Method Master</label>
+                                    <label class="form-label">Payment Method Master <span class="text-muted small">(required if pay now &gt; 0)</span></label>
                                     <select name="payment_method_id" class="form-select">
                                         <option value="">Select Payment Method</option>
                                         @foreach($paymentMethods as $pm)
@@ -135,11 +144,21 @@
                 const qtyInput = document.getElementById('quantity');
                 const rateInput = document.getElementById('rate');
                 const amountInput = document.getElementById('purchase_amount');
+                const advanceInput = document.getElementById('advance_applied');
+                const paidNowInput = document.getElementById('purchase_paid_amount');
+                const dueNowLabel = document.getElementById('due_now');
 
                 function recalc() {
                     const q = parseFloat(qtyInput.value || 0);
                     const r = parseFloat(rateInput.value || 0);
-                    amountInput.value = (q * r).toFixed(2);
+                    const amount = q * r;
+                    const availableAdvance = parseFloat(advanceInput.dataset.availableAdvance || 0);
+                    const appliedAdvance = Math.min(availableAdvance, amount);
+                    const dueNow = Math.max(0, amount - appliedAdvance);
+                    amountInput.value = amount.toFixed(2);
+                    advanceInput.value = appliedAdvance.toFixed(2);
+                    paidNowInput.value = dueNow.toFixed(2);
+                    dueNowLabel.textContent = dueNow.toFixed(2);
                 }
 
                 qtyInput.addEventListener('input', recalc);
