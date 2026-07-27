@@ -42,6 +42,13 @@ class EmployeeTimelineBuilder
             $type = $this->timelineType($tracking, $previousRaw);
             $sessionBreak = $previousRaw ? $this->shouldBreakSegment($previousRaw, $tracking, $settings) : false;
 
+            if ($this->isMovementType($type)
+                && $previousRaw
+                && $this->hasInactiveTimeGap($previousRaw, $tracking, $settings)
+                && $this->isStillActivity($tracking)) {
+                $type = 'still';
+            }
+
             if ($sessionBreak) {
                 $lastStillTracking = null;
             }
@@ -59,6 +66,13 @@ class EmployeeTimelineBuilder
                 $this->flushSegment($segments, $currentSegment, $settings);
                 $currentSegment = null;
                 $acceptedMovement = [];
+            }
+
+            if ((bool) ($tracking->is_ignored ?? false)) {
+                $this->rejectDiagnostic($diagnostic, $tracking->ignored_reason ?: 'ignored_tracking', $reasons);
+                $diagnostics[] = $diagnostic;
+                $previousRaw = $tracking;
+                continue;
             }
 
             if (! $this->isInsideAttendanceSession($tracking)) {
@@ -267,7 +281,7 @@ class EmployeeTimelineBuilder
             in_array($trackingType, ['walking', 'walk'], true) => 'walk',
             $trackingType === 'vehicle' => 'vehicle',
             $trackingType === 'travelling'
-                && in_array($activity, ['activitytype.still', 'still'], true)
+                && in_array($activity, ['activitytype.still', 'still', 'stationary'], true)
                 && $tracking->speed !== null
                 && (float) $tracking->speed <= 0.0
                 && (! $previous || $this->distanceMetres($previous, $tracking) <= (float) $this->gpsValidator->settings()['gps_min_distance_metres']) => 'still',
@@ -275,7 +289,7 @@ class EmployeeTimelineBuilder
             $trackingType === 'travelling' => 'vehicle',
             in_array($activity, ['activitytype.walking', 'walking', 'walk'], true) => 'walk',
             in_array($activity, ['activitytype.in_vehicle', 'in_vehicle', 'vehicle', 'travelling'], true) => 'vehicle',
-            in_array($activity, ['activitytype.still', 'still'], true) => 'still',
+            in_array($activity, ['activitytype.still', 'still', 'stationary'], true) => 'still',
             default => 'still',
         };
     }
@@ -317,6 +331,21 @@ class EmployeeTimelineBuilder
         return $distanceKm > $largeGapDistanceKm || $speedKmh > ((float) ($settings['gps_max_speed_mps'] ?? 25) * 3.6);
     }
 
+    private function hasInactiveTimeGap(LocationTracking $previous, LocationTracking $current, array $settings): bool
+    {
+        $previousTime = $this->trackingTime($previous);
+        $currentTime = $this->trackingTime($current);
+
+        if (! $previousTime || ! $currentTime) {
+            return false;
+        }
+
+        $seconds = $currentTime->getTimestamp() - $previousTime->getTimestamp();
+        $gapThresholdSeconds = max(1, (int) ($settings['gps_max_inactive_gap_seconds'] ?? 90));
+
+        return $seconds >= $gapThresholdSeconds;
+    }
+
     private function orderedTrackings(Collection $trackings): Collection
     {
         return $trackings
@@ -340,7 +369,7 @@ class EmployeeTimelineBuilder
             'activity' => $tracking->activity,
             'batteryPercentage' => $tracking->battery_percentage,
             'isGPSOn' => (bool) $tracking->is_gps_on,
-            'isWifiOn' => false,
+            'isWifiOn' => (bool) ($tracking->is_wifi_on ?? false),
             'isOffline' => (bool) ($tracking->is_offline ?? false),
             'latitude' => (float) $tracking->latitude,
             'longitude' => (float) $tracking->longitude,
@@ -762,6 +791,11 @@ class EmployeeTimelineBuilder
     private function isWalkingActivity(LocationTracking $tracking): bool
     {
         return in_array(strtolower((string) $tracking->activity), ['activitytype.walking', 'walking', 'walk'], true);
+    }
+
+    private function isStillActivity(LocationTracking $tracking): bool
+    {
+        return in_array(strtolower((string) $tracking->activity), ['activitytype.still', 'still', 'stationary'], true);
     }
 
     private function timestampKey(LocationTracking $tracking): ?string

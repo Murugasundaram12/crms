@@ -383,18 +383,6 @@ class MobileApiController extends Controller
         $isWifiOn = $validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false;
         $isMock = $validated['is_mock_location'] ?? $validated['isMock'] ?? false;
 
-        if (! $isGpsOn) {
-            throw ValidationException::withMessages([
-                'is_gps_on' => 'GPS must be enabled.',
-            ]);
-        }
-
-        if ($isMock) {
-            throw ValidationException::withMessages([
-                'is_mock_location' => 'Mock location is not allowed.',
-            ]);
-        }
-
         return [
             'device_id' => $validated['device_id'] ?? 'default',
             'device_name' => $validated['device_name'] ?? null,
@@ -583,12 +571,6 @@ class MobileApiController extends Controller
         $isWifiOn = $validated['is_wifi_on'] ?? $validated['isWifiOn'] ?? false;
         $isMock = $validated['is_mock_location'] ?? $validated['isMock'] ?? false;
         $isOffline = $validated['is_offline'] ?? $validated['isOffline'] ?? $validated['offline'] ?? false;
-
-        if (! $isGpsOn) {
-            throw ValidationException::withMessages([
-                'is_gps_on' => 'GPS must be enabled.',
-            ]);
-        }
 
         $validated['is_gps_on'] = (bool) $isGpsOn;
         $validated['is_wifi_on'] = (bool) $isWifiOn;
@@ -979,6 +961,12 @@ class MobileApiController extends Controller
                     'signal_strength' => $validated['signal_strength'] ?? null,
                 ]);
 
+                $ignoredTracking = $this->createTrackingPoint($attendance, [
+                    ...$validated,
+                    'is_ignored' => true,
+                    'ignored_reason' => $gpsValidation['reason'] ?? 'gps_rejected',
+                ], $validated['type'] ?? 'travelling');
+
                 if ($lastTracking) {
                     $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
                     $this->upsertDeviceStatus($user->id, $statusPayload);
@@ -986,10 +974,10 @@ class MobileApiController extends Controller
                         $lastTracking = $this->refreshTrackingPointStatus($lastTracking, $statusPayload);
                     }
 
-                    return [$lastTracking->refresh(), false, $gpsValidation];
+                    return [$ignoredTracking->refresh(), true, $gpsValidation];
                 }
 
-                return [null, false, $gpsValidation];
+                return [$ignoredTracking->refresh(), true, $gpsValidation];
             }
 
             $this->upsertDeviceStatus($user->id, $validated);
@@ -998,6 +986,28 @@ class MobileApiController extends Controller
                 $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),
                 true,
                 $gpsValidation,
+            ];
+        });
+    }
+
+    protected function storeLegacyTrackingUpdate(User $user, Attendance $attendance, array $validated): array
+    {
+        return DB::transaction(function () use ($user, $attendance, $validated) {
+            $deviceId = $validated['device_id'] ?? 'default';
+            $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
+
+            if ($duplicate) {
+                $this->upsertDeviceStatus($user->id, $validated);
+
+                return [$duplicate->refresh(), false, 'duplicate_retry'];
+            }
+
+            $this->upsertDeviceStatus($user->id, $validated);
+
+            return [
+                $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),
+                true,
+                null,
             ];
         });
     }
@@ -1098,6 +1108,8 @@ class MobileApiController extends Controller
             'signal_strength' => $payload['signal_strength'] ?? null,
             'type' => $this->normalizeTrackingType($type),
             'recorded_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
+            'is_ignored' => (bool) ($payload['is_ignored'] ?? false),
+            'ignored_reason' => $payload['ignored_reason'] ?? null,
         ]));
     }
 
@@ -1932,6 +1944,10 @@ class MobileApiController extends Controller
             'is_mock_location' => (bool) $tracking->is_mock_location,
             'is_offline' => (bool) ($tracking->is_offline ?? false),
             'isOffline' => (bool) ($tracking->is_offline ?? false),
+            'is_ignored' => (bool) ($tracking->is_ignored ?? false),
+            'isIgnored' => (bool) ($tracking->is_ignored ?? false),
+            'ignored_reason' => $tracking->ignored_reason ?? null,
+            'ignoredReason' => $tracking->ignored_reason ?? null,
             'battery_percentage' => $tracking->battery_percentage,
             'batteryPercentage' => $tracking->battery_percentage,
             'signal_strength' => $tracking->signal_strength,

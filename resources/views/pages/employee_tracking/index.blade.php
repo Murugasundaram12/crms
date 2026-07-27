@@ -132,6 +132,24 @@
             border: 2px solid #fff;
         }
 
+        .timeline-leaflet-pin.numbered-pin {
+            width: 36px;
+            height: 44px;
+            border-radius: 18px 18px 18px 4px;
+            transform: rotate(-45deg);
+        }
+
+        .timeline-leaflet-pin.numbered-pin span {
+            transform: rotate(45deg);
+            color: #fff;
+            font-size: 13px;
+            line-height: 1;
+        }
+
+        .timeline-leaflet-pin.numbered-pin::after {
+            display: none;
+        }
+
         .timeline-leaflet-pin::after {
             content: '';
             width: 12px;
@@ -412,8 +430,9 @@
                                     position,
                                     map: timelineMap,
                                     icon: {
-                                        url: timelineConfig.iconBase + (isAttendancePoint ? 'location_pin_blue.png' : 'location_pin.png'),
-                                        scaledSize: isAttendancePoint ? new google.maps.Size(34, 34) : new google.maps.Size(42, 42),
+                                        url: numberedPinSvg(markerNumber, markerColor(item, isAttendancePoint, isLowSignalPoint, isOfflinePoint)),
+                                        scaledSize: new google.maps.Size(38, 46),
+                                        anchor: new google.maps.Point(19, 44),
                                     },
                                     title: markerTitle(item, isLowSignalPoint, isOfflinePoint),
                                     draggable: false,
@@ -426,15 +445,16 @@
                             } else if (timelineMapProvider === 'leaflet') {
                                 const pinClasses = [
                                     'timeline-leaflet-pin',
+                                    'numbered-pin',
                                     isAttendancePoint ? 'attendance-pin' : '',
                                     isLowSignalPoint ? 'low-signal-pin' : '',
                                     isOfflinePoint ? 'offline-pin' : '',
                                 ].filter(Boolean).join(' ');
                                 const icon = L.divIcon({
                                     className: '',
-                                    html: `<div class="${pinClasses}"></div>`,
-                                    iconSize: [32, 32],
-                                    iconAnchor: [16, 16],
+                                    html: `<div class="${pinClasses}"><span>${escapeHtml(markerNumber || '')}</span></div>`,
+                                    iconSize: [36, 44],
+                                    iconAnchor: [18, 42],
                                 });
                                 const marker = L.marker([latitude, longitude], {icon, title: markerTitle(item, isLowSignalPoint, isOfflinePoint)})
                                     .addTo(timelineMap);
@@ -1299,6 +1319,37 @@
                 parts.push(`Low signal ${item.signalStrength}`);
             }
             return parts.join(' - ');
+        }
+
+        function markerColor(item, isAttendancePoint, isLowSignalPoint, isOfflinePoint) {
+            if (isAttendancePoint) {
+                return '#0d6efd';
+            }
+            if (isOfflinePoint) {
+                return '#7c3aed';
+            }
+            if (isLowSignalPoint) {
+                return '#f59e0b';
+            }
+            if (item.type === 'still') {
+                return '#ef1d0d';
+            }
+
+            return '#16a34a';
+        }
+
+        function numberedPinSvg(number, color) {
+            const label = String(number || '');
+            const safeColor = /^#[0-9a-f]{6}$/i.test(color) ? color : '#ef1d0d';
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="38" height="46" viewBox="0 0 38 46">
+                    <path d="M19 45C15.6 39.5 5 27.8 5 18.6C5 10.4 11.3 4 19 4C26.7 4 33 10.4 33 18.6C33 27.8 22.4 39.5 19 45Z" fill="${safeColor}" stroke="#fff" stroke-width="3"/>
+                    <circle cx="19" cy="18" r="11.5" fill="rgba(255,255,255,.14)"/>
+                    <text x="19" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#fff">${escapeHtml(label)}</text>
+                </svg>
+            `;
+
+            return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
         }
 
         function updateDistanceDisplay(gpsDistance = null, directionsDistance = null) {

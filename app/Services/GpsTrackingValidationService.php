@@ -57,6 +57,10 @@ class GpsTrackingValidationService
             return $this->rejected('invalid_coordinates');
         }
 
+        if (! (bool) ($currentPoint['is_gps_on'] ?? true)) {
+            return $this->rejected('gps_off');
+        }
+
         if ((bool) ($currentPoint['is_mock_location'] ?? false)
             && ! (bool) ($settings['mock_location_allowed'] ?? false)) {
             return $this->rejected('mock_location');
@@ -216,6 +220,7 @@ class GpsTrackingValidationService
                 'speed' => $point->speed !== null ? (float) $point->speed : null,
                 'activity' => $point->activity,
                 'type' => $point->type,
+                'is_gps_on' => (bool) ($point->is_gps_on ?? true),
                 'is_mock_location' => (bool) ($point->is_mock_location ?? false),
                 'recorded_at' => $point->recorded_at ?? $point->created_at,
             ];
@@ -228,6 +233,7 @@ class GpsTrackingValidationService
             'speed' => isset($point['speed']) && $point['speed'] !== null ? (float) $point['speed'] : null,
             'activity' => $point['activity'] ?? null,
             'type' => $point['type'] ?? null,
+            'is_gps_on' => (bool) ($point['is_gps_on'] ?? true),
             'is_mock_location' => (bool) ($point['is_mock_location'] ?? false),
             'recorded_at' => isset($point['recorded_at']) ? Carbon::parse($point['recorded_at']) : now(),
         ];
