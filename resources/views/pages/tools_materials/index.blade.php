@@ -1,17 +1,18 @@
 @extends('layouts.app')
 
-@section('title', 'Purchase List')
+@section('title', 'Tools & Materials')
 
 @section('content')
+    <div class="container-fluid">
     @include('partials.alerts')
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
-            <h4 class="mb-1">Purchase List</h4>
+            <h4 class="mb-1">Tools & Materials</h4>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
                     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Purchase List</li>
+                    <li class="breadcrumb-item active" aria-current="page">Tools & Materials</li>
                 </ol>
             </nav>
         </div>
@@ -136,7 +137,7 @@
                                 <th>Advance Paid</th>
                                 <th>Remaining</th>
                                 <th>Status</th>
-                                <th class="text-end">Action</th>
+                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -165,21 +166,28 @@
                                     </td>
                                     <td class="text-end">
                                         <div class="d-inline-flex align-items-center gap-1">
-                                            @if($po->status !== 'delivered')
+                                            <a href="{{ route('preorders.show', $po) }}" class="btn btn-sm btn-outline-primary" title="View">
+                                                <i class="ti ti-eye"></i>
+                                            </a>
+                                            @if($po->canBeConvertedToPurchase())
                                                 <a href="{{ route('preorders.convert.form', $po) }}" class="btn btn-sm btn-success" title="Convert to Purchase">
-                                                    <i class="ti ti-shopping-cart-check me-1"></i>Convert
+                                                    <i class="ti ti-shopping-cart-check"></i>
                                                 </a>
+                                            @endif
+                                            @can('tools-materials-edit')
                                                 <a href="{{ route('preorders.edit', $po) }}" class="btn btn-sm btn-outline-primary" title="Edit">
                                                     <i class="ti ti-edit"></i>
                                                 </a>
-                                            @endif
-                                            <form action="{{ route('preorders.destroy', $po) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                                    <i class="ti ti-trash"></i>
-                                                </button>
-                                            </form>
+                                            @endcan
+                                            @can('tools-materials-delete')
+                                                <form action="{{ route('preorders.destroy', $po) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                        <i class="ti ti-trash"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -372,4 +380,5 @@
             @endif
         </div>
     @endif
+    </div>
 @endsection

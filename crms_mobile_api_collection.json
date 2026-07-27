@@ -3737,7 +3737,7 @@
               }
             ],
             "url": {
-              "raw": "http://localhost/crms/api/preorders?q=&status=approved&vendor_id=1&material_id=1&payment_status=unpaid&delivery_status=pending&date_from=2026-07-01&date_to=2026-07-31&sort_by=id&sort_order=desc&per_page=15",
+              "raw": "http://localhost/crms/api/preorders?q=&status=pending_approval&vendor_id=1&material_id=1&payment_status=unpaid&delivery_status=pending&date_from=2026-07-01&date_to=2026-07-31&sort_by=id&sort_order=desc&per_page=15",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -3754,7 +3754,7 @@
                 },
                 {
                   "key": "status",
-                  "value": "approved"
+                  "value": "pending_approval"
                 },
                 {
                   "key": "vendor_id",

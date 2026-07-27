@@ -185,7 +185,7 @@ class PreorderController extends Controller
         ]);
 
         $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
-        $validated['status'] = $validated['status'] ?? Preorder::STATUS_APPROVED;
+        $validated['status'] = $validated['status'] ?? Preorder::STATUS_PENDING_APPROVAL;
 
         $this->preorderService->createPreorder($validated, Auth::id());
 

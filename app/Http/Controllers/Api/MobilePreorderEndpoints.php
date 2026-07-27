@@ -172,7 +172,7 @@ trait MobilePreorderEndpoints
         $material = ToolMaterial::query()->findOrFail((int) $validated['tool_material_id']);
         $validated['unit'] = $validated['unit'] ?? $material->unit ?? 'Nos';
         $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
-        $validated['status'] = $validated['status'] ?? Preorder::STATUS_APPROVED;
+        $validated['status'] = $validated['status'] ?? Preorder::STATUS_PENDING_APPROVAL;
 
         $qty = (float) $validated['quantity'];
         $rate = (float) $validated['expected_rate'];

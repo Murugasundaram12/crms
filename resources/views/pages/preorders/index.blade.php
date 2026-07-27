@@ -224,31 +224,31 @@
                                         </span>
                                     </td>
                                     <td class="text-end">
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                                Manage
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                                <li><a class="dropdown-item" href="{{ route('preorders.show', $preorder->id) }}"><i class="ti ti-eye me-1 text-primary"></i> View Details</a></li>
-                                                @can('tools-materials-edit')
-                                                    <li><a class="dropdown-item" href="{{ route('preorders.edit', $preorder->id) }}"><i class="ti ti-edit me-1 text-info"></i> Edit Preorder</a></li>
+                                        <div class="d-inline-flex justify-content-end gap-1 flex-wrap">
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('preorders.show', $preorder->id) }}" title="View Details">
+                                                <i class="ti ti-eye"></i>
+                                            </a>
+                                            @can('tools-materials-edit')
+                                                <a class="btn btn-sm btn-outline-info" href="{{ route('preorders.edit', $preorder->id) }}" title="Edit Preorder">
+                                                    <i class="ti ti-edit"></i>
+                                                </a>
+                                            @endcan
+                                            @if($preorder->canBeConvertedToPurchase())
+                                                @can('tools-materials-create')
+                                                    <a class="btn btn-sm btn-success" href="{{ route('preorders.convert.form', $preorder->id) }}" title="Convert / Receive Purchase">
+                                                        <i class="ti ti-shopping-cart-plus"></i>
+                                                    </a>
                                                 @endcan
-                                                @if($preorder->canBeConvertedToPurchase())
-                                                    @can('tools-materials-create')
-                                                        <li><a class="dropdown-item" href="{{ route('preorders.convert.form', $preorder->id) }}"><i class="ti ti-shopping-cart-plus me-1 text-success"></i> Convert / Receive Purchase</a></li>
-                                                    @endcan
-                                                @endif
-                                                @can('tools-materials-delete')
-                                                    <li><hr class="dropdown-divider"></li>
-                                                    <li>
-                                                        <form action="{{ route('preorders.destroy', $preorder->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button type="submit" class="dropdown-item text-danger"><i class="ti ti-trash me-1"></i> Delete</button>
-                                                        </form>
-                                                    </li>
-                                                @endcan
-                                            </ul>
+                                            @endif
+                                            @can('tools-materials-delete')
+                                                <form action="{{ route('preorders.destroy', $preorder->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                        <i class="ti ti-trash"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
