@@ -157,17 +157,22 @@ trait MobilePreorderEndpoints
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'unit' => ['required', 'string', 'max:50'],
+            'unit' => ['nullable', 'string', 'max:50'],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'advance_amount' => ['nullable', 'numeric', 'min:0'],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
-            'preorder_date' => ['required', 'date'],
+            'preorder_date' => ['nullable', 'date'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
-            'status' => ['required', Rule::in(array_keys(\App\Http\Controllers\PreorderController::STATUSES))],
+            'status' => ['nullable', Rule::in(array_keys(\App\Http\Controllers\PreorderController::STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $material = ToolMaterial::query()->findOrFail((int) $validated['tool_material_id']);
+        $validated['unit'] = $validated['unit'] ?? $material->unit ?? 'Nos';
+        $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
+        $validated['status'] = $validated['status'] ?? Preorder::STATUS_APPROVED;
 
         $qty = (float) $validated['quantity'];
         $rate = (float) $validated['expected_rate'];
@@ -229,16 +234,21 @@ trait MobilePreorderEndpoints
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'unit' => ['required', 'string', 'max:50'],
+            'unit' => ['nullable', 'string', 'max:50'],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
-            'preorder_date' => ['required', 'date'],
+            'preorder_date' => ['nullable', 'date'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
-            'status' => ['required', Rule::in(array_keys(\App\Http\Controllers\PreorderController::STATUSES))],
+            'status' => ['nullable', Rule::in(array_keys(\App\Http\Controllers\PreorderController::STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $material = ToolMaterial::query()->findOrFail((int) $validated['tool_material_id']);
+        $validated['unit'] = $validated['unit'] ?? $material->unit ?? 'Nos';
+        $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
+        $validated['status'] = $validated['status'] ?? $preorder->status;
 
         $qty = (float) $validated['quantity'];
         $rate = (float) $validated['expected_rate'];
@@ -292,6 +302,167 @@ trait MobilePreorderEndpoints
             'message' => 'Preorder updated successfully.',
             'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator'])),
         ]);
+    }
+
+    public function approvePreorder(Request $request, Preorder $preorder)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-edit')) {
+            return $forbidden;
+        }
+
+        $validated = $request->validate([
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $preorder = app(PreorderService::class)->approvePreorder($preorder, $request->user()->id, $validated['notes'] ?? null);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Preorder approved successfully.',
+            'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances'])),
+        ]);
+    }
+
+    public function rejectPreorder(Request $request, Preorder $preorder)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-edit')) {
+            return $forbidden;
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $preorder = app(PreorderService::class)->rejectPreorder($preorder, $request->user()->id, $validated['reason']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Preorder rejected successfully.',
+            'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances'])),
+        ]);
+    }
+
+    public function changePreorderStatus(Request $request, Preorder $preorder)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-edit')) {
+            return $forbidden;
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(array_keys(\App\Http\Controllers\PreorderController::STATUSES))],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $preorder = app(PreorderService::class)->changeStatus($preorder, $validated['status'], $request->user()->id, $validated['notes'] ?? null);
+        $preorder->recalculateStatuses();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Preorder status updated successfully.',
+            'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances'])),
+        ]);
+    }
+
+    public function addPreorderAdvance(Request $request, Preorder $preorder)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-create')) {
+            return $forbidden;
+        }
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
+            'payment_date' => ['nullable', 'date'],
+            'reference_number' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'deduct_wallet' => ['nullable', 'boolean'],
+        ]);
+
+        $remainingPayable = max(0, (float) $preorder->total_amount - $preorder->totalAdvancePaid());
+        if ((float) $validated['amount'] > $remainingPayable + 0.01) {
+            throw ValidationException::withMessages([
+                'amount' => 'Advance amount cannot exceed remaining payable amount (Rs. ' . number_format($remainingPayable, 2) . ').',
+            ]);
+        }
+
+        $validated['payment_date'] = $validated['payment_date'] ?? now()->toDateString();
+        app(PreorderService::class)->addAdvancePayment($preorder, $validated, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Advance payment recorded successfully.',
+            'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances'])),
+        ], 201);
+    }
+
+    public function recordPreorderDelivery(Request $request, Preorder $preorder)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-create')) {
+            return $forbidden;
+        }
+
+        $remaining = $preorder->remainingQuantity();
+        $validated = $request->validate([
+            'quantity' => ['required', 'numeric', 'min:0.01', 'max:' . $remaining],
+            'delivery_date' => ['nullable', 'date'],
+            'challan_no' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $validated['delivery_date'] = $validated['delivery_date'] ?? now()->toDateString();
+        app(PreorderService::class)->recordDelivery($preorder, $validated, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Delivery recorded successfully and stock updated.',
+            'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances'])),
+        ], 201);
+    }
+
+    public function convertPreorderToPurchase(Request $request, Preorder $preorder)
+    {
+        if ($forbidden = $this->authorizeApiPermission($request, 'tools-materials-create')) {
+            return $forbidden;
+        }
+
+        if (! $preorder->canBeConvertedToPurchase()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This preorder cannot be converted. It must be approved and have remaining quantity.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'quantity' => ['nullable', 'numeric', 'min:0.01', 'max:' . $preorder->remainingQuantity()],
+            'rate' => ['nullable', 'numeric', 'min:0'],
+            'purchase_amount' => ['nullable', 'numeric', 'min:0'],
+            'purchase_paid_amount' => ['nullable', 'numeric', 'min:0'],
+            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
+            'transferred_at' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $quantity = (float) ($validated['quantity'] ?? $preorder->remainingQuantity());
+        $rate = (float) ($validated['rate'] ?? $preorder->rate);
+        $validated['vendor_id'] = $validated['vendor_id'] ?? $preorder->vendor_id;
+        $validated['quantity'] = $quantity;
+        $validated['rate'] = $rate;
+        $validated['purchase_amount'] = $validated['purchase_amount'] ?? round($quantity * $rate, 2);
+        $validated['payment_method_id'] = $validated['payment_method_id'] ?? $preorder->payment_method_id;
+        $validated['transferred_at'] = $validated['transferred_at'] ?? now()->toDateString();
+
+        if (empty($validated['vendor_id'])) {
+            throw ValidationException::withMessages(['vendor_id' => 'Vendor is required to convert preorder to purchase.']);
+        }
+
+        app(PreorderService::class)->convertToPurchase($preorder, $validated, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Preorder converted to purchase successfully.',
+            'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances'])),
+        ], 201);
     }
 
     public function deletePreorder(Request $request, Preorder $preorder)

@@ -177,12 +177,15 @@ class PreorderController extends Controller
             ],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
-            'preorder_date' => ['required', 'date'],
+            'preorder_date' => ['nullable', 'date'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
-            'status' => ['required', Rule::in(array_keys(self::STATUSES))],
+            'status' => ['nullable', Rule::in(array_keys(self::STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
             'attachment' => ['nullable', 'file', 'max:10240'],
         ]);
+
+        $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
+        $validated['status'] = $validated['status'] ?? Preorder::STATUS_APPROVED;
 
         $this->preorderService->createPreorder($validated, Auth::id());
 
@@ -211,11 +214,14 @@ class PreorderController extends Controller
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
-            'preorder_date' => ['required', 'date'],
+            'preorder_date' => ['nullable', 'date'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
-            'status' => ['required', Rule::in(array_keys(self::STATUSES))],
+            'status' => ['nullable', Rule::in(array_keys(self::STATUSES))],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
+        $validated['status'] = $validated['status'] ?? $preorder->status;
 
         $quantity = (float) $validated['quantity'];
         $rate = (float) $validated['expected_rate'];

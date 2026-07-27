@@ -103,34 +103,11 @@
                             <input type="date" name="expected_delivery_date" class="form-control" value="{{ old('expected_delivery_date') }}">
                         </div>
 
-                        <div class="col-12 col-md-6">
-                            <label class="form-label">Workflow Status <span class="text-danger">*</span></label>
-                            <select name="status" class="form-select" required>
-                                <option value="pending_approval" @selected(old('status') === 'pending_approval')>Pending Approval</option>
-                                <option value="draft" @selected(old('status') === 'draft')>Draft</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label">Quotation / Document Attachment</label>
-                            <input type="file" name="attachment" class="form-control">
-                        </div>
-
                         <div class="col-12">
                             <label class="form-label">Notes / Terms</label>
                             <textarea name="notes" class="form-control" rows="3" placeholder="Special requirements, vendor delivery conditions">{{ old('notes') }}</textarea>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Optional Initial Advance Payment Section -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="card-title mb-0"><i class="ti ti-wallet me-1"></i> Initial Advance Payment (Optional)</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label">Initial Advance Amount (Rs.)</label>
                             <input type="number" step="0.01" min="0" name="advance_amount" class="form-control" value="{{ old('advance_amount', 0) }}">

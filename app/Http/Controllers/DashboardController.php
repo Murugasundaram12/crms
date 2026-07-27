@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\DashboardService;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
@@ -109,6 +110,10 @@ class DashboardController extends Controller
 
     private function getRecentPayments()
     {
+        if (! Schema::hasTable('payments')) {
+            return collect();
+        }
+
         return Payment::with(['project', 'client'])
             ->latest()
             ->take(5)

@@ -136,6 +136,12 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/preorders/{preorder}', [MobilePreorderController::class, 'showPreorder'])->whereNumber('preorder');
     Route::put('/preorders/{preorder}', [MobilePreorderController::class, 'updatePreorder'])->whereNumber('preorder');
     Route::patch('/preorders/{preorder}', [MobilePreorderController::class, 'updatePreorder'])->whereNumber('preorder');
+    Route::post('/preorders/{preorder}/approve', [MobilePreorderController::class, 'approvePreorder'])->whereNumber('preorder');
+    Route::post('/preorders/{preorder}/reject', [MobilePreorderController::class, 'rejectPreorder'])->whereNumber('preorder');
+    Route::post('/preorders/{preorder}/change-status', [MobilePreorderController::class, 'changePreorderStatus'])->whereNumber('preorder');
+    Route::post('/preorders/{preorder}/advances', [MobilePreorderController::class, 'addPreorderAdvance'])->whereNumber('preorder');
+    Route::post('/preorders/{preorder}/deliveries', [MobilePreorderController::class, 'recordPreorderDelivery'])->whereNumber('preorder');
+    Route::post('/preorders/{preorder}/convert', [MobilePreorderController::class, 'convertPreorderToPurchase'])->whereNumber('preorder');
     Route::delete('/preorders/{preorder}', [MobilePreorderController::class, 'deletePreorder'])->whereNumber('preorder');
 
     Route::get('/leave-requests/options', [MobileLeaveMasterController::class, 'leaveOptions']);

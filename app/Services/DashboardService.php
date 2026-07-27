@@ -10,6 +10,7 @@ use App\Models\Labour;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\Task;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardService
@@ -25,10 +26,12 @@ class DashboardService
         $totalSpent = Schema::hasColumn('projects', 'spent')
             ? (float) Project::sum('spent')
             : (float) Project::with('expenses')->get()->sum(fn(Project $project) => $project->spent);
-        $paidRevenue = (float) Payment::where('status', 'paid')->sum('amount');
-        $expenseTotal = (float) Expense::sum('amount');
-        $employeeSalaryTotal = (float) EmployeeSalary::sum('salary');
-        $labourSalaryTotal = (float) Labour::sum('salary');
+        $paidRevenue = Schema::hasTable('payments')
+            ? (float) Payment::where('status', 'paid')->sum('amount')
+            : 0.0;
+        $expenseTotal = $this->sumIfTableExists(Expense::class, 'amount');
+        $employeeSalaryTotal = $this->sumIfTableExists(EmployeeSalary::class, 'salary');
+        $labourSalaryTotal = $this->sumIfTableExists(Labour::class, 'salary');
         $totalExpenses = $expenseTotal + $employeeSalaryTotal + $labourSalaryTotal;
         $netRevenue = $paidRevenue - $totalExpenses;
 
@@ -50,5 +53,19 @@ class DashboardService
             'completionRate' => $taskCount > 0 ? round(($completedTasks / $taskCount) * 100, 1) : 0,
             'budgetUtilization' => $totalBudget > 0 ? round(($totalSpent / $totalBudget) * 100, 1) : 0,
         ];
+    }
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
+    private function sumIfTableExists(string $modelClass, string $column): float
+    {
+        $model = new $modelClass();
+
+        if (! Schema::hasTable($model->getTable()) || ! Schema::hasColumn($model->getTable(), $column)) {
+            return 0.0;
+        }
+
+        return (float) $modelClass::sum($column);
     }
 }

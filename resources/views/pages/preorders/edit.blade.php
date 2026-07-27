@@ -104,7 +104,7 @@
                             <input type="date" name="expected_delivery_date" class="form-control" value="{{ old('expected_delivery_date', optional($preorder->expected_delivery_date)->format('Y-m-d')) }}">
                         </div>
 
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-12">
                             <label class="form-label">Payment Method Master</label>
                             <select name="payment_method_id" class="form-select">
                                 <option value="">Select Payment Method</option>
@@ -114,14 +114,7 @@
                             </select>
                         </div>
 
-                        <div class="col-12 col-md-6">
-                            <label class="form-label">Workflow Status <span class="text-danger">*</span></label>
-                            <select name="status" class="form-select" required>
-                                @foreach($statuses as $key => $label)
-                                    <option value="{{ $key }}" @selected(old('status', $preorder->status) === $key)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                        <input type="hidden" name="status" value="{{ old('status', $preorder->status) }}">
 
                         <div class="col-12">
                             <label class="form-label">Notes / Terms</label>

@@ -3737,7 +3737,7 @@
               }
             ],
             "url": {
-              "raw": "http://localhost/crms/api/preorders?q=&status=pending_approval&vendor_id=1&material_id=1&payment_status=unpaid&delivery_status=pending&date_from=2026-07-01&date_to=2026-07-31&sort_by=id&sort_order=desc&per_page=15",
+              "raw": "http://localhost/crms/api/preorders?q=&status=approved&vendor_id=1&material_id=1&payment_status=unpaid&delivery_status=pending&date_from=2026-07-01&date_to=2026-07-31&sort_by=id&sort_order=desc&per_page=15",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -3754,7 +3754,7 @@
                 },
                 {
                   "key": "status",
-                  "value": "pending_approval"
+                  "value": "approved"
                 },
                 {
                   "key": "vendor_id",
@@ -3823,7 +3823,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": 1,\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit\": \"Bag\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 100,\n  \"preorder_date\": \"2026-07-21\",\n  \"status\": \"pending_approval\",\n  \"payment_method_id\": 1,\n  \"notes\": \"Create preorder via API\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 0,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders",
@@ -3902,7 +3902,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": 1,\n  \"vendor_id\": 1,\n  \"quantity\": 12,\n  \"unit\": \"Bag\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"preorder_date\": \"2026-07-21\",\n  \"status\": \"pending_approval\",\n  \"payment_method_id\": 1,\n  \"notes\": \"Update preorder via API\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 12,\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"payment_method_id\": 1,\n  \"notes\": \"Update preorder via API\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}",
@@ -3915,6 +3915,276 @@
                 "api",
                 "preorders",
                 "{{preorder_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Preorder",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Approved from mobile API\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/approve",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Preorder",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Vendor quote rejected\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/reject",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}",
+                "reject"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Preorder Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ordered\",\n  \"notes\": \"Vendor order placed\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/change-status",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}",
+                "change-status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Preorder Advance",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"payment_method_id\": 1,\n  \"payment_date\": \"2026-07-21\",\n  \"reference_number\": \"ADV-API-001\",\n  \"deduct_wallet\": false,\n  \"notes\": \"Advance paid from API\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/advances",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}",
+                "advances"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Record Preorder Delivery",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 5,\n  \"delivery_date\": \"2026-07-22\",\n  \"challan_no\": \"CH-API-001\",\n  \"notes\": \"Partial delivery received\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/deliveries",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}",
+                "deliveries"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Convert Preorder to Purchase",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_paid_amount\": 0,\n  \"payment_method_id\": 1,\n  \"transferred_at\": \"2026-07-22\",\n  \"notes\": \"Convert remaining preorder quantity to stock purchase\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/convert",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "crms",
+                "api",
+                "preorders",
+                "{{preorder_id}}",
+                "convert"
               ]
             }
           },
