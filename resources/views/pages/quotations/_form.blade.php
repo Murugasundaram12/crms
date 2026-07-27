@@ -95,17 +95,6 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-12">
-                        <label class="form-label">Quotation</label>
-                        <select id="quotation-select" name="quotation_id"
-                            class="form-select @error('quotation_id') is-invalid @enderror">
-                            <option value="">Select Quotation</option>
-                        </select>
-                        @error('quotation_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
                     <div class="col-md-6">
                         <label class="form-label">Quotation Create Date <span class="text-danger">*</span></label>
                         <input type="date" name="quotation_date"
@@ -549,30 +538,6 @@
 
                 projectSelect.innerHTML = placeholder + options.join('');
             };
-
-            const quotationSelect = document.getElementById('quotation-select');
-            const updateQuotationOptions = (quotations, selectedValue = '') => {
-                const placeholder = '<option value="">Select Quotation</option>';
-                const options = quotations.map((q) => {
-                    const selected = `${q.id}` === `${selectedValue}` ? 'selected' : '';
-                    return `<option value="${q.id}" ${selected}>${q.quotation_number} - ₹${parseFloat(q.amount || 0).toLocaleString()}</option>`;
-                });
-                quotationSelect.innerHTML = placeholder + options.join('');
-            };
-
-            projectSelect.addEventListener('change', () => {
-                const projectId = projectSelect.value;
-                if (projectId) {
-                    fetch(`{{ route('quotations.by-project', ':project') }}`.replace(':project', projectId), {
-                        headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json'}
-                    })
-                    .then(response => response.json())
-                    .then(data => updateQuotationOptions(data || []))
-                    .catch(() => updateQuotationOptions([]));
-                } else {
-                    updateQuotationOptions([]);
-                }
-            });
 
             const loadClientDetails = async (clientId, preserveProject = false) => {
                 if (!clientId) {
