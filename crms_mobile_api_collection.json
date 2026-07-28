@@ -3206,6 +3206,7 @@
         {
           "name": "Create Purchase Transaction",
           "request": {
+            "description": "Creates a stock-effective purchase. If advance_amount is greater than 0, the logged-in user's wallet is debited, a wallet history row is created with source_type tool_material_purchase, and matching entries are added in expenses and expense_transactions. Updating or deleting this assignment reverses the linked wallet/expense sync.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3241,7 +3242,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"purchase\",\n  \"destination_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 50,\n  \"rate\": 10,\n  \"amount\": null,\n  \"advance_amount\": 500,\n  \"payment_method_id\": 1,\n  \"receiver_name\": \"Store Keeper\",\n  \"vehicle_no\": \"TN-00-AB-1234\",\n  \"purpose\": \"Stock purchase\",\n  \"notes\": \"Created from API\",\n  \"transferred_at\": \"2026-07-21 10:00:00\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"status\": \"transferred\",\n  \"transaction_type\": \"purchase\",\n  \"destination_type\": \"office\",\n  \"vendor_id\": 1,\n  \"quantity\": 50,\n  \"rate\": 10,\n  \"amount\": null,\n  \"advance_amount\": 500,\n  \"payment_method_id\": 1,\n  \"receiver_name\": \"Store Keeper\",\n  \"vehicle_no\": \"TN-00-AB-1234\",\n  \"purpose\": \"Stock purchase\",\n  \"notes\": \"Created from API. Finance sync: wallet debit + expenses entries will be created for the paid amount.\",\n  \"transferred_at\": \"2026-07-21 10:00:00\"\n}"
             }
           },
           "response": []
@@ -3500,6 +3501,7 @@
         {
           "name": "Update Tool / Material Assignment",
           "request": {
+            "description": "Updates an assignment. For purchase transactions, existing linked wallet/expense sync is reversed first, then recreated from the updated amount, advance_amount, payment_method_id, project and date.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3544,6 +3546,7 @@
         {
           "name": "Delete Tool / Material Assignment",
           "request": {
+            "description": "Deletes an assignment. For synced purchase transactions, linked wallet history and expense entries are reversed/removed before the assignment is deleted.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3702,6 +3705,7 @@
         {
           "name": "Create Preorder",
           "request": {
+            "description": "Creates a preorder. If advance_amount is greater than 0 and payment_method_id is present, an initial preorder advance is recorded and wallet history is created with source_type preorder_advance.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3725,7 +3729,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit\": \"Nos\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 0,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit\": \"Nos\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 100,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API. Initial advance creates wallet history.\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders",
@@ -3960,6 +3964,7 @@
         {
           "name": "Add Preorder Advance",
           "request": {
+            "description": "Adds an advance payment. By default deduct_wallet is true, which debits the logged-in user's wallet and creates wallet history with source_type preorder_advance. Set deduct_wallet false only when the advance should be recorded without wallet debit.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3983,7 +3988,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 100,\n  \"payment_method_id\": 1,\n  \"payment_date\": \"2026-07-21\",\n  \"reference_number\": \"ADV-API-001\",\n  \"deduct_wallet\": false,\n  \"notes\": \"Advance paid from API\"\n}"
+              "raw": "{\n  \"amount\": 100,\n  \"payment_method_id\": 1,\n  \"payment_date\": \"2026-07-21\",\n  \"reference_number\": \"ADV-API-001\",\n  \"deduct_wallet\": true,\n  \"notes\": \"Advance paid from API. Wallet history will be created.\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/advances",
@@ -4005,6 +4010,7 @@
         {
           "name": "Record Preorder Delivery",
           "request": {
+            "description": "Records delivery and creates the linked purchase assignment. Existing preorder advance plus purchase_paid_amount are applied to the purchase, stock is updated, and matching expense entries are added. Wallet debit happens through preorder advance/payment flow, so this endpoint does not double-debit the wallet for the generated purchase assignment.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -4028,7 +4034,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_amount\": 500,\n  \"purchase_paid_amount\": 500,\n  \"payment_method_id\": 1,\n  \"delivery_date\": \"2026-07-22\",\n  \"challan_no\": \"CH-API-001\",\n  \"notes\": \"Paid delivery received\"\n}"
+              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_amount\": 500,\n  \"purchase_paid_amount\": 500,\n  \"payment_method_id\": 1,\n  \"delivery_date\": \"2026-07-22\",\n  \"challan_no\": \"CH-API-001\",\n  \"notes\": \"Paid delivery received. Expense entries will be created for this purchase receipt.\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/deliveries",
@@ -4050,6 +4056,7 @@
         {
           "name": "Convert Preorder to Purchase",
           "request": {
+            "description": "Converts approved preorder quantity into a stock purchase. Existing preorder advance plus purchase_paid_amount are applied, stock is updated, and matching expense entries are added. Wallet debit happens through preorder advance/payment flow, so this endpoint does not double-debit the wallet for the generated purchase assignment.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -4073,7 +4080,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_amount\": 500,\n  \"purchase_paid_amount\": 500,\n  \"payment_method_id\": 1,\n  \"transferred_at\": \"2026-07-22\",\n  \"notes\": \"Convert paid preorder quantity to stock purchase\"\n}"
+              "raw": "{\n  \"vendor_id\": 1,\n  \"quantity\": 5,\n  \"rate\": 100,\n  \"purchase_amount\": 500,\n  \"purchase_paid_amount\": 500,\n  \"payment_method_id\": 1,\n  \"transferred_at\": \"2026-07-22\",\n  \"notes\": \"Convert paid preorder quantity to stock purchase. Expense entries will be created.\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}/convert",

@@ -183,15 +183,6 @@ class PreorderService
                 $attachmentPath = $data['attachment']->store('preorder-advances', 'public');
             }
 
-            // Deduct user wallet inside atomic transaction if enabled
-            if ($deductWallet && $amount > 0) {
-                $pm = PaymentMethod::find($paymentMethodId);
-                $pmName = $pm?->name ?? 'Payment Method';
-                $description = 'Advance Payment for Preorder ' . $preorder->reference_no . ' via ' . $pmName;
-
-                $this->balanceService->debitUserWallet($userId, $amount, $description, 'preorder_advance', (int) $preorder->id);
-            }
-
             $advance = PreorderAdvance::create([
                 'preorder_id' => $preorder->id,
                 'amount' => $amount,
@@ -203,6 +194,23 @@ class PreorderService
                 'attachment_path' => $attachmentPath,
                 'wallet_debited' => $deductWallet,
             ]);
+
+            if ($deductWallet && $amount > 0) {
+                $pm = PaymentMethod::find($paymentMethodId);
+                $pmName = $pm?->name ?? 'Payment Method';
+                $description = 'Advance Payment for Preorder ' . $preorder->reference_no . ' via ' . $pmName;
+
+                $this->balanceService->recordWalletTransaction(
+                    $userId,
+                    $amount,
+                    'debit',
+                    'preorder_advance',
+                    (int) $advance->id,
+                    $paymentMethodId,
+                    $description,
+                    $userId
+                );
+            }
 
             $preorder->recalculateStatuses();
 
@@ -265,6 +273,8 @@ class PreorderService
                     . '. Paid Now: ' . number_format($paidNow, 2)
                     . '. ' . ($notes ?? ''),
             ]);
+
+            app(PurchaseFinanceSyncService::class)->applyPurchaseSync($assignment->load('toolMaterial'), false);
 
             $delivery = PreorderDelivery::create([
                 'preorder_id' => $preorder->id,
@@ -358,6 +368,8 @@ class PreorderService
                     . '. Paid Now: ' . number_format($paidNow, 2)
                     . '. Balance Due: 0.00. ' . ($notes ?? ''),
             ]);
+
+            app(PurchaseFinanceSyncService::class)->applyPurchaseSync($assignment->load('toolMaterial'), false);
 
             // Create Delivery entry
             $nextDeliveryCount = $preorder->deliveries()->count() + 1;

@@ -9,6 +9,7 @@ use App\Models\ToolMaterialAssignment;
 use App\Models\Unit;
 use App\Models\Vendor;
 use App\Services\CrmBalanceService;
+use App\Services\PurchaseFinanceSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -381,6 +382,7 @@ trait MobileInventoryEndpoints
         $assignment = DB::transaction(function () use ($validated) {
             $assignment = ToolMaterialAssignment::query()->create($validated);
             $this->applyInventoryVendorReturnBalance($assignment, 1);
+            app(PurchaseFinanceSyncService::class)->applyPurchaseSync($assignment->load('toolMaterial'), true);
 
             return $assignment;
         });
@@ -412,8 +414,10 @@ trait MobileInventoryEndpoints
 
         DB::transaction(function () use ($assignment, $validated) {
             $this->applyInventoryVendorReturnBalance($assignment, -1);
+            app(PurchaseFinanceSyncService::class)->reversePurchaseSync($assignment->load('toolMaterial'));
             $assignment->update($validated);
             $this->applyInventoryVendorReturnBalance($assignment->fresh(), 1);
+            app(PurchaseFinanceSyncService::class)->applyPurchaseSync($assignment->fresh('toolMaterial'), true);
         });
 
         return response()->json([
@@ -430,6 +434,7 @@ trait MobileInventoryEndpoints
 
         DB::transaction(function () use ($assignment) {
             $this->applyInventoryVendorReturnBalance($assignment, -1);
+            app(PurchaseFinanceSyncService::class)->reversePurchaseSync($assignment->load('toolMaterial'));
             $assignment->delete();
         });
 

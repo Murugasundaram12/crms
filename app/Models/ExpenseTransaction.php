@@ -17,11 +17,14 @@ class ExpenseTransaction extends Model
         'project_id',
         'description',
         'paid_amount',
+        'payment_mode',
         'payment_method_id',
         'current_date',
         'current_time',
         'active_status',
         'delete_status',
+        'source_type',
+        'source_id',
     ];
 
     protected $casts = [

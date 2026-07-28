@@ -9,6 +9,7 @@ use App\Models\ToolMaterialAssignment;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\CrmBalanceService;
+use App\Services\PurchaseFinanceSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -148,6 +149,7 @@ class ToolMaterialAssignmentController extends Controller
         DB::transaction(function () use ($validated) {
             $assignment = ToolMaterialAssignment::query()->create($validated);
             $this->applyVendorReturnBalance($assignment, 1);
+            app(PurchaseFinanceSyncService::class)->applyPurchaseSync($assignment->load('toolMaterial'), true);
         });
 
         return redirect()->route('tools-material-assignments.index')->with('success', 'Tool / material transfer saved successfully.');
@@ -175,8 +177,10 @@ class ToolMaterialAssignmentController extends Controller
 
         DB::transaction(function () use ($toolsMaterialAssignment, $validated) {
             $this->applyVendorReturnBalance($toolsMaterialAssignment, -1);
+            app(PurchaseFinanceSyncService::class)->reversePurchaseSync($toolsMaterialAssignment->load('toolMaterial'));
             $toolsMaterialAssignment->update($validated);
             $this->applyVendorReturnBalance($toolsMaterialAssignment->fresh(), 1);
+            app(PurchaseFinanceSyncService::class)->applyPurchaseSync($toolsMaterialAssignment->fresh('toolMaterial'), true);
         });
 
         return redirect()->route('tools-material-assignments.index')->with('success', 'Tool / material transfer updated successfully.');
@@ -186,6 +190,7 @@ class ToolMaterialAssignmentController extends Controller
     {
         DB::transaction(function () use ($toolsMaterialAssignment) {
             $this->applyVendorReturnBalance($toolsMaterialAssignment, -1);
+            app(PurchaseFinanceSyncService::class)->reversePurchaseSync($toolsMaterialAssignment->load('toolMaterial'));
             $toolsMaterialAssignment->delete();
         });
 

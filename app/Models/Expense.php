@@ -31,6 +31,8 @@ class Expense extends Model
         'labour_id',
         'vendor_id',
         'is_advance',
+        'source_type',
+        'source_id',
     ];
 
     protected $casts = [

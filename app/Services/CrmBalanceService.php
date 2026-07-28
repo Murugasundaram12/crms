@@ -34,22 +34,33 @@ class CrmBalanceService
         }
 
         if (Schema::hasTable('wallet')) {
-            Wallet::query()->create([
+            $walletPayload = [
                 'user_id' => $userId,
-                'client_id' => $clientId,
-                'project_id' => $projectId,
+                'client_id' => $clientId ?? 0,
+                'project_id' => $projectId ?? 0,
                 'amount' => (int) round($amount),
                 'payment_mode' => $paymentMethodId ?? 1,
-                'payment_method_id' => $paymentMethodId,
                 'transfer_type' => $transferType,
-                'source_type' => $sourceType,
-                'source_id' => $sourceId,
                 'description' => $description,
-                'created_by' => $createdBy,
                 'current_date' => now(),
                 'active_status' => 1,
                 'delete_status' => 0,
-            ]);
+            ];
+
+            if (Schema::hasColumn('wallet', 'payment_method_id')) {
+                $walletPayload['payment_method_id'] = $paymentMethodId;
+            }
+            if (Schema::hasColumn('wallet', 'source_type')) {
+                $walletPayload['source_type'] = $sourceType;
+            }
+            if (Schema::hasColumn('wallet', 'source_id')) {
+                $walletPayload['source_id'] = $sourceId;
+            }
+            if (Schema::hasColumn('wallet', 'created_by')) {
+                $walletPayload['created_by'] = $createdBy;
+            }
+
+            Wallet::query()->create($walletPayload);
         }
     }
 
