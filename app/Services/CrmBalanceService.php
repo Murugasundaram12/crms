@@ -80,6 +80,8 @@ class CrmBalanceService
                 'amount' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
                 'paid_amt' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
                 'paid_amount' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
+                'advance_amount' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
+                'purchase_paid_amount' => 'Insufficient wallet balance. Available balance is Rs ' . number_format($wallet, 2) . '.',
             ]);
         }
 
@@ -121,6 +123,39 @@ class CrmBalanceService
 
         $this->adjustColumn('users', $userId, 'wallet', $amount);
         $this->syncEmployeeWalletFromUser($userId);
+    }
+
+    public function replaceUserWalletDebit(
+        ?int $oldUserId,
+        float $oldAmount,
+        ?int $newUserId,
+        float $newAmount,
+        string $description = '',
+        string $referenceType = 'wallet',
+        int $referenceId = 0
+    ): void {
+        $oldAmount = round(max(0, $oldAmount), 2);
+        $newAmount = round(max(0, $newAmount), 2);
+
+        if ($oldUserId && $newUserId && (int) $oldUserId === (int) $newUserId) {
+            $diff = round($newAmount - $oldAmount, 2);
+
+            if ($diff > 0) {
+                $this->debitUserWallet((int) $newUserId, $diff, $description, $referenceType, $referenceId);
+            } elseif ($diff < 0) {
+                $this->creditUserWallet((int) $newUserId, abs($diff), $description, $referenceType, $referenceId);
+            }
+
+            return;
+        }
+
+        if ($oldUserId && $oldAmount > 0) {
+            $this->creditUserWallet((int) $oldUserId, $oldAmount, $description, $referenceType, $referenceId);
+        }
+
+        if ($newUserId && $newAmount > 0) {
+            $this->debitUserWallet((int) $newUserId, $newAmount, $description, $referenceType, $referenceId);
+        }
     }
 
     public function syncEmployeeWalletFromUser(int $userId): void

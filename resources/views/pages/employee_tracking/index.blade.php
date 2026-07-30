@@ -678,8 +678,13 @@
         function isRoadRouteReliable(data = {}) {
             const health = data?.trackingHealth || {};
             const coverage = Number(health.tracking_coverage_percentage);
+            const gapCount = Number(health.gap_count);
 
-            if (Number.isFinite(coverage) && coverage < 15) {
+            if (Number.isFinite(gapCount) && gapCount > 0) {
+                return false;
+            }
+
+            if (Number.isFinite(coverage) && coverage < 80) {
                 return false;
             }
 
@@ -1145,7 +1150,7 @@
         function overlayShell(contents, data = {}, gpsDistance = '-', directionsDistance = null) {
             return `
                 <div class="bg-white rounded shadow-lg p-3">
-                    ${lowConfidenceRouteWarning(data)}
+                    ${trackingHealthPanel(data)}
                     <div class="timeline-summary-card mb-3 shadow-lg">
                         <div class="card-body">
                             <dl class="row mb-0">
@@ -1163,6 +1168,53 @@
                         </div>
                     </div>
                     <div class="timeline mt-1" style="max-height:350px; overflow-y:auto;">${contents}</div>
+                </div>
+            `;
+        }
+
+        function trackingHealthPanel(data = {}) {
+            const health = data.trackingHealth || {};
+            if (!Object.keys(health).length) {
+                return '';
+            }
+
+            const longestGap = health.longest_gap_duration || '00:00:00';
+            const rejected = health.rejected_points_count ?? health.ignored_points_count ?? 0;
+            const accepted = health.accepted_points_count ?? Math.max(0, Number(health.raw_saved_points_count || 0) - Number(rejected || 0));
+            const segmentCount = health.backend_segment_count ?? health.route_segments_count ?? (Array.isArray(data.polylineSegments) ? data.polylineSegments.length : 0);
+            const partialWarning = isLowConfidenceRoute(data)
+                ? '<div class="alert alert-warning py-2 px-3 mb-2 small">Partial route only. Missing periods stay disconnected and Estimated Road Route is disabled for this timeline.</div>'
+                : '';
+
+            return `
+                ${partialWarning}
+                <div class="timeline-summary-card mb-3 shadow-lg">
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-6">Tracking coverage</dt>
+                            <dd class="col-6">${coverageBadge(health.tracking_coverage_percentage)}</dd>
+                            <dt class="col-6">Raw GPS rows</dt>
+                            <dd class="col-6">${escapeHtml(health.raw_saved_points_count ?? health.saved_points_count ?? '-')}</dd>
+                            <dt class="col-6">Accepted points</dt>
+                            <dd class="col-6">${escapeHtml(accepted)}</dd>
+                            <dt class="col-6">Rejected points</dt>
+                            <dd class="col-6">${escapeHtml(rejected)}</dd>
+                            <dt class="col-6">Gap count</dt>
+                            <dd class="col-6">${gapBadge(health.gap_count)}</dd>
+                            <dt class="col-6">Longest gap</dt>
+                            <dd class="col-6">${escapeHtml(longestGap)}</dd>
+                            <dt class="col-6">First tracking delay</dt>
+                            <dd class="col-6">${escapeHtml(health.first_tracking_delay_duration || '-')}</dd>
+                            <dt class="col-6">Last successful update</dt>
+                            <dd class="col-6">${escapeHtml(health.last_tracking_at || '-')}</dd>
+                            <dt class="col-6">Route segments</dt>
+                            <dd class="col-6">${escapeHtml(segmentCount)}</dd>
+                            <dt class="col-6">Device ID</dt>
+                            <dd class="col-6">${escapeHtml(health.device_id || data.deviceId || '-')}</dd>
+                            <dt class="col-6">Offline queue count</dt>
+                            <dd class="col-6">${escapeHtml(health.offline_queue_count ?? 'Unavailable from app')}</dd>
+                        </dl>
+                    </div>
                 </div>
             `;
         }

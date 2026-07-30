@@ -7,9 +7,11 @@ use App\Models\MainCategory;
 use App\Models\Category;
 use App\Models\PaymentMethod;
 use App\Models\Project;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ExpenseTransactionController extends Controller
@@ -91,7 +93,18 @@ class ExpenseTransactionController extends Controller
             $validated['image_path'] = $request->file('image')->store('expense-images', 'public');
         }
 
-        ExpenseTransaction::create($validated);
+        DB::transaction(function () use ($validated) {
+            $transaction = ExpenseTransaction::create($validated);
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                (int) $validated['user_id'],
+                (float) $validated['paid_amount'],
+                'Expense transaction payment',
+                'expense_transaction',
+                (int) $transaction->id
+            );
+        });
 
         return redirect()->route('expense-transactions.index')->with('success', 'Expense added successfully.');
     }
@@ -128,16 +141,43 @@ class ExpenseTransactionController extends Controller
             $validated['image_path'] = $request->file('image')->store('expense-images', 'public');
         }
 
-        $expenseTransaction->update($validated);
+        DB::transaction(function () use ($expenseTransaction, $validated) {
+            $oldUserId = (int) $expenseTransaction->user_id;
+            $oldPaidAmount = (float) $expenseTransaction->paid_amount;
+
+            $expenseTransaction->update($validated);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                $oldUserId,
+                $oldPaidAmount,
+                (int) $expenseTransaction->user_id,
+                (float) $expenseTransaction->paid_amount,
+                'Expense transaction payment update',
+                'expense_transaction',
+                (int) $expenseTransaction->id
+            );
+        });
 
         return redirect()->route('expense-transactions.index')->with('success', 'Expense updated successfully.');
     }
 
     public function destroy(ExpenseTransaction $expenseTransaction): RedirectResponse
     {
-        $expenseTransaction->delete_status = true;
-        $expenseTransaction->active_status = false;
-        $expenseTransaction->save();
+        DB::transaction(function () use ($expenseTransaction) {
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $expenseTransaction->user_id,
+                (float) $expenseTransaction->paid_amount,
+                null,
+                0,
+                'Deleted expense transaction refund',
+                'expense_transaction',
+                (int) $expenseTransaction->id
+            );
+
+            $expenseTransaction->delete_status = true;
+            $expenseTransaction->active_status = false;
+            $expenseTransaction->save();
+        });
 
         if ($expenseTransaction->image_path) {
             Storage::disk('public')->delete($expenseTransaction->image_path);

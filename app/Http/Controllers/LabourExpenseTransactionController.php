@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\LabourExpenseTransaction;
 use App\Models\PaymentMethod;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class LabourExpenseTransactionController extends Controller
@@ -34,7 +36,18 @@ class LabourExpenseTransactionController extends Controller
             $validated['image_path'] = $request->file('image')->store('expense-images', 'public');
         }
 
-        LabourExpenseTransaction::create($validated);
+        DB::transaction(function () use ($validated) {
+            $transaction = LabourExpenseTransaction::create($validated);
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                (int) $validated['user_id'],
+                (float) $validated['paid_amount'],
+                'Labour expense transaction payment',
+                'labour_expense_transaction',
+                (int) $transaction->id
+            );
+        });
 
         return redirect()->route('labour-expenses.history')
             ->with('success', 'Labour expense added successfully.');
@@ -59,7 +72,22 @@ class LabourExpenseTransactionController extends Controller
             $validated['image_path'] = $request->file('image')->store('expense-images', 'public');
         }
 
-        $labourExpenseTransaction->update($validated);
+        DB::transaction(function () use ($labourExpenseTransaction, $validated) {
+            $oldUserId = (int) $labourExpenseTransaction->user_id;
+            $oldPaidAmount = (float) $labourExpenseTransaction->paid_amount;
+
+            $labourExpenseTransaction->update($validated);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                $oldUserId,
+                $oldPaidAmount,
+                (int) $labourExpenseTransaction->user_id,
+                (float) $labourExpenseTransaction->paid_amount,
+                'Labour expense transaction payment update',
+                'labour_expense_transaction',
+                (int) $labourExpenseTransaction->id
+            );
+        });
 
         return redirect()->route('labour-expenses.history')
             ->with('success', 'Labour expense updated successfully.');
@@ -67,9 +95,21 @@ class LabourExpenseTransactionController extends Controller
 
     public function destroy(LabourExpenseTransaction $labourExpenseTransaction): RedirectResponse
     {
-        $labourExpenseTransaction->delete_status = true;
-        $labourExpenseTransaction->active_status = false;
-        $labourExpenseTransaction->save();
+        DB::transaction(function () use ($labourExpenseTransaction) {
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $labourExpenseTransaction->user_id,
+                (float) $labourExpenseTransaction->paid_amount,
+                null,
+                0,
+                'Deleted labour expense transaction refund',
+                'labour_expense_transaction',
+                (int) $labourExpenseTransaction->id
+            );
+
+            $labourExpenseTransaction->delete_status = true;
+            $labourExpenseTransaction->active_status = false;
+            $labourExpenseTransaction->save();
+        });
 
         if ($labourExpenseTransaction->image_path) {
             Storage::disk('public')->delete($labourExpenseTransaction->image_path);

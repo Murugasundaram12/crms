@@ -3705,7 +3705,7 @@
         {
           "name": "Create Preorder",
           "request": {
-            "description": "Creates a preorder. If advance_amount is greater than 0 and payment_method_id is present, an initial preorder advance is recorded and wallet history is created with source_type preorder_advance.",
+            "description": "Creates a preorder. Use unit_id from GET /api/preorders/options units list; old unit code text is still accepted for backward compatibility. If advance_amount is greater than 0 and payment_method_id is present, an initial preorder advance is recorded and wallet history is created with source_type preorder_advance.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3729,7 +3729,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit\": \"Nos\",\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 100,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API. Initial advance creates wallet history.\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 10,\n  \"unit_id\": 3,\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"advance_amount\": 100,\n  \"payment_method_id\": 1,\n  \"notes\": \"Simple preorder via API. Initial advance creates wallet history.\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders",
@@ -3785,6 +3785,7 @@
         {
           "name": "Update Preorder",
           "request": {
+            "description": "Updates a preorder. Use unit_id from options units list; old unit code text is still accepted for backward compatibility.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -3808,7 +3809,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 12,\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"payment_method_id\": 1,\n  \"notes\": \"Update preorder via API\"\n}"
+              "raw": "{\n  \"tool_material_id\": \"{{tool_material_id}}\",\n  \"vendor_id\": 1,\n  \"quantity\": 12,\n  \"unit_id\": 3,\n  \"expected_rate\": 100,\n  \"gst_percent\": 18,\n  \"payment_method_id\": 1,\n  \"notes\": \"Update preorder via API\"\n}"
             },
             "url": {
               "raw": "http://localhost/crms/api/preorders/{{preorder_id}}",

@@ -40,7 +40,9 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('hasDirectionsSegments(data) && isRoadRouteReliable(data)', $this->source);
         $this->assertStringContainsString("return 'actual';", $this->source);
         $this->assertStringContainsString('function isRoadRouteReliable(data = {})', $this->source);
-        $this->assertStringContainsString('coverage < 60', $this->source);
+        $this->assertStringContainsString('gapCount > 0', $this->source);
+        $this->assertStringContainsString('coverage < 80', $this->source);
+        $this->assertStringContainsString('Partial route only. Missing periods stay disconnected', $this->source);
         $this->assertStringContainsString('gapCount > 0', $this->source);
         $this->assertStringNotContainsString('id="timelineRouteMode"', $this->source);
         $this->assertStringNotContainsString("getElementById('timelineRouteMode')", $this->source);
@@ -81,9 +83,12 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('Total travelled distance', $this->source);
         $this->assertStringContainsString('Device information', $this->source);
         $this->assertStringContainsString('timelineGpsDistance', $this->source);
-        $this->assertStringNotContainsString('<dt class="col-6">Tracking coverage</dt>', $this->source);
-        $this->assertStringNotContainsString('<dt class="col-6">Missing tracking time</dt>', $this->source);
-        $this->assertStringNotContainsString('<dt class="col-6">Route segments</dt>', $this->source);
+        $this->assertStringContainsString('<dt class="col-6">Tracking coverage</dt>', $this->source);
+        $this->assertStringContainsString('<dt class="col-6">Raw GPS rows</dt>', $this->source);
+        $this->assertStringContainsString('<dt class="col-6">Accepted points</dt>', $this->source);
+        $this->assertStringContainsString('<dt class="col-6">Rejected points</dt>', $this->source);
+        $this->assertStringContainsString('<dt class="col-6">Route segments</dt>', $this->source);
+        $this->assertStringContainsString('<dt class="col-6">Offline queue count</dt>', $this->source);
     }
 
     public function test_frontend_displays_tracking_health_metrics(): void
@@ -91,6 +96,8 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('Showing partial actual GPS route only; missing periods are disconnected.', $this->source);
         $this->assertStringContainsString('Estimated road route is hidden because sparse GPS points can create wrong loops or jumps.', $this->source);
         $this->assertStringContainsString('Tracking started late after check-in', $this->source);
+        $this->assertStringContainsString('function trackingHealthPanel(data = {})', $this->source);
+        $this->assertStringContainsString('health.backend_segment_count ?? health.route_segments_count', $this->source);
     }
 
     public function test_frontend_marks_offline_segments_and_missing_gaps_separately(): void

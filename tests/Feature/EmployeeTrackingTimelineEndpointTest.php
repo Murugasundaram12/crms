@@ -55,11 +55,17 @@ class EmployeeTrackingTimelineEndpointTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('employeeId', $employee->id)
             ->assertJsonPath('gpsDebug.raw_point_count', 7)
+            ->assertJsonPath('trackingHealth.raw_saved_points_count', 7)
+            ->assertJsonPath('trackingHealth.accepted_points_count', 4)
+            ->assertJsonPath('trackingHealth.rejected_points_count', 3)
             ->assertJsonPath('gpsDebug.segment_count', 2);
 
         $payload = $response->json();
 
         $this->assertSame(2, count($payload['polylineSegments']));
+        $this->assertSame(2, $payload['trackingHealth']['backend_segment_count']);
+        $this->assertSame(2, $payload['trackingHealth']['gap_count']);
+        $this->assertSame(1080, $payload['trackingHealth']['longest_gap_seconds']);
         $this->assertSame(2, count($payload['directionsSegments']));
         $this->assertSame(4, count($payload['polylinePoints']));
         $this->assertSame($payload['polylinePoints'], collect($payload['polylineSegments'])->pluck('points')->flatten(1)->values()->all());
@@ -68,6 +74,40 @@ class EmployeeTrackingTimelineEndpointTest extends TestCase
         $this->assertContains('duplicate_location', array_keys($payload['gpsDebug']['rejection_reason_count']));
         $this->assertContains('speed_exceeded', array_keys($payload['gpsDebug']['rejection_reason_count']));
         $this->assertNotContains('still', collect($payload['timeLineItems'])->whereIn('type', ['vehicle', 'walk'])->pluck('type')->all());
+    }
+
+    public function test_low_coverage_still_returns_available_route_segments_without_connecting_gap(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $attendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-30',
+            'check_in_at' => Carbon::parse('2026-07-30 07:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-30 09:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $attendance->id, 101, 11.000000, 77.000000, '2026-07-30 07:01:00', 'walking');
+        $this->point($employee->id, $attendance->id, 102, 11.000400, 77.000000, '2026-07-30 07:02:00', 'walking');
+        $this->point($employee->id, $attendance->id, 103, 11.010000, 77.000000, '2026-07-30 08:10:00', 'walking');
+        $this->point($employee->id, $attendance->id, 104, 11.010400, 77.000000, '2026-07-30 08:11:00', 'walking');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-30',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertLessThan(5, $payload['trackingHealth']['tracking_coverage_percentage']);
+        $this->assertSame(4, $payload['trackingHealth']['raw_saved_points_count']);
+        $this->assertSame(2, $payload['trackingHealth']['backend_segment_count']);
+        $this->assertSame([[101, 102], [103, 104]], collect($payload['polylineSegments'])->map(fn (array $segment) => collect($segment['points'])->pluck('id')->all())->all());
     }
 
     public function test_travelling_tracking_type_draws_route_even_when_activity_reports_still(): void

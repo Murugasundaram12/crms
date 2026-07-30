@@ -115,11 +115,28 @@ trait MobileExpensePaymentEndpoints
         }
 
         $validated = $this->validateExpenseData($request);
-        $expense = Expense::query()->create($validated + [
-            'user_id' => $request->user()->id,
-            'unpaid_amt' => max((int) $validated['amount'] - (int) $validated['paid_amt'], 0),
-            'extra_amt' => max((int) $validated['paid_amt'] - (int) $validated['amount'], 0),
-        ]);
+        $expense = DB::transaction(function () use ($validated, $request) {
+            $paidAmount = (int) $validated['paid_amt'];
+            $userId = (int) $request->user()->id;
+
+            $expense = Expense::query()->create($validated + [
+                'user_id' => $userId,
+                'unpaid_amt' => max((int) $validated['amount'] - $paidAmount, 0),
+                'extra_amt' => max($paidAmount - (int) $validated['amount'], 0),
+            ]);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                $userId,
+                $paidAmount,
+                'Expense payment',
+                'expense',
+                (int) $expense->id
+            );
+
+            return $expense;
+        });
 
         return response()->json([
             'message' => 'Expense created successfully.',
@@ -143,11 +160,27 @@ trait MobileExpensePaymentEndpoints
         }
 
         $validated = $this->validateExpenseData($request);
-        $expense->update($validated + [
-            'editedBy' => $request->user()->id,
-            'unpaid_amt' => max((int) $validated['amount'] - (int) $validated['paid_amt'], 0),
-            'extra_amt' => max((int) $validated['paid_amt'] - (int) $validated['amount'], 0),
-        ]);
+        DB::transaction(function () use ($expense, $validated, $request) {
+            $oldUserId = (int) $expense->user_id;
+            $oldPaidAmount = (int) $expense->paid_amt;
+            $newPaidAmount = (int) $validated['paid_amt'];
+
+            $expense->update($validated + [
+                'editedBy' => $request->user()->id,
+                'unpaid_amt' => max((int) $validated['amount'] - $newPaidAmount, 0),
+                'extra_amt' => max($newPaidAmount - (int) $validated['amount'], 0),
+            ]);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                $oldUserId,
+                $oldPaidAmount,
+                (int) $expense->user_id,
+                $newPaidAmount,
+                'Expense payment update',
+                'expense',
+                (int) $expense->id
+            );
+        });
 
         return response()->json([
             'message' => 'Expense updated successfully.',
@@ -161,7 +194,19 @@ trait MobileExpensePaymentEndpoints
             return $forbidden;
         }
 
-        $expense->delete();
+        DB::transaction(function () use ($expense) {
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $expense->user_id,
+                (int) $expense->paid_amt,
+                null,
+                0,
+                'Deleted expense refund',
+                'expense',
+                (int) $expense->id
+            );
+
+            $expense->delete();
+        });
 
         return response()->json(['message' => 'Expense deleted successfully.']);
     }
@@ -269,4 +314,3 @@ trait MobileExpensePaymentEndpoints
         ]);
     }
 }
-

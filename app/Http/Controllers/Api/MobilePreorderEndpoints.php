@@ -28,6 +28,10 @@ trait MobilePreorderEndpoints
             ->map(fn($item) => [
                 'id' => $item->id,
                 'name' => $item->name,
+                'item_type' => $item->item_type,
+                'unit' => $item->unit,
+                'opening_rate' => (float) $item->opening_rate,
+                'expected_rate' => (float) $item->opening_rate,
             ]);
 
         $vendors = Vendor::query()->orderBy('name')->get()->map(fn($v) => [
@@ -159,6 +163,7 @@ trait MobilePreorderEndpoints
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
+            'unit_id' => ['nullable', Rule::exists('units', 'id')->where('active_status', true)],
             'unit' => ['nullable', Rule::exists('units', 'code')->where('active_status', true)],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -176,7 +181,7 @@ trait MobilePreorderEndpoints
         ]);
 
         $material = ToolMaterial::query()->findOrFail((int) $validated['tool_material_id']);
-        $validated['unit'] = $validated['unit'] ?? $material->unit ?? 'Nos';
+        $validated['unit'] = $this->resolvePreorderUnitCode($validated, $material);
         $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
         $validated['status'] = $validated['status'] ?? Preorder::STATUS_PENDING_APPROVAL;
 
@@ -240,6 +245,7 @@ trait MobilePreorderEndpoints
             'tool_material_id' => ['required', 'exists:tools_materials,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
+            'unit_id' => ['nullable', 'exists:units,id'],
             'unit' => ['nullable', Rule::exists('units', 'code')],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -252,7 +258,7 @@ trait MobilePreorderEndpoints
         ]);
 
         $material = ToolMaterial::query()->findOrFail((int) $validated['tool_material_id']);
-        $validated['unit'] = $validated['unit'] ?? $material->unit ?? 'Nos';
+        $validated['unit'] = $this->resolvePreorderUnitCode($validated, $material, false);
         $validated['preorder_date'] = $validated['preorder_date'] ?? now()->toDateString();
         $validated['status'] = $validated['status'] ?? $preorder->status;
 
@@ -518,6 +524,7 @@ trait MobilePreorderEndpoints
                 'name' => $preorder->vendor->name,
             ] : null,
             'quantity' => (float) $preorder->quantity,
+            'unit_id' => Unit::query()->where('code', $preorder->unit)->value('id'),
             'unit' => $preorder->unit,
             'rate' => (float) $preorder->rate,
             'expected_rate' => (float) $preorder->expected_rate,
@@ -542,5 +549,19 @@ trait MobilePreorderEndpoints
             'created_at' => $preorder->created_at?->toISOString(),
             'updated_at' => $preorder->updated_at?->toISOString(),
         ];
+    }
+
+    private function resolvePreorderUnitCode(array $validated, ToolMaterial $material, bool $activeOnly = true): string
+    {
+        if (! empty($validated['unit_id'])) {
+            $query = Unit::query()->whereKey((int) $validated['unit_id']);
+            if ($activeOnly) {
+                $query->active();
+            }
+
+            return $query->value('code') ?: ($material->unit ?? 'Nos');
+        }
+
+        return $validated['unit'] ?? $material->unit ?? 'Nos';
     }
 }

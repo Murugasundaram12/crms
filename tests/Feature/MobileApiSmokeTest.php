@@ -223,6 +223,7 @@ class MobileApiSmokeTest extends TestCase
             $table->foreignId('attendance_id')->constrained('attendances')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('users')->cascadeOnDelete();
             $table->string('device_id')->nullable();
+            $table->string('client_uuid')->nullable();
             $table->decimal('latitude', 10, 7);
             $table->decimal('longitude', 10, 7);
             $table->decimal('accuracy', 8, 2)->nullable();
@@ -232,11 +233,17 @@ class MobileApiSmokeTest extends TestCase
             $table->boolean('is_gps_on')->default(true);
             $table->boolean('is_wifi_on')->default(false);
             $table->boolean('is_mock_location')->default(false);
+            $table->boolean('is_offline')->default(false);
             $table->unsignedTinyInteger('battery_percentage')->nullable();
             $table->string('signal_strength')->nullable();
             $table->string('type')->default('travelling');
             $table->timestamp('recorded_at');
+            $table->boolean('is_ignored')->default(false);
+            $table->string('ignored_reason')->nullable();
+            $table->timestamp('processed_at')->nullable();
+            $table->unsignedInteger('segment_index')->nullable();
             $table->timestamps();
+            $table->index(['employee_id', 'device_id', 'client_uuid']);
         });
 
         Schema::create('expenses', function (Blueprint $table): void {
@@ -682,6 +689,143 @@ class MobileApiSmokeTest extends TestCase
 
         $this->assertTrue((bool) $tracking->is_wifi_on);
         $this->assertSame('good', $tracking->signal_strength);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_intentionally_ignored_tracking_point_is_not_reported_as_api_failure(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:00:00'));
+
+        $user = User::query()->create([
+            'name' => 'Ignored GPS User',
+            'email' => 'ignored-gps@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Ignored GPS Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $payload = [
+            'device_id' => 'ignored-gps-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'walking',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+            'recorded_at' => '2026-07-22 09:00:00',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $payload)
+            ->assertCreated();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/location', array_merge($payload, [
+                'latitude' => 11.016850,
+                'longitude' => 76.955838,
+                'recorded_at' => '2026-07-22 09:01:00',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('received', true)
+            ->assertJsonPath('stored', true)
+            ->assertJsonPath('route_accepted', false)
+            ->assertJsonPath('sync_status', 'gps_ignored')
+            ->assertJsonPath('reason', 'distance_below_threshold');
+
+        $this->assertDatabaseHas('location_trackings', [
+            'employee_id' => $user->id,
+            'is_ignored' => true,
+            'ignored_reason' => 'distance_below_threshold',
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_bulk_offline_sync_preserves_recorded_at_and_ignores_duplicate_client_uuid(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:00:00'));
+
+        $user = User::query()->create([
+            'name' => 'Bulk Offline User',
+            'email' => 'bulk-offline@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Bulk Offline Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $basePayload = [
+            'device_id' => 'bulk-offline-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'walking',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $basePayload)
+            ->assertCreated();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:20:00'));
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/locations/bulk', [
+                'locations' => [
+                    array_merge($basePayload, [
+                        'clientUuid' => 'offline-point-1',
+                        'latitude' => 11.017300,
+                        'longitude' => 76.956300,
+                        'recorded_at' => '2026-07-22 09:05:00',
+                    ]),
+                    array_merge($basePayload, [
+                        'clientUuid' => 'offline-point-1',
+                        'latitude' => 11.017300,
+                        'longitude' => 76.956300,
+                        'recorded_at' => '2026-07-22 09:05:00',
+                    ]),
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('saved_count', 1)
+            ->assertJsonPath('ignored_count', 1)
+            ->assertJsonPath('results.0.sync_status', 'saved')
+            ->assertJsonPath('results.0.tracking.is_offline', true)
+            ->assertJsonPath('results.1.sync_status', 'duplicate_retry')
+            ->assertJsonPath('results.1.reason', 'duplicate_retry');
+
+        $this->assertSame(
+            ['09:05:00', '09:20:00'],
+            LocationTracking::query()
+                ->where('employee_id', $user->id)
+                ->orderBy('recorded_at')
+                ->pluck('recorded_at')
+                ->map(fn (Carbon $recordedAt) => $recordedAt->format('H:i:s'))
+                ->all()
+        );
+        $this->assertSame(1, LocationTracking::query()->where('client_uuid', 'offline-point-1')->count());
 
         Carbon::setTestNow();
     }

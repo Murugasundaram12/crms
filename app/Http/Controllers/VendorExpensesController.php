@@ -37,9 +37,10 @@ class VendorExpensesController extends Controller
             $paidAmount = (int) $validated['paid_amount'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
+            $userId = (int) Auth::id();
 
             $expense = Expense::create([
-                'user_id' => Auth::id(),
+                'user_id' => $userId,
                 'main_category_id' => $validated['main_category_id'] ?? null,
                 'category_id' => $validated['category_id'],
                 'project_id' => $validated['project_id'] ?? null,
@@ -53,6 +54,16 @@ class VendorExpensesController extends Controller
                 'current_date' => $validated['current_date'] ?? now(),
                 'image' => $validated['image'] ?? null,
             ]);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                $userId,
+                $paidAmount,
+                'Vendor expense payment',
+                'vendor_expense',
+                (int) $expense->id
+            );
 
             if ($extraAmount > 0) {
                 app(CrmBalanceService::class)->adjustVendorAdvance((int) $validated['vendor_id'], $extraAmount);
@@ -92,7 +103,10 @@ class VendorExpensesController extends Controller
             $extraAmount = max($paidAmount - $amount, 0);
             $oldExtra = (int) $expense->extra_amt;
             $oldVendorId = (int) $expense->vendor_id;
+            $oldUserId = (int) $expense->user_id;
+            $oldPaidAmount = (int) $expense->paid_amt;
             $newVendorId = (int) $validated['vendor_id'];
+            $newUserId = (int) Auth::id();
             $balanceService = app(CrmBalanceService::class);
 
             if ($oldExtra > 0) {
@@ -104,7 +118,7 @@ class VendorExpensesController extends Controller
 
             $expense->update([
                 'vendor_id' => $newVendorId,
-                'user_id' => Auth::id(),
+                'user_id' => $newUserId,
                 'main_category_id' => $validated['main_category_id'] ?? null,
                 'category_id' => $validated['category_id'],
                 'project_id' => $validated['project_id'] ?? null,
@@ -118,6 +132,16 @@ class VendorExpensesController extends Controller
                 'image' => $validated['image'] ?? null,
                 'editedBy' => Auth::id(),
             ]);
+
+            $balanceService->replaceUserWalletDebit(
+                $oldUserId,
+                $oldPaidAmount,
+                $newUserId,
+                $paidAmount,
+                'Vendor expense payment update',
+                'vendor_expense',
+                (int) $expense->id
+            );
         });
 
         return redirect()
@@ -244,6 +268,16 @@ class VendorExpensesController extends Controller
             if ((int) $expense->extra_amt > 0) {
                 app(CrmBalanceService::class)->adjustVendorAdvance((int) $expense->vendor_id, -(int) $expense->extra_amt);
             }
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $expense->user_id,
+                (int) $expense->paid_amt,
+                null,
+                0,
+                'Deleted vendor expense refund',
+                'vendor_expense',
+                (int) $expense->id
+            );
 
             $expense->reason = $validated['delete_reason'];
             $expense->editedBy = Auth::id();

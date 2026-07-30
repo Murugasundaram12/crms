@@ -782,16 +782,21 @@ trait MobileAttendanceTrackingEndpoints
             ], 500);
         }
 
+        $httpStatus = ($gpsValidation['accepted'] ?? false) && $inserted ? 201 : 200;
+
         return response()->json([
             'success' => true,
             'saved' => $inserted,
+            'stored' => (bool) $tracking,
+            'received' => true,
             'route_accepted' => (bool) ($gpsValidation['accepted'] ?? false),
+            'sync_status' => $this->trackingSyncStatus($inserted, $gpsValidation),
             'message' => ($gpsValidation['accepted'] ?? false) ? 'Location updated successfully.' : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
             'reason' => $gpsValidation['reason'] ?? null,
             'gps_validation' => $gpsValidation,
             'inserted' => $inserted,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
-        ], $inserted ? 201 : 200);
+        ], $httpStatus);
     }
 
     public function legacyStatusUpdate(Request $request)
@@ -915,7 +920,10 @@ trait MobileAttendanceTrackingEndpoints
                     'index' => $index,
                     'success' => true,
                     'saved' => $inserted,
+                    'stored' => (bool) $tracking,
+                    'received' => true,
                     'route_accepted' => (bool) ($gpsValidation['accepted'] ?? false),
+                    'sync_status' => $this->trackingSyncStatus($inserted, $gpsValidation),
                     'reason' => $gpsValidation['reason'] ?? null,
                     'message' => ($gpsValidation['accepted'] ?? false) ? 'Location updated successfully.' : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
                     'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
@@ -1411,6 +1419,21 @@ trait MobileAttendanceTrackingEndpoints
             'offline_record_too_old' => 'Location received but ignored because offline record is older than the allowed sync age.',
             default => 'Location received but ignored by GPS validation.',
         };
+    }
+
+    protected function trackingSyncStatus(bool $inserted, ?array $gpsValidation): string
+    {
+        $reason = $gpsValidation['reason'] ?? null;
+
+        if ($reason === 'duplicate_retry') {
+            return 'duplicate_retry';
+        }
+
+        if (($gpsValidation['accepted'] ?? false) === true) {
+            return $inserted ? 'saved' : 'duplicate_retry';
+        }
+
+        return $inserted ? 'gps_ignored' : 'not_saved';
     }
 
     protected function timelineDateBounds(string $date): array

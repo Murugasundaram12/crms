@@ -8,6 +8,7 @@ use App\Models\MainCategory;
 use App\Models\PaymentMethod;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -47,15 +48,26 @@ class ExpensesController extends Controller
             $paidAmount = (int) $validated['paid_amt'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
+            $userId = (int) Auth::id();
 
             $expense = Expense::create([
                 ...$validated,
-                'user_id' => Auth::id(),
+                'user_id' => $userId,
                 'paid_amt' => $paidAmount,
                 'unpaid_amt' => $unpaidAmount,
                 'extra_amt' => $extraAmount,
                 'current_date' => $validated['current_date'] ?? now(),
             ]);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                $userId,
+                $paidAmount,
+                'Expense payment',
+                'expense',
+                (int) $expense->id
+            );
         });
 
         return redirect()
@@ -75,6 +87,7 @@ class ExpensesController extends Controller
             $paidAmount = (int) $validated['paid_amt'];
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
+            $oldPaidAmount = (int) $expense->paid_amt;
 
             $expense->update([
                 ...$validated,
@@ -83,6 +96,16 @@ class ExpensesController extends Controller
                 'unpaid_amt' => $unpaidAmount,
                 'extra_amt' => $extraAmount,
             ]);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $expense->user_id,
+                $oldPaidAmount,
+                (int) $expense->user_id,
+                $paidAmount,
+                'Expense payment update',
+                'expense',
+                (int) $expense->id
+            );
         });
 
         return redirect()->back()->with('success', 'Expense updated successfully.');
@@ -101,6 +124,15 @@ class ExpensesController extends Controller
             $expense->reason = $validated['delete_reason'] ?? null;
             $expense->editedBy = Auth::id();
             $expense->save();
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $expense->user_id,
+                (int) $expense->paid_amt,
+                null,
+                0,
+                'Deleted expense refund',
+                'expense',
+                (int) $expense->id
+            );
             $expense->delete();
         });
 

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\VendorExpenseTransaction;
 use App\Models\PaymentMethod;
+use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class VendorExpenseTransactionController extends Controller
@@ -34,7 +36,18 @@ class VendorExpenseTransactionController extends Controller
             $validated['image_path'] = $request->file('image')->store('expense-images', 'public');
         }
 
-        VendorExpenseTransaction::create($validated);
+        DB::transaction(function () use ($validated) {
+            $transaction = VendorExpenseTransaction::create($validated);
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                (int) $validated['user_id'],
+                (float) $validated['paid_amount'],
+                'Vendor expense transaction payment',
+                'vendor_expense_transaction',
+                (int) $transaction->id
+            );
+        });
 
         return redirect()->route('vendor-expenses.history')->with('success', 'Vendor expense added successfully.');
     }
@@ -58,16 +71,43 @@ class VendorExpenseTransactionController extends Controller
             $validated['image_path'] = $request->file('image')->store('expense-images', 'public');
         }
 
-        $vendorExpenseTransaction->update($validated);
+        DB::transaction(function () use ($vendorExpenseTransaction, $validated) {
+            $oldUserId = (int) $vendorExpenseTransaction->user_id;
+            $oldPaidAmount = (float) $vendorExpenseTransaction->paid_amount;
+
+            $vendorExpenseTransaction->update($validated);
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                $oldUserId,
+                $oldPaidAmount,
+                (int) $vendorExpenseTransaction->user_id,
+                (float) $vendorExpenseTransaction->paid_amount,
+                'Vendor expense transaction payment update',
+                'vendor_expense_transaction',
+                (int) $vendorExpenseTransaction->id
+            );
+        });
 
         return redirect()->route('vendor-expenses.history')->with('success', 'Vendor expense updated successfully.');
     }
 
     public function destroy(VendorExpenseTransaction $vendorExpenseTransaction): RedirectResponse
     {
-        $vendorExpenseTransaction->delete_status = true;
-        $vendorExpenseTransaction->active_status = false;
-        $vendorExpenseTransaction->save();
+        DB::transaction(function () use ($vendorExpenseTransaction) {
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                (int) $vendorExpenseTransaction->user_id,
+                (float) $vendorExpenseTransaction->paid_amount,
+                null,
+                0,
+                'Deleted vendor expense transaction refund',
+                'vendor_expense_transaction',
+                (int) $vendorExpenseTransaction->id
+            );
+
+            $vendorExpenseTransaction->delete_status = true;
+            $vendorExpenseTransaction->active_status = false;
+            $vendorExpenseTransaction->save();
+        });
 
         if ($vendorExpenseTransaction->image_path) {
             Storage::disk('public')->delete($vendorExpenseTransaction->image_path);

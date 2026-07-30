@@ -186,6 +186,7 @@ class EmployeeTrackingController extends Controller
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'trackingHealth' => $trackingHealth,
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
+            'deviceId' => $device?->device_id,
             'totalKM' => $timeline['totalKM'],
             'gpsDistanceKm' => $timeline['gpsDistanceKm'] ?? $timeline['totalKM'],
             'directionsDistanceKm' => $timeline['directionsDistanceKm'] ?? null,
@@ -235,6 +236,8 @@ class EmployeeTrackingController extends Controller
             })
             ->values();
 
+        $attendanceCheckInAt = $attendance ? $this->attendanceCheckInDisplayAt($attendance) : null;
+
         return response()->json([
             'employee' => [
                 'id' => $employee->id,
@@ -244,7 +247,7 @@ class EmployeeTrackingController extends Controller
             'attendance' => $attendance ? [
                 'id' => $attendance->id,
                 'attendance_date' => $attendance->attendance_date?->toDateString(),
-                'check_in_at' => $attendance->check_in_at?->toISOString(),
+                'check_in_at' => $attendanceCheckInAt?->toISOString(),
                 'check_out_at' => $attendance->check_out_at?->toISOString(),
                 'worked_minutes' => $attendance->worked_minutes,
                 'status' => $attendance->status,
@@ -555,8 +558,10 @@ class EmployeeTrackingController extends Controller
     private function attendanceSeconds($attendances): int
     {
         return (int) $attendances->sum(function (Attendance $attendance): int {
-            return $attendance->check_in_at
-                ? $attendance->check_in_at->diffInSeconds($attendance->check_out_at ?? now())
+            $checkInAt = $this->attendanceCheckInDisplayAt($attendance);
+
+            return $checkInAt
+                ? (int) $checkInAt->diffInSeconds($attendance->check_out_at ?? now())
                 : 0;
         });
     }
@@ -570,7 +575,11 @@ class EmployeeTrackingController extends Controller
         $expectedUpdates = $attendanceSeconds > 0 ? ((int) floor($attendanceSeconds / $intervalSeconds) + 1) : 0;
         $trackingSpanSeconds = $this->trackingSpanSeconds($trackings);
         $missingSeconds = max(0, $attendanceSeconds - $trackingSpanSeconds);
-        $gaps = $this->trackingGapReport($trackings, $gapThresholdSeconds);
+        $gaps = collect($this->trackingGapReport($trackings, $gapThresholdSeconds))
+            ->merge($this->trackingBoundaryGapReport($attendances, $trackings, $gapThresholdSeconds))
+            ->sortByDesc('gap_seconds')
+            ->values()
+            ->all();
         $lowSignalThreshold = (int) $this->settingValue('low_signal_threshold', 2);
         $lowSignalRows = $trackings->filter(fn (LocationTracking $tracking): bool => $this->signalValue($tracking->signal_strength) !== null
             && $this->signalValue($tracking->signal_strength) <= $lowSignalThreshold);
@@ -592,6 +601,21 @@ class EmployeeTrackingController extends Controller
             ->pluck('points')
             ->flatten(1)
             ->count();
+        $diagnostics = collect($timeline['diagnostics'] ?? []);
+        $acceptedPointsCount = $diagnostics->isNotEmpty()
+            ? $diagnostics->where('accepted', true)->count()
+            : max(0, $savedRows - (int) collect($timeline['rejectionReasons'] ?? [])->sum());
+        $rejectedPointsCount = $diagnostics->isNotEmpty()
+            ? $diagnostics->where('accepted', false)->count()
+            : (int) collect($timeline['rejectionReasons'] ?? [])->sum();
+        $averageIntervalSeconds = $this->averageTrackingIntervalSeconds($trackings);
+        $longestGap = $gaps[0] ?? null;
+        $missingIntervalCount = max(0, $expectedUpdates - $savedRows);
+        $deviceIds = $trackings
+            ->pluck('device_id')
+            ->filter(fn ($value): bool => filled($value))
+            ->unique()
+            ->values();
         $mockRows = $trackings->filter(fn (LocationTracking $tracking): bool => (bool) ($tracking->is_mock_location ?? false));
         $gpsOffRows = $trackings->filter(fn (LocationTracking $tracking): bool => ! (bool) ($tracking->is_gps_on ?? true));
         $wifiOnRows = $trackings->filter(fn (LocationTracking $tracking): bool => (bool) ($tracking->is_wifi_on ?? false));
@@ -604,7 +628,7 @@ class EmployeeTrackingController extends Controller
         $firstTrackingAt = $firstTracking ? $this->trackingTime($firstTracking) : null;
         $lastTrackingAt = $lastTracking ? $this->trackingTime($lastTracking) : null;
         $firstCheckInAt = $attendances
-            ->map(fn (Attendance $attendance) => $attendance->check_in_at)
+            ->map(fn (Attendance $attendance) => $this->attendanceCheckInDisplayAt($attendance))
             ->filter()
             ->sort()
             ->first();
@@ -617,10 +641,17 @@ class EmployeeTrackingController extends Controller
             'tracking_interval_seconds' => $intervalSeconds,
             'gap_threshold_seconds' => $gapThresholdSeconds,
             'expected_updates' => $expectedUpdates,
+            'missing_interval_count' => $missingIntervalCount,
             'successful_updates' => $savedRows,
             'saved_points_count' => $savedRows,
+            'raw_saved_points_count' => $savedRows,
+            'accepted_points_count' => $acceptedPointsCount,
+            'rejected_points_count' => $rejectedPointsCount,
             'route_points_count' => $routePointsCount,
             'route_segments_count' => count($timeline['polylineSegments'] ?? []),
+            'backend_segment_count' => count($timeline['polylineSegments'] ?? []),
+            'device_id' => $deviceIds->first(),
+            'device_ids' => $deviceIds->all(),
             'offline_synced_points_count' => $offlineRows->count(),
             'online_points_count' => max(0, $savedRows - $offlineRows->count()),
             'low_signal_points_count' => $lowSignalRows->count(),
@@ -647,18 +678,52 @@ class EmployeeTrackingController extends Controller
                 : null,
             'tracking_started_late' => $firstTrackingDelaySeconds !== null && $firstTrackingDelaySeconds > $lateTrackingThresholdSeconds,
             'late_tracking_threshold_seconds' => $lateTrackingThresholdSeconds,
-            'ignored_points_count' => (int) collect($timeline['rejectionReasons'] ?? [])->sum(),
+            'ignored_points_count' => $rejectedPointsCount,
             'ignored_reasons' => $timeline['rejectionReasons'] ?? [],
             'tracking_coverage_percentage' => $expectedUpdates > 0 ? round(($savedRows / $expectedUpdates) * 100, 2) : 0,
+            'route_acceptance_percentage' => $savedRows > 0 ? round(($acceptedPointsCount / $savedRows) * 100, 2) : 0,
             'attendance_seconds' => $attendanceSeconds,
             'attendance_duration' => $this->formatSecondsAsClock($attendanceSeconds),
             'saved_tracking_span_seconds' => $trackingSpanSeconds,
             'saved_tracking_span' => $this->formatSecondsAsClock($trackingSpanSeconds),
             'missing_tracking_seconds' => $missingSeconds,
             'missing_tracking_duration' => $this->formatSecondsAsClock($missingSeconds),
+            'average_update_interval_seconds' => $averageIntervalSeconds,
+            'average_update_interval_duration' => $averageIntervalSeconds !== null ? $this->formatSecondsAsClock($averageIntervalSeconds) : null,
             'gap_count' => count($gaps),
+            'longest_gap' => $longestGap,
+            'longest_gap_seconds' => $longestGap['gap_seconds'] ?? 0,
+            'longest_gap_duration' => isset($longestGap['gap_seconds']) ? $this->formatSecondsAsClock((int) $longestGap['gap_seconds']) : '00:00:00',
             'largest_gaps' => array_slice($gaps, 0, 10),
         ];
+    }
+
+    private function averageTrackingIntervalSeconds($trackings): ?int
+    {
+        $ordered = $trackings->values();
+
+        if ($ordered->count() < 2) {
+            return null;
+        }
+
+        $intervals = [];
+        for ($index = 1; $index < $ordered->count(); $index++) {
+            $previous = $ordered->get($index - 1);
+            $current = $ordered->get($index);
+            $previousTime = $previous ? $this->trackingTime($previous) : null;
+            $currentTime = $current ? $this->trackingTime($current) : null;
+
+            if ($previousTime && $currentTime) {
+                $seconds = $previousTime->diffInSeconds($currentTime);
+                if ($seconds > 0) {
+                    $intervals[] = $seconds;
+                }
+            }
+        }
+
+        return $intervals === []
+            ? null
+            : (int) round(array_sum($intervals) / count($intervals));
     }
 
     private function signalValue(mixed $signalStrength): ?int
@@ -747,19 +812,92 @@ class EmployeeTrackingController extends Controller
         return $gaps;
     }
 
+    private function trackingBoundaryGapReport($attendances, $trackings, int $gapThresholdSeconds): array
+    {
+        $gaps = [];
+        $trackingsByAttendance = $trackings->groupBy('attendance_id');
+
+        foreach ($attendances as $attendance) {
+            $sessionTrackings = $trackingsByAttendance->get($attendance->id, collect())->values();
+            $checkInAt = $this->attendanceCheckInDisplayAt($attendance);
+            $checkOutAt = $attendance->check_out_at;
+            $firstTracking = $sessionTrackings->first();
+            $lastTracking = $sessionTrackings->last();
+            $firstTrackingAt = $firstTracking ? $this->trackingTime($firstTracking) : null;
+            $lastTrackingAt = $lastTracking ? $this->trackingTime($lastTracking) : null;
+
+            if ($checkInAt && $firstTrackingAt) {
+                $seconds = $checkInAt->diffInSeconds($firstTrackingAt);
+                if ($seconds >= $gapThresholdSeconds) {
+                    $gaps[] = [
+                        'attendance_id' => $attendance->id,
+                        'previous_tracking_id' => null,
+                        'current_tracking_id' => $firstTracking->id,
+                        'previous_recorded_at' => $checkInAt->toDateTimeString(),
+                        'current_recorded_at' => $firstTrackingAt->toDateTimeString(),
+                        'gap_seconds' => $seconds,
+                        'gap_minutes' => round($seconds / 60, 2),
+                        'previous_coordinate' => null,
+                        'current_coordinate' => [
+                            'latitude' => (float) $firstTracking->latitude,
+                            'longitude' => (float) $firstTracking->longitude,
+                        ],
+                        'distance_km' => null,
+                        'reason' => 'missing_updates_after_check_in',
+                    ];
+                }
+            }
+
+            if ($checkOutAt && $lastTrackingAt) {
+                $seconds = $lastTrackingAt->diffInSeconds($checkOutAt);
+                if ($seconds >= $gapThresholdSeconds) {
+                    $gaps[] = [
+                        'attendance_id' => $attendance->id,
+                        'previous_tracking_id' => $lastTracking->id,
+                        'current_tracking_id' => null,
+                        'previous_recorded_at' => $lastTrackingAt->toDateTimeString(),
+                        'current_recorded_at' => $checkOutAt->toDateTimeString(),
+                        'gap_seconds' => $seconds,
+                        'gap_minutes' => round($seconds / 60, 2),
+                        'previous_coordinate' => [
+                            'latitude' => (float) $lastTracking->latitude,
+                            'longitude' => (float) $lastTracking->longitude,
+                        ],
+                        'current_coordinate' => null,
+                        'distance_km' => null,
+                        'reason' => 'missing_updates_before_check_out',
+                    ];
+                }
+            }
+        }
+
+        return $gaps;
+    }
+
     private function attendancePayload(Attendance $attendance): array
     {
+        $checkInAt = $this->attendanceCheckInDisplayAt($attendance);
+
         return [
             'id' => $attendance->id,
             'user_id' => $attendance->user_id,
             'attendance_date' => $attendance->attendance_date?->toDateString(),
-            'check_in_at' => $attendance->check_in_at?->toISOString(),
+            'check_in_at' => $checkInAt?->toISOString(),
             'check_out_at' => $attendance->check_out_at?->toISOString(),
-            'check_in_time' => $attendance->check_in_at?->format('h:i A'),
+            'check_in_time' => $checkInAt?->format('h:i A'),
             'check_out_time' => $attendance->check_out_at?->format('h:i A'),
             'worked_minutes' => $attendance->worked_minutes,
             'status' => $attendance->status,
         ];
+    }
+
+    private function attendanceCheckInDisplayAt(Attendance $attendance): ?Carbon
+    {
+        if ($attendance->check_out_at && $attendance->worked_minutes !== null) {
+            return $attendance->check_out_at->copy()->subMinutes((int) $attendance->worked_minutes);
+        }
+
+        return $attendance->check_in_at?->copy();
     }
 
     private function attendanceSessionPayloads($attendances, array $timeline): array
