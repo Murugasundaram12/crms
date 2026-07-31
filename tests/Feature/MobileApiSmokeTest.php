@@ -609,9 +609,14 @@ class MobileApiSmokeTest extends TestCase
         $this->withHeaders($headers)
             ->postJson('/api/check_in', $trackingPayload)
             ->assertCreated()
-            ->assertJsonPath('tracking.accuracy', 100)
+            ->assertJsonPath('saved', false)
             ->assertJsonPath('route_accepted', false)
+            ->assertJsonPath('sync_status', 'gps_ignored')
+            ->assertJsonPath('tracking', null)
             ->assertJsonPath('reason', 'accuracy_exceeded');
+
+        $this->assertDatabaseHas('attendances', ['user_id' => $user->id]);
+        $this->assertSame(0, LocationTracking::query()->where('employee_id', $user->id)->count());
 
         DB::table('app_settings')->updateOrInsert(
             ['key' => 'tracking_enabled'],
@@ -739,14 +744,16 @@ class MobileApiSmokeTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('received', true)
-            ->assertJsonPath('stored', true)
+            ->assertJsonPath('saved', false)
+            ->assertJsonPath('stored', false)
             ->assertJsonPath('route_accepted', false)
             ->assertJsonPath('sync_status', 'gps_ignored')
+            ->assertJsonPath('tracking', null)
             ->assertJsonPath('reason', 'distance_below_threshold');
 
-        $this->assertDatabaseHas('location_trackings', [
+        $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
+        $this->assertDatabaseMissing('location_trackings', [
             'employee_id' => $user->id,
-            'is_ignored' => true,
             'ignored_reason' => 'distance_below_threshold',
         ]);
 
@@ -804,6 +811,7 @@ class MobileApiSmokeTest extends TestCase
                         'clientUuid' => 'offline-point-1',
                         'latitude' => 11.017300,
                         'longitude' => 76.956300,
+                        'batteryPercentage' => 55,
                         'recorded_at' => '2026-07-22 09:05:00',
                     ]),
                 ],
@@ -826,6 +834,14 @@ class MobileApiSmokeTest extends TestCase
                 ->all()
         );
         $this->assertSame(1, LocationTracking::query()->where('client_uuid', 'offline-point-1')->count());
+        $this->assertSame(
+            71,
+            \App\Models\EmployeeDevice::query()
+                ->where('employee_id', $user->id)
+                ->where('device_id', 'bulk-offline-device')
+                ->firstOrFail()
+                ->battery_percentage
+        );
 
         Carbon::setTestNow();
     }
@@ -881,17 +897,16 @@ class MobileApiSmokeTest extends TestCase
             ->postJson('/api/tracking/location', $driftPayload)
             ->assertOk()
             ->assertJsonPath('inserted', false)
-            ->assertJsonPath('tracking.latitude', 11.016844)
-            ->assertJsonPath('tracking.longitude', 76.955832)
-            ->assertJsonPath('tracking.accuracy', 19)
-            ->assertJsonPath('tracking.battery_percentage', 65);
+            ->assertJsonPath('stored', false)
+            ->assertJsonPath('sync_status', 'gps_ignored')
+            ->assertJsonPath('tracking', null);
 
         $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
 
         $device = \App\Models\EmployeeDevice::query()->where('employee_id', $user->id)->firstOrFail();
         $this->assertSame(11.016844, (float) $device->latitude);
         $this->assertSame(76.955832, (float) $device->longitude);
-        $this->assertSame(19.0, (float) $device->accuracy);
+        $this->assertSame(8.0, (float) $device->accuracy);
     }
 
     public function test_poor_accuracy_tracking_update_does_not_overwrite_last_good_route_point(): void
@@ -936,7 +951,10 @@ class MobileApiSmokeTest extends TestCase
                 'batteryPercentage' => 60,
             ]))
             ->assertOk()
-            ->assertJsonPath('inserted', false);
+            ->assertJsonPath('inserted', false)
+            ->assertJsonPath('stored', false)
+            ->assertJsonPath('sync_status', 'gps_ignored')
+            ->assertJsonPath('tracking', null);
 
         $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
         $this->assertSame(8.0, (float) LocationTracking::query()->where('employee_id', $user->id)->firstOrFail()->accuracy);
@@ -944,7 +962,7 @@ class MobileApiSmokeTest extends TestCase
         $device = \App\Models\EmployeeDevice::query()->where('employee_id', $user->id)->firstOrFail();
         $this->assertSame(11.016844, (float) $device->latitude);
         $this->assertSame(76.955832, (float) $device->longitude);
-        $this->assertSame(80.0, (float) $device->accuracy);
+        $this->assertSame(8.0, (float) $device->accuracy);
     }
 
     public function test_weak_signal_moving_tracking_point_is_saved_for_route_line(): void
@@ -1527,6 +1545,65 @@ class MobileApiSmokeTest extends TestCase
             ])
             ->assertStatus(409)
             ->assertJsonPath('message', 'No active attendance found. Tracking is allowed only after check-in and before check-out.');
+    }
+
+    public function test_check_out_closes_attendance_without_saving_rejected_gps_point(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Checkout Rejected GPS User',
+            'email' => 'checkout-rejected-gps@example.com',
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Checkout Rejected GPS Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $payload = [
+            'device_id' => 'checkout-rejected-device',
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'walking',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $payload)
+            ->assertCreated()
+            ->assertJsonPath('sync_status', 'saved');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_out', array_merge($payload, [
+                'latitude' => 11.017500,
+                'longitude' => 76.956500,
+                'accuracy' => 100,
+                'batteryPercentage' => 42,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('saved', false)
+            ->assertJsonPath('stored', false)
+            ->assertJsonPath('route_accepted', false)
+            ->assertJsonPath('sync_status', 'gps_ignored')
+            ->assertJsonPath('tracking', null)
+            ->assertJsonPath('reason', 'accuracy_exceeded');
+
+        $this->assertNotNull(Attendance::query()->where('user_id', $user->id)->firstOrFail()->check_out_at);
+        $this->assertSame(1, LocationTracking::query()->where('employee_id', $user->id)->count());
+
+        $device = \App\Models\EmployeeDevice::query()->where('employee_id', $user->id)->firstOrFail();
+        $this->assertSame(11.016844, (float) $device->latitude);
+        $this->assertSame(76.955832, (float) $device->longitude);
+        $this->assertSame(71, $device->battery_percentage);
     }
 
     public function test_attendance_status_api_reports_check_in_and_check_out_state(): void

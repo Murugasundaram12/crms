@@ -28,6 +28,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
+use App\Services\EmployeeTimelineBuilder;
 use App\Services\TimelineGpsProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -116,22 +117,21 @@ trait MobileAttendanceTrackingEndpoints
             $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)->validate($trackingPayload);
 
             DB::transaction(function () use ($user, $attendance, $trackingPayload, $gpsValidation, &$tracking) {
-                $trackingPayload['is_ignored'] = ! $gpsValidation['accepted'];
-                $trackingPayload['ignored_reason'] = $gpsValidation['accepted'] ? null : ($gpsValidation['reason'] ?? 'gps_rejected');
-
                 if ($gpsValidation['accepted']) {
                     $this->upsertDeviceStatus($user->id, $trackingPayload);
+                    $tracking = $this->createTrackingPoint($attendance, $trackingPayload, 'checked_in');
                 }
-
-                $tracking = $this->createTrackingPoint($attendance, $trackingPayload, 'checked_in');
             });
         }
 
         return response()->json([
+            'success' => true,
             'message' => 'Checked in successfully.',
             'attendance' => $this->attendancePayload($attendance),
             'saved' => (bool) $tracking,
+            'stored' => (bool) $tracking,
             'route_accepted' => (bool) ($gpsValidation['accepted'] ?? false),
+            'sync_status' => $gpsValidation ? $this->trackingSyncStatus((bool) $tracking, $gpsValidation) : null,
             'reason' => ($gpsValidation['accepted'] ?? false) ? null : ($gpsValidation['reason'] ?? null),
             'gps_validation' => $gpsValidation,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
@@ -206,22 +206,21 @@ trait MobileAttendanceTrackingEndpoints
                 $gpsValidation = app(\App\Services\GpsTrackingValidationService::class)
                     ->validate($trackingPayload, $previousTrackings->get(0), $previousTrackings->get(1));
 
-                $trackingPayload['is_ignored'] = ! $gpsValidation['accepted'];
-                $trackingPayload['ignored_reason'] = $gpsValidation['accepted'] ? null : ($gpsValidation['reason'] ?? 'gps_rejected');
-
                 if ($gpsValidation['accepted']) {
                     $this->upsertDeviceStatus($user->id, $trackingPayload);
+                    $tracking = $this->createTrackingPoint($openAttendance, $trackingPayload, 'checked_out');
                 }
-
-                $tracking = $this->createTrackingPoint($openAttendance, $trackingPayload, 'checked_out');
             }
         });
 
         return response()->json([
+            'success' => true,
             'message' => 'Checked out successfully.',
             'attendance' => $this->attendancePayload($openAttendance->fresh()),
             'saved' => (bool) $tracking,
+            'stored' => (bool) $tracking,
             'route_accepted' => (bool) ($gpsValidation['accepted'] ?? false),
+            'sync_status' => $gpsValidation ? $this->trackingSyncStatus((bool) $tracking, $gpsValidation) : null,
             'reason' => ($gpsValidation['accepted'] ?? false) ? null : ($gpsValidation['reason'] ?? null),
             'gps_validation' => $gpsValidation,
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
@@ -791,7 +790,9 @@ trait MobileAttendanceTrackingEndpoints
             'received' => true,
             'route_accepted' => (bool) ($gpsValidation['accepted'] ?? false),
             'sync_status' => $this->trackingSyncStatus($inserted, $gpsValidation),
-            'message' => ($gpsValidation['accepted'] ?? false) ? 'Location updated successfully.' : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
+            'message' => ($gpsValidation['accepted'] ?? false) && ($gpsValidation['reason'] ?? null) !== 'duplicate_retry'
+                ? 'Location updated successfully.'
+                : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
             'reason' => $gpsValidation['reason'] ?? null,
             'gps_validation' => $gpsValidation,
             'inserted' => $inserted,
@@ -844,6 +845,7 @@ trait MobileAttendanceTrackingEndpoints
             'status' => 'success',
             'success' => true,
             'saved' => $inserted,
+            'sync_status' => $this->legacyTrackingSyncStatus($inserted, $reason),
             'reason' => $reason,
             'message' => 'Status updated successfully',
             'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
@@ -925,7 +927,9 @@ trait MobileAttendanceTrackingEndpoints
                     'route_accepted' => (bool) ($gpsValidation['accepted'] ?? false),
                     'sync_status' => $this->trackingSyncStatus($inserted, $gpsValidation),
                     'reason' => $gpsValidation['reason'] ?? null,
-                    'message' => ($gpsValidation['accepted'] ?? false) ? 'Location updated successfully.' : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
+                    'message' => ($gpsValidation['accepted'] ?? false) && ($gpsValidation['reason'] ?? null) !== 'duplicate_retry'
+                        ? 'Location updated successfully.'
+                        : $this->trackingIgnoredMessage($gpsValidation['reason'] ?? null),
                     'tracking' => $tracking ? $this->trackingPayload($tracking) : null,
                 ];
             } catch (ValidationException $exception) {
@@ -1072,56 +1076,20 @@ trait MobileAttendanceTrackingEndpoints
         $date = Carbon::parse($validated['date'])->toDateString();
         [$timelineStart, $timelineEnd] = $this->timelineDateBounds($date);
 
-        $attendance = Attendance::query()
-            ->where('user_id', $employeeId)
-            ->whereDate('attendance_date', $date)
-            ->latest('check_in_at')
-            ->first();
-
         $employee = User::query()->findOrFail($employeeId);
+        $attendances = $this->mobileTimelineAttendances($employee, $date, $timelineStart, $timelineEnd);
+        $attendance = $attendances->last();
         $device = EmployeeDevice::query()
             ->where('employee_id', $employeeId)
             ->latest('last_seen_at')
             ->first();
 
-        $trackings = LocationTracking::query()
-            ->where('employee_id', $employeeId)
-            ->where(function ($query) use ($timelineStart, $timelineEnd) {
-                $query->whereBetween('recorded_at', [$timelineStart, $timelineEnd])
-                    ->orWhere(function ($query) use ($timelineStart, $timelineEnd) {
-                        $query->whereNull('recorded_at')
-                            ->whereBetween('created_at', [$timelineStart, $timelineEnd]);
-                    });
-            })
-            ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
-            ->orderBy('id')
-            ->get();
-
-        $moduleItems = $this->timelineModuleItems($trackings);
-
-        $filteredTrackings = collect($this->filterTimelineTrackings($trackings));
-
-        $items = $filteredTrackings
-            ->map(function (LocationTracking $tracking, int $index) use ($filteredTrackings) {
-                $nextTracking = $filteredTrackings->get($index + 1);
-
-                return [
-                    ...$this->trackingPayload($tracking),
-                    'tracking_type' => $tracking->type,
-                    'type_label' => $this->trackingTypeLabel($tracking),
-                    'start_time' => $tracking->recorded_at?->format('h:i A'),
-                    'end_time' => $nextTracking?->recorded_at?->format('h:i A') ?? $tracking->recorded_at?->format('h:i A'),
-                    'elapsed_seconds' => $nextTracking && $tracking->recorded_at
-                        ? $tracking->recorded_at->diffInSeconds($nextTracking->recorded_at)
-                        : 0,
-                ];
-            })
-            ->values();
-
-        $totalTrackedSeconds = $items->sum('elapsed_seconds');
-        $attendanceSeconds = $attendance && $attendance->check_in_at
-            ? $attendance->check_in_at->diffInSeconds($attendance->check_out_at ?? now())
-            : 0;
+        $trackings = $this->mobileTimelineTrackings($attendances, $timelineStart, $timelineEnd);
+        $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
+        $items = $this->mobileTimelineItemsForApi($timeline['items']);
+        $diagnostics = collect($timeline['diagnostics'] ?? []);
+        $totalTrackedSeconds = $this->mobileTrackedSeconds($trackings);
+        $attendanceSeconds = $this->mobileAttendanceSeconds($attendances);
 
         return response()->json([
             'employee' => $this->userPayload($employee),
@@ -1129,6 +1097,9 @@ trait MobileAttendanceTrackingEndpoints
             'summary' => [
                 'points_count' => $items->count(),
                 'raw_points_count' => $trackings->count(),
+                'accepted_points_count' => $diagnostics->where('accepted', true)->count(),
+                'rejected_points_count' => $diagnostics->where('accepted', false)->count(),
+                'segment_count' => count($timeline['polylineSegments'] ?? []),
                 'total_tracked_seconds' => $totalTrackedSeconds,
                 'total_attendance_minutes' => $attendance?->worked_minutes ?? null,
                 'total_attendance_duration' => $attendance?->worked_minutes === null
@@ -1142,10 +1113,16 @@ trait MobileAttendanceTrackingEndpoints
             'totalTrackedTime' => $this->formatSecondsAsClock($totalTrackedSeconds),
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
-            'totalKM' => round((float) $moduleItems->sum('distance'), 2),
-            'polylinePoints' => $this->polylinePointsFromItems($moduleItems),
-            'polylineSegments' => $this->polylineSegmentsFromItems($moduleItems),
-            'timeLineItems' => $moduleItems,
+            'totalKM' => $timeline['totalKM'],
+            'gpsDistanceKm' => $timeline['gpsDistanceKm'] ?? $timeline['totalKM'],
+            'directionsDistanceKm' => $timeline['directionsDistanceKm'] ?? null,
+            'polylinePoints' => $timeline['polylinePoints'],
+            'polylineSegments' => $timeline['polylineSegments'],
+            'directionsSegments' => $timeline['directionsSegments'] ?? [],
+            'routeBlocks' => $timeline['routeBlocks'] ?? [],
+            'timeLineItems' => $timeline['items'],
+            'diagnostics' => $timeline['diagnostics'] ?? [],
+            'rejectionReasons' => $timeline['rejectionReasons'] ?? [],
         ]);
     }
 
@@ -1161,6 +1138,94 @@ trait MobileAttendanceTrackingEndpoints
         ]);
 
         return $this->adminTimeline($request, (int) $validated['userId']);
+    }
+
+    protected function mobileTimelineAttendances(User $employee, string $date, Carbon $timelineStart, Carbon $timelineEnd)
+    {
+        $start = $timelineStart->toDateTimeString();
+        $end = $timelineEnd->toDateTimeString();
+
+        return Attendance::query()
+            ->where('user_id', $employee->id)
+            ->where(function ($query) use ($date, $start, $end): void {
+                $query->whereDate('attendance_date', $date)
+                    ->orWhereBetween('check_in_at', [$start, $end])
+                    ->orWhereBetween('check_out_at', [$start, $end])
+                    ->orWhereExists(function ($subQuery) use ($start, $end): void {
+                        $subQuery->selectRaw('1')
+                            ->from('location_trackings')
+                            ->whereColumn('location_trackings.attendance_id', 'attendances.id')
+                            ->whereRaw('COALESCE(location_trackings.recorded_at, location_trackings.created_at) BETWEEN ? AND ?', [$start, $end]);
+                    });
+            })
+            ->orderBy('check_in_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    protected function mobileTimelineTrackings($attendances, Carbon $timelineStart, Carbon $timelineEnd)
+    {
+        if ($attendances->isEmpty()) {
+            return collect();
+        }
+
+        return LocationTracking::query()
+            ->with('attendance')
+            ->whereIn('attendance_id', $attendances->pluck('id'))
+            ->whereRaw('COALESCE(recorded_at, created_at) BETWEEN ? AND ?', [
+                $timelineStart->toDateTimeString(),
+                $timelineEnd->toDateTimeString(),
+            ])
+            ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
+            ->orderBy('id')
+            ->get();
+    }
+
+    protected function mobileTimelineItemsForApi($items)
+    {
+        return collect($items)
+            ->map(fn (array $tracking): array => [
+                ...$tracking,
+                'attendance_id' => $tracking['attendanceId'] ?? null,
+                'tracking_type' => $tracking['trackingType'] ?? null,
+                'type_label' => ucfirst((string) ($tracking['trackingType'] ?? $tracking['type'] ?? '')),
+                'start_time' => $tracking['startTime'] ?? null,
+                'end_time' => $tracking['endTime'] ?? $tracking['startTime'] ?? null,
+                'elapsed_seconds' => 0,
+            ])
+            ->values();
+    }
+
+    protected function mobileTrackedSeconds($trackings): int
+    {
+        return (int) $trackings
+            ->groupBy('attendance_id')
+            ->sum(function ($sessionTrackings): int {
+                $ordered = $sessionTrackings->values();
+
+                return (int) $ordered
+                    ->map(function (LocationTracking $tracking, int $index) use ($ordered): int {
+                        $nextTracking = $ordered->get($index + 1);
+                        $trackingTime = $tracking->recorded_at ?? $tracking->created_at;
+                        $nextTrackingTime = $nextTracking ? ($nextTracking->recorded_at ?? $nextTracking->created_at) : null;
+
+                        return $trackingTime && $nextTrackingTime
+                            ? $trackingTime->diffInSeconds($nextTrackingTime)
+                            : 0;
+                    })
+                    ->sum();
+            });
+    }
+
+    protected function mobileAttendanceSeconds($attendances): int
+    {
+        return (int) $attendances->sum(function (Attendance $attendance): int {
+            $checkInAt = $this->attendanceCheckInDisplayAt($attendance);
+
+            return $checkInAt
+                ? (int) $checkInAt->diffInSeconds($attendance->check_out_at ?? now())
+                : 0;
+        });
     }
 
     public function adminCardView(Request $request)
@@ -1433,7 +1498,16 @@ trait MobileAttendanceTrackingEndpoints
             return $inserted ? 'saved' : 'duplicate_retry';
         }
 
-        return $inserted ? 'gps_ignored' : 'not_saved';
+        return 'gps_ignored';
+    }
+
+    protected function legacyTrackingSyncStatus(bool $inserted, ?string $reason): string
+    {
+        if ($reason === 'duplicate_retry') {
+            return 'duplicate_retry';
+        }
+
+        return $inserted ? 'saved' : 'gps_ignored';
     }
 
     protected function timelineDateBounds(string $date): array

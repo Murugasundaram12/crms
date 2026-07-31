@@ -927,8 +927,6 @@ class MobileApiController extends Controller
             $deviceId = $validated['device_id'] ?? 'default';
             $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
             if ($duplicate) {
-                $this->upsertDeviceStatus($user->id, $validated);
-
                 return [
                     $duplicate->refresh(),
                     false,
@@ -966,23 +964,7 @@ class MobileApiController extends Controller
                     'signal_strength' => $validated['signal_strength'] ?? null,
                 ]);
 
-                $ignoredTracking = $this->createTrackingPoint($attendance, [
-                    ...$validated,
-                    'is_ignored' => true,
-                    'ignored_reason' => $gpsValidation['reason'] ?? 'gps_rejected',
-                ], $validated['type'] ?? 'travelling');
-
-                if ($lastTracking) {
-                    $statusPayload = $this->payloadWithStoredCoordinates($validated, $lastTracking);
-                    $this->upsertDeviceStatus($user->id, $statusPayload);
-                    if (in_array($gpsValidation['reason'] ?? null, ['distance_below_threshold', 'duplicate_location'], true)) {
-                        $lastTracking = $this->refreshTrackingPointStatus($lastTracking, $statusPayload);
-                    }
-
-                    return [$ignoredTracking->refresh(), true, $gpsValidation];
-                }
-
-                return [$ignoredTracking->refresh(), true, $gpsValidation];
+                return [null, false, $gpsValidation];
             }
 
             $this->upsertDeviceStatus($user->id, $validated);
@@ -997,24 +979,9 @@ class MobileApiController extends Controller
 
     protected function storeLegacyTrackingUpdate(User $user, Attendance $attendance, array $validated): array
     {
-        return DB::transaction(function () use ($user, $attendance, $validated) {
-            $deviceId = $validated['device_id'] ?? 'default';
-            $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
+        [$tracking, $inserted, $gpsValidation] = $this->storeTrackingUpdate($user, $attendance, $validated);
 
-            if ($duplicate) {
-                $this->upsertDeviceStatus($user->id, $validated);
-
-                return [$duplicate->refresh(), false, 'duplicate_retry'];
-            }
-
-            $this->upsertDeviceStatus($user->id, $validated);
-
-            return [
-                $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),
-                true,
-                null,
-            ];
-        });
+        return [$tracking, $inserted, $gpsValidation['reason'] ?? null];
     }
 
     protected function shouldSuppressTrackingInsert(?LocationTracking $lastTracking, array $payload): bool

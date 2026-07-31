@@ -168,7 +168,8 @@ class EmployeeTrackingController extends Controller
         }
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
-        $timeLineItems = $timeline['items'];
+        $timeLineItems = $this->withAttendanceBoundaryItems($timeline['items'], $attendances);
+        $timeline['items'] = $timeLineItems;
         $totalTrackedSeconds = $this->trackedSecondsByAttendance($trackings);
 
         $attendanceSeconds = $this->attendanceSeconds($attendances);
@@ -220,8 +221,10 @@ class EmployeeTrackingController extends Controller
         $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd);
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
+        $timeLineItems = $this->withAttendanceBoundaryItems($timeline['items'], $attendances);
+        $timeline['items'] = $timeLineItems;
 
-        $items = $timeline['items']
+        $items = $timeLineItems
             ->map(function (array $tracking) {
 
                 return [
@@ -250,7 +253,9 @@ class EmployeeTrackingController extends Controller
                 'check_in_at' => $attendanceCheckInAt?->toISOString(),
                 'check_out_at' => $attendance->check_out_at?->toISOString(),
                 'worked_minutes' => $attendance->worked_minutes,
-                'status' => $attendance->status,
+                'is_open' => $attendance->check_out_at === null,
+                'status' => $attendance->check_out_at === null ? 'active' : ($attendance->status ?? 'present'),
+                'status_label' => $attendance->check_out_at === null ? 'Active' : ucfirst((string) ($attendance->status ?? 'present')),
             ] : null,
             'attendance_ids' => $attendances->pluck('id')->values(),
             'attendance_sessions' => $this->attendanceSessionPayloads($attendances, $timeline),
@@ -427,6 +432,7 @@ class EmployeeTrackingController extends Controller
                         ? $this->formatSecondsAsClock($this->trackingTime($tracking)->diffInSeconds($this->trackingTime($nextTracking)))
                         : '00:00:00',
                     'distance' => round($distance, 2),
+                    'sortTimestamp' => $this->trackingTime($tracking)?->getTimestamp() ?? 0,
                 ];
             })
             ->values();
@@ -887,7 +893,131 @@ class EmployeeTrackingController extends Controller
             'check_in_time' => $checkInAt?->format('h:i A'),
             'check_out_time' => $attendance->check_out_at?->format('h:i A'),
             'worked_minutes' => $attendance->worked_minutes,
-            'status' => $attendance->status,
+            'is_open' => $attendance->check_out_at === null,
+            'status' => $attendance->check_out_at === null ? 'active' : ($attendance->status ?? 'present'),
+            'status_label' => $attendance->check_out_at === null ? 'Active' : ucfirst((string) ($attendance->status ?? 'present')),
+            'notes' => $attendance->notes,
+            'check_in_location' => $this->attendanceCheckInLocation($attendance),
+        ];
+    }
+
+    private function withAttendanceBoundaryItems($items, $attendances)
+    {
+        $items = collect($items);
+
+        foreach ($attendances as $attendance) {
+            $attendanceId = $attendance->id;
+            $hasCheckInItem = $items->contains(fn (array $item): bool => ($item['attendanceId'] ?? null) === $attendanceId
+                && ($item['type'] ?? null) === 'checkIn');
+            $hasCheckOutItem = $items->contains(fn (array $item): bool => ($item['attendanceId'] ?? null) === $attendanceId
+                && ($item['type'] ?? null) === 'checkOut');
+
+            if (! $hasCheckInItem) {
+                $items->push($this->attendanceBoundaryItem($attendance, 'checkIn'));
+            }
+
+            if ($attendance->check_out_at && ! $hasCheckOutItem) {
+                $items->push($this->attendanceBoundaryItem($attendance, 'checkOut'));
+            }
+        }
+
+        $sortedItems = $items->values()->all();
+        usort($sortedItems, function (array $first, array $second): int {
+            $timeComparison = ((int) ($first['sortTimestamp'] ?? 0)) <=> ((int) ($second['sortTimestamp'] ?? 0));
+            if ($timeComparison !== 0) {
+                return $timeComparison;
+            }
+
+            $boundaryRank = fn (array $item): int => match ($item['type'] ?? null) {
+                'checkIn' => 0,
+                'checkOut' => 2,
+                default => 1,
+            };
+
+            $rankComparison = $boundaryRank($first) <=> $boundaryRank($second);
+            if ($rankComparison !== 0) {
+                return $rankComparison;
+            }
+
+            return (is_numeric($first['id'] ?? null) ? (int) $first['id'] : 0)
+                <=> (is_numeric($second['id'] ?? null) ? (int) $second['id'] : 0);
+        });
+
+        return collect($sortedItems)
+            ->map(function (array $item): array {
+                unset($item['sortTimestamp']);
+
+                return $item;
+            })
+            ->values();
+    }
+
+    private function attendanceBoundaryItem(Attendance $attendance, string $type): array
+    {
+        $isCheckIn = $type === 'checkIn';
+        $dateTime = $isCheckIn
+            ? $this->attendanceCheckInDisplayAt($attendance)
+            : $attendance->check_out_at?->copy();
+        $location = $isCheckIn ? $this->attendanceCheckInLocation($attendance) : null;
+
+        return [
+            'id' => 'attendance-' . $attendance->id . '-' . ($isCheckIn ? 'check-in' : 'check-out'),
+            'employeeId' => $attendance->user_id,
+            'attendanceId' => $attendance->id,
+            'deviceId' => $location['device_id'] ?? null,
+            'type' => $type,
+            'accuracy' => null,
+            'bearing' => null,
+            'activity' => $isCheckIn ? 'attendance_check_in' : 'attendance_check_out',
+            'batteryPercentage' => null,
+            'isGPSOn' => null,
+            'isWifiOn' => null,
+            'isOffline' => false,
+            'latitude' => $location['latitude'] ?? null,
+            'longitude' => $location['longitude'] ?? null,
+            'address' => $location['address'] ?? null,
+            'signalStrength' => null,
+            'trackingType' => $isCheckIn ? 'attendance_check_in' : 'attendance_check_out',
+            'source' => $location ? 'attendance_notes' : 'attendance_record',
+            'description' => $isCheckIn
+                ? ($location ? 'Attendance check-in location from attendance notes.' : 'Attendance check-in time saved.')
+                : 'Attendance check-out time saved.',
+            'segmentBreakBefore' => true,
+            'startTime' => $dateTime?->format('h:i A'),
+            'endTime' => $dateTime?->format('h:i A'),
+            'elapseTime' => '00:00:00',
+            'distance' => 0,
+            'sortTimestamp' => $dateTime?->getTimestamp() ?? 0,
+        ];
+    }
+
+    private function attendanceCheckInLocation(Attendance $attendance): ?array
+    {
+        $notes = (string) $attendance->notes;
+
+        if ($notes === '') {
+            return null;
+        }
+
+        if (! preg_match('/Lat:\s*(-?\d+(?:\.\d+)?),\s*Long:\s*(-?\d+(?:\.\d+)?)/i', $notes, $matches)) {
+            return null;
+        }
+
+        $address = null;
+        if (preg_match('/Address:\s*(.*?)(?:\.\s*Time:|$)/is', $notes, $addressMatches)) {
+            $address = trim($addressMatches[1]);
+        }
+
+        $deviceId = null;
+        if (preg_match('/Device:\s*(.+?)(?:\s*$)/i', $notes, $deviceMatches)) {
+            $deviceId = trim($deviceMatches[1]);
+        }
+
+        return [
+            'latitude' => (float) $matches[1],
+            'longitude' => (float) $matches[2],
+            'address' => $address !== '' ? $address : null,
+            'device_id' => $deviceId !== '' ? $deviceId : null,
         ];
     }
 
@@ -1313,6 +1443,17 @@ class EmployeeTrackingController extends Controller
     {
         $start = $timelineStart->toDateTimeString();
         $end = $timelineEnd->toDateTimeString();
+
+        $datedAttendances = Attendance::query()
+            ->where('user_id', $employee->id)
+            ->whereDate('attendance_date', $date)
+            ->orderBy('check_in_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($datedAttendances->isNotEmpty()) {
+            return $datedAttendances;
+        }
 
         return Attendance::query()
             ->where('user_id', $employee->id)

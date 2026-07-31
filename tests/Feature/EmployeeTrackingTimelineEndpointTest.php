@@ -334,6 +334,214 @@ class EmployeeTrackingTimelineEndpointTest extends TestCase
         $this->assertNotEmpty($payload['directionsSegments']);
     }
 
+    public function test_open_attendance_does_not_derive_checkout_from_last_tracking_row(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+        Carbon::setTestNow(Carbon::parse('2026-07-31 12:05:23', 'Asia/Kolkata'));
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $attendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 09:05:23', 'Asia/Kolkata'),
+            'check_out_at' => null,
+            'status' => 'present',
+            'notes' => 'Lat: 9.8920194, Long: 78.0762717. Address: Thirupparankundram Salai, Pasumalai, Madurai, Tamil Nadu, 625005, India. Time: 09:05 AM. Device: UKQ1.231108.001',
+        ]);
+
+        $this->point($employee->id, $attendance->id, 81, 9.8935533, 78.0782983, '2026-07-31 09:06:05', 'walking', type: 'travelling');
+        $this->point($employee->id, $attendance->id, 82, 9.9147980, 78.0979712, '2026-07-31 09:26:02', 'walking', type: 'travelling');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('03:00:00', $payload['totalAttendanceTime']);
+        $this->assertSame('active', $payload['attendances'][0]['status']);
+        $this->assertTrue($payload['attendances'][0]['is_open']);
+        $this->assertNull($payload['attendances'][0]['check_out_at']);
+        $this->assertNull($payload['attendances'][0]['check_out_time']);
+        $this->assertSame(['checkIn', 'walk', 'walk'], collect($payload['timeLineItems'])->pluck('type')->all());
+        $this->assertFalse(collect($payload['timelineEvents'])->contains(fn (array $event): bool => $event['type'] === 'checkOut'));
+        $this->assertSame('attendance_notes', $payload['timeLineItems'][0]['source']);
+        $this->assertSame(9.8920194, $payload['timeLineItems'][0]['latitude']);
+        $this->assertSame(78.0762717, $payload['timeLineItems'][0]['longitude']);
+        $this->assertSame('2026-07-31 09:26:02', $payload['trackingHealth']['last_tracking_at']);
+        $this->assertSame('09:05 AM', $payload['timeLineItems'][0]['startTime']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_selected_date_open_attendance_is_not_merged_with_previous_day_checkout_overlap(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+        Carbon::setTestNow(Carbon::parse('2026-07-31 10:05:23', 'Asia/Kolkata'));
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $previousAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-30',
+            'check_in_at' => Carbon::parse('2026-07-31 01:44:50', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-31 07:14:50', 'Asia/Kolkata'),
+            'worked_minutes' => 1438,
+            'status' => 'present',
+        ]);
+        $currentAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 09:05:23', 'Asia/Kolkata'),
+            'check_out_at' => null,
+            'status' => 'present',
+            'notes' => 'Lat: 9.8920194, Long: 78.0762717. Address: Thirupparankundram Salai, Pasumalai, Madurai, Tamil Nadu, 625005, India. Time: 09:05 AM. Device: UKQ1.231108.001',
+        ]);
+
+        $this->point($employee->id, $previousAttendance->id, 121, 11.000000, 77.000000, '2026-07-31 07:10:00', 'walking');
+        $this->point($employee->id, $currentAttendance->id, 122, 9.8935533, 78.0782983, '2026-07-31 09:06:05', 'walking', type: 'travelling');
+        $this->point($employee->id, $currentAttendance->id, 123, 9.9147980, 78.0979712, '2026-07-31 09:26:02', 'walking', type: 'travelling');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame([$currentAttendance->id], $payload['attendanceIds']);
+        $this->assertSame($currentAttendance->id, $payload['attendanceId']);
+        $this->assertSame('09:05 AM', $payload['attendances'][0]['check_in_time']);
+        $this->assertNull($payload['attendances'][0]['check_out_time']);
+        $this->assertSame('active', $payload['attendances'][0]['status']);
+        $this->assertSame('Active', $payload['attendances'][0]['status_label']);
+        $this->assertSame('01:00:00', $payload['totalAttendanceTime']);
+        $this->assertFalse(collect($payload['timeLineItems'])->contains(fn (array $item): bool => $item['attendanceId'] === $previousAttendance->id));
+        $this->assertFalse(collect($payload['timeLineItems'])->contains(fn (array $item): bool => $item['type'] === 'checkOut'));
+        $this->assertSame('attendance_notes', $payload['timeLineItems'][0]['source']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_completed_attendance_uses_actual_checkout_timestamp(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+        Carbon::setTestNow(Carbon::parse('2026-07-31 18:00:00', 'Asia/Kolkata'));
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $attendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 09:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-31 10:30:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $attendance->id, 91, 11.000000, 77.000000, '2026-07-31 09:10:00', 'walking');
+        $this->point($employee->id, $attendance->id, 92, 11.000500, 77.000000, '2026-07-31 09:20:00', 'walking');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('01:30:00', $payload['totalAttendanceTime']);
+        $this->assertFalse($payload['attendances'][0]['is_open']);
+        $this->assertSame('10:30 AM', $payload['attendances'][0]['check_out_time']);
+        $this->assertSame(['checkIn', 'walk', 'walk', 'checkOut'], collect($payload['timeLineItems'])->pluck('type')->all());
+        $this->assertTrue(collect($payload['timelineEvents'])->contains(fn (array $event): bool => $event['type'] === 'checkOut'
+            && $event['start_time'] === '10:30 AM'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_overnight_attendance_uses_real_checkout_without_date_end_fallback(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $attendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-22',
+            'check_in_at' => Carbon::parse('2026-07-22 21:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-23 07:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $attendance->id, 101, 11.000000, 77.000000, '2026-07-23 06:10:00', 'walking');
+        $this->point($employee->id, $attendance->id, 102, 11.000500, 77.000000, '2026-07-23 06:20:00', 'walking');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-23',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('10:00:00', $payload['totalAttendanceTime']);
+        $this->assertSame('07:00 AM', $payload['attendances'][0]['check_out_time']);
+        $this->assertSame('checkOut', collect($payload['timeLineItems'])->last()['type']);
+    }
+
+    public function test_multiple_attendance_sessions_use_each_session_checkout_state(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+        Carbon::setTestNow(Carbon::parse('2026-07-31 13:00:00', 'Asia/Kolkata'));
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $firstAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 08:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-31 09:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+        $secondAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 10:00:00', 'Asia/Kolkata'),
+            'check_out_at' => null,
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $firstAttendance->id, 111, 11.000000, 77.000000, '2026-07-31 08:10:00', 'walking');
+        $this->point($employee->id, $firstAttendance->id, 112, 11.000500, 77.000000, '2026-07-31 08:20:00', 'walking');
+        $this->point($employee->id, $secondAttendance->id, 113, 11.010000, 77.000000, '2026-07-31 10:10:00', 'walking');
+        $this->point($employee->id, $secondAttendance->id, 114, 11.010500, 77.000000, '2026-07-31 10:20:00', 'walking');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('04:00:00', $payload['totalAttendanceTime']);
+        $this->assertSame([$firstAttendance->id, $secondAttendance->id], $payload['attendanceIds']);
+        $this->assertSame([false, true], collect($payload['attendances'])->pluck('is_open')->all());
+        $this->assertSame(1, collect($payload['timeLineItems'])->where('type', 'checkOut')->count());
+        $this->assertSame($firstAttendance->id, collect($payload['timeLineItems'])->firstWhere('type', 'checkOut')['attendanceId']);
+
+        Carbon::setTestNow();
+    }
+
     public function test_timeline_requires_existing_authorization(): void
     {
         $employee = User::factory()->create(['status' => 'active']);

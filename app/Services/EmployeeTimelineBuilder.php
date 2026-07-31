@@ -381,6 +381,7 @@ class EmployeeTimelineBuilder
             'endTime' => $this->trackingTime($tracking)?->format('h:i A'),
             'elapseTime' => '00:00:00',
             'distance' => 0,
+            'sortTimestamp' => $this->trackingTime($tracking)?->getTimestamp() ?? 0,
         ];
     }
 
