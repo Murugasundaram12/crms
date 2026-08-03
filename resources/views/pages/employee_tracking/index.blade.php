@@ -5,6 +5,7 @@
 
 @php($mapProvider = $mapSettings['map_provider'] ?? 'google')
 @php($googleMapsKey = $mapProvider === 'google' ? ($mapSettings['google_maps_api_key'] ?? '') : '')
+@php($isLeafletView = blank($googleMapsKey))
 
 @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -34,6 +35,31 @@
             max-height: calc(100% - 96px);
             overflow: hidden;
             z-index: 5;
+        }
+
+        .timeline-map-provider-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 4;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .94);
+            border: 1px solid rgba(226, 232, 240, .95);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, .12);
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            padding: 7px 10px;
+            pointer-events: none;
+        }
+
+        .timeline-map-provider-badge i {
+            color: #0f766e;
+            font-size: 14px;
         }
 
         .timeline-travel-label {
@@ -248,14 +274,14 @@
         </div>
     </div>
 
-    @if (blank($googleMapsKey))
-        <div class="alert alert-info">
-            <i class="ti ti-info-circle me-1"></i> Google Maps API key missing. Using OpenStreetMap (Leaflet) view. Add <code>google_maps_api_key</code> in app settings for Google Maps.
-        </div>
-    @endif
-
     <div class="timeline-map-wrapper shadow-sm">
         <div id="employeeTrackingMap"></div>
+        @if ($isLeafletView)
+            <div class="timeline-map-provider-badge">
+                <i class="ti ti-map-2"></i>
+                <span>OpenStreetMap view</span>
+            </div>
+        @endif
         <div id="timelineOverlayCard"></div>
     </div>
 @endsection
@@ -263,9 +289,9 @@
 @push('scripts')
     <script>
         const timelineConfig = {
-            centerLatitude: Number(@json($mapSettings['center_latitude'])) || 20.5937,
-            centerLongitude: Number(@json($mapSettings['center_longitude'])) || 78.9629,
-            zoom: Number(@json($mapSettings['zoom_level'])) || 12,
+            centerLatitude: Number(@json($mapSettings['center_latitude'])),
+            centerLongitude: Number(@json($mapSettings['center_longitude'])),
+            zoom: Number(@json($mapSettings['zoom_level'])),
             timelineUrl: @json(route('dashboard.getTimeLineAjax')),
             csrfToken: @json(csrf_token()),
             iconBase: @json(asset('img/map') . '/'),
@@ -410,6 +436,8 @@
                 if (loadToken !== timelineLoadToken) {
                     return;
                 }
+                clearTimelineMap();
+                resetTimelineMapView();
                 document.getElementById('timelineOverlayCard').innerHTML = overlayShell('Unable to load timeline.');
                 return;
             }
@@ -1016,11 +1044,17 @@
         }
 
         function resetTimelineMapView() {
+            const center = {
+                lat: timelineConfig.centerLatitude,
+                lng: timelineConfig.centerLongitude,
+            };
+            const zoom = timelineConfig.zoom;
+
             if (timelineMapProvider === 'google' && timelineMap?.setCenter) {
-                timelineMap.setCenter({lat: timelineConfig.center.lat, lng: timelineConfig.center.lng});
-                timelineMap.setZoom(timelineConfig.zoom);
+                timelineMap.setCenter(center);
+                timelineMap.setZoom(zoom);
             } else if (timelineMapProvider === 'leaflet' && timelineMap?.setView) {
-                timelineMap.setView([timelineConfig.center.lat, timelineConfig.center.lng], timelineConfig.zoom);
+                timelineMap.setView([center.lat, center.lng], zoom);
             }
         }
 

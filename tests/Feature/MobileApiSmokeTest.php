@@ -846,6 +846,127 @@ class MobileApiSmokeTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_bulk_offline_sync_saves_unordered_batch_chronologically(): void
+    {
+        [$user, $headers, $basePayload] = $this->checkedInTrackingUser('bulk-chronological@example.com', 'bulk-chronological-device');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/locations/bulk', [
+                'locations' => [
+                    array_merge($basePayload, [
+                        'clientUuid' => 'chrono-late',
+                        'latitude' => 11.018200,
+                        'longitude' => 76.957200,
+                        'recorded_at' => '2026-07-22 09:10:00',
+                    ]),
+                    array_merge($basePayload, [
+                        'clientUuid' => 'chrono-early',
+                        'latitude' => 11.017300,
+                        'longitude' => 76.956300,
+                        'recorded_at' => '2026-07-22 09:05:00',
+                    ]),
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('saved_count', 2)
+            ->assertJsonPath('results.0.index', 0)
+            ->assertJsonPath('results.0.sync_status', 'saved')
+            ->assertJsonPath('results.1.index', 1)
+            ->assertJsonPath('results.1.sync_status', 'saved');
+
+        $this->assertSame(
+            ['2026-07-22 09:00:00', '2026-07-22 09:05:00', '2026-07-22 09:10:00'],
+            LocationTracking::query()
+                ->where('employee_id', $user->id)
+                ->orderBy('recorded_at')
+                ->pluck('recorded_at')
+                ->map(fn (Carbon $recordedAt) => $recordedAt->format('Y-m-d H:i:s'))
+                ->all()
+        );
+
+        $this->assertSame(['chrono-early', 'chrono-late'], LocationTracking::query()
+            ->where('employee_id', $user->id)
+            ->whereNotNull('client_uuid')
+            ->orderBy('id')
+            ->pluck('client_uuid')
+            ->all());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_bulk_offline_sync_equal_timestamps_use_original_index_tie_breaker(): void
+    {
+        [$user, $headers, $basePayload] = $this->checkedInTrackingUser('bulk-equal-time@example.com', 'bulk-equal-time-device');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/locations/bulk', [
+                'locations' => [
+                    array_merge($basePayload, [
+                        'clientUuid' => 'equal-first',
+                        'latitude' => 11.017300,
+                        'longitude' => 76.956300,
+                        'recorded_at' => '2026-07-22 09:05:00',
+                    ]),
+                    array_merge($basePayload, [
+                        'clientUuid' => 'equal-second',
+                        'latitude' => 11.018200,
+                        'longitude' => 76.957200,
+                        'recorded_at' => '2026-07-22 09:05:00',
+                    ]),
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('results.0.index', 0)
+            ->assertJsonPath('results.1.index', 1);
+
+        $this->assertSame(['equal-first', 'equal-second'], LocationTracking::query()
+            ->where('employee_id', $user->id)
+            ->whereNotNull('client_uuid')
+            ->orderBy('id')
+            ->pluck('client_uuid')
+            ->all());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_bulk_offline_sync_invalid_item_does_not_block_valid_items(): void
+    {
+        [$user, $headers, $basePayload] = $this->checkedInTrackingUser('bulk-partial@example.com', 'bulk-partial-device');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/tracking/locations/bulk', [
+                'locations' => [
+                    array_merge($basePayload, [
+                        'clientUuid' => 'partial-invalid',
+                        'latitude' => 91,
+                        'longitude' => 76.956300,
+                        'recorded_at' => 'not-a-date',
+                    ]),
+                    array_merge($basePayload, [
+                        'clientUuid' => 'partial-valid',
+                        'latitude' => 11.017300,
+                        'longitude' => 76.956300,
+                        'recorded_at' => '2026-07-22 09:05:00',
+                    ]),
+                ],
+            ])
+            ->assertStatus(207)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('saved_count', 1)
+            ->assertJsonPath('failed_count', 1)
+            ->assertJsonPath('results.0.index', 0)
+            ->assertJsonPath('results.0.reason', 'validation_failed')
+            ->assertJsonPath('results.1.index', 1)
+            ->assertJsonPath('results.1.sync_status', 'saved');
+
+        $this->assertSame(1, LocationTracking::query()
+            ->where('employee_id', $user->id)
+            ->where('client_uuid', 'partial-valid')
+            ->count());
+
+        Carbon::setTestNow();
+    }
+
     public function test_stationary_gps_drift_refreshes_status_without_inserting_tracking_point(): void
     {
         $user = User::query()->create([
@@ -2235,5 +2356,47 @@ class MobileApiSmokeTest extends TestCase
     private function assertSoftDeletedOrMissingTask(int $taskId): void
     {
         $this->assertFalse(Task::query()->whereKey($taskId)->exists());
+    }
+
+    private function checkedInTrackingUser(string $email, string $deviceId): array
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:00:00'));
+
+        $user = User::query()->create([
+            'name' => 'Bulk Tracking User',
+            'email' => $email,
+            'role' => 'Employee',
+            'status' => 'active',
+            'wallet' => 0,
+            'password' => Hash::make('password'),
+        ]);
+
+        $token = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Bulk Tracking Test',
+        ])->json('token');
+
+        $headers = ['Authorization' => 'Bearer ' . $token];
+        $basePayload = [
+            'device_id' => $deviceId,
+            'latitude' => 11.016844,
+            'longitude' => 76.955832,
+            'accuracy' => 8,
+            'speed' => 1,
+            'activity' => 'walking',
+            'isGpsOn' => true,
+            'isMock' => false,
+            'batteryPercentage' => 71,
+            'recorded_at' => '2026-07-22 09:00:00',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/check_in', $basePayload)
+            ->assertCreated();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-22 09:20:00'));
+
+        return [$user, $headers, $basePayload];
     }
 }

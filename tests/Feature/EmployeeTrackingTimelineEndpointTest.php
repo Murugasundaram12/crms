@@ -542,6 +542,127 @@ class EmployeeTrackingTimelineEndpointTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_mobile_admin_timeline_uses_same_attendance_selection_as_web_timeline(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $previousAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-30',
+            'check_in_at' => Carbon::parse('2026-07-30 22:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-31 07:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+        $selectedDateAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 09:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $previousAttendance->id, 131, 11.000000, 77.000000, '2026-07-31 06:50:00', 'walking');
+        $this->point($employee->id, $selectedDateAttendance->id, 132, 11.010000, 77.000000, '2026-07-31 09:10:00', 'walking');
+
+        $webPayload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $mobilePayload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->getJson('/api/admin/employees/' . $employee->id . '/timeline?date=2026-07-31')
+            ->assertOk()
+            ->json();
+
+        $this->assertSame([$selectedDateAttendance->id], $webPayload['attendanceIds']);
+        $this->assertSame($webPayload['attendanceIds'], $mobilePayload['attendance_ids']);
+        $this->assertFalse(collect($mobilePayload['trackings'])->contains(fn (array $item): bool => ($item['attendanceId'] ?? null) === $previousAttendance->id));
+    }
+
+    public function test_timeline_tracked_time_exposes_active_duration_and_span_duration(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+        Carbon::setTestNow(Carbon::parse('2026-07-31 11:00:00', 'Asia/Kolkata'));
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $attendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 09:00:00', 'Asia/Kolkata'),
+            'check_out_at' => null,
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $attendance->id, 141, 11.000000, 77.000000, '2026-07-31 09:00:00', 'walking');
+        $this->point($employee->id, $attendance->id, 142, 11.000500, 77.000000, '2026-07-31 09:05:00', 'walking');
+        $this->point($employee->id, $attendance->id, 143, 11.001000, 77.000000, '2026-07-31 09:15:00', 'walking');
+        $this->point($employee->id, $attendance->id, 144, 11.001500, 77.000000, '2026-07-31 09:20:00', 'walking');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('00:10:00', $payload['totalTrackedTime']);
+        $this->assertSame('00:10:00', $payload['activeTrackedTime']);
+        $this->assertSame('00:20:00', $payload['trackedSpanTime']);
+        $this->assertSame(600, $payload['trackingHealth']['active_tracked_seconds']);
+        $this->assertSame(1200, $payload['trackingHealth']['saved_tracking_span_seconds']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_timeline_tracked_time_handles_multiple_sessions_and_single_points(): void
+    {
+        config(['app.timezone' => 'Asia/Kolkata']);
+
+        $viewer = User::factory()->create(['role' => 'Super Admin', 'status' => 'active']);
+        $employee = User::factory()->create(['status' => 'active']);
+        $firstAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 08:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-31 09:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+        $secondAttendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => '2026-07-31',
+            'check_in_at' => Carbon::parse('2026-07-31 10:00:00', 'Asia/Kolkata'),
+            'check_out_at' => Carbon::parse('2026-07-31 11:00:00', 'Asia/Kolkata'),
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $firstAttendance->id, 151, 11.000000, 77.000000, '2026-07-31 08:05:00', 'walking');
+        $this->point($employee->id, $firstAttendance->id, 152, 11.000500, 77.000000, '2026-07-31 08:09:00', 'walking');
+        $this->point($employee->id, $secondAttendance->id, 153, 11.010000, 77.000000, '2026-07-31 10:05:00', 'walking');
+
+        $payload = $this->actingAs($viewer)
+            ->withoutMiddleware()
+            ->post(route('dashboard.getTimeLineAjax'), [
+                'userId' => $employee->id,
+                'date' => '2026-07-31',
+            ])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('00:04:00', $payload['totalTrackedTime']);
+        $this->assertSame('00:04:00', $payload['activeTrackedTime']);
+        $this->assertSame('00:04:00', $payload['trackedSpanTime']);
+        $this->assertSame([$firstAttendance->id, $secondAttendance->id], $payload['attendanceIds']);
+    }
+
     public function test_timeline_requires_existing_authorization(): void
     {
         $employee = User::factory()->create(['status' => 'active']);

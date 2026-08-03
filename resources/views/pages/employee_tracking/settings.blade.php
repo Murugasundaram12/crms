@@ -25,6 +25,11 @@
         @csrf
         @method('PUT')
 
+        <div class="alert alert-info mb-4">
+            <div class="fw-semibold mb-1">Google Maps configuration</div>
+            To use Google Maps on Employee Tracking, add a valid browser key in <code>app_settings.google_maps_api_key</code> or set <code>GOOGLE_MAPS_API_KEY</code> in <code>.env</code>. If no real key is available, the timeline uses OpenStreetMap automatically.
+        </div>
+
         <div class="row g-4">
             @foreach($sections as $sectionTitle => $keys)
                 <div class="col-12 col-xl-6">

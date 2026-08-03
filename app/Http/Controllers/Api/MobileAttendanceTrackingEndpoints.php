@@ -28,6 +28,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
+use App\Services\EmployeeTrackingAttendanceSelector;
 use App\Services\EmployeeTimelineBuilder;
 use App\Services\TimelineGpsProcessor;
 use Illuminate\Http\Request;
@@ -879,7 +880,9 @@ trait MobileAttendanceTrackingEndpoints
         $ignoredCount = 0;
         $failedCount = 0;
 
-        foreach (array_values($validatedBatch['locations']) as $index => $locationPayload) {
+        foreach ($this->sortedBulkLocationPayloads($validatedBatch['locations']) as $bulkItem) {
+            $index = $bulkItem['index'];
+            $locationPayload = $bulkItem['payload'];
             $pointRequest = $this->trackingPointRequest($request, [
                 ...$request->except('locations'),
                 ...$locationPayload,
@@ -891,7 +894,7 @@ trait MobileAttendanceTrackingEndpoints
 
                 if ($this->isOfflinePayloadTooOld($validated)) {
                     $ignoredCount++;
-                    $results[] = [
+                    $results[$index] = [
                         'index' => $index,
                         'success' => true,
                         'saved' => false,
@@ -905,7 +908,7 @@ trait MobileAttendanceTrackingEndpoints
 
                 if (! $attendance) {
                     $failedCount++;
-                    $results[] = [
+                    $results[$index] = [
                         'index' => $index,
                         'success' => false,
                         'saved' => false,
@@ -918,7 +921,7 @@ trait MobileAttendanceTrackingEndpoints
                 [$tracking, $inserted, $gpsValidation] = $this->storeTrackingUpdate($user, $attendance, $validated);
                 $inserted ? $savedCount++ : $ignoredCount++;
 
-                $results[] = [
+                $results[$index] = [
                     'index' => $index,
                     'success' => true,
                     'saved' => $inserted,
@@ -934,7 +937,7 @@ trait MobileAttendanceTrackingEndpoints
                 ];
             } catch (ValidationException $exception) {
                 $failedCount++;
-                $results[] = [
+                $results[$index] = [
                     'index' => $index,
                     'success' => false,
                     'saved' => false,
@@ -951,7 +954,7 @@ trait MobileAttendanceTrackingEndpoints
                     'message' => $exception->getMessage(),
                 ]);
 
-                $results[] = [
+                $results[$index] = [
                     'index' => $index,
                     'success' => false,
                     'saved' => false,
@@ -961,13 +964,15 @@ trait MobileAttendanceTrackingEndpoints
             }
         }
 
+        ksort($results);
+
         return response()->json([
             'success' => $failedCount === 0,
             'message' => 'Offline tracking sync processed.',
             'saved_count' => $savedCount,
             'ignored_count' => $ignoredCount,
             'failed_count' => $failedCount,
-            'results' => $results,
+            'results' => array_values($results),
         ], $failedCount > 0 ? 207 : 200);
     }
 
@@ -994,6 +999,44 @@ trait MobileAttendanceTrackingEndpoints
             'message' => 'Live status updated successfully.',
             'device' => $this->devicePayload($device),
         ]);
+    }
+
+    protected function sortedBulkLocationPayloads(array $locations): array
+    {
+        $items = [];
+
+        foreach (array_values($locations) as $index => $payload) {
+            $items[] = [
+                'index' => $index,
+                'payload' => $payload,
+                'sort_timestamp' => $this->bulkLocationSortTimestamp($payload),
+            ];
+        }
+
+        usort($items, function (array $first, array $second): int {
+            $timestampComparison = $first['sort_timestamp'] <=> $second['sort_timestamp'];
+
+            return $timestampComparison !== 0
+                ? $timestampComparison
+                : ($first['index'] <=> $second['index']);
+        });
+
+        return $items;
+    }
+
+    protected function bulkLocationSortTimestamp(array $payload): int
+    {
+        $recordedAt = $payload['recorded_at'] ?? $payload['recordedAt'] ?? null;
+
+        if (! $recordedAt) {
+            return now()->getTimestamp();
+        }
+
+        try {
+            return Carbon::parse($recordedAt)->getTimestamp();
+        } catch (\Throwable) {
+            return PHP_INT_MAX;
+        }
     }
 
     public function trackingSettings()
@@ -1088,19 +1131,24 @@ trait MobileAttendanceTrackingEndpoints
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
         $items = $this->mobileTimelineItemsForApi($timeline['items']);
         $diagnostics = collect($timeline['diagnostics'] ?? []);
-        $totalTrackedSeconds = $this->mobileTrackedSeconds($trackings);
+        $trackedSpanSeconds = $this->mobileTrackedSpanSeconds($trackings);
+        $activeTrackedSeconds = $this->mobileActiveTrackedSeconds($trackings);
         $attendanceSeconds = $this->mobileAttendanceSeconds($attendances);
 
         return response()->json([
             'employee' => $this->userPayload($employee),
             'attendance' => $attendance ? $this->attendancePayload($attendance) : null,
+            'attendance_ids' => $attendances->pluck('id')->values(),
+            'attendanceIds' => $attendances->pluck('id')->values(),
             'summary' => [
                 'points_count' => $items->count(),
                 'raw_points_count' => $trackings->count(),
                 'accepted_points_count' => $diagnostics->where('accepted', true)->count(),
                 'rejected_points_count' => $diagnostics->where('accepted', false)->count(),
                 'segment_count' => count($timeline['polylineSegments'] ?? []),
-                'total_tracked_seconds' => $totalTrackedSeconds,
+                'total_tracked_seconds' => $activeTrackedSeconds,
+                'tracked_span_seconds' => $trackedSpanSeconds,
+                'active_tracked_seconds' => $activeTrackedSeconds,
                 'total_attendance_minutes' => $attendance?->worked_minutes ?? null,
                 'total_attendance_duration' => $attendance?->worked_minutes === null
                     ? null
@@ -1110,7 +1158,9 @@ trait MobileAttendanceTrackingEndpoints
             'employeeId' => $employee->id,
             'employeeName' => $employee->name,
             'attendanceId' => $attendance?->id,
-            'totalTrackedTime' => $this->formatSecondsAsClock($totalTrackedSeconds),
+            'totalTrackedTime' => $this->formatSecondsAsClock($activeTrackedSeconds),
+            'trackedSpanTime' => $this->formatSecondsAsClock($trackedSpanSeconds),
+            'activeTrackedTime' => $this->formatSecondsAsClock($activeTrackedSeconds),
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
             'totalKM' => $timeline['totalKM'],
@@ -1142,25 +1192,8 @@ trait MobileAttendanceTrackingEndpoints
 
     protected function mobileTimelineAttendances(User $employee, string $date, Carbon $timelineStart, Carbon $timelineEnd)
     {
-        $start = $timelineStart->toDateTimeString();
-        $end = $timelineEnd->toDateTimeString();
-
-        return Attendance::query()
-            ->where('user_id', $employee->id)
-            ->where(function ($query) use ($date, $start, $end): void {
-                $query->whereDate('attendance_date', $date)
-                    ->orWhereBetween('check_in_at', [$start, $end])
-                    ->orWhereBetween('check_out_at', [$start, $end])
-                    ->orWhereExists(function ($subQuery) use ($start, $end): void {
-                        $subQuery->selectRaw('1')
-                            ->from('location_trackings')
-                            ->whereColumn('location_trackings.attendance_id', 'attendances.id')
-                            ->whereRaw('COALESCE(location_trackings.recorded_at, location_trackings.created_at) BETWEEN ? AND ?', [$start, $end]);
-                    });
-            })
-            ->orderBy('check_in_at')
-            ->orderBy('id')
-            ->get();
+        return app(EmployeeTrackingAttendanceSelector::class)
+            ->forTimeline($employee, $date, $timelineStart, $timelineEnd);
     }
 
     protected function mobileTimelineTrackings($attendances, Carbon $timelineStart, Carbon $timelineEnd)
@@ -1196,7 +1229,7 @@ trait MobileAttendanceTrackingEndpoints
             ->values();
     }
 
-    protected function mobileTrackedSeconds($trackings): int
+    protected function mobileTrackedSpanSeconds($trackings): int
     {
         return (int) $trackings
             ->groupBy('attendance_id')
@@ -1212,6 +1245,33 @@ trait MobileAttendanceTrackingEndpoints
                         return $trackingTime && $nextTrackingTime
                             ? $trackingTime->diffInSeconds($nextTrackingTime)
                             : 0;
+                    })
+                    ->sum();
+            });
+    }
+
+    protected function mobileActiveTrackedSeconds($trackings): int
+    {
+        $gapThresholdSeconds = (int) $this->settingValue('gps_max_inactive_gap_seconds', 600);
+
+        return (int) $trackings
+            ->groupBy('attendance_id')
+            ->sum(function ($sessionTrackings) use ($gapThresholdSeconds): int {
+                $ordered = $sessionTrackings->values();
+
+                return (int) $ordered
+                    ->map(function (LocationTracking $tracking, int $index) use ($ordered, $gapThresholdSeconds): int {
+                        $nextTracking = $ordered->get($index + 1);
+                        $trackingTime = $tracking->recorded_at ?? $tracking->created_at;
+                        $nextTrackingTime = $nextTracking ? ($nextTracking->recorded_at ?? $nextTracking->created_at) : null;
+
+                        if (! $trackingTime || ! $nextTrackingTime) {
+                            return 0;
+                        }
+
+                        $seconds = $trackingTime->diffInSeconds($nextTrackingTime);
+
+                        return $seconds >= $gapThresholdSeconds ? 0 : $seconds;
                     })
                     ->sum();
             });

@@ -4,6 +4,10 @@
 
 @section('content')
     @include('partials.alerts')
+    @php($user = auth()->user())
+    @php($isSuperAdmin = $user && (($user->role ?? '') === 'Super Admin' || (method_exists($user, 'assignedRoles') && $user->assignedRoles()->contains('name', 'Super Admin'))))
+    @php($mapProvider = $mapSettings['map_provider'] ?? 'google')
+    @php($googleMapsKey = $mapProvider === 'google' ? ($mapSettings['google_maps_api_key'] ?? '') : '')
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
@@ -17,6 +21,13 @@
             </nav>
         </div>
     </div>
+
+    @if ($isSuperAdmin && blank($googleMapsKey))
+        <div class="alert alert-info mb-4">
+            <div class="fw-semibold mb-1">Google Maps is not configured for Employee Tracking.</div>
+            Add a valid browser key in <code>app_settings.google_maps_api_key</code> or set <code>GOOGLE_MAPS_API_KEY</code> in <code>.env</code>. The bundled demo key is ignored, so the timeline uses OpenStreetMap until a real key is available.
+        </div>
+    @endif
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">

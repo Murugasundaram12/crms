@@ -63,9 +63,9 @@
 @push('scripts')
     <script>
         const liveLocationConfig = {
-            centerLatitude: Number(@json($mapSettings['center_latitude'])) || 20.5937,
-            centerLongitude: Number(@json($mapSettings['center_longitude'])) || 78.9629,
-            zoom: Number(@json($mapSettings['zoom_level'])) || 12,
+            centerLatitude: Number(@json($mapSettings['center_latitude'])),
+            centerLongitude: Number(@json($mapSettings['center_longitude'])),
+            zoom: Number(@json($mapSettings['zoom_level'])),
             liveUrl: @json(route('liveLocationAjax')),
             iconBase: @json(asset('img/map') . '/'),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),

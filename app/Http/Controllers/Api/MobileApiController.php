@@ -29,6 +29,7 @@ use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use App\Services\GpsTrackingValidationService;
+use App\Support\CompanyMapDefaults;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -775,8 +776,9 @@ class MobileApiController extends Controller
 
     protected function trackingPointRequest(Request $parent, array $payload): Request
     {
-        $request = Request::create($parent->path(), 'POST', $payload);
+        $request = Request::create($parent->path(), 'POST', $payload, [], [], [], json_encode($payload));
         $request->headers->replace($parent->headers->all());
+        $request->setJson(new \Symfony\Component\HttpFoundation\InputBag($payload));
         $request->setUserResolver(fn () => $parent->user());
 
         if ($parent->attributes->has('mobile_device_id')) {
@@ -1176,9 +1178,9 @@ class MobileApiController extends Controller
     protected function mapSettingsPayload(): array
     {
         return [
-            'center_latitude' => $this->settingValue('map_center_latitude', 11.016844),
-            'center_longitude' => $this->settingValue('map_center_longitude', 76.955832),
-            'zoom_level' => $this->settingValue('map_zoom_level', 12),
+            'center_latitude' => $this->settingValue('map_center_latitude', CompanyMapDefaults::CENTER_LATITUDE),
+            'center_longitude' => $this->settingValue('map_center_longitude', CompanyMapDefaults::CENTER_LONGITUDE),
+            'zoom_level' => $this->settingValue('map_zoom_level', CompanyMapDefaults::ZOOM_LEVEL),
             'map_provider' => $this->settingValue('map_provider', 'google'),
             'distance_unit' => $this->settingValue('distance_unit', 'km'),
             'default_route_mode' => $this->settingValue('default_route_mode', 'actual'),

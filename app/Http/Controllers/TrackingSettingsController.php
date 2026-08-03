@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
 use App\Services\GpsTrackingValidationService;
+use App\Support\CompanyMapDefaults;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -147,9 +148,9 @@ class TrackingSettingsController extends Controller
             'max_offline_sync_age_hours' => $this->definition('tracking', 72, 'integer', 'Maximum offline sync age in hours.'),
             'bulk_upload_limit' => $this->definition('tracking', 100, 'integer', 'Maximum mobile bulk upload points.'),
             'map_provider' => $this->definition('map', 'google', 'string', 'Map provider.'),
-            'map_center_latitude' => $this->definition('map', 11.016844, 'float', 'Default map center latitude.'),
-            'map_center_longitude' => $this->definition('map', 76.955832, 'float', 'Default map center longitude.'),
-            'map_zoom_level' => $this->definition('map', 12, 'integer', 'Default map zoom level.'),
+            'map_center_latitude' => $this->definition('map', CompanyMapDefaults::CENTER_LATITUDE, 'float', 'Default map center latitude.'),
+            'map_center_longitude' => $this->definition('map', CompanyMapDefaults::CENTER_LONGITUDE, 'float', 'Default map center longitude.'),
+            'map_zoom_level' => $this->definition('map', CompanyMapDefaults::ZOOM_LEVEL, 'integer', 'Default map zoom level.'),
             'distance_unit' => $this->definition('map', 'km', 'string', 'Distance display unit.'),
             'default_route_mode' => $this->definition('tracking', 'actual', 'string', 'Default route mode.'),
             'actual_gps_route_enabled' => $this->definition('tracking', true, 'boolean', 'Enable Actual GPS route mode.'),

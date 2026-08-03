@@ -7,9 +7,12 @@ use App\Models\Attendance;
 use App\Models\EmployeeDevice;
 use App\Models\LocationTracking;
 use App\Models\User;
+use App\Services\EmployeeTrackingAttendanceSelector;
 use App\Services\EmployeeTimelineBuilder;
+use App\Services\GoogleMapsApiKeyResolver;
 use App\Services\GpsTrackingValidationService;
 use App\Services\TimelineGpsProcessor;
+use App\Support\CompanyMapDefaults;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -36,6 +39,7 @@ class EmployeeTrackingController extends Controller
                 ->where('status', '!=', 'inactive')
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']),
+            'mapSettings' => $this->mapSettings(),
         ]);
     }
 
@@ -147,6 +151,8 @@ class EmployeeTrackingController extends Controller
                 'attendances' => [],
                 'attendanceSessions' => [],
                 'totalTrackedTime' => '00:00:00',
+                'trackedSpanTime' => '00:00:00',
+                'activeTrackedTime' => '00:00:00',
                 'totalAttendanceTime' => '00:00:00',
                 'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
                 'totalKM' => 0,
@@ -170,7 +176,8 @@ class EmployeeTrackingController extends Controller
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
         $timeLineItems = $this->withAttendanceBoundaryItems($timeline['items'], $attendances);
         $timeline['items'] = $timeLineItems;
-        $totalTrackedSeconds = $this->trackedSecondsByAttendance($trackings);
+        $trackedSpanSeconds = $this->trackedSpanSecondsByAttendance($trackings);
+        $activeTrackedSeconds = $this->activeTrackedSecondsByAttendance($trackings);
 
         $attendanceSeconds = $this->attendanceSeconds($attendances);
         $timelineEvents = $this->groupTimelineEvents($timeLineItems);
@@ -183,7 +190,9 @@ class EmployeeTrackingController extends Controller
             'attendanceIds' => $attendances->pluck('id')->values(),
             'attendances' => $attendances->map(fn (Attendance $attendance): array => $this->attendancePayload($attendance))->values(),
             'attendanceSessions' => $this->attendanceSessionPayloads($attendances, $timeline),
-            'totalTrackedTime' => $this->formatSecondsAsClock($totalTrackedSeconds),
+            'totalTrackedTime' => $this->formatSecondsAsClock($activeTrackedSeconds),
+            'trackedSpanTime' => $this->formatSecondsAsClock($trackedSpanSeconds),
+            'activeTrackedTime' => $this->formatSecondsAsClock($activeTrackedSeconds),
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'trackingHealth' => $trackingHealth,
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
@@ -283,10 +292,7 @@ class EmployeeTrackingController extends Controller
             'points.*.lng' => ['required', 'numeric', 'between:-180,180'],
         ]);
 
-        $googleMapsKey = (string) $this->settingValue(
-            'google_maps_api_key',
-            config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
-        );
+        $googleMapsKey = $this->googleMapsApiKey();
 
         if ($googleMapsKey === '') {
             return response()->json(['snapped' => false, 'points' => []]);
@@ -303,9 +309,9 @@ class EmployeeTrackingController extends Controller
     private function mapSettings(): array
     {
         return [
-            'center_latitude' => (float) $this->settingValue('map_center_latitude', 20.5937),
-            'center_longitude' => (float) $this->settingValue('map_center_longitude', 78.9629),
-            'zoom_level' => (int) $this->settingValue('map_zoom_level', 5),
+            'center_latitude' => (float) $this->settingValue('map_center_latitude', CompanyMapDefaults::CENTER_LATITUDE),
+            'center_longitude' => (float) $this->settingValue('map_center_longitude', CompanyMapDefaults::CENTER_LONGITUDE),
+            'zoom_level' => (int) $this->settingValue('map_zoom_level', CompanyMapDefaults::ZOOM_LEVEL),
             'map_provider' => $this->settingValue('map_provider', 'google'),
             'distance_unit' => $this->settingValue('distance_unit', 'km'),
             'default_route_mode' => $this->settingValue('default_route_mode', 'actual'),
@@ -315,11 +321,16 @@ class EmployeeTrackingController extends Controller
             'show_low_signal_points' => (bool) $this->settingValue('show_low_signal_points', true),
             'show_gaps' => (bool) $this->settingValue('show_gaps', true),
             'low_signal_threshold' => (int) $this->settingValue('low_signal_threshold', 2),
-            'google_maps_api_key' => (string) $this->settingValue(
-                'google_maps_api_key',
-                config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
-            ),
+            'google_maps_api_key' => $this->googleMapsApiKey(),
         ];
+    }
+
+    private function googleMapsApiKey(): string
+    {
+        return GoogleMapsApiKeyResolver::resolve(
+            (string) $this->settingValue('google_maps_api_key', ''),
+            (string) config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
+        );
     }
 
     private function trackingCardItems()
@@ -539,7 +550,7 @@ class EmployeeTrackingController extends Controller
         ];
     }
 
-    private function trackedSecondsByAttendance($trackings): int
+    private function trackedSpanSecondsByAttendance($trackings): int
     {
         return (int) $trackings
             ->groupBy('attendance_id')
@@ -556,6 +567,34 @@ class EmployeeTrackingController extends Controller
                         return $trackingTime && $nextTrackingTime
                             ? $trackingTime->diffInSeconds($nextTrackingTime)
                             : 0;
+                    })
+                    ->sum();
+            });
+    }
+
+    private function activeTrackedSecondsByAttendance($trackings): int
+    {
+        $gapThresholdSeconds = $this->largeGapSeconds();
+
+        return (int) $trackings
+            ->groupBy('attendance_id')
+            ->sum(function ($sessionTrackings) use ($gapThresholdSeconds): int {
+                $ordered = $sessionTrackings->values();
+
+                return (int) $ordered
+                    ->map(function (LocationTracking $tracking, int $index) use ($ordered, $gapThresholdSeconds): int {
+                        $nextTracking = $ordered->get($index + 1);
+
+                        $trackingTime = $this->trackingTime($tracking);
+                        $nextTrackingTime = $nextTracking ? $this->trackingTime($nextTracking) : null;
+
+                        if (! $trackingTime || ! $nextTrackingTime) {
+                            return 0;
+                        }
+
+                        $seconds = $trackingTime->diffInSeconds($nextTrackingTime);
+
+                        return $seconds >= $gapThresholdSeconds ? 0 : $seconds;
                     })
                     ->sum();
             });
@@ -692,6 +731,8 @@ class EmployeeTrackingController extends Controller
             'attendance_duration' => $this->formatSecondsAsClock($attendanceSeconds),
             'saved_tracking_span_seconds' => $trackingSpanSeconds,
             'saved_tracking_span' => $this->formatSecondsAsClock($trackingSpanSeconds),
+            'active_tracked_seconds' => $this->activeTrackedSecondsByAttendance($trackings),
+            'active_tracked_duration' => $this->formatSecondsAsClock($this->activeTrackedSecondsByAttendance($trackings)),
             'missing_tracking_seconds' => $missingSeconds,
             'missing_tracking_duration' => $this->formatSecondsAsClock($missingSeconds),
             'average_update_interval_seconds' => $averageIntervalSeconds,
@@ -1441,36 +1482,8 @@ class EmployeeTrackingController extends Controller
 
     private function timelineAttendances(User $employee, string $date, Carbon $timelineStart, Carbon $timelineEnd)
     {
-        $start = $timelineStart->toDateTimeString();
-        $end = $timelineEnd->toDateTimeString();
-
-        $datedAttendances = Attendance::query()
-            ->where('user_id', $employee->id)
-            ->whereDate('attendance_date', $date)
-            ->orderBy('check_in_at')
-            ->orderBy('id')
-            ->get();
-
-        if ($datedAttendances->isNotEmpty()) {
-            return $datedAttendances;
-        }
-
-        return Attendance::query()
-            ->where('user_id', $employee->id)
-            ->where(function ($query) use ($date, $start, $end): void {
-                $query->whereDate('attendance_date', $date)
-                    ->orWhereBetween('check_in_at', [$start, $end])
-                    ->orWhereBetween('check_out_at', [$start, $end])
-                    ->orWhereExists(function ($subQuery) use ($start, $end): void {
-                        $subQuery->selectRaw('1')
-                            ->from('location_trackings')
-                            ->whereColumn('location_trackings.attendance_id', 'attendances.id')
-                            ->whereRaw('COALESCE(location_trackings.recorded_at, location_trackings.created_at) BETWEEN ? AND ?', [$start, $end]);
-                    });
-            })
-            ->orderBy('check_in_at')
-            ->orderBy('id')
-            ->get();
+        return app(EmployeeTrackingAttendanceSelector::class)
+            ->forTimeline($employee, $date, $timelineStart, $timelineEnd);
     }
 
     private function timelineTrackings($attendances, Carbon $timelineStart, Carbon $timelineEnd)

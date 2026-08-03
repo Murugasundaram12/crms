@@ -47,8 +47,8 @@ return new class extends Migration
             ['group' => 'modules', 'key' => 'expenses_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable expenses module.'],
             ['group' => 'modules', 'key' => 'wallet_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable wallet module.'],
             ['group' => 'modules', 'key' => 'leave_requests_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable leave requests module.'],
-            ['group' => 'map', 'key' => 'map_center_latitude', 'value' => '11.016844', 'type' => 'float', 'description' => 'Dashboard map center latitude.'],
-            ['group' => 'map', 'key' => 'map_center_longitude', 'value' => '76.955832', 'type' => 'float', 'description' => 'Dashboard map center longitude.'],
+            ['group' => 'map', 'key' => 'map_center_latitude', 'value' => '9.9252', 'type' => 'float', 'description' => 'Dashboard map center latitude.'],
+            ['group' => 'map', 'key' => 'map_center_longitude', 'value' => '78.1198', 'type' => 'float', 'description' => 'Dashboard map center longitude.'],
             ['group' => 'map', 'key' => 'map_zoom_level', 'value' => '12', 'type' => 'integer', 'description' => 'Dashboard map zoom level.'],
             ['group' => 'map', 'key' => 'google_maps_api_key', 'value' => 'AIzaSyDNZMjI6BykptQrTCZJiPX2iEwBmd9UZUU', 'type' => 'string', 'description' => 'Google Maps JavaScript API key.'],
         ];
