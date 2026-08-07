@@ -1126,6 +1126,18 @@ class MobileApiController extends Controller
         ];
     }
 
+    protected function publicAppSettingsPayload(): array
+    {
+        return [
+            'app_version' => $this->settingValue('app_version', '1.0.0'),
+            'minimum_supported_version' => $this->settingValue('minimum_supported_version', '1.0.0'),
+            'force_update' => $this->settingValue('force_update', false),
+            'privacy_policy_url' => $this->settingValue('privacy_policy_url', ''),
+            'server_time' => now()->toISOString(),
+            'timezone' => config('app.timezone'),
+        ];
+    }
+
     protected function moduleSettingsPayload(): array
     {
         return [
@@ -1175,6 +1187,19 @@ class MobileApiController extends Controller
         ];
     }
 
+    protected function publicModuleSettingsPayload(): array
+    {
+        return [
+            'modules' => [
+                'tasks' => $this->settingValue('tasks_enabled', true),
+                'expenses' => $this->settingValue('expenses_enabled', true),
+                'inventory' => $this->settingValue('inventory_enabled', true),
+                'wallet' => $this->settingValue('wallet_enabled', true),
+                'leave_requests' => $this->settingValue('leave_requests_enabled', true),
+            ],
+        ];
+    }
+
     protected function mapSettingsPayload(): array
     {
         return [
@@ -1190,6 +1215,17 @@ class MobileApiController extends Controller
                 'google_maps_api_key',
                 config('services.google.maps_api_key', env('GOOGLE_MAPS_API_KEY', ''))
             ),
+        ];
+    }
+
+    protected function publicMapSettingsPayload(): array
+    {
+        return [
+            'center_latitude' => $this->settingValue('map_center_latitude', CompanyMapDefaults::CENTER_LATITUDE),
+            'center_longitude' => $this->settingValue('map_center_longitude', CompanyMapDefaults::CENTER_LONGITUDE),
+            'zoom_level' => $this->settingValue('map_zoom_level', CompanyMapDefaults::ZOOM_LEVEL),
+            'map_provider' => $this->settingValue('map_provider', 'google'),
+            'distance_unit' => $this->settingValue('distance_unit', 'km'),
         ];
     }
 
@@ -1291,6 +1327,33 @@ class MobileApiController extends Controller
             'actualGpsRouteEnabled' => $this->settingValue('actual_gps_route_enabled', true),
             'roadRouteEnabled' => $this->settingValue('road_route_enabled', true),
             'distanceUnit' => $this->settingValue('distance_unit', 'km'),
+        ];
+    }
+
+    protected function publicTrackingSettingsPayload(): array
+    {
+        $settings = $this->trackingSettingsPayload();
+
+        return [
+            'settingsVersion' => $settings['settingsVersion'],
+            'trackingEnabled' => $settings['trackingEnabled'],
+            'backgroundTrackingRequired' => $settings['backgroundTrackingRequired'],
+            'offlineTrackingEnabled' => $settings['offlineTrackingEnabled'],
+            'mapProvider' => $settings['mapProvider'],
+            'defaultRouteMode' => $settings['defaultRouteMode'],
+            'actualGpsRouteEnabled' => $settings['actualGpsRouteEnabled'],
+            'roadRouteEnabled' => $settings['roadRouteEnabled'],
+            'distanceUnit' => $settings['distanceUnit'],
+            'tracking_enabled' => $settings['trackingEnabled'],
+            'background_tracking_required' => $settings['backgroundTrackingRequired'],
+            'offline_tracking_enabled' => $settings['offlineTrackingEnabled'],
+            'map_provider' => $settings['mapProvider'],
+            'default_route_mode' => $settings['defaultRouteMode'],
+            'actual_gps_route_enabled' => $settings['actualGpsRouteEnabled'],
+            'road_route_enabled' => $settings['roadRouteEnabled'],
+            'distance_unit' => $settings['distanceUnit'],
+            'server_time' => now()->toISOString(),
+            'timezone' => config('app.timezone'),
         ];
     }
 

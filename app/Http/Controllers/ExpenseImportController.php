@@ -22,7 +22,9 @@ class ExpenseImportController extends Controller
         $path = $request->file('file')->store('imports');
 
         ImportExpensesFromExcel::dispatch($path, (int) Auth::id());
-        $this->startQueueWorkerOnce();
+        if (config('queue.auto_start_worker_from_request')) {
+            $this->startQueueWorkerOnce();
+        }
 
         return back()->with('success', 'Expense import uploaded successfully. Processing will continue in the background.');
     }
@@ -39,11 +41,12 @@ class ExpenseImportController extends Controller
 
         try {
             if (PHP_OS_FAMILY === 'Windows') {
-                pclose(popen('start /B "" ' . $command . ' > NUL 2>&1', 'r'));
+                pclose(popen('start /B "" '.$command.' > NUL 2>&1', 'r'));
+
                 return;
             }
 
-            exec($command . ' > /dev/null 2>&1 &');
+            exec($command.' > /dev/null 2>&1 &');
         } catch (\Throwable $exception) {
             Log::warning('Unable to auto-start expense import queue worker.', [
                 'message' => $exception->getMessage(),

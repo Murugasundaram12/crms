@@ -60,6 +60,8 @@ class AuthController extends Controller
 
     public function showRegister()
     {
+        abort_unless(config('auth.public_registration_enabled'), 404);
+
         // Show the registration page.
         return view('pages.auth.register');
     }
@@ -133,6 +135,8 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        abort_unless(config('auth.public_registration_enabled'), 404);
+
         // Validate the registration form.
         $validatedData = $request->validate([
             'name' => ['required', 'string', 'max:255'],

@@ -1081,6 +1081,11 @@ trait MobileAttendanceTrackingEndpoints
         ]);
     }
 
+    public function publicTrackingSettings()
+    {
+        return response()->json($this->publicTrackingSettingsPayload());
+    }
+
     public function adminLiveLocations(Request $request)
     {
         if (! $this->canViewEmployeeTracking($request->user())) {

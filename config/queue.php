@@ -15,6 +15,8 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
+    'auto_start_worker_from_request' => env('QUEUE_AUTO_START_WORKER_FROM_REQUEST', false),
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections

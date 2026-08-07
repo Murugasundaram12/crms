@@ -11,11 +11,14 @@ use App\Services\EmployeeTrackingAttendanceSelector;
 use App\Services\EmployeeTimelineBuilder;
 use App\Services\GoogleMapsApiKeyResolver;
 use App\Services\GpsTrackingValidationService;
+use App\Services\ReverseGeocodingService;
 use App\Services\TimelineGpsProcessor;
+use App\Services\TrackingActivityClassifier;
 use App\Support\CompanyMapDefaults;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
@@ -175,6 +178,7 @@ class EmployeeTrackingController extends Controller
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
         $timeLineItems = $this->withAttendanceBoundaryItems($timeline['items'], $attendances);
+        $timeLineItems = $this->enrichTimelineItemsWithActivity($timeLineItems, $trackings);
         $timeline['items'] = $timeLineItems;
         $trackedSpanSeconds = $this->trackedSpanSecondsByAttendance($trackings);
         $activeTrackedSeconds = $this->activeTrackedSecondsByAttendance($trackings);
@@ -182,6 +186,7 @@ class EmployeeTrackingController extends Controller
         $attendanceSeconds = $this->attendanceSeconds($attendances);
         $timelineEvents = $this->groupTimelineEvents($timeLineItems);
         $trackingHealth = $this->trackingHealthPayload($attendances, $trackings, $timeline);
+        $timelineSummary = $this->buildTimelineSummaryPayload($employee, $attendances, $trackings, $timeLineItems, $timeline);
 
         $response = [
             'employeeId' => $employee->id,
@@ -195,6 +200,7 @@ class EmployeeTrackingController extends Controller
             'activeTrackedTime' => $this->formatSecondsAsClock($activeTrackedSeconds),
             'totalAttendanceTime' => $this->formatSecondsAsClock($attendanceSeconds),
             'trackingHealth' => $trackingHealth,
+            'timelineSummary' => $timelineSummary,
             'deviceInfo' => $device ? trim(collect([$device->device_name, $device->device_id])->filter()->implode(' ')) : null,
             'deviceId' => $device?->device_id,
             'totalKM' => $timeline['totalKM'],
@@ -298,11 +304,39 @@ class EmployeeTrackingController extends Controller
             return response()->json(['snapped' => false, 'points' => []]);
         }
 
-        $snappedPoints = $this->snapPointsToRoads($validated['points'], $googleMapsKey);
+        $points = $validated['points'];
+        $cacheKey = 'gps_snap_road_v2_' . sha1(json_encode($points));
+
+        $snappedPoints = Cache::remember($cacheKey, now()->addDays(7), function () use ($points, $googleMapsKey) {
+            return $this->snapPointsToRoads($points, $googleMapsKey);
+        });
 
         return response()->json([
             'snapped' => count($snappedPoints) >= 2,
             'points' => $snappedPoints,
+        ]);
+    }
+
+    public function reverseGeocode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $lat = (float) $validated['latitude'];
+        $lng = (float) $validated['longitude'];
+
+        $address = app(ReverseGeocodingService::class)->reverseGeocode(
+            $lat,
+            $lng,
+            $this->googleMapsApiKey()
+        );
+
+        return response()->json([
+            'address' => $address,
+            'latitude' => $lat,
+            'longitude' => $lng,
         ]);
     }
 
@@ -1293,34 +1327,38 @@ class EmployeeTrackingController extends Controller
                 ->map(fn (array $point) => $point['lat'] . ',' . $point['lng'])
                 ->implode('|');
 
-            $response = Http::timeout(10)->get('https://roads.googleapis.com/v1/snapToRoads', [
-                'path' => $path,
-                'interpolate' => 'true',
-                'key' => $googleMapsKey,
-            ]);
+            try {
+                $response = Http::timeout(10)->get('https://roads.googleapis.com/v1/snapToRoads', [
+                    'path' => $path,
+                    'interpolate' => 'true',
+                    'key' => $googleMapsKey,
+                ]);
 
-            if (! $response->ok()) {
+                if (! $response->ok()) {
+                    return [];
+                }
+
+                foreach ($response->json('snappedPoints', []) as $snappedPoint) {
+                    $location = $snappedPoint['location'] ?? null;
+
+                    if (! isset($location['latitude'], $location['longitude'])) {
+                        continue;
+                    }
+
+                    $point = [
+                        'lat' => (float) $location['latitude'],
+                        'lng' => (float) $location['longitude'],
+                    ];
+                    $previous = $snappedPoints[count($snappedPoints) - 1] ?? null;
+
+                    if ($previous && $previous['lat'] === $point['lat'] && $previous['lng'] === $point['lng']) {
+                        continue;
+                    }
+
+                    $snappedPoints[] = $point;
+                }
+            } catch (\Throwable $e) {
                 return [];
-            }
-
-            foreach ($response->json('snappedPoints', []) as $snappedPoint) {
-                $location = $snappedPoint['location'] ?? null;
-
-                if (! isset($location['latitude'], $location['longitude'])) {
-                    continue;
-                }
-
-                $point = [
-                    'lat' => (float) $location['latitude'],
-                    'lng' => (float) $location['longitude'],
-                ];
-                $previous = $snappedPoints[count($snappedPoints) - 1] ?? null;
-
-                if ($previous && $previous['lat'] === $point['lat'] && $previous['lng'] === $point['lng']) {
-                    continue;
-                }
-
-                $snappedPoints[] = $point;
             }
         }
 
@@ -1613,5 +1651,159 @@ class EmployeeTrackingController extends Controller
     private function trackingTime(LocationTracking $tracking): ?Carbon
     {
         return $tracking->recorded_at ?? $tracking->created_at;
+    }
+
+    private function enrichTimelineItemsWithActivity($items, $rawTrackings)
+    {
+        $classifier = app(TrackingActivityClassifier::class);
+
+        return collect($items)
+            ->map(function (array $item) use ($classifier): array {
+                $type = $item['type'] ?? $item['trackingType'] ?? null;
+                $activity = $item['activity'] ?? null;
+                $accuracy = isset($item['accuracy']) && $item['accuracy'] !== null && $item['accuracy'] !== '' ? (float) $item['accuracy'] : null;
+                $distance = isset($item['distance']) ? (float) $item['distance'] : null;
+                $distanceMeters = $distance !== null ? $distance * 1000 : null;
+
+                $elapsedSeconds = 0;
+                if (! empty($item['elapseTime']) && $item['elapseTime'] !== '00:00:00') {
+                    $parts = array_map('intval', explode(':', (string) $item['elapseTime']));
+                    if (count($parts) === 3) {
+                        $elapsedSeconds = ($parts[0] * 3600) + ($parts[1] * 60) + $parts[2];
+                    }
+                }
+
+                $speedMps = ($distanceMeters !== null && $elapsedSeconds > 0) ? ($distanceMeters / $elapsedSeconds) : null;
+                $activityCode = $classifier->classify($type, $activity, $speedMps, $distanceMeters, $elapsedSeconds);
+                $badge = $classifier->badge($activityCode);
+
+                [$accuracyBadgeClass, $accuracyBadgeLabel, $accuracyColor] = $this->accuracyBadgeInfo($accuracy);
+
+                return [
+                    ...$item,
+                    'activity_code' => $badge['code'],
+                    'activity_label' => $badge['label'],
+                    'activity_emoji' => $badge['emoji'],
+                    'activity_badge_class' => $badge['badge_class'],
+                    'activity_badge_html' => $badge['html'],
+                    'accuracy_badge_class' => $accuracyBadgeClass,
+                    'accuracy_badge_label' => $accuracyBadgeLabel,
+                    'accuracy_color' => $accuracyColor,
+                    'speed_kmh' => $speedMps !== null ? round($speedMps * 3.6, 1) : 0.0,
+                ];
+            })
+            ->values();
+    }
+
+    private function accuracyBadgeInfo(?float $accuracy): array
+    {
+        if ($accuracy === null || $accuracy < 0) {
+            return ['bg-soft-secondary text-secondary', 'Unknown', 'gray'];
+        }
+
+        if ($accuracy <= 5.0) {
+            return ['bg-soft-success text-success', round($accuracy, 1) . 'm', 'green'];
+        }
+
+        if ($accuracy <= 15.0) {
+            return ['bg-soft-primary text-primary', round($accuracy, 1) . 'm', 'blue'];
+        }
+
+        if ($accuracy <= 30.0) {
+            return ['bg-soft-warning text-warning', round($accuracy, 1) . 'm', 'orange'];
+        }
+
+        return ['bg-soft-danger text-danger', round($accuracy, 1) . 'm', 'red'];
+    }
+
+    private function buildTimelineSummaryPayload(User $employee, $attendances, $rawTrackings, $timeLineItems, array $timeline): array
+    {
+        $firstAttendance = $attendances->first();
+        $lastAttendance = $attendances->last();
+
+        $checkInTime = $firstAttendance
+            ? ($this->attendanceCheckInDisplayAt($firstAttendance)?->format('h:i A') ?? '-')
+            : '-';
+
+        $checkOutTime = '-';
+        if ($lastAttendance) {
+            $checkOutTime = $lastAttendance->check_out_at === null
+                ? 'Active'
+                : ($lastAttendance->check_out_at->format('h:i A'));
+        }
+
+        $workingSeconds = $this->attendanceSeconds($attendances);
+        $workingTimeFormatted = $this->formatSecondsAsHoursMinutes($workingSeconds);
+
+        $travelSeconds = 0;
+        $stillSeconds = 0;
+
+        foreach ($timeLineItems as $item) {
+            $elapsedSeconds = 0;
+            if (! empty($item['elapseTime']) && $item['elapseTime'] !== '00:00:00') {
+                $parts = array_map('intval', explode(':', (string) $item['elapseTime']));
+                if (count($parts) === 3) {
+                    $elapsedSeconds = ($parts[0] * 3600) + ($parts[1] * 60) + $parts[2];
+                }
+            }
+
+            $code = $item['activity_code'] ?? null;
+            if (in_array($code, [TrackingActivityClassifier::ACTIVITY_WALKING, TrackingActivityClassifier::ACTIVITY_RUNNING, TrackingActivityClassifier::ACTIVITY_IN_VEHICLE], true)
+                || in_array($item['type'] ?? null, ['vehicle', 'walk'], true)) {
+                $travelSeconds += $elapsedSeconds;
+            } elseif ($code === TrackingActivityClassifier::ACTIVITY_STILL || ($item['type'] ?? null) === 'still') {
+                $stillSeconds += $elapsedSeconds;
+            }
+        }
+
+        $travelTimeFormatted = $this->formatSecondsAsHoursMinutes($travelSeconds);
+        $stillTimeFormatted = $this->formatSecondsAsHoursMinutes($stillSeconds);
+
+        $totalKm = (float) ($timeline['totalKM'] ?? $timeline['gpsDistanceKm'] ?? 0);
+        $totalDistanceFormatted = number_format($totalKm, 1) . ' km';
+
+        $pointsCount = $rawTrackings->count();
+
+        $accuracies = $rawTrackings
+            ->pluck('accuracy')
+            ->filter(fn ($value) => $value !== null && (float) $value >= 0)
+            ->map(fn ($value) => (float) $value);
+
+        $averageAccuracyFormatted = $accuracies->isNotEmpty()
+            ? round($accuracies->avg(), 1) . ' m'
+            : 'Unknown';
+
+        $maxSpeedMps = 0.0;
+        foreach ($rawTrackings as $tracking) {
+            if ($tracking->speed !== null) {
+                $maxSpeedMps = max($maxSpeedMps, (float) $tracking->speed);
+            }
+        }
+        $maxSpeedKmh = round($maxSpeedMps * 3.6);
+        $maximumSpeedFormatted = $maxSpeedKmh . ' km/h';
+
+        $roadSnapped = (bool) $this->settingValue('road_route_enabled', true) && filled($this->googleMapsApiKey()) ? 'YES' : 'NO';
+
+        return [
+            'check_in' => $checkInTime,
+            'check_out' => $checkOutTime,
+            'working_time' => $workingTimeFormatted,
+            'travel_time' => $travelTimeFormatted,
+            'still_time' => $stillTimeFormatted,
+            'total_distance' => $totalDistanceFormatted,
+            'tracking_points' => $pointsCount,
+            'average_accuracy' => $averageAccuracyFormatted,
+            'maximum_speed' => $maximumSpeedFormatted,
+            'road_snapped' => $roadSnapped,
+        ];
+    }
+
+    private function formatSecondsAsHoursMinutes(int|float $seconds): string
+    {
+        $seconds = max(0, (int) $seconds);
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        return sprintf('%02dh %02dm', $hours, $minutes);
     }
 }

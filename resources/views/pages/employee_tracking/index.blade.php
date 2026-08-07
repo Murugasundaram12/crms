@@ -293,6 +293,8 @@
             centerLongitude: Number(@json($mapSettings['center_longitude'])),
             zoom: Number(@json($mapSettings['zoom_level'])),
             timelineUrl: @json(route('dashboard.getTimeLineAjax')),
+            snapRouteUrl: @json(route('dashboard.snapTimeLineRoute')),
+            reverseGeocodeUrl: @json(route('dashboard.reverseGeocode')),
             csrfToken: @json(csrf_token()),
             iconBase: @json(asset('img/map') . '/'),
             selectedEmployee: @json(request('employee')),
@@ -465,9 +467,9 @@
             let directionsDistance = data.directionsDistanceKm ?? null;
             const addressLookups = [];
             let lastVisibleStop = null;
-            const movementPaths = buildMovementPathsFromSegments(data.polylineSegments);
-            const routeMarkers = buildRouteMarkersFromSegments(movementPaths);
             const attendanceMarkers = buildAttendanceMarkers(items);
+            const movementPaths = buildMovementPathsFromSegments(data.polylineSegments);
+            const routeMarkers = buildRouteMarkersFromSegments(movementPaths, attendanceMarkers);
 
             if (items.length > 0) {
                 items.forEach(function (item, index) {
@@ -503,8 +505,8 @@
                                     <span><i class="ti ti-clock me-1"></i>${escapeHtml(item.startTime || '-')} - ${escapeHtml(item.endTime || '-')}</span>
                                     ${batteryHtml(item.batteryPercentage)}
                                 </div>
-                                <div class="d-flex justify-content-between gap-2">
-                                    <h6 class="text-primary mb-1">${escapeHtml(item.type || 'Tracking')}</h6>
+                                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                    <h6 class="text-primary mb-0">${itemActivityBadgeHtml(item)} ${escapeHtml(item.type || 'Tracking')}</h6>
                                     <span class="small">${accuracyHtml(item.accuracy)}</span>
                                 </div>
                                 ${trackingBadges(item)}
@@ -672,7 +674,20 @@
                     return;
                 }
 
-                drawRoutePolyline(routePath);
+                let snappedPath = null;
+                if (timelineConfig.roadRouteEnabled && timelineConfig.hasGoogleMapsKey && routePath.length >= 2 && timelineConfig.snapRouteUrl) {
+                    try {
+                        snappedPath = await fetchSnappedRoadPoints(routePath);
+                    } catch (e) {
+                        snappedPath = null;
+                    }
+                }
+
+                if (snappedPath && Array.isArray(snappedPath) && snappedPath.length >= 2) {
+                    drawRoutePolyline(snappedPath);
+                } else {
+                    drawRoutePolyline(routePath);
+                }
                 await wait(20);
             }
 
@@ -766,9 +781,11 @@
                 .filter((segment) => segment.length >= 2);
         }
 
-        function buildRouteMarkersFromSegments(movementPaths) {
+        function buildRouteMarkersFromSegments(movementPaths, attendanceMarkers = []) {
             const allRoutePoints = Array.isArray(movementPaths) ? movementPaths.flat() : [];
             const candidates = [];
+            const checkInMarker = attendanceMarkers.find((marker) => marker.type === 'checkIn') || null;
+            const checkOutMarker = attendanceMarkers.find((marker) => marker.type === 'checkOut') || null;
 
             movementPaths.forEach((path, segmentIndex) => {
                 if (!path.length) {
@@ -793,6 +810,16 @@
 
             if (markerPoints.length < 2 && allRoutePoints.length > 1) {
                 markerPoints = [allRoutePoints[0], allRoutePoints[allRoutePoints.length - 1]];
+            }
+
+            if (markerPoints.length) {
+                if (checkInMarker) {
+                    markerPoints[0] = checkInMarker;
+                }
+
+                if (checkOutMarker && markerPoints.length > 1) {
+                    markerPoints[markerPoints.length - 1] = checkOutMarker;
+                }
             }
 
             return markerPoints.map((point, index) => ({
@@ -886,8 +913,59 @@
             return computeDistanceMeters(previousPoint, currentPoint) <= 200;
         }
 
+        async function fetchSnappedRoadPoints(points) {
+            if (!Array.isArray(points) || points.length < 2 || !timelineConfig.snapRouteUrl) {
+                return null;
+            }
+
+            const cleanPoints = points
+                .map((p) => itemLatLng(p))
+                .filter(Boolean);
+
+            if (cleanPoints.length < 2) {
+                return null;
+            }
+
+            const body = new URLSearchParams();
+            cleanPoints.forEach((pt, index) => {
+                body.set(`points[${index}][lat]`, pt.lat);
+                body.set(`points[${index}][lng]`, pt.lng);
+            });
+            body.set('_token', timelineConfig.csrfToken);
+
+            try {
+                const response = await fetch(timelineConfig.snapRouteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
+                    },
+                    body,
+                });
+
+                if (!response.ok) {
+                    return null;
+                }
+
+                const data = await response.json();
+                if (data.snapped && Array.isArray(data.points) && data.points.length >= 2) {
+                    return data.points;
+                }
+            } catch (e) {
+                return null;
+            }
+
+            return null;
+        }
+
         function drawRoutePolyline(latLngs) {
+            console.log('drawRoutePolyline started');
+            console.log('Total GPS points:', (latLngs || []).length);
+
             const cleanPath = filterPolylineCoordinates(latLngs, 3);
+            console.log('Clean GPS points:', cleanPath.length);
+
             if (cleanPath.length < 2) {
                 return;
             }
@@ -896,17 +974,95 @@
                 return;
             }
 
+            const isDirectionsAvailable = !!(window.google && google.maps && google.maps.DirectionsService);
+            console.log('DirectionsService available:', isDirectionsAvailable);
+
             if (timelineMapProvider === 'google') {
                 const gPath = cleanPath.map((p) => new google.maps.LatLng(p.lat, p.lng));
-                const polyline = new google.maps.Polyline({
-                    path: gPath,
-                    geodesic: false,
-                    strokeColor: '#0d47ff',
-                    strokeOpacity: .95,
-                    strokeWeight: 4,
-                    map: timelineMap,
-                });
-                timelinePolylines.push(polyline);
+
+                if (isDirectionsAvailable) {
+                    try {
+                        const directionsService = new google.maps.DirectionsService();
+                        const polyline = new google.maps.Polyline({
+                            path: [],
+                            geodesic: false,
+                            strokeColor: '#0d47ff',
+                            strokeOpacity: .95,
+                            strokeWeight: 4,
+                            map: timelineMap,
+                        });
+                        timelinePolylines.push(polyline);
+
+                        const chunkSize = 24;
+                        let chunkIndex = 0;
+                        for (let startIdx = 0; startIdx < gPath.length - 1; startIdx += chunkSize) {
+                            const currentChunkIndex = chunkIndex++;
+                            const endIdx = Math.min(startIdx + chunkSize, gPath.length - 1);
+                            const chunk = gPath.slice(startIdx, endIdx + 1);
+                            if (chunk.length < 2) {
+                                continue;
+                            }
+
+                            const origin = chunk[0];
+                            const destination = chunk[chunk.length - 1];
+                            const waypoints = chunk.slice(1, chunk.length - 1).map((loc) => ({ location: loc, stopover: false }));
+
+                            console.log('Requesting directionsService.route for chunk:', currentChunkIndex, 'Origin:', origin, 'Destination:', destination, 'Waypoint count:', waypoints.length);
+
+                            directionsService.route({
+                                origin: origin,
+                                destination: destination,
+                                waypoints: waypoints,
+                                optimizeWaypoints: false,
+                                travelMode: google.maps.TravelMode.DRIVING
+                            }, function (response, status) {
+                                console.log('Directions Status for chunk', currentChunkIndex, ':', status);
+                                console.log('Directions Response for chunk', currentChunkIndex, ':', response);
+
+                                if (status === google.maps.DirectionsStatus.OK && response && response.routes && response.routes[0]) {
+                                    console.log('OK branch executing for chunk:', currentChunkIndex);
+                                    const legs = response.routes[0].legs || [];
+                                    for (let i = 0; i < legs.length; i++) {
+                                        const steps = legs[i].steps || [];
+                                        for (let j = 0; j < steps.length; j++) {
+                                            const nextSegment = steps[j].path || [];
+                                            for (let k = 0; k < nextSegment.length; k++) {
+                                                polyline.getPath().push(nextSegment[k]);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    console.warn('Fallback branch executing for chunk:', currentChunkIndex, 'Status:', status);
+                                    for (let c = 0; c < chunk.length; c++) {
+                                        polyline.getPath().push(chunk[c]);
+                                    }
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('Exception in DirectionsService, using fallback polyline:', e);
+                        const fallbackPolyline = new google.maps.Polyline({
+                            path: gPath,
+                            geodesic: false,
+                            strokeColor: '#0d47ff',
+                            strokeOpacity: .95,
+                            strokeWeight: 4,
+                            map: timelineMap,
+                        });
+                        timelinePolylines.push(fallbackPolyline);
+                    }
+                } else {
+                    console.warn('DirectionsService not available, using raw polyline');
+                    const polyline = new google.maps.Polyline({
+                        path: gPath,
+                        geodesic: false,
+                        strokeColor: '#0d47ff',
+                        strokeOpacity: .95,
+                        strokeWeight: 4,
+                        map: timelineMap,
+                    });
+                    timelinePolylines.push(polyline);
+                }
             } else if (timelineMapProvider === 'leaflet') {
                 const coords = cleanPath.map((p) => [p.lat, p.lng]);
                 const polyline = L.polyline(coords, {
@@ -943,6 +1099,7 @@
                 marker.addListener('click', function () {
                     focusTimelinePoint(lat, lng);
                 });
+                bindMarkerPopup(marker, point);
                 timelineMarkers.push(marker);
                 return;
             }
@@ -958,6 +1115,7 @@
                 marker.on('click', function () {
                     focusTimelinePoint(lat, lng);
                 });
+                bindMarkerPopup(marker, point);
                 timelineMarkers.push(marker);
             }
         }
@@ -988,6 +1146,7 @@
                 marker.addListener('click', function () {
                     focusTimelinePoint(lat, lng);
                 });
+                bindMarkerPopup(marker, point);
                 timelineMarkers.push(marker);
                 return;
             }
@@ -1003,6 +1162,7 @@
                 marker.on('click', function () {
                     focusTimelinePoint(lat, lng);
                 });
+                bindMarkerPopup(marker, point);
                 timelineMarkers.push(marker);
             }
         }
@@ -1153,49 +1313,63 @@
                 return;
             }
 
-            if (timelineMapProvider === 'google' && window.google?.maps?.Geocoder) {
-                const geocoder = new google.maps.Geocoder();
-                addressLookups.forEach(function (lookup, index) {
-                    setTimeout(function () {
-                        geocoder.geocode({
-                            location: {lat: lookup.latitude, lng: lookup.longitude},
-                        }, function (results, status) {
-                            const node = document.getElementById(lookup.id);
-                            if (!node) return;
+            addressLookups.forEach(function (lookup, index) {
+                setTimeout(async function () {
+                    const node = document.getElementById(lookup.id);
+                    if (!node) return;
 
-                            if (status === 'OK' && results && results[0]) {
-                                node.innerHTML = `${escapeHtml(results[0].formatted_address)}<br><a href="javascript:void(0)" onclick="focusTimelinePoint(${lookup.latitude}, ${lookup.longitude})">View in map</a>`;
+                    try {
+                        const body = new URLSearchParams();
+                        body.set('latitude', lookup.latitude);
+                        body.set('longitude', lookup.longitude);
+                        body.set('_token', timelineConfig.csrfToken);
+
+                        const res = await fetch(timelineConfig.reverseGeocodeUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                'X-CSRF-TOKEN': timelineConfig.csrfToken,
+                            },
+                            body,
+                        });
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.address) {
+                                node.innerHTML = `${escapeHtml(data.address)}<br><a href="javascript:void(0)" onclick="focusTimelinePoint(${lookup.latitude}, ${lookup.longitude})">View in map</a>`;
                                 return;
                             }
+                        }
+                    } catch (e) {}
 
-                            node.textContent = 'Address not found';
-                        });
-                    }, index * 250);
-                });
-            } else {
-                addressLookups.forEach(function (lookup, index) {
-                    setTimeout(async function () {
-                        const node = document.getElementById(lookup.id);
-                        if (!node) return;
-                        try {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lookup.latitude}&lon=${lookup.longitude}`);
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (data.display_name) {
-                                    node.innerHTML = `${escapeHtml(data.display_name)}<br><a href="javascript:void(0)" onclick="focusTimelinePoint(${lookup.latitude}, ${lookup.longitude})">View in map</a>`;
-                                    return;
-                                }
-                            }
-                        } catch (e) {}
-                        node.textContent = 'Address not found';
-                    }, index * 400);
-                });
-            }
+                    node.textContent = 'Address not found';
+                }, index * 200);
+            });
         }
 
         function overlayShell(contents, data = {}, gpsDistance = '-', directionsDistance = null) {
+            const summaryHtml = `
+                <div class="card radius-10 bg-primary mt-2 mb-3 shadow-lg">
+                    <div class="card-header bg-primary text-white font-weight-bold fw-bold">${escapeHtml(data.employeeName || 'Employee Timeline')}</div>
+                    <div class="card-body text-white p-3">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-6 fw-bold">Total tracked time</dt>
+                            <dd class="col-sm-6 mb-2">${escapeHtml(data.totalTrackedTime || '00:00:00')}</dd>
+                            <dt class="col-sm-6 fw-bold">Total attendance time</dt>
+                            <dd class="col-sm-6 mb-2">${escapeHtml(data.totalAttendanceTime || '00:00:00')}</dd>
+                            <dt class="col-sm-6 fw-bold">Total travelled distance</dt>
+                            <dd class="col-sm-6 mb-2" id="distance">${escapeHtml(gpsDistance !== '-' ? gpsDistance : (data.totalKM !== undefined && data.totalKM !== null ? data.totalKM + ' KM' : '- KM'))}</dd>
+                            <dt class="col-sm-6 fw-bold">Device information</dt>
+                            <dd class="col-sm-6 mb-0">${escapeHtml(data.deviceInfo || '-')}</dd>
+                        </dl>
+                    </div>
+                </div>
+            `;
+
             return `
                 <div class="timeline-overlay-shell">
+                    ${summaryHtml}
                     <div class="timeline-summary-card mb-2">
                         <div class="card-body">
                             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
@@ -1375,12 +1549,97 @@
             return `<span class="text-${color}"><i class="ti ti-battery me-1"></i>${escapeHtml(value)}%</span>`;
         }
 
-        function accuracyHtml(value) {
-            if (value === null || value === undefined || value === '') {
-                return 'Accuracy -';
+        let activeInfoWindow = null;
+
+        function itemActivityBadgeHtml(item) {
+            if (item && item.activity_badge_html) {
+                return item.activity_badge_html;
             }
 
-            return `Accuracy ${escapeHtml(value)}m`;
+            const code = String(item?.activity_code || item?.activity || item?.type || '').toUpperCase();
+            if (code.includes('CHECK_IN') || code === 'CHECKIN') return '<span class="badge bg-soft-primary text-primary me-1">🏁 Check In</span>';
+            if (code.includes('CHECK_OUT') || code === 'CHECKOUT') return '<span class="badge bg-soft-danger text-danger me-1">🏁 Check Out</span>';
+            if (code.includes('STILL') || code === 'STATIONARY') return '<span class="badge bg-soft-secondary text-secondary me-1">⏸ Still</span>';
+            if (code.includes('WALK')) return '<span class="badge bg-soft-success text-success me-1">🟢 Walking</span>';
+            if (code.includes('RUN')) return '<span class="badge bg-soft-info text-info me-1">🏃 Running</span>';
+            if (code.includes('VEHICLE') || code.includes('TRAVELLING')) return '<span class="badge bg-soft-purple text-purple me-1">🚗 Vehicle</span>';
+
+            return '<span class="badge bg-soft-light text-dark me-1">❓ Unknown</span>';
+        }
+
+        function markerPopupHtml(point) {
+            const time = escapeHtml(point.recorded_at || point.recordedAt || point.startTime || '-');
+            const address = escapeHtml(point.address || 'Address loading or unavailable');
+            const accuracy = accuracyHtml(point.accuracy);
+            const activity = itemActivityBadgeHtml(point);
+            const speed = point.speed_kmh !== undefined ? `${point.speed_kmh} km/h` : (point.speed !== undefined && point.speed !== null ? `${Math.round(point.speed * 3.6)} km/h` : '0 km/h');
+            const battery = (point.batteryPercentage !== undefined && point.batteryPercentage !== null) ? `${point.batteryPercentage}%` : (point.battery_percentage !== undefined ? `${point.battery_percentage}%` : '-');
+            const roadSnapped = point.road_snapped !== undefined ? (point.road_snapped ? 'Yes' : 'No') : (timelineConfig.roadRouteEnabled && timelineConfig.hasGoogleMapsKey ? 'Yes' : 'No');
+            const offline = (point.isOffline || point.is_offline) ? 'Yes' : 'No';
+            const mockGps = (point.isMockLocation || point.is_mock_location) ? 'Yes' : 'No';
+
+            return `
+                <div class="timeline-marker-popup" style="max-width: 250px; font-size: 11px; line-height: 1.4;">
+                    <div class="fw-bold border-bottom pb-1 mb-1 d-flex justify-content-between align-items-center">
+                        <span><i class="ti ti-clock me-1"></i>${time}</span>
+                        <span>${activity}</span>
+                    </div>
+                    <div class="mb-1 text-muted small">${address}</div>
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                        <span class="badge bg-light text-dark border">Acc: ${accuracy}</span>
+                        <span class="badge bg-light text-dark border">Spd: ${escapeHtml(speed)}</span>
+                        <span class="badge bg-light text-dark border">Bat: ${escapeHtml(battery)}</span>
+                        <span class="badge bg-light text-dark border">Road: ${escapeHtml(roadSnapped)}</span>
+                        <span class="badge bg-light text-dark border">Offline: ${escapeHtml(offline)}</span>
+                        <span class="badge bg-light text-dark border">Mock: ${escapeHtml(mockGps)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function bindMarkerPopup(marker, point) {
+            const popupContent = markerPopupHtml(point);
+            if (timelineMapProvider === 'google') {
+                const infoWindow = new google.maps.InfoWindow({ content: popupContent });
+                marker.addListener('click', function () {
+                    if (activeInfoWindow) {
+                        activeInfoWindow.close();
+                    }
+                    infoWindow.open(timelineMap, marker);
+                    activeInfoWindow = infoWindow;
+                    focusTimelinePoint(point.lat || point.latitude, point.lng || point.longitude);
+                });
+            } else if (timelineMapProvider === 'leaflet') {
+                marker.bindPopup(popupContent);
+                marker.on('click', function () {
+                    focusTimelinePoint(point.lat || point.latitude, point.lng || point.longitude);
+                });
+            }
+        }
+
+        function accuracyHtml(value) {
+            if (value === null || value === undefined || value === '') {
+                return '<span class="badge bg-soft-secondary text-secondary">Accuracy Unknown</span>';
+            }
+
+            const num = Number(value);
+            if (!Number.isFinite(num) || num < 0) {
+                return '<span class="badge bg-soft-secondary text-secondary">Accuracy Unknown</span>';
+            }
+
+            if (num <= 5) {
+                return `<span class="badge bg-soft-success text-success">Accuracy ${num.toFixed(0)}m</span>`;
+            }
+
+            if (num <= 15) {
+                return `<span class="badge bg-soft-primary text-primary">Accuracy ${num.toFixed(0)}m</span>`;
+            }
+
+            if (num <= 30) {
+                return `<span class="badge bg-soft-warning text-warning">Accuracy ${num.toFixed(0)}m</span>`;
+            }
+
+            return `<span class="badge bg-soft-danger text-danger">Accuracy ${num.toFixed(0)}m</span>`;
         }
 
         function escapeHtml(value) {

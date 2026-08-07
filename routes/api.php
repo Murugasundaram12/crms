@@ -12,14 +12,14 @@ use App\Http\Controllers\Api\MobileSettingsDashboardController;
 use App\Http\Controllers\Api\MobileTaskWalletController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/login', [MobileAuthController::class, 'login']);
-Route::post('/auth/login', [MobileAuthController::class, 'login']);
+Route::post('/login', [MobileAuthController::class, 'login'])->middleware('throttle:mobile-auth');
+Route::post('/auth/login', [MobileAuthController::class, 'login'])->middleware('throttle:mobile-auth');
 
 // Public settings aliases kept for existing app builds.
-Route::get('/V1/getAppSettings', [MobileSettingsDashboardController::class, 'getAppSettings']);
-Route::get('/V1/getModuleSettings', [MobileSettingsDashboardController::class, 'getModuleSettings']);
-Route::get('/V1/getMapSettings', [MobileSettingsDashboardController::class, 'getMapSettings']);
-Route::get('/tracking/settings', [MobileAttendanceTrackingController::class, 'trackingSettings']);
+Route::get('/V1/getAppSettings', [MobileSettingsDashboardController::class, 'getPublicAppSettings']);
+Route::get('/V1/getModuleSettings', [MobileSettingsDashboardController::class, 'getPublicModuleSettings']);
+Route::get('/V1/getMapSettings', [MobileSettingsDashboardController::class, 'getPublicMapSettings']);
+Route::get('/tracking/settings', [MobileAttendanceTrackingController::class, 'publicTrackingSettings']);
 
 Route::middleware('mobile.api')->group(function () {
     Route::post('/logout', [MobileAuthController::class, 'logout']);
@@ -37,12 +37,12 @@ Route::middleware('mobile.api')->group(function () {
     Route::get('/attendance', [MobileAttendanceTrackingController::class, 'attendances']);
     Route::get('/attendance/my', [MobileAttendanceTrackingController::class, 'myAttendances']);
     Route::get('/me/attendance', [MobileAttendanceTrackingController::class, 'myAttendances']);
-    Route::post('/check_in', [MobileAttendanceTrackingController::class, 'checkIn']);
-    Route::post('/check_out', [MobileAttendanceTrackingController::class, 'checkOut']);
-    Route::post('/tracking/location', [MobileAttendanceTrackingController::class, 'updateLocation']);
-    Route::post('/tracking/locations/bulk', [MobileAttendanceTrackingController::class, 'syncOfflineLocations']);
-    Route::post('/V1/attendance/statusUpdate', [MobileAttendanceTrackingController::class, 'legacyStatusUpdate']);
-    Route::post('/V1/attendance/statusUpdate/bulk', [MobileAttendanceTrackingController::class, 'syncOfflineLocations']);
+    Route::post('/check_in', [MobileAttendanceTrackingController::class, 'checkIn'])->middleware('throttle:tracking-ingest');
+    Route::post('/check_out', [MobileAttendanceTrackingController::class, 'checkOut'])->middleware('throttle:tracking-ingest');
+    Route::post('/tracking/location', [MobileAttendanceTrackingController::class, 'updateLocation'])->middleware('throttle:tracking-ingest');
+    Route::post('/tracking/locations/bulk', [MobileAttendanceTrackingController::class, 'syncOfflineLocations'])->middleware('throttle:tracking-ingest');
+    Route::post('/V1/attendance/statusUpdate', [MobileAttendanceTrackingController::class, 'legacyStatusUpdate'])->middleware('throttle:tracking-ingest');
+    Route::post('/V1/attendance/statusUpdate/bulk', [MobileAttendanceTrackingController::class, 'syncOfflineLocations'])->middleware('throttle:tracking-ingest');
     Route::post('/devices/live-status', [MobileAttendanceTrackingController::class, 'liveStatus']);
     Route::post('/updateDeviceStatus', [MobileAttendanceTrackingController::class, 'updateDeviceStatus']);
     Route::post('/devices/status', [MobileAttendanceTrackingController::class, 'updateDeviceStatus']);

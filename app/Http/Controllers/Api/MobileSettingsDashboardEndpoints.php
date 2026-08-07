@@ -47,6 +47,14 @@ trait MobileSettingsDashboardEndpoints
         ]);
     }
 
+    public function getPublicAppSettings()
+    {
+        return response()->json([
+            'message' => 'App settings fetched successfully.',
+            'data' => $this->publicAppSettingsPayload(),
+        ]);
+    }
+
     public function getModuleSettings()
     {
         return response()->json([
@@ -55,11 +63,27 @@ trait MobileSettingsDashboardEndpoints
         ]);
     }
 
+    public function getPublicModuleSettings()
+    {
+        return response()->json([
+            'message' => 'Module settings fetched successfully.',
+            'data' => $this->publicModuleSettingsPayload(),
+        ]);
+    }
+
     public function getMapSettings()
     {
         return response()->json([
             'message' => 'Map settings fetched successfully.',
             'data' => $this->mapSettingsPayload(),
+        ]);
+    }
+
+    public function getPublicMapSettings()
+    {
+        return response()->json([
+            'message' => 'Map settings fetched successfully.',
+            'data' => $this->publicMapSettingsPayload(),
         ]);
     }
 
@@ -109,4 +133,3 @@ trait MobileSettingsDashboardEndpoints
         ]);
     }
 }
-

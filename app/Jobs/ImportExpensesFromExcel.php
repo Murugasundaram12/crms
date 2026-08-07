@@ -15,6 +15,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
@@ -28,21 +29,27 @@ class ImportExpensesFromExcel implements ShouldQueue
     use SerializesModels;
 
     public int $timeout = 0;
+
     public int $tries = 1;
 
     private array $mainCategoryCache = [];
+
     private array $categoryCache = [];
+
     private array $projectCache = [];
+
     private array $labourCache = [];
+
     private array $vendorCache = [];
+
     private array $headers = [];
+
     private string $detectedType = 'general';
 
     public function __construct(
         private readonly string $path,
         private readonly int $userId
-    ) {
-    }
+    ) {}
 
     public function handle(): void
     {
@@ -55,18 +62,23 @@ class ImportExpensesFromExcel implements ShouldQueue
         $chunkSize = 1000;
 
         try {
-            $this->loadHeaders($reader, $fullPath);
+            DB::transaction(function () use ($reader, $fullPath, $totalRows, $chunkSize): void {
+                $this->loadHeaders($reader, $fullPath);
 
-            for ($startRow = 2; $startRow <= $totalRows; $startRow += $chunkSize) {
-                $reader->setReadFilter(new ExpenseImportChunkReadFilter($startRow, $startRow + $chunkSize - 1));
-                $spreadsheet = $reader->load($fullPath);
-                $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+                for ($startRow = 2; $startRow <= $totalRows; $startRow += $chunkSize) {
+                    $reader->setReadFilter(new ExpenseImportChunkReadFilter($startRow, $startRow + $chunkSize - 1));
+                    $spreadsheet = $reader->load($fullPath);
 
-                $this->insertRows($rows);
+                    try {
+                        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
 
-                $spreadsheet->disconnectWorksheets();
-                unset($spreadsheet, $rows);
-            }
+                        $this->insertRows($rows);
+                    } finally {
+                        $spreadsheet->disconnectWorksheets();
+                        unset($spreadsheet, $rows);
+                    }
+                }
+            });
         } finally {
             Storage::delete($this->path);
         }
@@ -119,7 +131,7 @@ class ImportExpensesFromExcel implements ShouldQueue
 
     private function isEmptyRow(array $row): bool
     {
-        return collect($row)->filter(fn($value) => trim((string) $value) !== '')->isEmpty();
+        return collect($row)->filter(fn ($value) => trim((string) $value) !== '')->isEmpty();
     }
 
     private function loadHeaders($reader, string $fullPath): void
@@ -138,6 +150,7 @@ class ImportExpensesFromExcel implements ShouldQueue
 
         if (array_key_exists('vendorname', $this->headers) || array_key_exists('vendor', $this->headers)) {
             $this->detectedType = 'vendor';
+
             return;
         }
 
@@ -292,6 +305,7 @@ class ImportExpensesFromExcel implements ShouldQueue
     private function description(array $row): ?string
     {
         $fallback = $this->detectedType === 'general' ? 9 : 10;
+
         return $this->value($row, ['description'], $fallback);
     }
 
@@ -399,8 +413,7 @@ class ExpenseImportChunkReadFilter implements IReadFilter
     public function __construct(
         private readonly int $startRow,
         private readonly int $endRow
-    ) {
-    }
+    ) {}
 
     public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
     {

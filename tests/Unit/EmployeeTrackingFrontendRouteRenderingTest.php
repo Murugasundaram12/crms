@@ -38,7 +38,9 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
 
     public function test_route_markers_are_numbered_and_sampled_from_route_segments(): void
     {
-        $this->assertStringContainsString('const routeMarkers = buildRouteMarkersFromSegments(movementPaths);', $this->source);
+        $this->assertStringContainsString('const routeMarkers = buildRouteMarkersFromSegments(movementPaths, attendanceMarkers);', $this->source);
+        $this->assertStringContainsString("const checkInMarker = attendanceMarkers.find((marker) => marker.type === 'checkIn') || null;", $this->source);
+        $this->assertStringContainsString("const checkOutMarker = attendanceMarkers.find((marker) => marker.type === 'checkOut') || null;", $this->source);
         $this->assertStringContainsString('function drawNumberedRouteMarker(point)', $this->source);
         $this->assertStringContainsString("point.isEnd ? '#ef4444' : '#16a34a'", $this->source);
         $this->assertStringContainsString('numberedPinSvg(label, color)', $this->source);

@@ -64,10 +64,12 @@
                                 <div class="mb-3">
                                     <button type="submit" class="btn btn-primary w-100">Sign In</button>
                                 </div>
-                                <div class="mb-3">
-                                    <p class="mb-0">New on our platform?<a href="{{ route('register') }}"
-                                            class="link-indigo fw-bold link-hover"> Create an account</a></p>
-                                </div>
+                                @if (config('auth.public_registration_enabled'))
+                                    <div class="mb-3">
+                                        <p class="mb-0">New on our platform?<a href="{{ route('register') }}"
+                                                class="link-indigo fw-bold link-hover"> Create an account</a></p>
+                                    </div>
+                                @endif
                             </div>
                             <div class="text-center pb-4">
                                 <p class="text-dark mb-0">Copyright &copy; {{ date('Y') }} - CRMS</p>
