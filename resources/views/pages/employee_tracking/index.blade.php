@@ -674,6 +674,7 @@
                     return;
                 }
 
+<<<<<<< Updated upstream
                 let snappedPath = null;
                 if (timelineConfig.roadRouteEnabled && timelineConfig.hasGoogleMapsKey && routePath.length >= 2 && timelineConfig.snapRouteUrl) {
                     try {
@@ -688,6 +689,9 @@
                 } else {
                     drawRoutePolyline(routePath);
                 }
+=======
+                drawRoutePolyline(routePath, renderToken);
+>>>>>>> Stashed changes
                 await wait(20);
             }
 
@@ -913,6 +917,7 @@
             return computeDistanceMeters(previousPoint, currentPoint) <= 200;
         }
 
+<<<<<<< Updated upstream
         async function fetchSnappedRoadPoints(points) {
             if (!Array.isArray(points) || points.length < 2 || !timelineConfig.snapRouteUrl) {
                 return null;
@@ -963,6 +968,9 @@
             console.log('drawRoutePolyline started');
             console.log('Total GPS points:', (latLngs || []).length);
 
+=======
+        function drawRoutePolyline(latLngs, renderToken) {
+>>>>>>> Stashed changes
             const cleanPath = filterPolylineCoordinates(latLngs, 3);
             console.log('Clean GPS points:', cleanPath.length);
 
@@ -978,6 +986,7 @@
             console.log('DirectionsService available:', isDirectionsAvailable);
 
             if (timelineMapProvider === 'google') {
+<<<<<<< Updated upstream
                 const gPath = cleanPath.map((p) => new google.maps.LatLng(p.lat, p.lng));
 
                 if (isDirectionsAvailable) {
@@ -1063,6 +1072,9 @@
                     });
                     timelinePolylines.push(polyline);
                 }
+=======
+                drawRoadFollowingPolyline(cleanPath, renderToken);
+>>>>>>> Stashed changes
             } else if (timelineMapProvider === 'leaflet') {
                 const coords = cleanPath.map((p) => [p.lat, p.lng]);
                 const polyline = L.polyline(coords, {
@@ -1072,6 +1084,114 @@
                 }).addTo(timelineMap);
                 timelinePolylines.push(polyline);
             }
+        }
+
+        function downsamplePolylineCoordinates(latLngs, minDistanceMeters) {
+            if (!Array.isArray(latLngs) || latLngs.length === 0) {
+                return [];
+            }
+
+            const sampled = [latLngs[0]];
+            for (let i = 1; i < latLngs.length; i++) {
+                const prev = sampled[sampled.length - 1];
+                if (computeDistanceMeters(prev, latLngs[i]) >= minDistanceMeters) {
+                    sampled.push(latLngs[i]);
+                }
+            }
+
+            const last = latLngs[latLngs.length - 1];
+            if (sampled[sampled.length - 1] !== last) {
+                sampled.push(last);
+            }
+
+            return sampled;
+        }
+
+        function chunkForDirectionsRequest(latLngs, maxPerRequest) {
+            const maxPoints = Math.max(2, maxPerRequest || 10);
+            const chunks = [];
+
+            if (latLngs.length <= maxPoints) {
+                chunks.push(latLngs.slice());
+                return chunks;
+            }
+
+            for (let i = 0; i < latLngs.length; i += maxPoints - 1) {
+                const end = Math.min(i + maxPoints, latLngs.length);
+                chunks.push(latLngs.slice(i, end));
+            }
+
+            return chunks;
+        }
+
+        function requestDrivingPath(chunk) {
+            if (!chunk || chunk.length < 2) {
+                return Promise.resolve([]);
+            }
+
+            const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);
+            const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);
+            const waypoints = chunk.slice(1, -1).map((point) => ({
+                location: new google.maps.LatLng(point.lat, point.lng),
+                stopover: false,
+            }));
+
+            return new Promise((resolve) => {
+                const directionsService = new google.maps.DirectionsService();
+                directionsService.route({
+                    origin,
+                    destination,
+                    waypoints,
+                    travelMode: google.maps.TravelMode.DRIVING,
+                }, function (response, status) {
+                    if (status === google.maps.DirectionsStatus.OK && response?.routes?.[0]?.legs) {
+                        const roadPoints = [];
+                        response.routes[0].legs.forEach((leg) => {
+                            leg.steps.forEach((step) => {
+                                (step.path || []).forEach((roadPoint) => roadPoints.push(roadPoint));
+                            });
+                        });
+                        resolve(roadPoints);
+                    } else {
+                        if (timelineConfig.gpsDebug) {
+                            console.warn('[EmployeeTracking] Directions request failed: ' + status);
+                        }
+                        resolve(chunk.slice());
+                    }
+                });
+            });
+        }
+
+        async function drawRoadFollowingPolyline(cleanPath, renderToken) {
+            if (!renderToken || renderToken !== timelineRenderToken) {
+                return;
+            }
+
+            const downsampled = downsamplePolylineCoordinates(cleanPath, 100);
+            const chunks = chunkForDirectionsRequest(downsampled, 10);
+            const combinedPoints = [];
+
+            for (const chunk of chunks) {
+                if (renderToken !== timelineRenderToken) {
+                    return;
+                }
+                const segmentPoints = await requestDrivingPath(chunk);
+                combinedPoints.push(...segmentPoints);
+            }
+
+            if (renderToken !== timelineRenderToken || combinedPoints.length < 2) {
+                return;
+            }
+
+            const polyline = new google.maps.Polyline({
+                path: combinedPoints,
+                geodesic: true,
+                strokeColor: '#0d47ff',
+                strokeOpacity: .95,
+                strokeWeight: 4,
+                map: timelineMap,
+            });
+            timelinePolylines.push(polyline);
         }
 
         function drawNumberedRouteMarker(point) {
