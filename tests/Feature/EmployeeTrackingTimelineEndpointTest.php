@@ -673,6 +673,46 @@ class EmployeeTrackingTimelineEndpointTest extends TestCase
         ])->assertRedirect();
     }
 
+    public function test_rejected_stationary_gps_point_updates_device_last_seen_and_keeps_device_online(): void
+    {
+        $employee = User::factory()->create(['status' => 'active']);
+        $now = now();
+        $attendance = Attendance::query()->create([
+            'user_id' => $employee->id,
+            'attendance_date' => $now->toDateString(),
+            'check_in_at' => $now->copy()->subMinutes(10),
+            'status' => 'present',
+        ]);
+
+        $this->point($employee->id, $attendance->id, 901, 9.925200, 78.119800, $now->copy()->subMinutes(5)->toDateTimeString(), 'walking');
+
+        $response = $this
+            ->actingAs($employee)
+            ->withoutMiddleware()
+            ->postJson('/api/mobile/tracking/location', [
+                'device_id' => 'test-device',
+                'latitude' => 9.925201,
+                'longitude' => 78.119801,
+                'accuracy' => 5,
+                'speed' => 0,
+                'activity' => 'still',
+                'is_gps_on' => true,
+                'recorded_at' => $now->toDateTimeString(),
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('saved', false)
+            ->assertJsonPath('reason', 'distance_below_threshold');
+
+        $device = \App\Models\EmployeeDevice::query()
+            ->where('employee_id', $employee->id)
+            ->where('device_id', 'test-device')
+            ->first();
+
+        $this->assertNotNull($device);
+        $this->assertSame($now->toDateTimeString(), $device->last_seen_at?->toDateTimeString());
+    }
+
     private function point(
         int $employeeId,
         int $attendanceId,

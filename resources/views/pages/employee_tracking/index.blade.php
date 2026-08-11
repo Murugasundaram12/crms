@@ -315,10 +315,24 @@
         let timelineMapProvider = null;
         let timelineMarkers = [];
         let timelinePolylines = [];
+        let timelineActualRoutePolylineCount = 0;
         let timelineDirectionsRenderers = [];
         let timelineRenderToken = 0;
         let timelineLoadToken = 0;
         let lastTimelinePayload = null;
+        let timelineHasFittedMapForSession = false;
+        const routeCache = new Map();
+
+        function getRouteCacheKey(chunk, travelMode) {
+            if (!chunk || !chunk.length) return '';
+            const userId = document.getElementById('trackingEmployee')?.value || '';
+            const date = document.getElementById('trackingDate')?.value || '';
+            const start = chunk[0];
+            const end = chunk[chunk.length - 1];
+            const startKey = `${Number(start.lat).toFixed(5)},${Number(start.lng).toFixed(5)}`;
+            const endKey = `${Number(end.lat).toFixed(5)},${Number(end.lng).toFixed(5)}`;
+            return `${userId}:${date}:${travelMode}:${chunk.length}:${startKey}:${endKey}`;
+        }
 
         function initEmployeeTrackingMap() {
             if (timelineMap) {
@@ -382,9 +396,50 @@
             }
         };
 
+        let timelineAutoRefreshTimer = null;
+        let isTimelineLoading = false;
+
+        function stopTimelineAutoRefresh() {
+            if (timelineAutoRefreshTimer) {
+                clearInterval(timelineAutoRefreshTimer);
+                timelineAutoRefreshTimer = null;
+            }
+        }
+
+        function startTimelineAutoRefreshIfNeeded(data, date) {
+            stopTimelineAutoRefresh();
+
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayString = `${year}-${month}-${day}`;
+
+            if (date !== todayString) {
+                return;
+            }
+
+            const hasActiveAttendance = (data?.attendances || []).some((att) => att.is_open === true || !att.check_out_at)
+                || (data?.attendanceSessions || []).some((sess) => sess?.attendance?.is_open === true || !sess?.attendance?.check_out_at);
+
+            if (hasActiveAttendance) {
+                timelineAutoRefreshTimer = setInterval(loadTimelineData, 15000);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
-            document.getElementById('trackingEmployee')?.addEventListener('change', loadTimelineData);
-            document.getElementById('trackingDate')?.addEventListener('change', loadTimelineData);
+            document.getElementById('trackingEmployee')?.addEventListener('change', function () {
+                stopTimelineAutoRefresh();
+                timelineHasFittedMapForSession = false;
+                routeCache.clear();
+                loadTimelineData(true);
+            });
+            document.getElementById('trackingDate')?.addEventListener('change', function () {
+                stopTimelineAutoRefresh();
+                timelineHasFittedMapForSession = false;
+                routeCache.clear();
+                loadTimelineData(true);
+            });
 
             if (!timelineConfig.hasGoogleMapsKey) {
                 initEmployeeTrackingMap();
@@ -397,7 +452,11 @@
             }
         });
 
-        async function loadTimelineData() {
+        async function loadTimelineData(isUserAction = false) {
+            if (isTimelineLoading) {
+                return;
+            }
+
             const loadToken = ++timelineLoadToken;
             if (!timelineMap) {
                 initEmployeeTrackingMap();
@@ -407,9 +466,11 @@
             const date = document.getElementById('trackingDate').value;
 
             if (!userId || !date) {
+                stopTimelineAutoRefresh();
                 return;
             }
 
+            isTimelineLoading = true;
             const body = new URLSearchParams();
             body.set('userId', userId);
             body.set('date', date);
@@ -424,38 +485,48 @@
                 });
             }
 
-            const response = await fetch(timelineConfig.timelineUrl, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'X-CSRF-TOKEN': timelineConfig.csrfToken,
-                },
-                body,
-            });
+            try {
+                const response = await fetch(timelineConfig.timelineUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
+                    },
+                    body,
+                });
 
             if (!response.ok) {
                 if (loadToken !== timelineLoadToken) {
                     return;
                 }
+                stopTimelineAutoRefresh();
                 clearTimelineMap();
                 resetTimelineMapView();
                 document.getElementById('timelineOverlayCard').innerHTML = overlayShell('Unable to load timeline.');
                 return;
             }
 
-            const payload = await response.json();
-            if (loadToken !== timelineLoadToken) {
-                return;
-            }
-            if (timelineConfig.gpsDebug) {
-                console.info('[EmployeeTracking] timeline response', payload);
-            }
+                const payload = await response.json();
+                if (loadToken !== timelineLoadToken) {
+                    return;
+                }
+                if (timelineConfig.gpsDebug) {
+                    console.info('[EmployeeTracking] timeline response', payload);
+                }
 
-            renderTimeline(payload);
+                renderTimeline(payload, isUserAction);
+                startTimelineAutoRefreshIfNeeded(payload, date);
+            } catch (e) {
+                if (loadToken === timelineLoadToken) {
+                    stopTimelineAutoRefresh();
+                }
+            } finally {
+                isTimelineLoading = false;
+            }
         }
 
-        function renderTimeline(data) {
+        function renderTimeline(data, isUserAction = false) {
             const items = filterOpenAttendanceCheckOutItems(data.timeLineItems || [], data);
             lastTimelinePayload = data;
             clearTimelineMap();
@@ -519,7 +590,7 @@
 
                 contents = `${attendanceSessionCard(items, data)}${contents}`;
 
-                drawTimelineRoute(data, movementPaths, routeMarkers, attendanceMarkers, items, renderToken);
+                drawTimelineRoute(data, movementPaths, routeMarkers, attendanceMarkers, items, renderToken, isUserAction);
 
                 if (gpsDistance !== undefined && gpsDistance !== null) {
                     finalDistance = `${Number(gpsDistance).toFixed(2)} KM`;
@@ -649,7 +720,7 @@
             return 'Unknown address!';
         }
 
-        async function drawTimelineRoute(data, movementPaths, routeMarkers, attendanceMarkers, items, renderToken) {
+        async function drawTimelineRoute(data, movementPaths, routeMarkers, attendanceMarkers, items, renderToken, isUserAction = false) {
             const routePoints = movementPaths.flat();
             const singleVisiblePoint = routePoints[0] || firstTimelineCoordinate(items);
             const boundsPoints = routePoints.length ? routePoints : (singleVisiblePoint ? [singleVisiblePoint] : []);
@@ -674,24 +745,7 @@
                     return;
                 }
 
-<<<<<<< Updated upstream
-                let snappedPath = null;
-                if (timelineConfig.roadRouteEnabled && timelineConfig.hasGoogleMapsKey && routePath.length >= 2 && timelineConfig.snapRouteUrl) {
-                    try {
-                        snappedPath = await fetchSnappedRoadPoints(routePath);
-                    } catch (e) {
-                        snappedPath = null;
-                    }
-                }
-
-                if (snappedPath && Array.isArray(snappedPath) && snappedPath.length >= 2) {
-                    drawRoutePolyline(snappedPath);
-                } else {
-                    drawRoutePolyline(routePath);
-                }
-=======
-                drawRoutePolyline(routePath, renderToken);
->>>>>>> Stashed changes
+                await drawRoadFollowingPolyline(routePath, renderToken);
                 await wait(20);
             }
 
@@ -707,7 +761,10 @@
                 drawGapIndicators(data?.trackingHealth?.largest_gaps || []);
             }
 
-            fitTimelineMapToPoints(boundsPoints.concat(routeMarkers).concat(attendanceMarkers));
+            if (isUserAction || !timelineHasFittedMapForSession) {
+                fitTimelineMapToPoints(boundsPoints.concat(routeMarkers).concat(attendanceMarkers));
+                timelineHasFittedMapForSession = true;
+            }
         }
 
         function currentRouteMode(data = lastTimelinePayload) {
@@ -757,11 +814,13 @@
             if (!Array.isArray(latLngs) || latLngs.length === 0) {
                 return [];
             }
+            // Preserve the backend's authoritative segment endpoints. Interior
+            // jitter may be omitted for display, but never the route endpoint.
             const filtered = [latLngs[0]];
             for (let i = 1; i < latLngs.length; i++) {
                 const prev = filtered[filtered.length - 1];
                 const curr = latLngs[i];
-                if (computeDistanceMeters(prev, curr) >= minDistanceMeters) {
+                if (i === latLngs.length - 1 || computeDistanceMeters(prev, curr) >= minDistanceMeters) {
                     filtered.push(curr);
                 }
             }
@@ -779,10 +838,19 @@
                     const path = Array.isArray(points)
                         ? filterPolylineCoordinates(points.map((point) => itemLatLng(point)).filter(Boolean), 3)
                         : [];
+                    if (segment?.attendance_id !== undefined) {
+                        path.attendanceId = segment.attendance_id;
+                    }
+                    if (segment?.device_id !== undefined) {
+                        path.deviceId = segment.device_id;
+                    }
+                    if (segment?.start_type !== undefined) {
+                        path.startType = segment.start_type;
+                    }
 
                     return path;
                 })
-                .filter((segment) => segment.length >= 2);
+                .filter((path) => path.length >= 2);
         }
 
         function buildRouteMarkersFromSegments(movementPaths, attendanceMarkers = []) {
@@ -814,16 +882,6 @@
 
             if (markerPoints.length < 2 && allRoutePoints.length > 1) {
                 markerPoints = [allRoutePoints[0], allRoutePoints[allRoutePoints.length - 1]];
-            }
-
-            if (markerPoints.length) {
-                if (checkInMarker) {
-                    markerPoints[0] = checkInMarker;
-                }
-
-                if (checkOutMarker && markerPoints.length > 1) {
-                    markerPoints[markerPoints.length - 1] = checkOutMarker;
-                }
             }
 
             return markerPoints.map((point, index) => ({
@@ -917,172 +975,67 @@
             return computeDistanceMeters(previousPoint, currentPoint) <= 200;
         }
 
-<<<<<<< Updated upstream
-        async function fetchSnappedRoadPoints(points) {
-            if (!Array.isArray(points) || points.length < 2 || !timelineConfig.snapRouteUrl) {
-                return null;
-            }
-
-            const cleanPoints = points
-                .map((p) => itemLatLng(p))
-                .filter(Boolean);
-
-            if (cleanPoints.length < 2) {
-                return null;
-            }
-
-            const body = new URLSearchParams();
-            cleanPoints.forEach((pt, index) => {
-                body.set(`points[${index}][lat]`, pt.lat);
-                body.set(`points[${index}][lng]`, pt.lng);
-            });
-            body.set('_token', timelineConfig.csrfToken);
-
-            try {
-                const response = await fetch(timelineConfig.snapRouteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
-                    },
-                    body,
-                });
-
-                if (!response.ok) {
-                    return null;
-                }
-
-                const data = await response.json();
-                if (data.snapped && Array.isArray(data.points) && data.points.length >= 2) {
-                    return data.points;
-                }
-            } catch (e) {
-                return null;
-            }
-
-            return null;
+        function isWalkingPath(path) {
+            if (!path) return false;
+            if (path.startType === 'walk' || path.startType === 'walking') return true;
+            const first = Array.isArray(path) ? path[0] : null;
+            if (first?.type === 'walk' || first?.type === 'walking') return true;
+            const activity = String(first?.activity || '').toLowerCase();
+            return activity.includes('walk');
         }
 
-        function drawRoutePolyline(latLngs) {
-            console.log('drawRoutePolyline started');
-            console.log('Total GPS points:', (latLngs || []).length);
-
-=======
         function drawRoutePolyline(latLngs, renderToken) {
->>>>>>> Stashed changes
             const cleanPath = filterPolylineCoordinates(latLngs, 3);
-            console.log('Clean GPS points:', cleanPath.length);
 
             if (cleanPath.length < 2) {
                 return;
             }
 
-            if (isLikelyStationaryDriftPath(cleanPath)) {
-                return;
-            }
-
-            const isDirectionsAvailable = !!(window.google && google.maps && google.maps.DirectionsService);
-            console.log('DirectionsService available:', isDirectionsAvailable);
+            const color = isWalkingPath(latLngs) ? '#f5c400' : '#0d47ff';
 
             if (timelineMapProvider === 'google') {
-<<<<<<< Updated upstream
                 const gPath = cleanPath.map((p) => new google.maps.LatLng(p.lat, p.lng));
-
-                if (isDirectionsAvailable) {
-                    try {
-                        const directionsService = new google.maps.DirectionsService();
-                        const polyline = new google.maps.Polyline({
-                            path: [],
-                            geodesic: false,
-                            strokeColor: '#0d47ff',
-                            strokeOpacity: .95,
-                            strokeWeight: 4,
-                            map: timelineMap,
-                        });
-                        timelinePolylines.push(polyline);
-
-                        const chunkSize = 24;
-                        let chunkIndex = 0;
-                        for (let startIdx = 0; startIdx < gPath.length - 1; startIdx += chunkSize) {
-                            const currentChunkIndex = chunkIndex++;
-                            const endIdx = Math.min(startIdx + chunkSize, gPath.length - 1);
-                            const chunk = gPath.slice(startIdx, endIdx + 1);
-                            if (chunk.length < 2) {
-                                continue;
-                            }
-
-                            const origin = chunk[0];
-                            const destination = chunk[chunk.length - 1];
-                            const waypoints = chunk.slice(1, chunk.length - 1).map((loc) => ({ location: loc, stopover: false }));
-
-                            console.log('Requesting directionsService.route for chunk:', currentChunkIndex, 'Origin:', origin, 'Destination:', destination, 'Waypoint count:', waypoints.length);
-
-                            directionsService.route({
-                                origin: origin,
-                                destination: destination,
-                                waypoints: waypoints,
-                                optimizeWaypoints: false,
-                                travelMode: google.maps.TravelMode.DRIVING
-                            }, function (response, status) {
-                                console.log('Directions Status for chunk', currentChunkIndex, ':', status);
-                                console.log('Directions Response for chunk', currentChunkIndex, ':', response);
-
-                                if (status === google.maps.DirectionsStatus.OK && response && response.routes && response.routes[0]) {
-                                    console.log('OK branch executing for chunk:', currentChunkIndex);
-                                    const legs = response.routes[0].legs || [];
-                                    for (let i = 0; i < legs.length; i++) {
-                                        const steps = legs[i].steps || [];
-                                        for (let j = 0; j < steps.length; j++) {
-                                            const nextSegment = steps[j].path || [];
-                                            for (let k = 0; k < nextSegment.length; k++) {
-                                                polyline.getPath().push(nextSegment[k]);
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    console.warn('Fallback branch executing for chunk:', currentChunkIndex, 'Status:', status);
-                                    for (let c = 0; c < chunk.length; c++) {
-                                        polyline.getPath().push(chunk[c]);
-                                    }
-                                }
-                            });
-                        }
-                    } catch (e) {
-                        console.warn('Exception in DirectionsService, using fallback polyline:', e);
-                        const fallbackPolyline = new google.maps.Polyline({
-                            path: gPath,
-                            geodesic: false,
-                            strokeColor: '#0d47ff',
-                            strokeOpacity: .95,
-                            strokeWeight: 4,
-                            map: timelineMap,
-                        });
-                        timelinePolylines.push(fallbackPolyline);
-                    }
-                } else {
-                    console.warn('DirectionsService not available, using raw polyline');
-                    const polyline = new google.maps.Polyline({
-                        path: gPath,
-                        geodesic: false,
-                        strokeColor: '#0d47ff',
-                        strokeOpacity: .95,
-                        strokeWeight: 4,
-                        map: timelineMap,
-                    });
-                    timelinePolylines.push(polyline);
+                const polyline = new google.maps.Polyline({
+                    path: gPath,
+                    geodesic: true,
+                    strokeColor: '#0d47ff',
+                    strokeOpacity: .95,
+                    strokeWeight: 4,
+                    zIndex: 10,
+                    map: timelineMap,
+                });
+                if (color !== '#0d47ff') {
+                    polyline.setOptions({ strokeColor: color });
                 }
-=======
-                drawRoadFollowingPolyline(cleanPath, renderToken);
->>>>>>> Stashed changes
+                timelinePolylines.push(polyline);
+                timelineActualRoutePolylineCount++;
+                if (timelineConfig.gpsDebug) {
+                    console.info('[EmployeeTracking] actual GPS polyline drawn', {
+                        routePolylineCount: timelineActualRoutePolylineCount,
+                        routeRendering: 'gps_fallback',
+                        pointCount: cleanPath.length,
+                        endpoint: cleanPath[cleanPath.length - 1],
+                    });
+                }
             } else if (timelineMapProvider === 'leaflet') {
                 const coords = cleanPath.map((p) => [p.lat, p.lng]);
                 const polyline = L.polyline(coords, {
-                    color: '#0d47ff',
+                    color,
                     opacity: .95,
                     weight: 4,
+                    smoothFactor: 0,
+                    noClip: true,
                 }).addTo(timelineMap);
                 timelinePolylines.push(polyline);
+                timelineActualRoutePolylineCount++;
+                if (timelineConfig.gpsDebug) {
+                    console.info('[EmployeeTracking] actual GPS polyline drawn', {
+                        routePolylineCount: timelineActualRoutePolylineCount,
+                        routeRendering: 'gps_fallback',
+                        pointCount: cleanPath.length,
+                        endpoint: cleanPath[cleanPath.length - 1],
+                    });
+                }
             }
         }
 
@@ -1124,58 +1077,186 @@
             return chunks;
         }
 
-        function requestDrivingPath(chunk) {
-            if (!chunk || chunk.length < 2) {
-                return Promise.resolve([]);
+        function prepareRoutingWaypoints(chunk) {
+            if (!Array.isArray(chunk) || chunk.length <= 2) {
+                return [];
+            }
+            const rawIntermediates = chunk.slice(1, -1);
+            const filtered = [];
+
+            for (let i = 0; i < rawIntermediates.length; i++) {
+                const pt = rawIntermediates[i];
+                if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
+                if (pt.accuracy !== undefined && Number(pt.accuracy) > 35) continue;
+
+                if (filtered.length > 0) {
+                    const prev = filtered[filtered.length - 1];
+                    const dist = computeDistanceMeters(prev, pt);
+                    if (dist < 15) {
+                        continue;
+                    }
+                    if (pt.timestamp && prev.timestamp) {
+                        const dtSec = Math.abs((new Date(pt.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000);
+                        if (dtSec > 0 && (dist / dtSec) > 42) {
+                            continue;
+                        }
+                    }
+                }
+                filtered.push(pt);
             }
 
-            const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);
-            const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);
-            const waypoints = chunk.slice(1, -1).map((point) => ({
-                location: new google.maps.LatLng(point.lat, point.lng),
-                stopover: false,
-            }));
+            if (filtered.length > 23) {
+                const sampled = [];
+                const lastIdx = filtered.length - 1;
+                for (let k = 0; k < 23; k++) {
+                    const idx = Math.round((k / 22) * lastIdx);
+                    if (filtered[idx]) sampled.push(filtered[idx]);
+                }
+                return sampled;
+            }
 
-            return new Promise((resolve) => {
-                const directionsService = new google.maps.DirectionsService();
-                directionsService.route({
-                    origin,
-                    destination,
-                    waypoints,
-                    travelMode: google.maps.TravelMode.DRIVING,
-                }, function (response, status) {
-                    if (status === google.maps.DirectionsStatus.OK && response?.routes?.[0]?.legs) {
-                        const roadPoints = [];
-                        response.routes[0].legs.forEach((leg) => {
-                            leg.steps.forEach((step) => {
-                                (step.path || []).forEach((roadPoint) => roadPoints.push(roadPoint));
-                            });
-                        });
-                        resolve(roadPoints);
-                    } else {
-                        if (timelineConfig.gpsDebug) {
-                            console.warn('[EmployeeTracking] Directions request failed: ' + status);
-                        }
-                        resolve(chunk.slice());
-                    }
-                });
-            });
+            return filtered;
         }
 
-        async function drawRoadFollowingPolyline(cleanPath, renderToken) {
+        async function requestDrivingPath(chunk, isWalking = false) {
+            if (!chunk || chunk.length < 2) {
+                return [];
+            }
+
+            const travelMode = isWalking ? 'WALK' : 'DRIVE';
+            const cacheKey = getRouteCacheKey(chunk, travelMode);
+            if (routeCache.has(cacheKey)) {
+                return routeCache.get(cacheKey);
+            }
+
+            try {
+                let RouteClass = window.google?.maps?.routes?.Route;
+                if (!RouteClass && window.google?.maps?.importLibrary) {
+                    const routesLib = await google.maps.importLibrary('routes');
+                    RouteClass = routesLib?.Route;
+                }
+
+                if (RouteClass?.computeRoutes) {
+                    const origin = { location: new google.maps.LatLng(chunk[0].lat, chunk[0].lng) };
+                    const destination = { location: new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng) };
+                    const intermediates = prepareRoutingWaypoints(chunk).map((point) => ({
+                        location: new google.maps.LatLng(point.lat, point.lng),
+                        via: true,
+                    }));
+
+                    const response = await RouteClass.computeRoutes({
+                        origin,
+                        destination,
+                        intermediates,
+                        travelMode: isWalking
+                            ? (window.google?.maps?.routes?.TravelMode?.WALK || 'WALK')
+                            : (window.google?.maps?.routes?.TravelMode?.DRIVE || 'DRIVE'),
+                        polylineQuality: window.google?.maps?.routes?.PolylineQuality?.HIGH_QUALITY || 'HIGH_QUALITY',
+                        fields: ['path', 'legs'],
+                    });
+
+                    const route = response?.routes?.[0];
+                    if (route) {
+                        let resolvedPoints = [];
+                        if (Array.isArray(route.path) && route.path.length > 0) {
+                            resolvedPoints = route.path;
+                        } else if (Array.isArray(route.legs)) {
+                            const roadPoints = [];
+                            route.legs.forEach((leg) => {
+                                (leg.steps || []).forEach((step) => {
+                                    const stepPath = step.path || step.polyline?.path || [];
+                                    (stepPath || []).forEach((roadPoint) => roadPoints.push(roadPoint));
+                                });
+                            });
+                            if (roadPoints.length > 0) {
+                                resolvedPoints = roadPoints;
+                            }
+                        }
+
+                        if (resolvedPoints.length > 0) {
+                            let chunkDist = 0;
+                            for (let c = 0; c < chunk.length - 1; c++) {
+                                chunkDist += computeDistanceMeters(chunk[c], chunk[c + 1]);
+                            }
+
+                            let routeDist = 0;
+                            let maxDisplacement = 0;
+                            for (let r = 0; r < resolvedPoints.length - 1; r++) {
+                                const p1 = resolvedPoints[r];
+                                const p2 = resolvedPoints[r + 1];
+                                const lat1 = typeof p1.lat === 'function' ? p1.lat() : p1.lat;
+                                const lng1 = typeof p1.lng === 'function' ? p1.lng() : p1.lng;
+                                const lat2 = typeof p2.lat === 'function' ? p2.lat() : p2.lat;
+                                const lng2 = typeof p2.lng === 'function' ? p2.lng() : p2.lng;
+                                routeDist += computeDistanceMeters({ lat: lat1, lng: lng1 }, { lat: lat2, lng: lng2 });
+
+                                let minChunkDist = Infinity;
+                                for (let c = 0; c < chunk.length; c++) {
+                                    const d = computeDistanceMeters({ lat: lat1, lng: lng1 }, chunk[c]);
+                                    if (d < minChunkDist) minChunkDist = d;
+                                }
+                                if (minChunkDist > maxDisplacement) maxDisplacement = minChunkDist;
+                            }
+
+                            if ((chunkDist > 100 && routeDist > (2.5 * chunkDist)) || maxDisplacement > 400) {
+                                if (timelineConfig.gpsDebug) {
+                                    console.warn('[EmployeeTracking] Routes API detour rejected (deviation/displacement):', { chunkDist, routeDist, maxDisplacement });
+                                }
+                            } else {
+                                if (routeCache.size > 300) {
+                                    const firstKey = routeCache.keys().next().value;
+                                    if (firstKey) routeCache.delete(firstKey);
+                                }
+                                routeCache.set(cacheKey, resolvedPoints);
+                                return resolvedPoints;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                if (timelineConfig.gpsDebug) {
+                    console.warn('[EmployeeTracking] Routes API request failed:', err);
+                }
+            }
+
+            const fallbackPoints = [];
+            for (let i = 0; i < chunk.length; i++) {
+                const pt = chunk[i];
+                if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
+                if (pt.accuracy !== undefined && Number(pt.accuracy) > 40) continue;
+                if (fallbackPoints.length > 0) {
+                    const prev = fallbackPoints[fallbackPoints.length - 1];
+                    if (computeDistanceMeters(prev, pt) > 1500) {
+                        continue;
+                    }
+                }
+                fallbackPoints.push(pt);
+            }
+            const finalFallback = fallbackPoints.length >= 2 ? fallbackPoints : chunk.slice();
+            routeCache.set(cacheKey, finalFallback);
+            return finalFallback;
+        }
+
+        async function drawRoadFollowingPolyline(routePath, renderToken) {
             if (!renderToken || renderToken !== timelineRenderToken) {
                 return;
             }
 
-            const downsampled = downsamplePolylineCoordinates(cleanPath, 100);
-            const chunks = chunkForDirectionsRequest(downsampled, 10);
+            if (timelineMapProvider !== 'google' || !window.google?.maps) {
+                drawRoutePolyline(routePath);
+
+                return;
+            }
+
+            const isWalking = isWalkingPath(routePath);
+            const chunks = chunkForDirectionsRequest(routePath, 10);
             const combinedPoints = [];
 
             for (const chunk of chunks) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
-                const segmentPoints = await requestDrivingPath(chunk);
+                const segmentPoints = await requestDrivingPath(chunk, isWalking);
                 combinedPoints.push(...segmentPoints);
             }
 
@@ -1183,15 +1264,32 @@
                 return;
             }
 
+            const routeColor = isWalking ? '#f5c400' : '#0d47ff';
+
             const polyline = new google.maps.Polyline({
                 path: combinedPoints,
                 geodesic: true,
                 strokeColor: '#0d47ff',
                 strokeOpacity: .95,
                 strokeWeight: 4,
+                zIndex: 10,
                 map: timelineMap,
             });
+            if (routeColor !== '#0d47ff') {
+                polyline.setOptions({ strokeColor: routeColor });
+            }
             timelinePolylines.push(polyline);
+            timelineActualRoutePolylineCount++;
+            if (timelineConfig.gpsDebug) {
+                console.info('[EmployeeTracking] historical Directions route drawn', {
+                    routePolylineCount: timelineActualRoutePolylineCount,
+                    routeMode: 'DRIVING',
+                    optimizeWaypoints: false,
+                    waypointCount: combinedPoints.length,
+                    batchCount: chunks.length,
+                    endpoint: combinedPoints[combinedPoints.length - 1],
+                });
+            }
         }
 
         function drawNumberedRouteMarker(point) {
@@ -1373,10 +1471,11 @@
                             new google.maps.LatLng(previous.lat, previous.lng),
                             new google.maps.LatLng(current.lat, current.lng),
                         ],
-                        geodesic: false,
+                        geodesic: true,
                         strokeColor: '#f59e0b',
                         strokeOpacity: 0,
                         strokeWeight: 3,
+                        zIndex: 10,
                         icons: [{
                             icon: {path: 'M 0,-1 0,1', strokeColor: '#f59e0b', strokeOpacity: 1, scale: 3},
                             offset: '0',
@@ -1396,36 +1495,13 @@
                         color: '#f59e0b',
                         weight: 3,
                         dashArray: '8 8',
+                        smoothFactor: 0,
+                        noClip: true,
                     }).addTo(timelineMap);
                     line.bindTooltip(title);
                     timelinePolylines.push(line);
                 }
             });
-        }
-
-        function isLikelyStationaryDriftPath(path) {
-            if (!Array.isArray(path) || path.length < 4) {
-                return false;
-            }
-
-            let pathLength = 0;
-            let lat = 0;
-            let lng = 0;
-
-            path.forEach((point, index) => {
-                lat += Number(point.lat);
-                lng += Number(point.lng);
-                if (index > 0) {
-                    pathLength += computeDistanceMeters(path[index - 1], point);
-                }
-            });
-
-            const center = {lat: lat / path.length, lng: lng / path.length};
-            const directDistance = computeDistanceMeters(path[0], path[path.length - 1]);
-            const detourRatio = pathLength / Math.max(1, directDistance);
-            const maxRadius = Math.max(...path.map((point) => computeDistanceMeters(center, point)));
-
-            return pathLength >= 200 && directDistance <= 120 && detourRatio >= 4 && maxRadius <= 120;
         }
 
         function resolveMissingAddresses(addressLookups) {
@@ -1637,6 +1713,7 @@
                 }
             });
             timelinePolylines = [];
+            timelineActualRoutePolylineCount = 0;
 
             timelineDirectionsRenderers.forEach(function (renderer) {
                 renderer.setMap(null);
@@ -1777,6 +1854,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     @if (filled($googleMapsKey))
-        <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&libraries=geometry&callback=initEmployeeTrackingMap&v=weekly" onerror="window.gm_authFailure()"></script>
+        <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&libraries=geometry,routes&loading=async&callback=initEmployeeTrackingMap&v=weekly" onerror="window.gm_authFailure()"></script>
     @endif
 @endpush

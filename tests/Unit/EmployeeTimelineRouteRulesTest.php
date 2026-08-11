@@ -267,6 +267,156 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame([1, 2, 3], collect($timeline['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
     }
 
+    public function test_rejected_point_does_not_break_the_route_before_the_next_accepted_point(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+        $trackings = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendance),
+            // This bad fix is far enough to have caused a false segment break
+            // when rejected raw rows were used as the previous route point.
+            $this->point(11.050000, 77.050000, '2026-07-21 10:02:00', id: 3, accuracy: 80, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:03:00', id: 4, attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+
+        $timeline = $builder->build($trackings, $this->builderOptions());
+
+        $this->assertSame(1, $timeline['rejectionReasons']['accuracy_exceeded'] ?? 0);
+        $this->assertCount(1, $timeline['polylineSegments']);
+        $this->assertSame([1, 2, 4], collect($timeline['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame(4, collect($timeline['polylineSegments'][0]['points'])->last()['id']);
+        $this->assertSame(4, $timeline['directionsSegments'][0]['destination']['id']);
+        $this->assertSame(4, $timeline['routeBlocks'][0]['source_point_ids'][2]);
+    }
+
+    public function test_all_field_management_tracking_scenarios(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 12:00:00');
+
+        // Scenario 1: BUS -> BUS -> BUS
+        $busOnly = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:02:00', id: 3, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t1 = $builder->build($busOnly, $this->builderOptions());
+        $this->assertCount(1, $t1['polylineSegments']);
+        $this->assertSame([1, 2, 3], collect($t1['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame('DRIVING', $t1['directionsSegments'][0]['travel_mode']);
+
+        // Scenario 2: BUS -> STILL -> BUS
+        $busStillBus = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000310, 77.000010, '2026-07-21 10:05:00', id: 3, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
+            $this->point(11.001000, 77.000000, '2026-07-21 10:10:00', id: 4, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.001500, 77.000000, '2026-07-21 10:11:00', id: 5, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t2 = $builder->build($busStillBus, $this->builderOptions());
+        $this->assertCount(2, $t2['polylineSegments']);
+        $this->assertSame([1, 2], collect($t2['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame([4, 5], collect($t2['polylineSegments'][1]['unsimplified_points'])->pluck('id')->all());
+
+        // Scenario 3: BUS -> WALK -> WALK
+        $busWalkWalk = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:02:00', id: 3, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t3 = $builder->build($busWalkWalk, $this->builderOptions());
+        $this->assertCount(1, $t3['polylineSegments']);
+        $this->assertSame([1, 2, 3], collect($t3['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame('DRIVING', $t3['directionsSegments'][0]['travel_mode']);
+
+        // Scenario 4: BUS -> STILL -> WALK
+        $busStillWalk = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000310, 77.000010, '2026-07-21 10:05:00', id: 3, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:10:00', id: 4, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000900, 77.000000, '2026-07-21 10:11:00', id: 5, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t4 = $builder->build($busStillWalk, $this->builderOptions());
+        $this->assertCount(2, $t4['polylineSegments']);
+        $this->assertSame([1, 2], collect($t4['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame([4, 5], collect($t4['polylineSegments'][1]['unsimplified_points'])->pluck('id')->all());
+
+        // Scenario 5: BUS -> WALK -> STILL -> WALK -> BUS
+        $complexSeq = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000310, 77.000010, '2026-07-21 10:05:00', id: 3, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:10:00', id: 4, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.001000, 77.000000, '2026-07-21 10:15:00', id: 5, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t5 = $builder->build($complexSeq, $this->builderOptions());
+        $this->assertCount(2, $t5['polylineSegments']);
+        $this->assertSame([1, 2], collect($t5['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame([4, 5], collect($t5['polylineSegments'][1]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame(5, $t5['directionsSegments'][1]['destination']['id']);
+
+        // Scenario 6: Accepted -> Rejected -> Accepted
+        $rejSeq = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.050000, 77.050000, '2026-07-21 10:01:00', id: 2, accuracy: 90, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t6 = $builder->build($rejSeq, $this->builderOptions());
+        $this->assertSame([1, 3], collect($t6['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame(1, $t6['rejectionReasons']['accuracy_exceeded']);
+
+        // Scenario 7: Check-in -> movement -> checkout
+        $checkInPoint = $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, trackingType: 'checked_in')->setRelation('attendance', $attendance);
+        $move1 = $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'walking', attendanceId: 1)->setRelation('attendance', $attendance);
+        $move2 = $this->point(11.000600, 77.000000, '2026-07-21 10:02:00', id: 3, activity: 'walking', attendanceId: 1)->setRelation('attendance', $attendance);
+        $checkOutPoint = $this->point(11.000610, 77.000010, '2026-07-21 10:10:00', id: 4, trackingType: 'checked_out')->setRelation('attendance', $attendance);
+
+        $t7 = $builder->build(collect([$checkInPoint, $move1, $move2, $checkOutPoint]), $this->builderOptions());
+        $this->assertSame(['checkIn', 'walk', 'walk', 'checkOut'], $t7['items']->pluck('type')->all());
+        $this->assertCount(1, $t7['polylineSegments']);
+        $this->assertSame([2, 3], collect($t7['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame(3, $t7['directionsSegments'][0]['destination']['id']);
+
+        // Scenario 8: BUS -> STILL -> STILL -> BUS
+        $busStillStillBus = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000310, 77.000010, '2026-07-21 10:05:00', id: 3, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
+            $this->point(11.000310, 77.000010, '2026-07-21 10:08:00', id: 4, activity: 'still', speed: 0, attendanceId: 1, trackingType: 'still')->setRelation('attendance', $attendance),
+            $this->point(11.001000, 77.000000, '2026-07-21 10:12:00', id: 5, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.001500, 77.000000, '2026-07-21 10:13:00', id: 6, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t8 = $builder->build($busStillStillBus, $this->builderOptions());
+        $this->assertCount(2, $t8['polylineSegments']);
+        $this->assertSame([1, 2], collect($t8['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame([5, 6], collect($t8['polylineSegments'][1]['unsimplified_points'])->pluck('id')->all());
+
+        // Scenario 9: WALK -> BUS -> BUS
+        $walkBusBus = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'walking', speed: 1.2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:02:00', id: 3, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t9 = $builder->build($walkBusBus, $this->builderOptions());
+        $this->assertCount(1, $t9['polylineSegments']);
+        $this->assertSame([1, 2, 3], collect($t9['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame('DRIVING', $t9['directionsSegments'][0]['travel_mode']);
+
+        // Scenario 10: BUS -> long GPS gap -> BUS
+        $busGapBus = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.050000, 77.050000, '2026-07-21 11:30:00', id: 3, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.050300, 77.050000, '2026-07-21 11:31:00', id: 4, activity: 'in_vehicle', attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+        $t10 = $builder->build($busGapBus, $this->builderOptions());
+        $this->assertCount(2, $t10['polylineSegments']);
+        $this->assertSame([1, 2], collect($t10['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame([3, 4], collect($t10['polylineSegments'][1]['unsimplified_points'])->pluck('id')->all());
+    }
+
     public function test_isolated_middle_point_spike_is_removed_from_route(): void
     {
         $builder = app(EmployeeTimelineBuilder::class);

@@ -35,22 +35,24 @@ class EmployeeTimelineBuilder
         $segmentNumber = 0;
         $seenTimestamps = [];
         $seenCoordinates = [];
-        $previousRaw = null;
+        // Only accepted records may influence route/session decisions. Keeping this
+        // separate from the ordered raw stream prevents a rejected GPS fix from
+        // creating a false break before the next accepted movement point.
+        $previousAcceptedTracking = null;
         $lastStillTracking = null;
 
         foreach ($this->orderedTrackings($rawTrackings) as $tracking) {
-            $type = $this->timelineType($tracking, $previousRaw);
-            $sessionBreak = $previousRaw ? $this->shouldBreakSegment($previousRaw, $tracking, $settings) : false;
+            $type = $this->timelineType($tracking, $previousAcceptedTracking);
+            $segmentBreakReason = $previousAcceptedTracking
+                ? $this->segmentBreakReason($previousAcceptedTracking, $tracking, $settings)
+                : null;
+            $sessionBreak = $segmentBreakReason !== null;
 
             if ($this->isMovementType($type)
-                && $previousRaw
-                && $this->hasInactiveTimeGap($previousRaw, $tracking, $settings)
+                && $previousAcceptedTracking
+                && $this->hasInactiveTimeGap($previousAcceptedTracking, $tracking, $settings)
                 && $this->isStillActivity($tracking)) {
                 $type = 'still';
-            }
-
-            if ($sessionBreak) {
-                $lastStillTracking = null;
             }
 
             if ($this->isMovementType($type)
@@ -60,39 +62,33 @@ class EmployeeTimelineBuilder
                 $type = 'still';
             }
 
-            $diagnostic = $this->baseDiagnostic($tracking, $type);
-
-            if ($sessionBreak || ! $this->isMovementType($type)) {
-                $this->flushSegment($segments, $currentSegment, $settings);
-                $currentSegment = null;
-                $acceptedMovement = [];
-            }
+            $diagnostic = [
+                ...$this->baseDiagnostic($tracking, $type),
+                'segment_break_before' => $sessionBreak,
+                'segment_break_reason' => $segmentBreakReason,
+            ];
 
             if ((bool) ($tracking->is_ignored ?? false)) {
                 $this->rejectDiagnostic($diagnostic, $tracking->ignored_reason ?: 'ignored_tracking', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
             if (! $this->isInsideAttendanceSession($tracking)) {
                 $this->rejectDiagnostic($diagnostic, 'missing_attendance', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
             if (! $this->hasValidCoordinates($tracking)) {
                 $this->rejectDiagnostic($diagnostic, 'invalid_coordinates', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
             if ((bool) ($tracking->is_mock_location ?? false)) {
                 $this->rejectDiagnostic($diagnostic, 'mock_location', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
@@ -100,7 +96,6 @@ class EmployeeTimelineBuilder
             if ($accuracy === null || $accuracy <= 0 || $accuracy > (float) $settings['gps_max_accuracy_metres']) {
                 $this->rejectDiagnostic($diagnostic, 'accuracy_exceeded', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
@@ -108,20 +103,30 @@ class EmployeeTimelineBuilder
             if ($timestampKey !== null && isset($seenTimestamps[$timestampKey])) {
                 $this->rejectDiagnostic($diagnostic, 'duplicate_timestamp', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
-            $previousCoordinateKey = $previousRaw ? $this->coordinateKey($previousRaw) : null;
+            $previousCoordinateKey = $previousAcceptedTracking ? $this->coordinateKey($previousAcceptedTracking) : null;
             $coordinateKey = $this->coordinateKey($tracking);
             if ($previousCoordinateKey && $previousCoordinateKey === $coordinateKey) {
                 $this->rejectDiagnostic($diagnostic, 'duplicate_location', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
             $item = $this->itemFromTracking($tracking, $type, $sessionBreak);
+
+            // A break is authoritative only after the current point has passed
+            // validation. Rejected points must neither end a route nor make the
+            // following accepted point start a disconnected segment.
+            if ($sessionBreak || ! $this->isMovementType($type)) {
+                $this->flushSegment($segments, $currentSegment, $settings);
+                $currentSegment = null;
+                $acceptedMovement = [];
+                if ($sessionBreak) {
+                    $lastStillTracking = null;
+                }
+            }
 
             if (! $this->isMovementType($type)) {
                 $items->push($item);
@@ -134,7 +139,7 @@ class EmployeeTimelineBuilder
                 if ($timestampKey !== null) {
                     $seenTimestamps[$timestampKey] = true;
                 }
-                $previousRaw = $tracking;
+                $previousAcceptedTracking = $tracking;
                 continue;
             }
 
@@ -153,7 +158,7 @@ class EmployeeTimelineBuilder
                 if ($timestampKey !== null) {
                     $seenTimestamps[$timestampKey] = true;
                 }
-                $previousRaw = $tracking;
+                $previousAcceptedTracking = $tracking;
                 continue;
             }
 
@@ -163,14 +168,12 @@ class EmployeeTimelineBuilder
             if (($metrics['time_difference_seconds'] ?? 0) <= 0) {
                 $this->rejectDiagnostic($diagnostic, 'invalid_timestamp', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
             if (($metrics['distance_metres'] ?? 0) <= (float) $settings['gps_min_distance_metres']) {
                 $this->rejectDiagnostic($diagnostic, 'distance_below_threshold', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
@@ -180,14 +183,12 @@ class EmployeeTimelineBuilder
             if (($metrics['distance_metres'] ?? 0) > 500 && $seconds < 30 && $speedKmh > 120) {
                 $this->rejectDiagnostic($diagnostic, 'unrealistic_jump', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
             if (($metrics['speed_mps'] ?? 0) > (float) $settings['gps_max_speed_mps']) {
                 $this->rejectDiagnostic($diagnostic, 'speed_exceeded', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
@@ -195,7 +196,6 @@ class EmployeeTimelineBuilder
                 && ($metrics['speed_mps'] ?? 0) > (float) ($settings['gps_max_walking_speed_mps'] ?? 3.5)) {
                 $this->rejectDiagnostic($diagnostic, 'walking_speed_exceeded', $reasons);
                 $diagnostics[] = $diagnostic;
-                $previousRaw = $tracking;
                 continue;
             }
 
@@ -248,7 +248,7 @@ class EmployeeTimelineBuilder
             if ($timestampKey !== null) {
                 $seenTimestamps[$timestampKey] = true;
             }
-            $previousRaw = $tracking;
+            $previousAcceptedTracking = $tracking;
         }
 
         $this->flushSegment($segments, $currentSegment, $settings);
@@ -296,39 +296,60 @@ class EmployeeTimelineBuilder
 
     public function shouldBreakSegment(LocationTracking $previous, LocationTracking $current, ?array $settings = null): bool
     {
+        return $this->segmentBreakReason($previous, $current, $settings) !== null;
+    }
+
+    private function segmentBreakReason(LocationTracking $previous, LocationTracking $current, ?array $settings = null): ?string
+    {
         $settings ??= $this->gpsValidator->settings();
 
-        if ($previous->employee_id !== $current->employee_id
-            || $previous->attendance_id !== $current->attendance_id
-            || (string) $previous->device_id !== (string) $current->device_id) {
-            return true;
+        if ($previous->employee_id !== $current->employee_id) {
+            return 'employee_changed';
+        }
+
+        if ($previous->attendance_id !== $current->attendance_id) {
+            return 'attendance_changed';
+        }
+
+        if ((string) $previous->device_id !== (string) $current->device_id) {
+            return 'device_changed';
         }
 
         $previousTime = $this->trackingTime($previous);
         $currentTime = $this->trackingTime($current);
 
         if (! $previousTime || ! $currentTime) {
-            return false;
+            return null;
         }
 
         if ($previousTime->toDateString() !== $currentTime->toDateString()) {
-            return true;
+            return 'date_changed';
         }
 
         $seconds = $currentTime->getTimestamp() - $previousTime->getTimestamp();
-        $intervalSeconds = max(1, (int) ($settings['tracking_interval_seconds'] ?? 30));
-        $missedUpdateThresholdSeconds = $intervalSeconds * 3;
         $gapThresholdSeconds = max(1, (int) ($settings['gps_max_inactive_gap_seconds'] ?? 90));
 
-        if ($seconds <= 0 || $seconds >= $gapThresholdSeconds) {
-            return true;
+        if ($seconds <= 0) {
+            return 'non_increasing_timestamp';
+        }
+
+        if ($seconds >= $gapThresholdSeconds) {
+            return 'inactive_gap';
         }
 
         $distanceKm = $this->distanceMetres($previous, $current) / 1000;
         $speedKmh = ($distanceKm / max(1, $seconds)) * 3600;
         $largeGapDistanceKm = ((float) ($settings['large_gap_distance_meters'] ?? 2000)) / 1000;
 
-        return $distanceKm > $largeGapDistanceKm || $speedKmh > ((float) ($settings['gps_max_speed_mps'] ?? 25) * 3.6);
+        if ($distanceKm > $largeGapDistanceKm) {
+            return 'large_distance_gap';
+        }
+
+        if ($speedKmh > ((float) ($settings['gps_max_speed_mps'] ?? 25) * 3.6)) {
+            return 'segment_speed_exceeded';
+        }
+
+        return null;
     }
 
     private function hasInactiveTimeGap(LocationTracking $previous, LocationTracking $current, array $settings): bool

@@ -929,6 +929,11 @@ class MobileApiController extends Controller
             $deviceId = $validated['device_id'] ?? 'default';
             $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
             if ($duplicate) {
+                $validator = app(GpsTrackingValidationService::class);
+                if ($validator->hasStandaloneQuality($validated)) {
+                    $this->upsertDeviceStatus($user->id, $validated);
+                }
+
                 return [
                     $duplicate->refresh(),
                     false,
@@ -947,8 +952,13 @@ class MobileApiController extends Controller
             );
             $lastTracking = $previousTrackings->get(0);
             $previousPreviousTracking = $previousTrackings->get(1);
-            $gpsValidation = app(GpsTrackingValidationService::class)
+            $validator = app(GpsTrackingValidationService::class);
+            $gpsValidation = $validator
                 ->validate($validated, $lastTracking, $previousPreviousTracking);
+
+            if ($validator->hasStandaloneQuality($validated)) {
+                $this->upsertDeviceStatus($user->id, $validated);
+            }
 
             if (! $gpsValidation['accepted']) {
                 \Illuminate\Support\Facades\Log::info('Mobile tracking location ignored by GPS validation.', [
@@ -968,8 +978,6 @@ class MobileApiController extends Controller
 
                 return [null, false, $gpsValidation];
             }
-
-            $this->upsertDeviceStatus($user->id, $validated);
 
             return [
                 $this->createTrackingPoint($attendance, $validated, $validated['type'] ?? 'travelling'),

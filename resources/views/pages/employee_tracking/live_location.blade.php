@@ -294,6 +294,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     @if (filled($googleMapsKey))
-        <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&callback=initLiveLocationMap&v=weekly" async defer onerror="window.gm_authFailure()"></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&loading=async&callback=initLiveLocationMap&v=weekly" async defer onerror="window.gm_authFailure()"></script>
     @endif
 @endpush

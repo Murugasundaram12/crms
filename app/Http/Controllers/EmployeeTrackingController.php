@@ -72,14 +72,12 @@ class EmployeeTrackingController extends Controller
 
     private function liveLocationItems()
     {
-        $currentUserId = auth()->id();
         $onlineThresholdSeconds = $this->onlineThresholdSeconds();
 
         return EmployeeDevice::query()
             ->with('employee:id,name,email,phone,status')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->when($currentUserId, fn ($query) => $query->where('employee_id', '!=', $currentUserId))
             ->latest('last_seen_at')
             ->get()
             ->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds) {
@@ -492,6 +490,26 @@ class EmployeeTrackingController extends Controller
     {
         if ($timeline && isset($timeline['diagnostics'], $timeline['rejectionReasons'])) {
             $diagnostics = collect($timeline['diagnostics']);
+            $latestRaw = $diagnostics->last();
+            $latestValid = $diagnostics->where('accepted', true)->last();
+            $latestAcceptedMovement = $diagnostics
+                ->filter(fn (array $diagnostic): bool => (bool) ($diagnostic['accepted'] ?? false)
+                    && ($diagnostic['segment_number'] ?? null) !== null)
+                ->last();
+            $endpointSegment = collect($polylineSegments)
+                ->filter(fn (array $segment): bool => ! empty($segment['points']))
+                ->last();
+            $endpoint = $endpointSegment
+                ? collect($endpointSegment['points'])->last()
+                : null;
+            $endpointDistanceMetres = $endpoint && $latestAcceptedMovement
+                ? app(GpsTrackingValidationService::class)->distanceMetres(
+                    (float) ($endpoint['lat'] ?? 0),
+                    (float) ($endpoint['lng'] ?? 0),
+                    (float) ($latestAcceptedMovement['latitude'] ?? 0),
+                    (float) ($latestAcceptedMovement['longitude'] ?? 0),
+                )
+                : null;
 
             return [
                 'endpoint_url' => route('dashboard.getTimeLineAjax'),
@@ -502,18 +520,45 @@ class EmployeeTrackingController extends Controller
                 'timeline_item_count' => $timeLineItems->count(),
                 'rejected_point_count' => $diagnostics->where('accepted', false)->count(),
                 'rejection_reason_count' => $timeline['rejectionReasons'],
+                'accepted_gps_point_ids' => $diagnostics->where('accepted', true)->pluck('id')->values()->all(),
+                'chronological_order' => true,
                 'segment_count' => count($polylineSegments),
                 'directions_segment_count' => count($timeline['directionsSegments'] ?? []),
                 'directions_segments' => $timeline['directionsSegments'] ?? [],
+                'directions_origin' => collect($timeline['directionsSegments'] ?? [])->pluck('origin')->values()->all(),
+                'directions_destination' => collect($timeline['directionsSegments'] ?? [])->pluck('destination')->values()->all(),
                 'directions_waypoint_count' => collect($timeline['directionsSegments'] ?? [])
                     ->map(fn (array $segment): int => count($segment['waypoints'] ?? []))
                     ->values()
                     ->all(),
+                'directions_waypoint_order' => collect($timeline['directionsSegments'] ?? [])
+                    ->map(fn (array $segment): array => collect($segment['waypoints'] ?? [])->pluck('id')->all())
+                    ->values()
+                    ->all(),
+                'raw_polyline_fallback_used' => false,
                 'gps_distance_km' => $timeline['totalKM'] ?? 0,
                 'directions_distance_km' => null,
                 'polyline_segments' => $polylineSegments,
                 'polyline_points' => collect($polylineSegments)->pluck('points')->flatten(1)->values()->all(),
                 'raw_point_diagnostics' => $timeline['diagnostics'],
+                'route_endpoint' => [
+                    'latest_raw_tracking_id' => $latestRaw['id'] ?? null,
+                    'latest_valid_tracking_id' => $latestValid['id'] ?? null,
+                    'latest_accepted_movement_id' => $latestAcceptedMovement['id'] ?? null,
+                    'latest_polyline_endpoint_id' => $endpoint['id'] ?? null,
+                    'latest_polyline_endpoint_latitude' => $endpoint['lat'] ?? null,
+                    'latest_polyline_endpoint_longitude' => $endpoint['lng'] ?? null,
+                    'latest_accepted_point_latitude' => $latestAcceptedMovement['latitude'] ?? null,
+                    'latest_accepted_point_longitude' => $latestAcceptedMovement['longitude'] ?? null,
+                    'endpoint_distance_difference_metres' => $endpointDistanceMetres,
+                    'segment_number' => $endpointSegment['segment_number'] ?? null,
+                    'attendance_id' => $endpointSegment['attendance_id'] ?? null,
+                    'device_id' => $endpointSegment['device_id'] ?? null,
+                    'latest_raw_rejection_reason' => ($latestRaw['accepted'] ?? false)
+                        ? null
+                        : ($latestRaw['reason'] ?? null),
+                    'latest_raw_diagnostics' => $diagnostics->slice(-5)->values()->all(),
+                ],
             ];
         }
 

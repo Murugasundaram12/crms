@@ -1094,7 +1094,8 @@ trait MobileAttendanceTrackingEndpoints
 
         $devices = EmployeeDevice::query()
             ->with('employee')
-            ->where('employee_id', '!=', $request->user()->id)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
             ->latest('last_seen_at')
             ->get()
             ->map(function (EmployeeDevice $device) {
