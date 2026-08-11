@@ -91,7 +91,7 @@
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
                                             <input
                                                 type="number"
-                                                step="{{ in_array($key, ['map_center_latitude', 'map_center_longitude'], true) ? '0.00000001' : (in_array($key, ['minimum_accuracy', 'minimum_distance_meters', 'maximum_speed_kmph', 'large_gap_minutes', 'large_gap_distance_meters'], true) ? '0.000001' : '1') }}"
+                                                step="{{ in_array($key, ['minimum_accuracy', 'minimum_distance_meters', 'maximum_speed_kmph', 'large_gap_minutes', 'large_gap_distance_meters', 'map_center_latitude', 'map_center_longitude'], true) ? '0.000001' : '1' }}"
                                                 id="{{ $key }}"
                                                 name="{{ $key }}"
                                                 class="form-control @error($key) is-invalid @enderror"

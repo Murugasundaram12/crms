@@ -233,7 +233,7 @@ class TrackingSettingsController extends Controller
         return match ($type) {
             'boolean' => $value ? 'true' : 'false',
             'integer' => (string) (int) $value,
-            'float' => rtrim(rtrim(number_format((float) $value, 8, '.', ''), '0'), '.'),
+            'float' => rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.'),
             default => (string) $value,
         };
     }
