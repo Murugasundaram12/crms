@@ -194,9 +194,9 @@ class EmployeeTimelineBuilder
 
             if ($this->isWalkingActivity($tracking)
                 && ($metrics['speed_mps'] ?? 0) > (float) ($settings['gps_max_walking_speed_mps'] ?? 3.5)) {
-                $this->rejectDiagnostic($diagnostic, 'walking_speed_exceeded', $reasons);
-                $diagnostics[] = $diagnostic;
-                continue;
+                $type = 'vehicle';
+                $item['type'] = 'vehicle';
+                $diagnostic['timeline_type'] = 'vehicle';
             }
 
             $spike = $previousPrevious
@@ -543,7 +543,7 @@ class EmployeeTimelineBuilder
             })
             ->values()
             ->all();
-        $maxWaypoints = 8;
+        $maxWaypoints = 23;
 
         if (count($middle) <= $maxWaypoints) {
             return array_values($middle);

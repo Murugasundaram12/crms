@@ -1087,7 +1087,7 @@
             for (let i = 0; i < rawIntermediates.length; i++) {
                 const pt = rawIntermediates[i];
                 if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
-                if (pt.accuracy !== undefined && Number(pt.accuracy) > 35) continue;
+                if (pt.accuracy !== undefined && Number(pt.accuracy) > 50) continue;
 
                 if (filtered.length > 0) {
                     const prev = filtered[filtered.length - 1];

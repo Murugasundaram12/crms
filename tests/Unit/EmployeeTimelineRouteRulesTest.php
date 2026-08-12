@@ -542,7 +542,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
 
         $waypointIds = collect($timeline['directionsSegments'][0]['waypoints'])->pluck('id')->all();
 
-        $this->assertLessThanOrEqual(8, count($waypointIds));
+        $this->assertLessThanOrEqual(23, count($waypointIds));
         $this->assertSame($waypointIds, collect($waypointIds)->sort()->values()->all());
         $this->assertSame(1, $timeline['directionsSegments'][0]['origin']['id']);
         $this->assertSame(30, $timeline['directionsSegments'][0]['destination']['id']);
