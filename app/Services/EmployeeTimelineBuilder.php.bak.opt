@@ -533,13 +533,10 @@ class EmployeeTimelineBuilder
 
     private function directionWaypoints(array $points, array $origin, array $destination): array
     {
-        $totalSpanMetres = $this->pointDistanceMetres($origin, $destination);
-        $minEndClearance = min(50.0, max(15.0, $totalSpanMetres * 0.1));
-
         $middle = collect(array_slice($points, 1, -1))
-            ->filter(function (array $point) use ($origin, $destination, $minEndClearance): bool {
-                return $this->pointDistanceMetres($origin, $point) >= $minEndClearance
-                    && $this->pointDistanceMetres($destination, $point) >= $minEndClearance;
+            ->filter(function (array $point) use ($origin, $destination): bool {
+                return $this->pointDistanceMetres($origin, $point) >= 300
+                    && $this->pointDistanceMetres($destination, $point) >= 500;
             })
             ->values()
             ->all();

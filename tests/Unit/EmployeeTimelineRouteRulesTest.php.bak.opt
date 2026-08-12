@@ -514,7 +514,7 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame(1, $timeline['directionsSegments'][0]['origin']['id']);
         $this->assertSame(3, $timeline['directionsSegments'][0]['destination']['id']);
         $this->assertSame([1, 2, 3], $timeline['directionsSegments'][0]['source_point_ids']);
-        $this->assertSame([2], collect($timeline['directionsSegments'][0]['waypoints'])->pluck('id')->all());
+        $this->assertSame([], collect($timeline['directionsSegments'][0]['waypoints'])->pluck('id')->all());
     }
 
     public function test_directions_waypoints_remain_chronological_and_limited(): void
@@ -617,26 +617,6 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertCount(4, $timeline['polylineSegments'][0]['unsimplified_points']);
         $this->assertCount(2, $timeline['polylineSegments'][0]['points']);
         $this->assertGreaterThan(0.02, $timeline['totalKM']);
-    }
-
-    public function test_direction_waypoints_preserves_near_endpoint_waypoints_on_short_routes(): void
-    {
-        $builder = app(EmployeeTimelineBuilder::class);
-        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
-
-        // Short route: 3 points ~400m total span
-        $trackings = collect([
-            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
-            $this->point(11.001500, 77.000000, '2026-07-21 10:02:00', id: 2, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
-            $this->point(11.003000, 77.000000, '2026-07-21 10:04:00', id: 3, attendanceId: 1, trackingType: 'travelling')->setRelation('attendance', $attendance),
-        ]);
-
-        $timeline = $builder->build($trackings, $this->builderOptions());
-
-        $this->assertCount(1, $timeline['directionsSegments']);
-        $waypoints = $timeline['directionsSegments'][0]['waypoints'];
-        $this->assertCount(1, $waypoints);
-        $this->assertSame(2, $waypoints[0]['id']);
     }
 
     private function invoke(EmployeeTrackingController $controller, string $method, array $arguments = []): mixed
