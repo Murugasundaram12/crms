@@ -9,6 +9,7 @@
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
         "laravel/framework": "^12.0",
+        "laravel/reverb": "*",
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^1.1",
         "phpoffice/phpspreadsheet": "^5.8",
@@ -77,6 +78,10 @@
         }
     },
     "config": {
+        "platform": {
+            "php": "8.2.27"
+        },
+        "check-platform-reqs": false,
         "optimize-autoloader": true,
         "preferred-install": "dist",
         "sort-packages": true,

@@ -782,6 +782,18 @@ trait MobileAttendanceTrackingEndpoints
             ], 500);
         }
 
+        if ($tracking && $inserted && ($gpsValidation['accepted'] ?? false)) {
+            try {
+                \App\Events\EmployeeLocationUpdated::dispatch($tracking);
+            } catch (\Throwable $broadcastException) {
+                \Illuminate\Support\Facades\Log::warning('Reverb location broadcast failed silently.', [
+                    'tracking_id' => $tracking->id,
+                    'employee_id' => $user->id,
+                    'exception' => $broadcastException->getMessage(),
+                ]);
+            }
+        }
+
         $httpStatus = ($gpsValidation['accepted'] ?? false) && $inserted ? 201 : 200;
 
         return response()->json([

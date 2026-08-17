@@ -4,6 +4,10 @@
 @section('content_class', 'pb-0')
 
 @php($googleMapsKey = $mapSettings['google_maps_api_key'] ?? '')
+@php($reverbKey = config('broadcasting.connections.reverb.key', env('REVERB_APP_KEY', '')))
+@php($reverbHost = config('broadcasting.connections.reverb.options.host', env('REVERB_HOST', request()->getHost())))
+@php($reverbPort = config('broadcasting.connections.reverb.options.port', env('REVERB_PORT', 8080)))
+@php($reverbScheme = config('broadcasting.connections.reverb.options.scheme', env('REVERB_SCHEME', 'http')))
 
 @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -61,6 +65,8 @@
 @endsection
 
 @push('scripts')
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.16.1/dist/echo.iife.js"></script>
     <script>
         const liveLocationConfig = {
             centerLatitude: Number(@json($mapSettings['center_latitude'])),
@@ -69,12 +75,18 @@
             liveUrl: @json(route('liveLocationAjax')),
             iconBase: @json(asset('img/map') . '/'),
             hasGoogleMapsKey: @json(filled($googleMapsKey)),
+            reverbKey: @json($reverbKey),
+            reverbHost: @json($reverbHost),
+            reverbPort: Number(@json($reverbPort)),
+            reverbScheme: @json($reverbScheme),
         };
 
         let liveMap;
         let liveMapProvider = null;
         let liveMarkers = [];
         let liveInfoWindows = [];
+        let liveMarkersMap = {};
+        let latestLiveLocationTimestamp = {};
 
         function initLiveLocationMap() {
             if (liveMap) {
@@ -126,6 +138,7 @@
             });
             loadLiveLocationMap();
             startLiveLocationRefresh();
+            initEchoReverbListener();
         }
 
         function initLeafletLiveMap(lat, lng) {
@@ -138,6 +151,34 @@
                 attribution: '&copy; OpenStreetMap contributors',
                 maxZoom: 19,
             }).addTo(liveMap);
+        }
+
+        function initEchoReverbListener() {
+            if (!window.Echo || !liveLocationConfig.reverbKey) {
+                return;
+            }
+
+            try {
+                window.Pusher = window.Pusher || Pusher;
+                const echoInstance = new Echo({
+                    broadcaster: 'reverb',
+                    key: liveLocationConfig.reverbKey,
+                    wsHost: liveLocationConfig.reverbHost || window.location.hostname,
+                    wsPort: liveLocationConfig.reverbPort || 8080,
+                    wssPort: liveLocationConfig.reverbPort || 443,
+                    forceTLS: liveLocationConfig.reverbScheme === 'https',
+                    enabledTransports: ['ws', 'wss'],
+                    authEndpoint: '/broadcasting/auth',
+                    csrfToken: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                });
+
+                echoInstance.private('employee-tracking')
+                    .listen('.employee.location.updated', function (data) {
+                        updateEmployeeMarkerPosition(data);
+                    });
+            } catch (err) {
+                console.warn('Reverb Echo listener initialization deferred:', err);
+            }
         }
 
         window.gm_authFailure = function () {
@@ -169,39 +210,99 @@
                 });
                 const payload = await response.json();
                 const employees = payload.data || payload || [];
-                let online = 0;
-                let offline = 0;
-
-                clearLiveMarkers();
 
                 employees.forEach(function (employee) {
-                    const latitude = Number(employee.latitude);
-                    const longitude = Number(employee.longitude);
-
-                    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-                        return;
-                    }
-
-                    const isOnline = (employee.status || employee.online_status) === 'online';
-                    const name = employee.name || employee.employee_name || employee.employee?.name || 'Employee';
-
-                    isOnline ? online++ : offline++;
-
-                    if (liveMapProvider === 'google') {
-                        addGoogleLiveMarker(employee, name, latitude, longitude, isOnline);
-                    } else {
-                        addLeafletLiveMarker(employee, name, latitude, longitude, isOnline);
-                    }
+                    updateEmployeeMarkerPosition(employee);
                 });
-
-                document.getElementById('onlineCount').textContent = online;
-                document.getElementById('offlineCount').textContent = offline;
             } catch (e) {
                 console.error('Failed loading live locations', e);
             }
         }
 
+        function updateEmployeeMarkerPosition(employee) {
+            if (!employee) return;
+
+            const employeeId = Number(employee.employee_id || employee.id);
+            if (!employeeId) return;
+
+            const latitude = Number(employee.latitude);
+            const longitude = Number(employee.longitude);
+
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                return;
+            }
+
+            const rawTimestamp = employee.recorded_at || employee.updatedAt || employee.last_seen_at;
+            const incomingMs = rawTimestamp ? new Date(rawTimestamp).getTime() : Date.now();
+
+            if (latestLiveLocationTimestamp[employeeId] && incomingMs < latestLiveLocationTimestamp[employeeId]) {
+                return;
+            }
+            latestLiveLocationTimestamp[employeeId] = incomingMs;
+
+            const isOnline = (employee.status || employee.online_status) === 'online';
+            const name = employee.name || employee.employee_name || employee.employee?.name || 'Employee';
+
+            const existingRecord = liveMarkersMap[employeeId];
+
+            if (existingRecord && existingRecord.marker) {
+                const iconUrl = liveLocationConfig.iconBase + (isOnline ? 'green_circle.png' : 'red_circle.png');
+                existingRecord.isOnline = isOnline;
+
+                if (liveMapProvider === 'google') {
+                    const newLatLng = new google.maps.LatLng(latitude, longitude);
+                    existingRecord.marker.setPosition(newLatLng);
+                    existingRecord.marker.setIcon({
+                        url: iconUrl,
+                        scaledSize: new google.maps.Size(32, 32),
+                        labelOrigin: new google.maps.Point(20, -10),
+                    });
+                    if (existingRecord.infoWindow) {
+                        existingRecord.infoWindow.setContent(livePopup(employee));
+                    }
+                } else if (liveMapProvider === 'leaflet') {
+                    existingRecord.marker.setLatLng([latitude, longitude]);
+                    const icon = L.divIcon({
+                        className: '',
+                        html: `<img src="${iconUrl}" width="32" height="32" alt=""><span class="tracking-leaflet-label">${escapeHtml(name)}</span>`,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                    });
+                    existingRecord.marker.setIcon(icon);
+                    existingRecord.marker.setPopupContent(livePopup(employee));
+                }
+            } else {
+                if (liveMapProvider === 'google') {
+                    addGoogleLiveMarker(employee, name, latitude, longitude, isOnline);
+                } else {
+                    addLeafletLiveMarker(employee, name, latitude, longitude, isOnline);
+                }
+            }
+
+            recalculateCounts();
+        }
+
+        function recalculateCounts() {
+            let online = 0;
+            let offline = 0;
+
+            Object.values(liveMarkersMap).forEach(function (rec) {
+                if (rec.isOnline) {
+                    online++;
+                } else {
+                    offline++;
+                }
+            });
+
+            const onlineEl = document.getElementById('onlineCount');
+            const offlineEl = document.getElementById('offlineCount');
+
+            if (onlineEl) onlineEl.textContent = online;
+            if (offlineEl) offlineEl.textContent = offline;
+        }
+
         function addGoogleLiveMarker(employee, name, latitude, longitude, isOnline) {
+            const employeeId = Number(employee.employee_id || employee.id);
             const markerIcon = {
                 url: liveLocationConfig.iconBase + (isOnline ? 'green_circle.png' : 'red_circle.png'),
                 scaledSize: new google.maps.Size(32, 32),
@@ -230,9 +331,19 @@
 
             liveMarkers.push(marker);
             liveInfoWindows.push(infoWindow);
+
+            if (employeeId) {
+                liveMarkersMap[employeeId] = {
+                    marker: marker,
+                    infoWindow: infoWindow,
+                    isOnline: isOnline,
+                    name: name
+                };
+            }
         }
 
         function addLeafletLiveMarker(employee, name, latitude, longitude, isOnline) {
+            const employeeId = Number(employee.employee_id || employee.id);
             const iconUrl = liveLocationConfig.iconBase + (isOnline ? 'green_circle.png' : 'red_circle.png');
             const icon = L.divIcon({
                 className: '',
@@ -246,6 +357,15 @@
                 .bindPopup(livePopup(employee));
 
             liveMarkers.push(marker);
+
+            if (employeeId) {
+                liveMarkersMap[employeeId] = {
+                    marker: marker,
+                    infoWindow: null,
+                    isOnline: isOnline,
+                    name: name
+                };
+            }
         }
 
         function clearLiveMarkers() {
@@ -265,6 +385,7 @@
                 }
             });
             liveMarkers = [];
+            liveMarkersMap = {};
         }
 
         function livePopup(employee) {
@@ -274,7 +395,7 @@
                     <div>Status: ${escapeHtml(employee.status || employee.online_status || '-')}</div>
                     <div>Battery: ${employee.battery_percentage ?? '-'}%</div>
                     <div>GPS: ${employee.is_gps_on ? 'On' : 'Off'}</div>
-                    <div>Last Update: ${employee.updatedAt || (employee.last_seen_at ? new Date(employee.last_seen_at).toLocaleString() : '-')}</div>
+                    <div>Last Update: ${employee.updatedAt || (employee.recorded_at ? new Date(employee.recorded_at).toLocaleString() : (employee.last_seen_at ? new Date(employee.last_seen_at).toLocaleString() : '-'))}</div>
                 </div>
             `;
         }
@@ -292,6 +413,7 @@
         }
     </script>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     @if (filled($googleMapsKey))
         <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&loading=async&callback=initLiveLocationMap&v=weekly" async defer onerror="window.gm_authFailure()"></script>
