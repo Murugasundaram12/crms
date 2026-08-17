@@ -126,7 +126,7 @@ class ExpensesController extends Controller
             $expense->save();
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (int) $expense->paid_amt,
+                (float) $expense->paid_amt,
                 null,
                 0,
                 'Deleted expense refund',
@@ -137,6 +137,34 @@ class ExpensesController extends Controller
         });
 
         return redirect()->back()->with('success', 'Expense deleted successfully.');
+    }
+
+    public function restoreRecord(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'expense_id' => ['required', 'integer', 'exists:expenses,id'],
+        ]);
+
+        $expense = Expense::onlyTrashed()->findOrFail((int) $validated['expense_id']);
+
+        DB::transaction(function () use ($expense) {
+            $paidAmt = (float) $expense->paid_amt;
+            $userId = (int) $expense->user_id;
+
+            app(CrmBalanceService::class)->replaceUserWalletDebit(
+                null,
+                0,
+                $userId,
+                $paidAmt,
+                'Restored expense payment',
+                'expense',
+                (int) $expense->id
+            );
+
+            $expense->restore();
+        });
+
+        return redirect()->back()->with('success', 'Expense restored successfully.');
     }
 
     private function baseQuery(Request $request, bool $deleted = false)
@@ -229,8 +257,8 @@ class ExpensesController extends Controller
             'main_category_id' => ['nullable', 'integer', 'exists:main_categories,id'],
             'category_id' => ['required', 'integer', 'exists:categories,id'],
             'project_id' => ['nullable', 'integer', 'exists:projects,id'],
-            'amount' => ['required', 'integer', 'min:0'],
-            'paid_amt' => ['required', 'integer', 'min:0'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'paid_amt' => ['required', 'numeric', 'min:0'],
             'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
             'image' => ['nullable', 'string', 'max:250'],
             'description' => ['nullable', 'string'],

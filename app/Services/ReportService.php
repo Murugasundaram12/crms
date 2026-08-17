@@ -281,15 +281,19 @@ class ReportService
 
     private function buildExpenseQuerySummary(Builder $query): array
     {
-        $totalAmount = (float) (clone $query)->sum('amount');
-        $paid = (float) (clone $query)->sum('paid_amt');
-        $unpaid = (float) (clone $query)->sum('unpaid_amt');
+        $totals = (clone $query)->reorder()
+            ->selectRaw('COUNT(*) as count')
+            ->selectRaw('COALESCE(SUM(amount), 0) as total_amount')
+            ->selectRaw('COALESCE(SUM(paid_amt), 0) as paid')
+            ->selectRaw('COALESCE(SUM(unpaid_amt), 0) as unpaid')
+            ->toBase()
+            ->first();
 
         return [
-            'count' => (clone $query)->count(),
-            'total_amount' => $totalAmount,
-            'paid' => $paid,
-            'unpaid' => $unpaid,
+            'count' => (int) ($totals->count ?? 0),
+            'total_amount' => (float) ($totals->total_amount ?? 0),
+            'paid' => (float) ($totals->paid ?? 0),
+            'unpaid' => (float) ($totals->unpaid ?? 0),
             'income' => (float) Payment::query()->where('status', 'paid')->sum('amount'),
         ];
     }

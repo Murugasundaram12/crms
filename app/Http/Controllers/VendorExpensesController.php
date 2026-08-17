@@ -38,6 +38,12 @@ class VendorExpensesController extends Controller
             $unpaidAmount = max($amount - $paidAmount, 0);
             $extraAmount = max($paidAmount - $amount, 0);
             $userId = (int) Auth::id();
+            $vendorId = (int) $validated['vendor_id'];
+
+            $vendor = Vendor::query()->lockForUpdate()->find($vendorId);
+            $existingAdvance = (float) ($vendor?->advance_amt ?? 0);
+            $advanceUsed = min($paidAmount, $existingAdvance);
+            $netWalletDebit = max(0, $paidAmount - $advanceUsed);
 
             $expense = Expense::create([
                 'user_id' => $userId,
@@ -50,25 +56,41 @@ class VendorExpensesController extends Controller
                 'unpaid_amt' => $unpaidAmount,
                 'extra_amt' => $extraAmount,
                 'payment_method_id' => $validated['payment_method_id'] ?? null,
-                'vendor_id' => $validated['vendor_id'],
+                'vendor_id' => $vendorId,
                 'current_date' => $validated['current_date'] ?? now(),
                 'image' => $validated['image'] ?? null,
             ]);
 
-            app(CrmBalanceService::class)->replaceUserWalletDebit(
-                null,
-                0,
-                $userId,
-                $paidAmount,
-                'Vendor expense payment',
-                'vendor_expense',
-                (int) $expense->id
-            );
+            if ($advanceUsed > 0 && $vendor) {
+                app(CrmBalanceService::class)->adjustVendorAdvance($vendorId, -$advanceUsed);
+                AdvanceHistory::create($this->filterColumns('advance_history', [
+                    'vendor_id' => $vendorId,
+                    'labour_expense_transaction_id' => $expense->id,
+                    'amount' => $advanceUsed,
+                    'entry_type' => 'withdraw',
+                    'notes' => 'Vendor advance applied to vendor expense #' . $expense->id,
+                    'user_id' => Auth::id(),
+                    'current_date' => now()->toDateString(),
+                    'current_time' => now()->format('H:i:s'),
+                ]));
+            }
+
+            if ($netWalletDebit > 0) {
+                app(CrmBalanceService::class)->replaceUserWalletDebit(
+                    null,
+                    0,
+                    $userId,
+                    $netWalletDebit,
+                    'Vendor expense payment',
+                    'vendor_expense',
+                    (int) $expense->id
+                );
+            }
 
             if ($extraAmount > 0) {
-                app(CrmBalanceService::class)->adjustVendorAdvance((int) $validated['vendor_id'], $extraAmount);
+                app(CrmBalanceService::class)->adjustVendorAdvance($vendorId, $extraAmount);
                 AdvanceHistory::create($this->filterColumns('advance_history', [
-                    'vendor_id' => $validated['vendor_id'],
+                    'vendor_id' => $vendorId,
                     'labour_expense_transaction_id' => $expense->id,
                     'amount' => $extraAmount,
                     'entry_type' => 'credit',
@@ -271,7 +293,7 @@ class VendorExpensesController extends Controller
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (int) $expense->paid_amt,
+                (float) $expense->paid_amt,
                 null,
                 0,
                 'Deleted vendor expense refund',

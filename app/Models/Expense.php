@@ -36,15 +36,15 @@ class Expense extends Model
     ];
 
     protected $casts = [
-        'amount' => 'integer',
+        'amount' => 'decimal:2',
         'main_category_id' => 'integer',
         'category_id' => 'integer',
         'project_id' => 'integer',
         'user_id' => 'integer',
         'current_date' => 'datetime',
-        'paid_amt' => 'integer',
-        'unpaid_amt' => 'integer',
-        'extra_amt' => 'integer',
+        'paid_amt' => 'decimal:2',
+        'unpaid_amt' => 'decimal:2',
+        'extra_amt' => 'decimal:2',
         'editedBy' => 'integer',
         'labour_id' => 'integer',
         'vendor_id' => 'integer',

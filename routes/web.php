@@ -279,6 +279,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/expenses-delete_record', [ExpensesController::class, 'deleteRecord'])
         ->middleware('permission:expenses-delete')
         ->name('expenses.delete-record');
+    Route::post('/expenses-restore_record', [ExpensesController::class, 'restoreRecord'])
+        ->middleware('permission:expenses-delete')
+        ->name('expenses.restore-record');
     Route::get('/expenses-deleted-history', [ExpensesController::class, 'deletedHistory'])
         ->middleware('permission:expenses-list')
         ->name('expenses.deleted-history');

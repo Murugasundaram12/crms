@@ -319,7 +319,7 @@ class LabourExpensesController extends Controller
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (int) $expense->paid_amt,
+                (float) $expense->paid_amt,
                 null,
                 0,
                 'Deleted labour expense refund',

@@ -42,57 +42,72 @@ class PurchaseFinanceSyncService
         $description = $this->description($assignment);
 
         if ($debitWallet && $paidAmount > 0) {
-            $this->balanceService->recordWalletTransaction(
-                $userId,
-                $paidAmount,
-                'debit',
-                self::SOURCE_TYPE,
-                (int) $assignment->id,
-                $assignment->payment_method_id ? (int) $assignment->payment_method_id : null,
-                $description,
-                $userId,
-                $projectId ? (int) $projectId : null
-            );
+            $existingWallet = Wallet::query()
+                ->where('source_type', self::SOURCE_TYPE)
+                ->where('source_id', (int) $assignment->id)
+                ->first();
+
+            if (! $existingWallet) {
+                $this->balanceService->recordWalletTransaction(
+                    $userId,
+                    $paidAmount,
+                    'debit',
+                    self::SOURCE_TYPE,
+                    (int) $assignment->id,
+                    $assignment->payment_method_id ? (int) $assignment->payment_method_id : null,
+                    $description,
+                    $userId,
+                    $projectId ? (int) $projectId : null
+                );
+            }
         }
 
         [$mainCategoryId, $categoryId] = $this->expenseCategoryIds();
 
         if (Schema::hasTable('expenses')) {
-            Expense::query()->create(array_filter([
-                'amount' => (int) round($amount),
-                'main_category_id' => $mainCategoryId,
-                'category_id' => $categoryId,
-                'project_id' => $projectId,
-                'user_id' => $userId,
-                'current_date' => $assignment->transferred_at ?? now(),
-                'description' => $description,
-                'paid_amt' => (int) round($paidAmount),
-                'unpaid_amt' => (int) round($unpaidAmount),
-                'extra_amt' => 0,
-                'payment_method_id' => $assignment->payment_method_id,
-                'vendor_id' => $assignment->vendor_id,
-                'source_type' => Schema::hasColumn('expenses', 'source_type') ? self::SOURCE_TYPE : null,
-                'source_id' => Schema::hasColumn('expenses', 'source_id') ? (int) $assignment->id : null,
-            ], fn($value) => $value !== null));
+            Expense::query()->updateOrCreate(
+                [
+                    'source_type' => Schema::hasColumn('expenses', 'source_type') ? self::SOURCE_TYPE : null,
+                    'source_id' => Schema::hasColumn('expenses', 'source_id') ? (int) $assignment->id : null,
+                ],
+                array_filter([
+                    'amount' => (int) round($amount),
+                    'main_category_id' => $mainCategoryId,
+                    'category_id' => $categoryId,
+                    'project_id' => $projectId,
+                    'user_id' => $userId,
+                    'current_date' => $assignment->transferred_at ?? now(),
+                    'description' => $description,
+                    'paid_amt' => (int) round($paidAmount),
+                    'unpaid_amt' => (int) round($unpaidAmount),
+                    'extra_amt' => 0,
+                    'payment_method_id' => $assignment->payment_method_id,
+                    'vendor_id' => $assignment->vendor_id,
+                ], fn($value) => $value !== null)
+            );
         }
 
         if (Schema::hasTable('expense_transactions')) {
-            ExpenseTransaction::query()->create(array_filter([
-                'user_id' => $userId,
-                'main_category_id' => $mainCategoryId,
-                'category_id' => $categoryId,
-                'project_id' => $projectId,
-                'description' => $description,
-                'paid_amount' => $paidAmount,
-                'payment_mode' => (string) ($assignment->payment_method_id ?: 1),
-                'payment_method_id' => $assignment->payment_method_id,
-                'current_date' => optional($assignment->transferred_at)->toDateString() ?? now()->toDateString(),
-                'current_time' => optional($assignment->transferred_at)->format('h:i:s A') ?? now()->format('h:i:s A'),
-                'active_status' => true,
-                'delete_status' => false,
-                'source_type' => Schema::hasColumn('expense_transactions', 'source_type') ? self::SOURCE_TYPE : null,
-                'source_id' => Schema::hasColumn('expense_transactions', 'source_id') ? (int) $assignment->id : null,
-            ], fn($value) => $value !== null));
+            ExpenseTransaction::query()->updateOrCreate(
+                [
+                    'source_type' => Schema::hasColumn('expense_transactions', 'source_type') ? self::SOURCE_TYPE : null,
+                    'source_id' => Schema::hasColumn('expense_transactions', 'source_id') ? (int) $assignment->id : null,
+                ],
+                array_filter([
+                    'user_id' => $userId,
+                    'main_category_id' => $mainCategoryId,
+                    'category_id' => $categoryId,
+                    'project_id' => $projectId,
+                    'description' => $description,
+                    'paid_amount' => $paidAmount,
+                    'payment_mode' => (string) ($assignment->payment_method_id ?: 1),
+                    'payment_method_id' => $assignment->payment_method_id,
+                    'current_date' => optional($assignment->transferred_at)->toDateString() ?? now()->toDateString(),
+                    'current_time' => optional($assignment->transferred_at)->format('h:i:s A') ?? now()->format('h:i:s A'),
+                    'active_status' => true,
+                    'delete_status' => false,
+                ], fn($value) => $value !== null)
+            );
         }
     }
 

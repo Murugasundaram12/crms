@@ -7,6 +7,8 @@ use App\Models\Employee;
 use App\Models\EmployeeSalary;
 use App\Models\Expense;
 use App\Models\Labour;
+use App\Models\LabourExpenseTransaction;
+use App\Models\LabourSalary;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\Task;
@@ -31,7 +33,7 @@ class DashboardService
             : 0.0;
         $expenseTotal = $this->sumIfTableExists(Expense::class, 'amount');
         $employeeSalaryTotal = $this->sumIfTableExists(EmployeeSalary::class, 'salary');
-        $labourSalaryTotal = $this->sumIfTableExists(Labour::class, 'salary');
+        $labourSalaryTotal = $this->sumLabourExpenses();
         $totalExpenses = $expenseTotal + $employeeSalaryTotal + $labourSalaryTotal;
         $netRevenue = $paidRevenue - $totalExpenses;
 
@@ -53,6 +55,21 @@ class DashboardService
             'completionRate' => $taskCount > 0 ? round(($completedTasks / $taskCount) * 100, 1) : 0,
             'budgetUtilization' => $totalBudget > 0 ? round(($totalSpent / $totalBudget) * 100, 1) : 0,
         ];
+    }
+
+    private function sumLabourExpenses(): float
+    {
+        $total = 0.0;
+
+        if (Schema::hasTable('labour_salaries') && Schema::hasColumn('labour_salaries', 'paid_amount')) {
+            $total += (float) LabourSalary::sum('paid_amount');
+        }
+
+        if (Schema::hasTable('labour_expense_transactions') && Schema::hasColumn('labour_expense_transactions', 'paid_amount')) {
+            $total += (float) LabourExpenseTransaction::where('delete_status', 0)->sum('paid_amount');
+        }
+
+        return $total;
     }
 
     /**
