@@ -35,6 +35,10 @@
                                     <input type="radio" name="transfer_type" value="vendor" id="transfer_type_vendor" {{ $transfer->transfer_type === 'vendor' ? 'checked' : '' }} />
                                     Vendor
                                 </label>
+                                <label class="d-flex align-items-center gap-2">
+                                    <input type="radio" name="transfer_type" value="labour" id="transfer_type_labour" {{ $transfer->transfer_type === 'labour' ? 'checked' : '' }} />
+                                    Labour
+                                </label>
                             </div>
                             @error('transfer_type')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
@@ -69,6 +73,22 @@
                                 @endforeach
                             </select>
                             @error('vendor_id')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6" id="labour_id_field"
+                            style="{{ $transfer->transfer_type === 'labour' ? '' : 'display:none;' }}">
+                            <label class="form-label">Labour</label>
+                            <select name="labour_id" class="form-select form-select-sm">
+                                <option value="">Select Labour</option>
+                                @foreach($labours as $labour)
+                                    <option value="{{ $labour->id }}" {{ (string) ($transfer->labour_id ?? '') === (string) $labour->id ? 'selected' : '' }}>
+                                        {{ $labour->name ?? 'Labour #' . $labour->id }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('labour_id')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror
                         </div>
@@ -137,26 +157,37 @@
         function syncTransferTypeFields() {
             const employeeField = document.getElementById('employee_id_field');
             const vendorField = document.getElementById('vendor_id_field');
+            const labourField = document.getElementById('labour_id_field');
             const employeeRadio = document.getElementById('transfer_type_employee');
             const vendorRadio = document.getElementById('transfer_type_vendor');
+            const labourRadio = document.getElementById('transfer_type_labour');
 
             if (employeeRadio && employeeRadio.checked) {
                 employeeField.style.display = '';
                 vendorField.style.display = 'none';
+                labourField.style.display = 'none';
             } else if (vendorRadio && vendorRadio.checked) {
                 vendorField.style.display = '';
                 employeeField.style.display = 'none';
+                labourField.style.display = 'none';
+            } else if (labourRadio && labourRadio.checked) {
+                labourField.style.display = '';
+                employeeField.style.display = 'none';
+                vendorField.style.display = 'none';
             } else {
                 employeeField.style.display = 'none';
                 vendorField.style.display = 'none';
+                labourField.style.display = 'none';
             }
         }
 
         document.addEventListener('DOMContentLoaded', function () {
             const employeeRadio = document.getElementById('transfer_type_employee');
             const vendorRadio = document.getElementById('transfer_type_vendor');
+            const labourRadio = document.getElementById('transfer_type_labour');
             if (employeeRadio) employeeRadio.addEventListener('change', syncTransferTypeFields);
             if (vendorRadio) vendorRadio.addEventListener('change', syncTransferTypeFields);
+            if (labourRadio) labourRadio.addEventListener('change', syncTransferTypeFields);
             syncTransferTypeFields();
         });
     </script>

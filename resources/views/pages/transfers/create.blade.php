@@ -7,6 +7,11 @@
             <a href="{{ route('transfers.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
         </div>
 
+        <div class="alert alert-info border-0 shadow-sm d-flex align-items-center justify-content-between mb-3">
+            <span class="fw-semibold"><i class="ti ti-wallet me-1"></i> Available Wallet Balance:</span>
+            <span class="fs-5 fw-bold text-primary">Rs {{ number_format((float) (Auth::user()->wallet ?? 0), 2) }}</span>
+        </div>
+
         @if ($errors->any())
             <div class="alert alert-danger">
                 <ul class="mb-0">
@@ -33,6 +38,10 @@
                                 <label class="d-flex align-items-center gap-2">
                                     <input type="radio" name="transfer_type" value="vendor" id="transfer_type_vendor" {{ old('transfer_type') === 'vendor' ? 'checked' : '' }} />
                                     Vendor
+                                </label>
+                                <label class="d-flex align-items-center gap-2">
+                                    <input type="radio" name="transfer_type" value="labour" id="transfer_type_labour" {{ old('transfer_type') === 'labour' ? 'checked' : '' }} />
+                                    Labour
                                 </label>
                             </div>
                             @error('transfer_type')
@@ -66,6 +75,21 @@
                                 @endforeach
                             </select>
                             @error('vendor_id')
+                                <div class="text-danger small mt-1">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6" id="labour_id_field" style="display:none;">
+                            <label class="form-label">Labour</label>
+                            <select name="labour_id" class="form-select form-select-sm">
+                                <option value="">Select Labour</option>
+                                @foreach($labours as $labour)
+                                    <option value="{{ $labour->id }}" {{ (string) old('labour_id') === (string) $labour->id ? 'selected' : '' }}>
+                                        {{ $labour->name ?? 'Labour #' . $labour->id }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('labour_id')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror
                         </div>
@@ -133,27 +157,58 @@
         function syncTransferTypeFields() {
             const employeeField = document.getElementById('employee_id_field');
             const vendorField = document.getElementById('vendor_id_field');
+            const labourField = document.getElementById('labour_id_field');
             const employeeRadio = document.getElementById('transfer_type_employee');
             const vendorRadio = document.getElementById('transfer_type_vendor');
+            const labourRadio = document.getElementById('transfer_type_labour');
 
             if (employeeRadio && employeeRadio.checked) {
                 employeeField.style.display = '';
                 vendorField.style.display = 'none';
+                labourField.style.display = 'none';
             } else if (vendorRadio && vendorRadio.checked) {
                 vendorField.style.display = '';
                 employeeField.style.display = 'none';
+                labourField.style.display = 'none';
+            } else if (labourRadio && labourRadio.checked) {
+                labourField.style.display = '';
+                employeeField.style.display = 'none';
+                vendorField.style.display = 'none';
             } else {
                 employeeField.style.display = 'none';
                 vendorField.style.display = 'none';
+                labourField.style.display = 'none';
             }
         }
 
         document.addEventListener('DOMContentLoaded', function () {
             const employeeRadio = document.getElementById('transfer_type_employee');
             const vendorRadio = document.getElementById('transfer_type_vendor');
+            const labourRadio = document.getElementById('transfer_type_labour');
             if (employeeRadio) employeeRadio.addEventListener('change', syncTransferTypeFields);
             if (vendorRadio) vendorRadio.addEventListener('change', syncTransferTypeFields);
+            if (labourRadio) labourRadio.addEventListener('change', syncTransferTypeFields);
             syncTransferTypeFields();
+
+            const amountInput = document.querySelector('input[name="amount"]');
+            const userWallet = {{ (float) (Auth::user()->wallet ?? 0) }};
+            if (amountInput) {
+                amountInput.addEventListener('input', function () {
+                    const val = parseFloat(this.value) || 0;
+                    let warn = document.getElementById('amount_wallet_warning');
+                    if (val > userWallet) {
+                        if (!warn) {
+                            warn = document.createElement('div');
+                            warn.id = 'amount_wallet_warning';
+                            warn.className = 'text-danger small mt-1';
+                            this.parentNode.appendChild(warn);
+                        }
+                        warn.textContent = 'Warning: Entered amount exceeds your available wallet balance (Rs ' + userWallet.toFixed(2) + ').';
+                    } else if (warn) {
+                        warn.remove();
+                    }
+                });
+            }
         });
     </script>
 @endsection

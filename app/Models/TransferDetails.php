@@ -13,6 +13,7 @@ class TransferDetails extends Model
         'user_id',
         'employee_id',
         'vendor_id',
+        'labour_id',
         'transfer_type',
         'amount',
         'payment_mode',
@@ -27,5 +28,10 @@ class TransferDetails extends Model
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
+    }
+
+    public function labour(): BelongsTo
+    {
+        return $this->belongsTo(Labour::class, 'labour_id');
     }
 }

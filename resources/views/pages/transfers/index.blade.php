@@ -49,6 +49,8 @@
                             </option>
                             <option value="vendor" {{ request('transfer_type') === 'vendor' ? 'selected' : '' }}>Vendor
                             </option>
+                            <option value="labour" {{ request('transfer_type') === 'labour' ? 'selected' : '' }}>Labour
+                            </option>
                         </select>
                     </div>
                     <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
@@ -67,7 +69,7 @@
                     <tr>
                         <th>#</th>
                         <th>Type</th>
-                        <th>Employee/Vendor</th>
+                        <th>Recipient (Employee/Vendor/Labour)</th>
                         <th>Payment Mode</th>
                         <th>Amount</th>
                         <th>Date</th>
@@ -84,6 +86,8 @@
                             <td>
                                 @if($transfer->transfer_type === 'employee')
                                     {{ $transfer->employee_id ?? '-' }}
+                                @elseif($transfer->transfer_type === 'labour')
+                                    {{ $transfer->labour?->name ?? ($transfer->labour_id ? 'Labour #' . $transfer->labour_id : '-') }}
                                 @else
                                     {{ $transfer->vendor_id ?? '-' }}
                                 @endif
