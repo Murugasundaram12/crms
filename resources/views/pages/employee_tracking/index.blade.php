@@ -1118,9 +1118,33 @@
             return filtered;
         }
 
+        function googleRouteFailureCode(error) {
+            const message = String(error?.message || error?.code || error || '').toUpperCase();
+
+            if (message.includes('REQUEST_DENIED')) return 'REQUEST_DENIED';
+            if (message.includes('ZERO_RESULTS')) return 'ZERO_RESULTS';
+            if (message.includes('OVER_QUERY_LIMIT') || message.includes('RESOURCE_EXHAUSTED')) return 'OVER_QUERY_LIMIT';
+            if (message.includes('INVALID_REQUEST')) return 'INVALID_REQUEST';
+
+            return 'ROUTING_UNAVAILABLE';
+        }
+
+        function rawRouteFallback(chunk, reason) {
+            const points = filterPolylineCoordinates(chunk, 0);
+
+            if (timelineConfig.gpsDebug) {
+                console.warn('[EmployeeTracking] road routing fallback', {
+                    reason,
+                    pointCount: points.length,
+                });
+            }
+
+            return {points, routed: false, reason};
+        }
+
         async function requestDrivingPath(chunk, isWalking = false) {
             if (!chunk || chunk.length < 2) {
-                return [];
+                return rawRouteFallback([], 'INSUFFICIENT_POINTS');
             }
 
             const travelMode = isWalking ? 'WALK' : 'DRIVE';
@@ -1137,8 +1161,12 @@
                 }
 
                 if (RouteClass?.computeRoutes) {
-                    const origin = { location: new google.maps.LatLng(chunk[0].lat, chunk[0].lng) };
-                    const destination = { location: new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng) };
+                    // ComputeRoutesRequest takes endpoint coordinates directly.
+                    // `{ location: ... }` is valid only for intermediate
+                    // waypoints and makes the Routes API reject endpoints as
+                    // INVALID_REQUEST.
+                    const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);
+                    const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);
                     const intermediates = prepareRoutingWaypoints(chunk).map((point) => ({
                         location: new google.maps.LatLng(point.lat, point.lng),
                         via: true,
@@ -1207,34 +1235,30 @@
                                     const firstKey = routeCache.keys().next().value;
                                     if (firstKey) routeCache.delete(firstKey);
                                 }
-                                routeCache.set(cacheKey, resolvedPoints);
-                                return resolvedPoints;
+                                const result = {points: resolvedPoints, routed: true, reason: null};
+                                routeCache.set(cacheKey, result);
+                                return result;
                             }
                         }
                     }
                 }
             } catch (err) {
                 if (timelineConfig.gpsDebug) {
-                    console.warn('[EmployeeTracking] Routes API request failed:', err);
+                    console.warn('[EmployeeTracking] Routes API request failed:', googleRouteFailureCode(err), err);
                 }
+
+                const fallback = rawRouteFallback(chunk, googleRouteFailureCode(err));
+                routeCache.set(cacheKey, fallback);
+                return fallback;
             }
 
-            const fallbackPoints = [];
-            for (let i = 0; i < chunk.length; i++) {
-                const pt = chunk[i];
-                if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lng)) continue;
-                if (pt.accuracy !== undefined && Number(pt.accuracy) > 40) continue;
-                if (fallbackPoints.length > 0) {
-                    const prev = fallbackPoints[fallbackPoints.length - 1];
-                    if (computeDistanceMeters(prev, pt) > 1500) {
-                        continue;
-                    }
-                }
-                fallbackPoints.push(pt);
-            }
-            const finalFallback = fallbackPoints.length >= 2 ? fallbackPoints : chunk.slice();
-            routeCache.set(cacheKey, finalFallback);
-            return finalFallback;
+            // Route.computeRoutes may be absent even though Maps itself loaded
+            // (for example, when Routes API is not enabled for this key). Keep
+            // the exact server-validated GPS segment as the fallback; do not
+            // remove endpoints or manufacture a route across a GPS gap.
+            const fallback = rawRouteFallback(chunk, 'ROUTING_UNAVAILABLE');
+            routeCache.set(cacheKey, fallback);
+            return fallback;
         }
 
         async function drawRoadFollowingPolyline(routePath, renderToken) {
@@ -1242,7 +1266,7 @@
                 return;
             }
 
-            if (timelineMapProvider !== 'google' || !window.google?.maps) {
+            if (timelineMapProvider !== 'google' || !window.google?.maps || !timelineConfig.roadRouteEnabled) {
                 drawRoutePolyline(routePath);
 
                 return;
@@ -1251,13 +1275,27 @@
             const isWalking = isWalkingPath(routePath);
             const chunks = chunkForDirectionsRequest(routePath, 10);
             const combinedPoints = [];
+            const routingFailures = [];
 
             for (const chunk of chunks) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
-                const segmentPoints = await requestDrivingPath(chunk, isWalking);
-                combinedPoints.push(...segmentPoints);
+                const result = await requestDrivingPath(chunk, isWalking);
+                if (!result.routed) {
+                    routingFailures.push(result.reason);
+                }
+
+                // Consecutive request chunks deliberately share an endpoint.
+                // Omit only that duplicate, preserving first/last GPS points
+                // and a continuous path through the waypoint limit boundary.
+                const segmentPoints = result.points || [];
+                if (combinedPoints.length && segmentPoints.length
+                    && computeDistanceMeters(combinedPoints[combinedPoints.length - 1], segmentPoints[0]) < 1) {
+                    combinedPoints.push(...segmentPoints.slice(1));
+                } else {
+                    combinedPoints.push(...segmentPoints);
+                }
             }
 
             if (renderToken !== timelineRenderToken || combinedPoints.length < 2) {
@@ -1287,6 +1325,7 @@
                     optimizeWaypoints: false,
                     waypointCount: combinedPoints.length,
                     batchCount: chunks.length,
+                    routingFailures,
                     endpoint: combinedPoints[combinedPoints.length - 1],
                 });
             }

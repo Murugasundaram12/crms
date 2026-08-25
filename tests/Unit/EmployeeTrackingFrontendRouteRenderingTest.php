@@ -15,11 +15,18 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->source = file_get_contents(resource_path('views/pages/employee_tracking/index.blade.php'));
     }
 
-    public function test_actual_route_uses_backend_polyline_segments_only(): void
+    public function test_actual_route_uses_ordered_backend_segments_and_road_routing_when_available(): void
     {
         $this->assertStringContainsString('const movementPaths = buildMovementPathsFromSegments(data.polylineSegments);', $this->source);
         $this->assertStringContainsString('function buildMovementPathsFromSegments(segments)', $this->source);
         $this->assertStringContainsString('drawRoutePolyline(routePath);', $this->source);
+        $this->assertStringContainsString('requestDrivingPath(chunk, isWalking)', $this->source);
+        $this->assertStringContainsString('RouteClass.computeRoutes', $this->source);
+        $this->assertStringContainsString('timelineConfig.roadRouteEnabled', $this->source);
+        $this->assertStringContainsString('const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);', $this->source);
+        $this->assertStringContainsString('const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);', $this->source);
+        $this->assertStringNotContainsString('const origin = { location:', $this->source);
+        $this->assertStringNotContainsString('const destination = { location:', $this->source);
         $this->assertStringContainsString("return 'actual';", $this->source);
         $this->assertStringNotContainsString('drawDirectionsSegments(', $this->source);
         $this->assertStringNotContainsString("if (routeMode === 'road'", $this->source);
@@ -34,6 +41,19 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('strokeWeight: 4', $this->source);
         $this->assertStringNotContainsString('path.isOfflineSegment', $this->source);
         $this->assertStringNotContainsString("strokeOpacity: latLngs.isOfflineSegment", $this->source);
+    }
+
+    public function test_road_route_chunking_preserves_boundaries_and_falls_back_to_raw_gps(): void
+    {
+        $this->assertStringContainsString('i += maxPoints - 1', $this->source);
+        $this->assertStringContainsString('chunks.push(latLngs.slice(i, end));', $this->source);
+        $this->assertStringContainsString('combinedPoints.push(...segmentPoints.slice(1));', $this->source);
+        $this->assertStringContainsString('function rawRouteFallback(chunk, reason)', $this->source);
+        $this->assertStringContainsString("'REQUEST_DENIED'", $this->source);
+        $this->assertStringContainsString("'ZERO_RESULTS'", $this->source);
+        $this->assertStringContainsString("'OVER_QUERY_LIMIT'", $this->source);
+        $this->assertStringContainsString("'INVALID_REQUEST'", $this->source);
+        $this->assertStringContainsString("'ROUTING_UNAVAILABLE'", $this->source);
     }
 
     public function test_route_markers_are_numbered_and_sampled_from_route_segments(): void
