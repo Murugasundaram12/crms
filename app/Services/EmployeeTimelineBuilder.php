@@ -9,8 +9,7 @@ class EmployeeTimelineBuilder
 {
     public function __construct(
         private readonly GpsTrackingValidationService $gpsValidator,
-    ) {
-    }
+    ) {}
 
     public function build(Collection $rawTrackings, array $options = []): array
     {
@@ -48,17 +47,21 @@ class EmployeeTimelineBuilder
                 : null;
             $sessionBreak = $segmentBreakReason !== null;
 
-            if ($this->isMovementType($type)
+            if (
+                $this->isMovementType($type)
                 && $previousAcceptedTracking
                 && $this->hasInactiveTimeGap($previousAcceptedTracking, $tracking, $settings)
-                && $this->isStillActivity($tracking)) {
+                && $this->isStillActivity($tracking)
+            ) {
                 $type = 'still';
             }
 
-            if ($this->isMovementType($type)
+            if (
+                $this->isMovementType($type)
                 && ! $currentSegment
                 && $lastStillTracking
-                && $this->isPostStillDrift($lastStillTracking, $tracking, $settings)) {
+                && $this->isPostStillDrift($lastStillTracking, $tracking, $settings)
+            ) {
                 $type = 'still';
             }
 
@@ -192,8 +195,10 @@ class EmployeeTimelineBuilder
                 continue;
             }
 
-            if ($this->isWalkingActivity($tracking)
-                && ($metrics['speed_mps'] ?? 0) > (float) ($settings['gps_max_walking_speed_mps'] ?? 3.5)) {
+            if (
+                $this->isWalkingActivity($tracking)
+                && ($metrics['speed_mps'] ?? 0) > (float) ($settings['gps_max_walking_speed_mps'] ?? 3.5)
+            ) {
                 $type = 'vehicle';
                 $item['type'] = 'vehicle';
                 $diagnostic['timeline_type'] = 'vehicle';
@@ -371,8 +376,8 @@ class EmployeeTimelineBuilder
     {
         return $trackings
             ->sortBy([
-                fn (LocationTracking $a, LocationTracking $b) => ($this->trackingTime($a)?->getTimestamp() ?? 0) <=> ($this->trackingTime($b)?->getTimestamp() ?? 0),
-                fn (LocationTracking $a, LocationTracking $b) => ($a->id ?? 0) <=> ($b->id ?? 0),
+                fn(LocationTracking $a, LocationTracking $b) => ($this->trackingTime($a)?->getTimestamp() ?? 0) <=> ($this->trackingTime($b)?->getTimestamp() ?? 0),
+                fn(LocationTracking $a, LocationTracking $b) => ($a->id ?? 0) <=> ($b->id ?? 0),
             ])
             ->values();
     }
@@ -485,7 +490,7 @@ class EmployeeTimelineBuilder
                     'travel_mode' => $this->directionsTravelMode($points),
                     'origin' => $this->directionsPoint($origin),
                     'destination' => $this->directionsPoint($destination),
-                    'waypoints' => array_map(fn (array $point): array => $this->directionsPoint($point), $waypoints),
+                    'waypoints' => array_map(fn(array $point): array => $this->directionsPoint($point), $waypoints),
                     'source_point_ids' => collect($points)->pluck('id')->values()->all(),
                 ];
             })
@@ -557,7 +562,7 @@ class EmployeeTimelineBuilder
         }
 
         return collect($selected)
-            ->unique(fn (array $point): string => (string) ($point['id'] ?? ($point['lat'] . ',' . $point['lng'])))
+            ->unique(fn(array $point): string => (string) ($point['id'] ?? ($point['lat'] . ',' . $point['lng'])))
             ->values()
             ->all();
     }
@@ -606,10 +611,12 @@ class EmployeeTimelineBuilder
 
         if ($previousPrevious) {
             $previousDistance = $this->distanceMetres($previousPrevious, $previous);
-            if ($previousDistance >= (float) $settings['gps_bearing_min_distance_metres']
+            if (
+                $previousDistance >= (float) $settings['gps_bearing_min_distance_metres']
                 && $distance >= (float) $settings['gps_bearing_min_distance_metres']
                 && (float) $previous->accuracy <= (float) $settings['gps_max_accuracy_metres']
-                && (float) $current->accuracy <= (float) $settings['gps_max_accuracy_metres']) {
+                && (float) $current->accuracy <= (float) $settings['gps_max_accuracy_metres']
+            ) {
                 $previousBearing = $this->gpsValidator->bearingDegrees(
                     (float) $previousPrevious->latitude,
                     (float) $previousPrevious->longitude,

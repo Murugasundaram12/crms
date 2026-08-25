@@ -71,7 +71,17 @@
                     <tbody>
                         @forelse ($employeeSalaries as $employeeSalary)
                             <tr>
-                                <td><span class="fw-semibold text-dark">{{ $employeeSalary->name }}</span></td>
+                                <td>
+                                    <span class="fw-semibold text-dark d-block">{{ $employeeSalary->name }}</span>
+                                    @if($employeeSalary->working_days > 0)
+                                        <small class="text-muted d-block mt-1">
+                                            <span class="badge bg-light text-dark border">Days: {{ $employeeSalary->present_days }}/{{ $employeeSalary->working_days }}</span>
+                                            @if($employeeSalary->attendance_deduction > 0)
+                                                <span class="badge badge-soft-danger">-Rs {{ number_format((float) $employeeSalary->attendance_deduction, 2) }}</span>
+                                            @endif
+                                        </small>
+                                    @endif
+                                </td>
                                 <td>{{ $employeeSalary->salary_period ?: '-' }}</td>
                                 <td>Rs {{ number_format((float) ($employeeSalary->salary_amount ?: $employeeSalary->salary), 2) }}</td>
                                 <td><span class="badge badge-soft-success">Rs {{ number_format((float) $employeeSalary->paid_amount, 2) }}</span></td>

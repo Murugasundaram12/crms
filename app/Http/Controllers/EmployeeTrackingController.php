@@ -141,7 +141,7 @@ class EmployeeTrackingController extends Controller
             ->latest('last_seen_at')
             ->first();
 
-        $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd);
+        $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd, $employee);
 
         if ($attendances->isEmpty()) {
             $response = [
@@ -231,7 +231,7 @@ class EmployeeTrackingController extends Controller
         $attendances = $this->timelineAttendances($employee, $date, $timelineStart, $timelineEnd);
         $attendance = $attendances->last();
 
-        $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd);
+        $trackings = $this->timelineTrackings($attendances, $timelineStart, $timelineEnd, $employee);
 
         $timeline = app(EmployeeTimelineBuilder::class)->build($trackings, $this->timelineGpsOptions());
         $timeLineItems = $this->withAttendanceBoundaryItems($timeline['items'], $attendances);
@@ -1569,15 +1569,24 @@ class EmployeeTrackingController extends Controller
             ->forTimeline($employee, $date, $timelineStart, $timelineEnd);
     }
 
-    private function timelineTrackings($attendances, Carbon $timelineStart, Carbon $timelineEnd)
+    private function timelineTrackings($attendances, Carbon $timelineStart, Carbon $timelineEnd, ?User $employee = null)
     {
-        if ($attendances->isEmpty()) {
+        if ($attendances->isNotEmpty()) {
+            return LocationTracking::query()
+                ->with('attendance')
+                ->whereIn('attendance_id', $attendances->pluck('id'))
+                ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
+                ->orderBy('id')
+                ->get();
+        }
+
+        if (! $employee) {
             return collect();
         }
 
         return LocationTracking::query()
             ->with('attendance')
-            ->whereIn('attendance_id', $attendances->pluck('id'))
+            ->where('employee_id', $employee->id)
             ->whereRaw('COALESCE(recorded_at, created_at) BETWEEN ? AND ?', [
                 $timelineStart->toDateTimeString(),
                 $timelineEnd->toDateTimeString(),
