@@ -1563,7 +1563,7 @@
                 // and a continuous path through the waypoint limit boundary.
                 const segmentPoints = result.points || [];
                 if (combinedPoints.length && segmentPoints.length
-                    && computeDistanceMeters(combinedPoints[combinedPoints.length - 1], segmentPoints[0]) < 1) {
+                    && computeDistanceMeters(combinedPoints[combinedPoints.length - 1], segmentPoints[0]) < 20) {
                     combinedPoints.push(...segmentPoints.slice(1));
                 } else {
                     combinedPoints.push(...segmentPoints);
