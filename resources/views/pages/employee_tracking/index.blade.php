@@ -928,29 +928,118 @@
 
             const rawLat = Number(typeof rawPoint.lat === 'function' ? rawPoint.lat() : rawPoint.lat);
             const rawLng = Number(typeof rawPoint.lng === 'function' ? rawPoint.lng() : rawPoint.lng);
+
             if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
                 return { point: rawPoint, index: 0, distance: 0 };
             }
 
-            const start = Math.max(0, Math.min(minSearchIndex, snappedPoints.length - 1));
+            if (snappedPoints.length === 1) {
+                const pt = snappedPoints[0];
+                const point = {
+                    lat: Number(typeof pt.lat === 'function' ? pt.lat() : pt.lat),
+                    lng: Number(typeof pt.lng === 'function' ? pt.lng() : pt.lng),
+                };
+
+                return {
+                    point,
+                    index: 0,
+                    distance: computeDistanceMeters(
+                        { lat: rawLat, lng: rawLng },
+                        point
+                    ),
+                };
+            }
+
+            const start = Math.max(
+                0,
+                Math.min(minSearchIndex, snappedPoints.length - 2)
+            );
+
+            let bestPoint = null;
             let bestIndex = start;
             let minDistance = Infinity;
 
-            for (let i = start; i < snappedPoints.length; i++) {
-                const pt = snappedPoints[i];
-                const dist = computeDistanceMeters({ lat: rawLat, lng: rawLng }, pt);
-                if (dist < minDistance) {
-                    minDistance = dist;
+            // Find the closest POINT ON each route segment,
+            // instead of only checking route vertices.
+            for (let i = start; i < snappedPoints.length - 1; i++) {
+                const a = snappedPoints[i];
+                const b = snappedPoints[i + 1];
+
+                const aLat = Number(typeof a.lat === 'function' ? a.lat() : a.lat);
+                const aLng = Number(typeof a.lng === 'function' ? a.lng() : a.lng);
+                const bLat = Number(typeof b.lat === 'function' ? b.lat() : b.lat);
+                const bLng = Number(typeof b.lng === 'function' ? b.lng() : b.lng);
+
+                if (
+                    !Number.isFinite(aLat) ||
+                    !Number.isFinite(aLng) ||
+                    !Number.isFinite(bLat) ||
+                    !Number.isFinite(bLng)
+                ) {
+                    continue;
+                }
+
+                // Local equirectangular projection.
+                const refLat = ((aLat + bLat + rawLat) / 3) * Math.PI / 180;
+                const cosLat = Math.cos(refLat);
+
+                const ax = aLng * cosLat;
+                const ay = aLat;
+                const bx = bLng * cosLat;
+                const by = bLat;
+                const px = rawLng * cosLat;
+                const py = rawLat;
+
+                const dx = bx - ax;
+                const dy = by - ay;
+                const segmentLengthSquared = (dx * dx) + (dy * dy);
+
+                let t = 0;
+
+                if (segmentLengthSquared > 0) {
+                    t = ((px - ax) * dx + (py - ay) * dy) / segmentLengthSquared;
+                    t = Math.max(0, Math.min(1, t));
+                }
+
+                const projectedLat = aLat + ((bLat - aLat) * t);
+                const projectedLng = aLng + ((bLng - aLng) * t);
+
+                const projectedPoint = {
+                    lat: projectedLat,
+                    lng: projectedLng,
+                };
+
+                const distance = computeDistanceMeters(
+                    { lat: rawLat, lng: rawLng },
+                    projectedPoint
+                );
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestPoint = projectedPoint;
+
+                    // Keep the segment index so the next marker
+                    // continues searching forward from here.
                     bestIndex = i;
                 }
             }
 
-            const bestPt = snappedPoints[bestIndex];
-            const bestLat = Number(typeof bestPt.lat === 'function' ? bestPt.lat() : bestPt.lat);
-            const bestLng = Number(typeof bestPt.lng === 'function' ? bestPt.lng() : bestPt.lng);
+            if (!bestPoint) {
+                const fallback = snappedPoints[start];
+
+                bestPoint = {
+                    lat: Number(typeof fallback.lat === 'function' ? fallback.lat() : fallback.lat),
+                    lng: Number(typeof fallback.lng === 'function' ? fallback.lng() : fallback.lng),
+                };
+
+                minDistance = computeDistanceMeters(
+                    { lat: rawLat, lng: rawLng },
+                    bestPoint
+                );
+            }
 
             return {
-                point: { lat: bestLat, lng: bestLng },
+                point: bestPoint,
                 index: bestIndex,
                 distance: minDistance,
             };

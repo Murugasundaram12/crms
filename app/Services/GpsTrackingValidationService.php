@@ -11,17 +11,25 @@ class GpsTrackingValidationService
 {
     /*
     |--------------------------------------------------------------------------
-    | Default GPS Validation Settings
+    | Default High-Precision GPS Validation Settings
     |--------------------------------------------------------------------------
     */
 
-    public const DEFAULT_MAX_ACCURACY_METRES = 30.0;
+    /**
+     * Maximum allowed GPS accuracy radius in metres.
+     * Reduced from 30.0m to 15.0m to prevent jumps to parallel streets (e.g. Bypass Road).
+     */
+    public const DEFAULT_MAX_ACCURACY_METRES = 15.0;
 
-    public const DEFAULT_MIN_DISTANCE_METRES = 5.0;
+    /**
+     * Minimum distance in metres required to consider movement valid.
+     * Increased from 5.0m to 8.0m to filter out stationary GPS drift jitter.
+     */
+    public const DEFAULT_MIN_DISTANCE_METRES = 8.0;
 
     public const DEFAULT_MAX_SPEED_MPS = 33.33333333; // 120 km/h
 
-    public const DEFAULT_MAX_WALKING_SPEED_MPS = 5.0;
+    public const DEFAULT_MAX_WALKING_SPEED_MPS = 5.0; // 18 km/h
 
     public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 120.0;
 
@@ -37,15 +45,6 @@ class GpsTrackingValidationService
     |--------------------------------------------------------------------------
     | GPS Jump Protection
     |--------------------------------------------------------------------------
-    |
-    | This protects against sudden GPS jumps such as:
-    |
-    | Road
-    |   |
-    |   |-------> Building / side road GPS point
-    |   |
-    | Road
-    |
     */
 
     public const DEFAULT_MAX_JUMP_DISTANCE_METRES = 100.0;
@@ -58,12 +57,12 @@ class GpsTrackingValidationService
 
     public const DEFAULT_STATIONARY_SPEED_MPS = 0.5;
 
-    public const DEFAULT_STATIONARY_DISTANCE_METRES = 5.0;
+    public const DEFAULT_STATIONARY_DISTANCE_METRES = 8.0;
 
     private static ?array $cachedSettings = null;
 
     /**
-     * Get all GPS settings.
+     * Get all GPS settings merged with database and runtime overrides.
      */
     public function settings(array $overrides = []): array
     {
@@ -89,15 +88,9 @@ class GpsTrackingValidationService
             'gps_douglas_peucker_tolerance_metres'
                 => self::DEFAULT_DOUGLAS_PEUCKER_TOLERANCE_METRES,
 
-            /*
-             * New protection against sudden GPS jumps.
-             */
             'gps_max_jump_distance_metres'
                 => self::DEFAULT_MAX_JUMP_DISTANCE_METRES,
 
-            /*
-             * Mock locations are rejected by default.
-             */
             'mock_location_allowed' => false,
         ];
 
@@ -139,7 +132,7 @@ class GpsTrackingValidationService
     ): array {
         /*
         |--------------------------------------------------------------------------
-        | 1. Current point
+        | 1. Current point data extraction
         |--------------------------------------------------------------------------
         */
 
@@ -147,7 +140,7 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 2. Validate coordinates
+        | 2. Validate basic coordinates
         |--------------------------------------------------------------------------
         */
 
@@ -185,16 +178,19 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 5. GLOBAL accuracy check
+        | 5. Strict High-Accuracy Filter (<= 15m Accept, > 15m Reject)
         |--------------------------------------------------------------------------
         |
-        | Accuracy > 30m is ALWAYS rejected.
-        |
-        | This applies even to the first GPS point.
+        | Points with accuracy > 15m are rejected because satellite multipath
+        | reflections near buildings will cause coordinates to jump 20m onto
+        | parallel streets (e.g. Bypass Road).
         |
         */
 
-        $globalMaxAccuracy = self::DEFAULT_MAX_ACCURACY_METRES;
+        $globalMaxAccuracy = (float) (
+            $settings['gps_max_accuracy_metres']
+            ?? self::DEFAULT_MAX_ACCURACY_METRES
+        );
 
         if (
             $currentPoint['accuracy'] === null
@@ -206,11 +202,8 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 6. First valid GPS point
+        | 6. First valid GPS point handling
         |--------------------------------------------------------------------------
-        |
-        | No previous point means distance/speed cannot be calculated.
-        |
         */
 
         if (! $previous) {
@@ -226,7 +219,7 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 7. Previous point
+        | 7. Previous point data extraction
         |--------------------------------------------------------------------------
         */
 
@@ -264,7 +257,7 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 10. Distance calculation
+        | 10. Haversine Distance calculation
         |--------------------------------------------------------------------------
         */
 
@@ -279,15 +272,6 @@ class GpsTrackingValidationService
         |--------------------------------------------------------------------------
         | 11. Backend calculated speed
         |--------------------------------------------------------------------------
-        |
-        | IMPORTANT:
-        |
-        | Device reported speed is NOT trusted for movement classification.
-        |
-        | Speed is calculated from:
-        |
-        | distance / time
-        |
         */
 
         $speedMps = $distanceMetres / $timeDifferenceSeconds;
@@ -301,7 +285,7 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 12. Maximum speed protection
+        | 12. Maximum speed protection (120 km/h max)
         |--------------------------------------------------------------------------
         */
 
@@ -327,21 +311,8 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 13. GPS JUMP PROTECTION
+        | 13. GPS Jump Protection
         |--------------------------------------------------------------------------
-        |
-        | This is the important new protection.
-        |
-        | Example:
-        |
-        | Previous:
-        | Road = 13.1234, 80.1234
-        |
-        | Current:
-        | Building = 13.1250, 80.1270
-        |
-        | If distance is abnormally large, reject it.
-        |
         */
 
         $configuredMaxJumpDistance = (float) (
@@ -349,32 +320,10 @@ class GpsTrackingValidationService
             ?? self::DEFAULT_MAX_JUMP_DISTANCE_METRES
         );
 
-        /*
-         * Dynamic maximum allowed distance.
-         *
-         * We don't blindly use 100m because a vehicle can legitimately
-         * travel more than 100m during a longer GPS interval.
-         *
-         * Formula:
-         *
-         * maximum speed × elapsed time × safety factor
-         *
-         * Minimum protection = 100m.
-         */
-
         $dynamicMaxJumpDistance = max(
             $configuredMaxJumpDistance,
-            $maxSpeedMps
-                * $timeDifferenceSeconds
-                * 1.5
+            $maxSpeedMps * $timeDifferenceSeconds * 1.5
         );
-
-        /*
-         * Prevent an excessively large dynamic threshold.
-         *
-         * Even if there is a very large timestamp gap, we don't want
-         * one GPS point to create a giant polyline jump.
-         */
 
         $dynamicMaxJumpDistance = min(
             $dynamicMaxJumpDistance,
@@ -410,7 +359,7 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 15. Previous bearing validation
+        | 15. Previous bearing validation (Zig-zag jump protection)
         |--------------------------------------------------------------------------
         */
 
@@ -430,13 +379,6 @@ class GpsTrackingValidationService
                 $settings['gps_bearing_min_distance_metres']
                 ?? self::DEFAULT_BEARING_MIN_DISTANCE_METRES
             );
-
-            /*
-             * Only calculate bearing change when both segments
-             * have enough distance.
-             *
-             * This avoids random bearing changes while standing still.
-             */
 
             if (
                 $previousSegmentDistance >= $bearingMinimumDistance
@@ -459,49 +401,37 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 16. Metrics
+        | 16. Metrics payload
         |--------------------------------------------------------------------------
         */
 
         $metrics = [
             'distance_metres' => $distanceMetres,
-
             'time_difference_seconds' => $timeDifferenceSeconds,
-
             'speed_mps' => $speedMps,
-
             'speed_kmph' => $speedKmph,
-
             'bearing' => $bearing,
-
             'bearing_difference' => $bearingDifference,
         ];
 
-        /*
-        |--------------------------------------------------------------------------
-        | 17. Movement classification
-        |--------------------------------------------------------------------------
-        |
-        | Backend calculated speed is used.
-        |
-        */
-
         $evalSpeed = $speedMps;
-
         $accuracy = (float) $currentPoint['accuracy'];
 
         /*
         |--------------------------------------------------------------------------
-        | 18. Stationary / very slow movement
+        | 17. Stationary Filter (< 0.5 m/s OR < 8.0m movement)
         |--------------------------------------------------------------------------
         |
-        | < 0.5 m/s
-        |
-        | Don't save repeated stationary GPS points.
+        | Prevents GPS hardware jitter from logging spurious points while standing still.
         |
         */
 
-        if ($evalSpeed < self::DEFAULT_STATIONARY_SPEED_MPS) {
+        $minStationaryDistance = (float) (
+            $settings['gps_min_distance_metres']
+            ?? self::DEFAULT_STATIONARY_DISTANCE_METRES
+        );
+
+        if ($evalSpeed < self::DEFAULT_STATIONARY_SPEED_MPS || $distanceMetres < $minStationaryDistance) {
             return $this->rejected(
                 'speed_below_threshold',
                 $metrics
@@ -510,14 +440,8 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 19. Walking / slow movement
+        | 18. Walking / Slow movement (0.5 <= speed < 5 m/s)
         |--------------------------------------------------------------------------
-        |
-        | 0.5 <= speed < 5 m/s
-        |
-        | Accuracy <= 20m
-        | Distance >= 5m
-        |
         */
 
         if (
@@ -525,22 +449,14 @@ class GpsTrackingValidationService
             &&
             $evalSpeed < self::DEFAULT_MAX_WALKING_SPEED_MPS
         ) {
-            /*
-             * Walking accuracy requirement.
-             */
-
-            if ($accuracy > 20.0) {
+            if ($accuracy > $globalMaxAccuracy) {
                 return $this->rejected(
                     'accuracy_exceeded',
                     $metrics
                 );
             }
 
-            /*
-             * Walking minimum movement.
-             */
-
-            if ($distanceMetres < 5.0) {
+            if ($distanceMetres < $minStationaryDistance) {
                 return $this->rejected(
                     'distance_below_threshold',
                     $metrics
@@ -552,32 +468,17 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 20. Vehicle movement
+        | 19. Vehicle movement (speed >= 5 m/s)
         |--------------------------------------------------------------------------
-        |
-        | speed >= 5 m/s
-        |
-        | Accuracy <= 25m
-        | Distance >= 10m
-        | Bearing change <= 120 degrees
-        |
         */
 
         if ($evalSpeed >= self::DEFAULT_MAX_WALKING_SPEED_MPS) {
-            /*
-             * Vehicle accuracy.
-             */
-
-            if ($accuracy > 25.0) {
+            if ($accuracy > $globalMaxAccuracy) {
                 return $this->rejected(
                     'accuracy_exceeded',
                     $metrics
                 );
             }
-
-            /*
-             * Vehicle minimum movement.
-             */
 
             if ($distanceMetres < 10.0) {
                 return $this->rejected(
@@ -585,10 +486,6 @@ class GpsTrackingValidationService
                     $metrics
                 );
             }
-
-            /*
-             * Vehicle bearing jump.
-             */
 
             $maxBearingChange = (float) (
                 $settings['gps_max_bearing_change_degrees']
@@ -611,7 +508,7 @@ class GpsTrackingValidationService
 
         /*
         |--------------------------------------------------------------------------
-        | 21. Fallback
+        | 20. Fallback
         |--------------------------------------------------------------------------
         */
 
@@ -622,7 +519,7 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Validate standalone GPS quality.
+     * Validate standalone GPS quality without previous fix context.
      */
     public function hasStandaloneQuality(
         array|LocationTracking $point,
@@ -639,7 +536,7 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Calculate distance between two GPS coordinates.
+     * Calculate Haversine distance between two GPS coordinates in metres.
      */
     public function distanceMetres(
         float $lat1,
@@ -650,7 +547,6 @@ class GpsTrackingValidationService
         $earthRadiusMetres = 6371000;
 
         $latDistance = deg2rad($lat2 - $lat1);
-
         $lngDistance = deg2rad($lng2 - $lng1);
 
         $a =
@@ -675,7 +571,7 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Calculate bearing between two GPS coordinates.
+     * Calculate bearing between two GPS coordinates in degrees (0-360).
      */
     public function bearingDegrees(
         float $lat1,
@@ -684,9 +580,7 @@ class GpsTrackingValidationService
         float $lng2
     ): float {
         $fromLat = deg2rad($lat1);
-
         $toLat = deg2rad($lat2);
-
         $lngDelta = deg2rad($lng2 - $lng1);
 
         $y = sin($lngDelta) * cos($toLat);
@@ -707,15 +601,13 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Calculate smallest bearing difference.
+     * Calculate smallest bearing difference between two bearings (0-180 degrees).
      */
     public function bearingDifferenceDegrees(
         float $previousBearing,
         float $currentBearing
     ): float {
-        $difference = abs(
-            $currentBearing - $previousBearing
-        );
+        $difference = abs($currentBearing - $previousBearing);
 
         return min(
             $difference,
@@ -724,7 +616,50 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Normalize GPS point data.
+     * Snap raw GPS points to actual road network using Google Snap to Roads API.
+     *
+     * Call this method when rendering map polylines in the web dashboard timeline.
+     */
+    public function snapToRoads(array $points, string $googleApiKey): array
+    {
+        if (count($points) < 2) {
+            return $points;
+        }
+
+        $pathString = implode('|', array_map(function ($p) {
+            $lat = is_object($p) ? $p->latitude : $p['latitude'];
+            $lng = is_object($p) ? $p->longitude : $p['longitude'];
+            return "{$lat},{$lng}";
+        }, $points));
+
+        $url = "https://roads.googleapis.com/v1/snapToRoads?path={$pathString}&interpolate=true&key={$googleApiKey}";
+
+        try {
+            $response = @file_get_contents($url);
+            if (! $response) {
+                return $points;
+            }
+
+            $data = json_decode($response, true);
+            if (! isset($data['snappedPoints'])) {
+                return $points;
+            }
+
+            return array_map(function ($sp) {
+                return [
+                    'latitude' => $sp['location']['latitude'],
+                    'longitude' => $sp['location']['longitude'],
+                    'originalIndex' => $sp['originalIndex'] ?? null,
+                    'placeId' => $sp['placeId'] ?? null,
+                ];
+            }, $data['snappedPoints']);
+        } catch (\Throwable) {
+            return $points;
+        }
+    }
+
+    /**
+     * Normalize GPS point data from array or LocationTracking model.
      */
     private function pointData(
         array|LocationTracking $point
@@ -810,7 +745,7 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Validate GPS coordinates.
+     * Validate GPS coordinates boundaries.
      */
     private function hasValidCoordinates(
         ?float $latitude,
@@ -836,35 +771,18 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Check duplicate coordinates.
+     * Check duplicate coordinates up to 7 decimal precision.
      */
     private function sameCoordinates(
         array $previous,
         array $current
     ): bool {
-        return round(
-            (float) $previous['latitude'],
-            7
-        )
-            ===
-            round(
-                (float) $current['latitude'],
-                7
-            )
-            &&
-            round(
-                (float) $previous['longitude'],
-                7
-            )
-            ===
-            round(
-                (float) $current['longitude'],
-                7
-            );
+        return round((float) $previous['latitude'], 7) === round((float) $current['latitude'], 7)
+            && round((float) $previous['longitude'], 7) === round((float) $current['longitude'], 7);
     }
 
     /**
-     * Detect STILL activity.
+     * Detect STILL activity state.
      */
     private function isStillState(
         ?string $activity,
@@ -878,48 +796,38 @@ class GpsTrackingValidationService
             ],
             true
         )
-            ||
-            strtolower((string) $type) === 'still';
+            || strtolower((string) $type) === 'still';
     }
 
     /**
-     * Calculate time difference.
+     * Calculate time difference in seconds between two Carbon timestamps.
      */
     private function timeDifferenceSeconds(
         ?Carbon $previousTime,
         ?Carbon $currentTime
     ): int {
-        if (
-            ! $previousTime
-            ||
-            ! $currentTime
-        ) {
+        if (! $previousTime || ! $currentTime) {
             return 0;
         }
 
-        return
-            $currentTime->getTimestamp()
-            -
-            $previousTime->getTimestamp();
+        return $currentTime->getTimestamp() - $previousTime->getTimestamp();
     }
 
     /**
-     * Accepted response.
+     * Return accepted response array.
      */
     private function accepted(
         array $metrics
     ): array {
         return [
             'accepted' => true,
-
             'reason' => null,
-
             ...$metrics,
         ];
     }
 
     /**
-     * Rejected response.
+     * Return rejected response array.
      */
     private function rejected(
         string $reason,
@@ -927,31 +835,18 @@ class GpsTrackingValidationService
     ): array {
         return [
             'accepted' => false,
-
             'reason' => $reason,
-
-            'distance_metres' =>
-                $metrics['distance_metres'] ?? null,
-
-            'time_difference_seconds' =>
-                $metrics['time_difference_seconds'] ?? null,
-
-            'speed_mps' =>
-                $metrics['speed_mps'] ?? null,
-
-            'speed_kmph' =>
-                $metrics['speed_kmph'] ?? null,
-
-            'bearing' =>
-                $metrics['bearing'] ?? null,
-
-            'bearing_difference' =>
-                $metrics['bearing_difference'] ?? null,
+            'distance_metres' => $metrics['distance_metres'] ?? null,
+            'time_difference_seconds' => $metrics['time_difference_seconds'] ?? null,
+            'speed_mps' => $metrics['speed_mps'] ?? null,
+            'speed_kmph' => $metrics['speed_kmph'] ?? null,
+            'bearing' => $metrics['bearing'] ?? null,
+            'bearing_difference' => $metrics['bearing_difference'] ?? null,
         ];
     }
 
     /**
-     * Load GPS settings from database.
+     * Load GPS settings from database app_settings table with caching.
      */
     private function databaseSettings(): array
     {
@@ -969,49 +864,27 @@ class GpsTrackingValidationService
                     'key',
                     [
                         'minimum_accuracy',
-
                         'minimum_distance_meters',
-
                         'maximum_speed_kmph',
-
                         'gps_max_accuracy_metres',
-
                         'gps_min_distance_metres',
-
                         'gps_max_speed_mps',
-
                         'gps_max_walking_speed_mps',
-
                         'gps_max_bearing_change_degrees',
-
                         'gps_bearing_min_segment_distance_metres',
-
                         'gps_bearing_min_distance_metres',
-
                         'tracking_interval_seconds',
-
                         'location_update_interval',
-
                         'location_update_interval_type',
-
                         'gps_max_inactive_gap_seconds',
-
                         'large_gap_minutes',
-
                         'large_gap_distance_meters',
-
                         'gps_max_jump_distance_metres',
-
                         'gps_douglas_peucker_tolerance_metres',
-
                         'timeline_max_accuracy_meters',
-
                         'timeline_minimum_distance_meters',
-
                         'timeline_max_computed_speed_kmh',
-
                         'timeline_max_bearing_change_degrees',
-
                         'mock_location_allowed',
                     ]
                 )
@@ -1024,231 +897,91 @@ class GpsTrackingValidationService
             $settings = [];
 
             foreach ($values as $key => $value) {
-
-                /*
-                 * GPS settings.
-                 */
-
                 if (str_starts_with($key, 'gps_')) {
-                    $canonicalKey =
-                        $this->canonicalSettingKey($key);
-
-                    /*
-                     * Boolean setting.
-                     */
+                    $canonicalKey = $this->canonicalSettingKey($key);
 
                     if ($key === 'mock_location_allowed') {
-                        $settings[$key] =
-                            filter_var(
-                                $value,
-                                FILTER_VALIDATE_BOOLEAN
-                            );
-
+                        $settings[$key] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
                         continue;
                     }
 
-                    /*
-                     * Numeric GPS setting.
-                     */
-
-                    $settings[$canonicalKey] =
-                        (float) $value;
+                    $settings[$canonicalKey] = (float) $value;
                 }
 
-                /*
-                 * Tracking interval.
-                 */
-
-                if (
-                    $key === 'tracking_interval_seconds'
-                ) {
-                    $settings[$key] =
-                        (float) $value;
+                if ($key === 'tracking_interval_seconds') {
+                    $settings[$key] = (float) $value;
                 }
 
-                /*
-                 * Large gap distance.
-                 */
-
-                if (
-                    $key === 'large_gap_distance_meters'
-                ) {
-                    $settings[$key] =
-                        (float) $value;
+                if ($key === 'large_gap_distance_meters') {
+                    $settings[$key] = (float) $value;
                 }
 
-                /*
-                 * Large gap minutes -> seconds.
-                 */
-
-                if (
-                    $key === 'large_gap_minutes'
-                ) {
-                    $settings[
-                        'gps_max_inactive_gap_seconds'
-                    ] =
-                        (float) $value * 60;
+                if ($key === 'large_gap_minutes') {
+                    $settings['gps_max_inactive_gap_seconds'] = (float) $value * 60;
                 }
 
-                /*
-                 * Maximum speed stored in km/h.
-                 */
-
-                if (
-                    $key === 'maximum_speed_kmph'
-                ) {
-                    $settings[
-                        'gps_max_speed_mps'
-                    ] =
-                        (float) $value / 3.6;
+                if ($key === 'maximum_speed_kmph') {
+                    $settings['gps_max_speed_mps'] = (float) $value / 3.6;
                 }
 
-                /*
-                 * Mock location.
-                 */
-
-                if (
-                    $key === 'mock_location_allowed'
-                ) {
-                    $settings[$key] =
-                        filter_var(
-                            $value,
-                            FILTER_VALIDATE_BOOLEAN
-                        );
+                if ($key === 'mock_location_allowed') {
+                    $settings[$key] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
                 }
             }
 
-            /*
-             * New jump-distance setting.
-             *
-             * If not present in DB, default value from settings()
-             * will be used.
-             */
+            if (! array_key_exists('gps_max_jump_distance_metres', $settings)) {
+                $settings['gps_max_jump_distance_metres'] = self::DEFAULT_MAX_JUMP_DISTANCE_METRES;
+            }
 
             if (
-                ! array_key_exists(
-                    'gps_max_jump_distance_metres',
-                    $settings
-                )
+                ! array_key_exists('tracking_interval_seconds', $settings)
+                && isset($values['location_update_interval'])
             ) {
-                $settings[
-                    'gps_max_jump_distance_metres'
-                ] =
-                    self::DEFAULT_MAX_JUMP_DISTANCE_METRES;
+                $settings['tracking_interval_seconds'] = $this->secondsFrom(
+                    (int) $values['location_update_interval'],
+                    (string) ($values['location_update_interval_type'] ?? 'seconds')
+                );
             }
-
-            /*
-             * Tracking interval fallback.
-             */
-
-            if (
-                ! array_key_exists(
-                    'tracking_interval_seconds',
-                    $settings
-                )
-                &&
-                isset(
-                    $values['location_update_interval']
-                )
-            ) {
-                $settings[
-                    'tracking_interval_seconds'
-                ] =
-                    $this->secondsFrom(
-                        (int) $values[
-                            'location_update_interval'
-                        ],
-                        (string) (
-                            $values[
-                                'location_update_interval_type'
-                            ]
-                            ?? 'seconds'
-                        )
-                    );
-            }
-
-            /*
-             * Legacy setting fallbacks.
-             */
 
             $fallbacks = [
-                'timeline_max_accuracy_meters'
-                    => 'gps_max_accuracy_metres',
-
-                'timeline_minimum_distance_meters'
-                    => 'gps_min_distance_metres',
-
-                'minimum_accuracy'
-                    => 'gps_max_accuracy_metres',
-
-                'minimum_distance_meters'
-                    => 'gps_min_distance_metres',
-
-                'timeline_max_bearing_change_degrees'
-                    => 'gps_max_bearing_change_degrees',
-
-                'timeline_max_computed_speed_kmh'
-                    => 'gps_max_speed_mps',
+                'timeline_max_accuracy_meters' => 'gps_max_accuracy_metres',
+                'timeline_minimum_distance_meters' => 'gps_min_distance_metres',
+                'minimum_accuracy' => 'gps_max_accuracy_metres',
+                'minimum_distance_meters' => 'gps_min_distance_metres',
+                'timeline_max_bearing_change_degrees' => 'gps_max_bearing_change_degrees',
+                'timeline_max_computed_speed_kmh' => 'gps_max_speed_mps',
             ];
 
-            foreach (
-                $fallbacks as $source => $target
-            ) {
+            foreach ($fallbacks as $source => $target) {
                 if (
-                    ! array_key_exists(
-                        $target,
-                        $settings
-                    )
-                    &&
-                    array_key_exists(
-                        $source,
-                        $values
-                    )
+                    ! array_key_exists($target, $settings)
+                    && array_key_exists($source, $values)
                 ) {
-                    $settings[$target] =
-                        $source
-                        ===
-                        'timeline_max_computed_speed_kmh'
-                            ? (float) $values[$source] / 3.6
-                            : (float) $values[$source];
+                    $settings[$target] = $source === 'timeline_max_computed_speed_kmh'
+                        ? (float) $values[$source] / 3.6
+                        : (float) $values[$source];
                 }
             }
 
-            return self::$cachedSettings =
-                $settings;
+            return self::$cachedSettings = $settings;
 
         } catch (\Throwable) {
-
             return self::$cachedSettings = [];
         }
     }
 
     /**
-     * Convert legacy setting names into canonical names.
+     * Convert legacy setting keys into canonical names.
      */
-    private function canonicalSettingKey(
-        string $key
-    ): string {
+    private function canonicalSettingKey(string $key): string
+    {
         return match ($key) {
-
-            'timeline_max_accuracy_meters'
-                => 'gps_max_accuracy_metres',
-
-            'timeline_minimum_distance_meters'
-                => 'gps_min_distance_metres',
-
-            'minimum_accuracy'
-                => 'gps_max_accuracy_metres',
-
-            'minimum_distance_meters'
-                => 'gps_min_distance_metres',
-
-            'timeline_max_bearing_change_degrees'
-                => 'gps_max_bearing_change_degrees',
-
-            'gps_bearing_min_segment_distance_metres'
-                => 'gps_bearing_min_distance_metres',
-
+            'timeline_max_accuracy_meters' => 'gps_max_accuracy_metres',
+            'timeline_minimum_distance_meters' => 'gps_min_distance_metres',
+            'minimum_accuracy' => 'gps_max_accuracy_metres',
+            'minimum_distance_meters' => 'gps_min_distance_metres',
+            'timeline_max_bearing_change_degrees' => 'gps_max_bearing_change_degrees',
+            'gps_bearing_min_segment_distance_metres' => 'gps_bearing_min_distance_metres',
             default => $key,
         };
     }
@@ -1262,22 +995,14 @@ class GpsTrackingValidationService
     }
 
     /**
-     * Convert interval to seconds.
+     * Convert interval values to seconds.
      */
-    private function secondsFrom(
-        int $value,
-        string $type
-    ): int {
+    private function secondsFrom(int $value, string $type): int
+    {
         return match ($type) {
-
-            'minutes'
-                => $value * 60,
-
-            'hours'
-                => $value * 3600,
-
-            default
-                => $value,
+            'minutes' => $value * 60,
+            'hours' => $value * 3600,
+            default => $value,
         };
     }
 }
