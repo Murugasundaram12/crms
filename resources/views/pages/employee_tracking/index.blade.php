@@ -754,13 +754,54 @@
             }
 
             const snappedSegments = [];
+            let lastSegmentEnd = null;
+            let lastPath = null;
+
             for (const routePath of movementPaths) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
 
-                const snappedPoints = await drawRoadFollowingPolyline(routePath, renderToken);
+                let effectivePath = routePath;
+
+                if (lastSegmentEnd && routePath.length > 0) {
+                    const prevAttendanceId = lastPath?.attendanceId;
+                    const currAttendanceId = routePath.attendanceId;
+                    const prevDeviceId = lastPath?.deviceId;
+                    const currDeviceId = routePath.deviceId;
+
+                    const sameAttendance = prevAttendanceId === undefined || currAttendanceId === undefined || prevAttendanceId === currAttendanceId;
+                    const sameDevice = prevDeviceId === undefined || currDeviceId === undefined || prevDeviceId === currDeviceId;
+
+                    const firstPt = routePath[0];
+                    const distMeters = computeDistanceMeters(lastSegmentEnd, firstPt);
+
+                    const prevTimeStr = lastPath?.[lastPath.length - 1]?.recorded_at;
+                    const currTimeStr = firstPt?.recorded_at;
+                    const prevTime = prevTimeStr ? new Date(prevTimeStr).getTime() : null;
+                    const currTime = currTimeStr ? new Date(currTimeStr).getTime() : null;
+                    const timeDiffSec = (prevTime && currTime && Number.isFinite(prevTime) && Number.isFinite(currTime))
+                        ? Math.abs(currTime - prevTime) / 1000
+                        : null;
+
+                    const maxInactiveGapSeconds = Number(timelineConfig?.inactiveGapSeconds) || 600;
+                    const validTimeWindow = timeDiffSec === null || timeDiffSec < maxInactiveGapSeconds;
+
+                    if (sameAttendance && sameDevice && validTimeWindow && distMeters > 0 && distMeters <= 600) {
+                        effectivePath = [lastSegmentEnd, ...routePath];
+                        if (routePath.attendanceId !== undefined) effectivePath.attendanceId = routePath.attendanceId;
+                        if (routePath.deviceId !== undefined) effectivePath.deviceId = routePath.deviceId;
+                        if (routePath.startType !== undefined) effectivePath.startType = routePath.startType;
+                    }
+                }
+
+                const snappedPoints = await drawRoadFollowingPolyline(effectivePath, renderToken);
                 snappedSegments.push(snappedPoints || routePath);
+
+                const currentEffectivePoints = (snappedPoints && snappedPoints.length) ? snappedPoints : effectivePath;
+                lastSegmentEnd = currentEffectivePoints[currentEffectivePoints.length - 1] || null;
+                lastPath = routePath;
+
                 await wait(20);
             }
 
