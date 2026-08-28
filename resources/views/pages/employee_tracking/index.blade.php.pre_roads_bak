@@ -1180,53 +1180,112 @@
             }
 
             try {
-                const formattedPoints = chunk.map((pt) => ({
-                    lat: Number(typeof pt.lat === 'function' ? pt.lat() : pt.lat),
-                    lng: Number(typeof pt.lng === 'function' ? pt.lng() : pt.lng),
-                })).filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
-
-                if (formattedPoints.length < 2) {
-                    return rawRouteFallback(chunk, 'INSUFFICIENT_POINTS');
+                let RouteClass = window.google?.maps?.routes?.Route;
+                if (!RouteClass && window.google?.maps?.importLibrary) {
+                    const routesLib = await google.maps.importLibrary('routes');
+                    RouteClass = routesLib?.Route;
                 }
 
-                const response = await fetch(timelineConfig.snapRouteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
-                    },
-                    body: JSON.stringify({
-                        _token: timelineConfig.csrfToken,
-                        points: formattedPoints,
-                    }),
-                });
+                if (RouteClass?.computeRoutes) {
+                    // ComputeRoutesRequest takes endpoint coordinates directly.
+                    // `{ location: ... }` is valid only for intermediate
+                    // waypoints and makes the Routes API reject endpoints as
+                    // INVALID_REQUEST.
+                    const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);
+                    const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);
+                    const intermediates = prepareRoutingWaypoints(chunk).map((point) => ({
+                        location: new google.maps.LatLng(point.lat, point.lng),
+                        via: true,
+                    }));
 
-                if (!response.ok) {
-                    const fallback = rawRouteFallback(chunk, `HTTP_${response.status}`);
-                    return fallback;
-                }
+                    const response = await RouteClass.computeRoutes({
+                        origin,
+                        destination,
+                        intermediates,
+                        travelMode: isWalking
+                            ? (window.google?.maps?.routes?.TravelMode?.WALK || 'WALK')
+                            : (window.google?.maps?.routes?.TravelMode?.DRIVE || 'DRIVE'),
+                        polylineQuality: window.google?.maps?.routes?.PolylineQuality?.HIGH_QUALITY || 'HIGH_QUALITY',
+                        fields: ['path', 'legs'],
+                    });
 
-                const data = await response.json();
-                if (data && data.snapped && Array.isArray(data.points) && data.points.length >= 2) {
-                    const result = { points: data.points, routed: true, reason: null };
-                    if (routeCache.size > 300) {
-                        const firstKey = routeCache.keys().next().value;
-                        if (firstKey) routeCache.delete(firstKey);
+                    const route = response?.routes?.[0];
+                    if (route) {
+                        let resolvedPoints = [];
+                        if (Array.isArray(route.path) && route.path.length > 0) {
+                            resolvedPoints = route.path;
+                        } else if (Array.isArray(route.legs)) {
+                            const roadPoints = [];
+                            route.legs.forEach((leg) => {
+                                (leg.steps || []).forEach((step) => {
+                                    const stepPath = step.path || step.polyline?.path || [];
+                                    (stepPath || []).forEach((roadPoint) => roadPoints.push(roadPoint));
+                                });
+                            });
+                            if (roadPoints.length > 0) {
+                                resolvedPoints = roadPoints;
+                            }
+                        }
+
+                        if (resolvedPoints.length > 0) {
+                            let chunkDist = 0;
+                            for (let c = 0; c < chunk.length - 1; c++) {
+                                chunkDist += computeDistanceMeters(chunk[c], chunk[c + 1]);
+                            }
+
+                            let routeDist = 0;
+                            let maxDisplacement = 0;
+                            for (let r = 0; r < resolvedPoints.length - 1; r++) {
+                                const p1 = resolvedPoints[r];
+                                const p2 = resolvedPoints[r + 1];
+                                const lat1 = typeof p1.lat === 'function' ? p1.lat() : p1.lat;
+                                const lng1 = typeof p1.lng === 'function' ? p1.lng() : p1.lng;
+                                const lat2 = typeof p2.lat === 'function' ? p2.lat() : p2.lat;
+                                const lng2 = typeof p2.lng === 'function' ? p2.lng() : p2.lng;
+                                routeDist += computeDistanceMeters({ lat: lat1, lng: lng1 }, { lat: lat2, lng: lng2 });
+
+                                let minChunkDist = Infinity;
+                                for (let c = 0; c < chunk.length; c++) {
+                                    const d = computeDistanceMeters({ lat: lat1, lng: lng1 }, chunk[c]);
+                                    if (d < minChunkDist) minChunkDist = d;
+                                }
+                                if (minChunkDist > maxDisplacement) maxDisplacement = minChunkDist;
+                            }
+
+                            if ((chunkDist > 100 && routeDist > (2.5 * chunkDist)) || maxDisplacement > 400) {
+                                if (timelineConfig.gpsDebug) {
+                                    console.warn('[EmployeeTracking] Routes API detour rejected (deviation/displacement):', { chunkDist, routeDist, maxDisplacement });
+                                }
+                            } else {
+                                if (routeCache.size > 300) {
+                                    const firstKey = routeCache.keys().next().value;
+                                    if (firstKey) routeCache.delete(firstKey);
+                                }
+                                const result = {points: resolvedPoints, routed: true, reason: null};
+                                routeCache.set(cacheKey, result);
+                                return result;
+                            }
+                        }
                     }
-                    routeCache.set(cacheKey, result);
-                    return result;
                 }
-
-                const fallback = rawRouteFallback(chunk, 'SNAP_FAILED');
-                return fallback;
             } catch (err) {
                 if (timelineConfig.gpsDebug) {
-                    console.warn('[EmployeeTracking] Roads API snap request failed:', err);
+                    console.warn('[EmployeeTracking] Routes API request failed:', googleRouteFailureCode(err), err);
                 }
-                const fallback = rawRouteFallback(chunk, 'NETWORK_ERROR');
+
+                const fallback = rawRouteFallback(chunk, googleRouteFailureCode(err));
+                if (!isPermanentRoutingFailure(fallback.reason)) {
+                    routeCache.set(cacheKey, fallback);
+                }
                 return fallback;
             }
+
+            // Route.computeRoutes may be absent even though Maps itself loaded
+            // (for example, when Routes API is not enabled for this key). Keep
+            // the exact server-validated GPS segment as the fallback; do not
+            // remove endpoints or manufacture a route across a GPS gap.
+            const fallback = rawRouteFallback(chunk, 'ROUTING_UNAVAILABLE');
+            return fallback;
         }
 
         async function drawRoadFollowingPolyline(routePath, renderToken) {
@@ -1241,7 +1300,7 @@
             }
 
             const isWalking = isWalkingPath(routePath);
-            const chunks = chunkForDirectionsRequest(routePath, 300);
+            const chunks = chunkForDirectionsRequest(routePath, 10);
             const combinedPoints = [];
             const routingFailures = [];
 
@@ -1253,6 +1312,10 @@
                 const result = await requestDrivingPath(chunk, isWalking);
                 if (!result.routed) {
                     routingFailures.push(result.reason);
+                    if (isPermanentRoutingFailure(result.reason) && !timelineGoogleRoutingDisabled) {
+                        timelineGoogleRoutingDisabled = true;
+                        console.warn(`[EmployeeTracking] Google Cloud Routes API is disabled/unauthorized (${result.reason}). Short-circuiting remaining route chunks and using raw GPS fallback for the current timeline render.`);
+                    }
                 }
 
                 // Consecutive request chunks deliberately share an endpoint.
