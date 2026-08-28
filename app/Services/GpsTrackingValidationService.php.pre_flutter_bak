@@ -9,11 +9,11 @@ use Illuminate\Support\Facades\Schema;
 
 class GpsTrackingValidationService
 {
-    public const DEFAULT_MAX_ACCURACY_METRES = 30.0;
-    public const DEFAULT_MIN_DISTANCE_METRES = 5.0;
-    public const DEFAULT_MAX_SPEED_MPS = 33.33333333;
-    public const DEFAULT_MAX_WALKING_SPEED_MPS = 5.0;
-    public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 120.0;
+    public const DEFAULT_MAX_ACCURACY_METRES = 50.0;
+    public const DEFAULT_MIN_DISTANCE_METRES = 30.0;
+    public const DEFAULT_MAX_SPEED_MPS = 25.0;
+    public const DEFAULT_MAX_WALKING_SPEED_MPS = 3.5;
+    public const DEFAULT_MAX_BEARING_CHANGE_DEGREES = 45.0;
     public const DEFAULT_BEARING_MIN_DISTANCE_METRES = 10.0;
     public const DEFAULT_TRACKING_INTERVAL_SECONDS = 30;
     public const DEFAULT_MAX_INACTIVE_GAP_SECONDS = 600;
@@ -68,25 +68,22 @@ class GpsTrackingValidationService
             return $this->rejected('mock_location');
         }
 
-        // Global accuracy ceiling: 30 m (Flutter: if accuracy > 30 return false)
-        // This applies to ALL points including the very first one.
-        $globalMaxAccuracy = self::DEFAULT_MAX_ACCURACY_METRES; // 30.0, never overridden by settings
         if (
             $currentPoint['accuracy'] === null
             || (float) $currentPoint['accuracy'] <= 0
-            || (float) $currentPoint['accuracy'] > $globalMaxAccuracy
+            || (float) $currentPoint['accuracy'] > (float) $settings['gps_max_accuracy_metres']
         ) {
             return $this->rejected('accuracy_exceeded');
         }
 
         if (! $previous) {
             return $this->accepted([
-                'distance_metres'          => null,
-                'time_difference_seconds'  => null,
-                'speed_mps'                => null,
-                'speed_kmph'               => null,
-                'bearing'                  => null,
-                'bearing_difference'       => null,
+                'distance_metres' => null,
+                'time_difference_seconds' => null,
+                'speed_mps' => null,
+                'speed_kmph' => null,
+                'bearing' => null,
+                'bearing_difference' => null,
             ]);
         }
 
@@ -110,9 +107,27 @@ class GpsTrackingValidationService
             (float) $currentPoint['longitude'],
         );
 
+        if ($distanceMetres <= (float) $settings['gps_min_distance_metres']) {
+            return $this->rejected('distance_below_threshold', [
+                'distance_metres' => $distanceMetres,
+                'time_difference_seconds' => $timeDifferenceSeconds,
+            ]);
+        }
+
+        if (
+            $this->isStillState($currentPoint['activity'] ?? null, $currentPoint['type'] ?? null)
+            && ($currentPoint['speed'] === null || (float) $currentPoint['speed'] < 0.8)
+            && $distanceMetres <= max(5.0, (float) $settings['gps_min_distance_metres'])
+        ) {
+            return $this->rejected('distance_below_threshold', [
+                'distance_metres' => $distanceMetres,
+                'time_difference_seconds' => $timeDifferenceSeconds,
+            ]);
+        }
+
         $speedMps = $distanceMetres / $timeDifferenceSeconds;
         $speedKmph = $speedMps * 3.6;
-        $maxSpeedMps = (float) ($settings['gps_max_speed_mps'] ?? self::DEFAULT_MAX_SPEED_MPS);
+        $maxSpeedMps = (float) $settings['gps_max_speed_mps'];
 
         if ($speedMps > $maxSpeedMps || ($currentPoint['speed'] !== null && (float) $currentPoint['speed'] > $maxSpeedMps)) {
             return $this->rejected('speed_exceeded', [
@@ -141,8 +156,8 @@ class GpsTrackingValidationService
             );
 
             if (
-                $previousSegmentDistance >= (float) ($settings['gps_bearing_min_distance_metres'] ?? 10.0)
-                && $distanceMetres >= (float) ($settings['gps_bearing_min_distance_metres'] ?? 10.0)
+                $previousSegmentDistance >= (float) $settings['gps_bearing_min_distance_metres']
+                && $distanceMetres >= (float) $settings['gps_bearing_min_distance_metres']
             ) {
                 $previousBearing = $this->bearingDegrees(
                     (float) $previousPreviousPoint['latitude'],
@@ -154,52 +169,14 @@ class GpsTrackingValidationService
             }
         }
 
-        $metrics = [
+        return $this->accepted([
             'distance_metres' => $distanceMetres,
             'time_difference_seconds' => $timeDifferenceSeconds,
             'speed_mps' => $speedMps,
             'speed_kmph' => $speedKmph,
             'bearing' => $bearing,
             'bearing_difference' => $bearingDifference,
-        ];
-
-        // Use backend-calculated speed for movement tier classification
-        $evalSpeed = $speedMps; // device speed no longer overrides tier decision
-
-        $accuracy = (float) $currentPoint['accuracy'];
-
-        // Flutter Gate 2: Reject any speed < 0.5 regardless of distance
-        if ($evalSpeed < 0.5) {
-            return $this->rejected('speed_below_threshold', $metrics);
-        }
-
-        // Flutter Rule 1: Walking / slow movement (0.5 <= speed < 5)
-        if ($evalSpeed >= 0.5 && $evalSpeed < 5.0) {
-            if ($accuracy > 20.0) {
-                return $this->rejected('accuracy_exceeded', $metrics);
-            }
-            if ($distanceMetres < 5.0) {
-                return $this->rejected('distance_below_threshold', $metrics);
-            }
-            return $this->accepted($metrics);
-        }
-
-        // Flutter Rule 2: Vehicle movement (speed >= 5)
-        if ($evalSpeed >= 5.0) {
-            if ($accuracy > 25.0) {
-                return $this->rejected('accuracy_exceeded', $metrics);
-            }
-            if ($distanceMetres < 10.0) {
-                return $this->rejected('distance_below_threshold', $metrics);
-            }
-            if ($bearingDifference !== null && $bearingDifference > (float) ($settings['gps_max_bearing_change_degrees'] ?? 120.0)) {
-                return $this->rejected('bearing_change_exceeded', $metrics);
-            }
-            return $this->accepted($metrics);
-        }
-
-        // Fallback: any other cases are rejected
-        return $this->rejected('invalid_movement', $metrics);
+        ]);
     }
 
     public function hasStandaloneQuality(array|LocationTracking $point, array $overrides = []): bool

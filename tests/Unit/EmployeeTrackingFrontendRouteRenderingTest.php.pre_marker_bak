@@ -62,18 +62,6 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringNotContainsString('red_circle.png', $this->source);
     }
 
-    public function test_route_markers_are_mapped_to_snapped_route_preserving_raw_coordinates_and_monotonic_order(): void
-    {
-        $this->assertStringContainsString('function findNearestSnappedPoint(rawPoint, snappedPoints, minSearchIndex = 0)', $this->source);
-        $this->assertStringContainsString('function mapMarkersToSnappedRoute(routeMarkers, snappedSegments, movementPaths = [])', $this->source);
-        $this->assertStringContainsString('function mapAttendanceMarkersToSnappedRoute(attendanceMarkers, snappedSegments, movementPaths = [])', $this->source);
-        $this->assertStringContainsString('const mappedRouteMarkers = mapMarkersToSnappedRoute(routeMarkers, snappedSegments, movementPaths);', $this->source);
-        $this->assertStringContainsString('const mappedAttendanceMarkers = mapAttendanceMarkersToSnappedRoute(attendanceMarkers, snappedSegments, movementPaths);', $this->source);
-        $this->assertStringContainsString('rawLat,', $this->source);
-        $this->assertStringContainsString('rawLng,', $this->source);
-        $this->assertStringContainsString('snappedSegments.push(snappedPoints || routePath);', $this->source);
-    }
-
     public function test_map_redraw_clears_old_layers_and_ignores_stale_ajax_responses(): void
     {
         $this->assertStringContainsString('clearTimelineMap();', $this->source);
@@ -86,7 +74,7 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
 
     public function test_map_fits_visible_route_or_resets_for_empty_timelines(): void
     {
-        $this->assertStringContainsString('fitTimelineMapToPoints(boundsPoints.concat(mappedRouteMarkers).concat(mappedAttendanceMarkers));', $this->source);
+        $this->assertStringContainsString('fitTimelineMapToPoints(boundsPoints.concat(routeMarkers).concat(attendanceMarkers));', $this->source);
         $this->assertStringContainsString('resetTimelineMapView();', $this->source);
         $this->assertStringContainsString('firstTimelineCoordinate(items)', $this->source);
         $this->assertStringContainsString('timelineMap.fitBounds(bounds, 72);', $this->source);
