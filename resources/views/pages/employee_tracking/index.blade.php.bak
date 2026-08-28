@@ -323,7 +323,6 @@
         let timelineHasFittedMapForSession = false;
         let timelineRequestInProgress = false;
         let timelineMapInitializing = false;
-        let timelineGoogleRoutingDisabled = false;
         const routeCache = new Map();
 
         function getRouteCacheKey(chunk, travelMode) {
@@ -1135,20 +1134,11 @@
             const message = String(error?.message || error?.code || error || '').toUpperCase();
 
             if (message.includes('REQUEST_DENIED')) return 'REQUEST_DENIED';
-            if (message.includes('PERMISSION_DENIED')) return 'PERMISSION_DENIED';
-            if (message.includes('SERVICE_DISABLED')) return 'SERVICE_DISABLED';
             if (message.includes('ZERO_RESULTS')) return 'ZERO_RESULTS';
             if (message.includes('OVER_QUERY_LIMIT') || message.includes('RESOURCE_EXHAUSTED')) return 'OVER_QUERY_LIMIT';
             if (message.includes('INVALID_REQUEST')) return 'INVALID_REQUEST';
 
             return 'ROUTING_UNAVAILABLE';
-        }
-
-        function isPermanentRoutingFailure(reason) {
-            const r = String(reason || '').toUpperCase();
-            return r.includes('REQUEST_DENIED') ||
-                   r.includes('PERMISSION_DENIED') ||
-                   r.includes('SERVICE_DISABLED');
         }
 
         function rawRouteFallback(chunk, reason) {
@@ -1167,10 +1157,6 @@
         async function requestDrivingPath(chunk, isWalking = false) {
             if (!chunk || chunk.length < 2) {
                 return rawRouteFallback([], 'INSUFFICIENT_POINTS');
-            }
-
-            if (timelineGoogleRoutingDisabled) {
-                return { points: filterPolylineCoordinates(chunk, 0), routed: false, reason: 'API_DISABLED_PERMANENT' };
             }
 
             const travelMode = isWalking ? 'WALK' : 'DRIVE';
@@ -1274,9 +1260,7 @@
                 }
 
                 const fallback = rawRouteFallback(chunk, googleRouteFailureCode(err));
-                if (!isPermanentRoutingFailure(fallback.reason)) {
-                    routeCache.set(cacheKey, fallback);
-                }
+                routeCache.set(cacheKey, fallback);
                 return fallback;
             }
 
@@ -1285,6 +1269,7 @@
             // the exact server-validated GPS segment as the fallback; do not
             // remove endpoints or manufacture a route across a GPS gap.
             const fallback = rawRouteFallback(chunk, 'ROUTING_UNAVAILABLE');
+            routeCache.set(cacheKey, fallback);
             return fallback;
         }
 
@@ -1304,18 +1289,13 @@
             const combinedPoints = [];
             const routingFailures = [];
 
-            for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-                const chunk = chunks[chunkIndex];
+            for (const chunk of chunks) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
                 const result = await requestDrivingPath(chunk, isWalking);
                 if (!result.routed) {
                     routingFailures.push(result.reason);
-                    if (isPermanentRoutingFailure(result.reason) && !timelineGoogleRoutingDisabled) {
-                        timelineGoogleRoutingDisabled = true;
-                        console.warn(`[EmployeeTracking] Google Cloud Routes API is disabled/unauthorized (${result.reason}). Short-circuiting remaining route chunks and using raw GPS fallback for the current timeline render.`);
-                    }
                 }
 
                 // Consecutive request chunks deliberately share an endpoint.
@@ -1767,7 +1747,6 @@
 
         function clearTimelineMap() {
             timelineRenderToken++;
-            timelineGoogleRoutingDisabled = false;
             timelineMarkers.forEach(function (marker) {
                 if (timelineMapProvider === 'google') {
                     marker.setMap(null);
