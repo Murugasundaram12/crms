@@ -17,6 +17,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('vendors-create')
+                <a href="{{ route('vendors.import.form') }}" class="btn btn-outline-primary">Import</a>
                 <a href="{{ route('vendors.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Vendor
                 </a>

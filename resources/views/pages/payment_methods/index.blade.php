@@ -16,6 +16,7 @@
             </nav>
         </div>
         @if(auth()->user()->hasPermission('payment-methods-create'))
+            <a href="{{ route('payment-methods.import.form') }}" class="btn btn-outline-primary">Import</a>
             <a href="{{ route('payment-methods.create') }}" class="btn btn-primary shadow-sm">
                 <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Payment Method
             </a>

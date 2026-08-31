@@ -3,6 +3,7 @@
 @section('title', 'Tools & Materials')
 
 @section('content')
+    @can('tools-materials-create')<a href="{{ route('tools-materials.import.form') }}" class="btn btn-outline-primary mb-3">Import</a>@endcan
     <div class="container-fluid">
     @include('partials.alerts')
 

@@ -19,6 +19,7 @@
             @can('clients-create')
                 <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add Clients</a>
+                <a href="{{ route('clients.import.form') }}" class="btn btn-outline-primary">Import</a>
             @endcan
         </div>
     </div>

@@ -9,10 +9,12 @@ use App\Models\Expense;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\Request;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class VendorAdvanceDoubleDebitTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_vendor_expense_consumes_advance_without_double_wallet_debit(): void
     {
         $user = User::first();

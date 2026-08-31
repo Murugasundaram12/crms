@@ -8,10 +8,12 @@ use App\Models\Project;
 use App\Console\Commands\MigrateLegacyExpenses;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class LegacyExpenseMigrationTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_legacy_expense_migration_creates_canonical_expenses_and_is_idempotent(): void
     {
         $project1 = Project::find(1);

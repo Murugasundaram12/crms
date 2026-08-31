@@ -11,10 +11,12 @@ use App\Services\CrmBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SoftDeleteRestoreFinancialLifecycleTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_complete_expense_soft_delete_and_restore_financial_lifecycle(): void
     {
         $user = User::find(1);

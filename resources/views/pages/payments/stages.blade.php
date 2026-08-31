@@ -4,6 +4,7 @@
 @section('content_class', 'pb-0')
 
 @section('content')
+    @can('payment-stages-create')<a href="{{ route('payment-stages.import.form') }}" class="btn btn-outline-primary mb-3">Import</a>@endcan
     @include('partials.alerts')
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">

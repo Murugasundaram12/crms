@@ -20,6 +20,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('main-categories-create')
+                <a href="{{ route('main_categories.import.form') }}" class="btn btn-outline-primary">Import</a>
                 <a href="{{ route('main_categories.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Main Category
                 </a>

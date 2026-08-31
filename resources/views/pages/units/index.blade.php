@@ -16,6 +16,7 @@
             </nav>
         </div>
         @can('units-create')
+            <a href="{{ route('units.import.form') }}" class="btn btn-outline-primary">Import</a>
             <a href="{{ route('units.create') }}" class="btn btn-primary shadow-sm">
                 <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Unit
             </a>

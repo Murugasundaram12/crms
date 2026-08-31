@@ -11,6 +11,7 @@ use App\Http\Controllers\EmployeeSalaryController;
 use App\Http\Controllers\EmployeeTrackingController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseImportController;
+use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\ExpensesController;
 use App\Http\Controllers\ExpenseTransactionController;
 use App\Http\Controllers\LabourController;
@@ -80,6 +81,8 @@ Route::middleware('auth')->group(function () {
             ->name('index');
         Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
         Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
+        Route::get('/labours/available', [AttendanceController::class, 'labourOptions'])->name('labours.available');
+        Route::post('/labours', [AttendanceController::class, 'storeLabour'])->name('labours.store');
         Route::delete('/{attendance}', [AttendanceController::class, 'destroy'])
             ->middleware('permission:attendance-list')
             ->name('destroy');
@@ -747,6 +750,32 @@ Route::middleware('auth')->group(function () {
     Route::post('/excel/import', [ExpenseImportController::class, 'import'])
         ->middleware('permission:expenses-create')
         ->name('excel.import');
+    Route::get('/clients/import', [ExcelImportController::class, 'clients'])->middleware('permission:clients-create')->name('clients.import.form');
+    Route::post('/clients/import', [ExcelImportController::class, 'importClients'])->middleware('permission:clients-create')->name('clients.import');
+    Route::get('/employees/import', [ExcelImportController::class, 'employees'])->middleware('permission:employees-create')->name('employees.import.form');
+    Route::post('/employees/import', [ExcelImportController::class, 'importEmployees'])->middleware('permission:employees-create')->name('employees.import');
+    Route::get('/projects/import', [ExcelImportController::class, 'projects'])->middleware('permission:projects-create')->name('projects.import.form');
+    Route::post('/projects/import', [ExcelImportController::class, 'importProjects'])->middleware('permission:projects-create')->name('projects.import');
+    Route::get('/vendors/import', [ExcelImportController::class, 'vendors'])->middleware('permission:vendors-create')->name('vendors.import.form');
+    Route::post('/vendors/import', [ExcelImportController::class, 'importVendors'])->middleware('permission:vendors-create')->name('vendors.import');
+    Route::get('/labours/import', [ExcelImportController::class, 'labours'])->middleware('permission:labours-create')->name('labours.import.form');
+    Route::post('/labours/import', [ExcelImportController::class, 'importLabours'])->middleware('permission:labours-create')->name('labours.import');
+    Route::get('/labour-roles/import', [ExcelImportController::class, 'labourRoles'])->middleware('permission:labour-roles-create')->name('labour_roles.import.form');
+    Route::post('/labour-roles/import', [ExcelImportController::class, 'importLabourRoles'])->middleware('permission:labour-roles-create')->name('labour_roles.import');
+    Route::get('/main-categories/import', [ExcelImportController::class, 'mainCategories'])->middleware('permission:main-categories-create')->name('main_categories.import.form');
+    Route::post('/main-categories/import', [ExcelImportController::class, 'importMainCategories'])->middleware('permission:main-categories-create')->name('main_categories.import');
+    Route::get('/categories/import', [ExcelImportController::class, 'categories'])->middleware('permission:categories-create')->name('categories.import.form');
+    Route::post('/categories/import', [ExcelImportController::class, 'importCategories'])->middleware('permission:categories-create')->name('categories.import');
+    Route::get('/units/import', [ExcelImportController::class, 'units'])->middleware('permission:units-create')->name('units.import.form');
+    Route::post('/units/import', [ExcelImportController::class, 'importUnits'])->middleware('permission:units-create')->name('units.import');
+    Route::get('/payment-methods/import', [ExcelImportController::class, 'paymentMethods'])->middleware('permission:payment-methods-create')->name('payment-methods.import.form');
+    Route::post('/payment-methods/import', [ExcelImportController::class, 'importPaymentMethods'])->middleware('permission:payment-methods-create')->name('payment-methods.import');
+    Route::get('/payment-stages/import',[ExcelImportController::class,'paymentStages'])->middleware('permission:payment-stages-create')->name('payment-stages.import.form');
+    Route::post('/payment-stages/import',[ExcelImportController::class,'importPaymentStages'])->middleware('permission:payment-stages-create')->name('payment-stages.import');
+    Route::get('/tasks/import',[ExcelImportController::class,'tasks'])->middleware('permission:tasks-create')->name('tasks.import.form');
+    Route::post('/tasks/import',[ExcelImportController::class,'importTasks'])->middleware('permission:tasks-create')->name('tasks.import');
+    Route::get('/tools-materials/import',[ExcelImportController::class,'toolsMaterials'])->middleware('permission:tools-materials-create')->name('tools-materials.import.form');
+    Route::post('/tools-materials/import',[ExcelImportController::class,'importToolsMaterials'])->middleware('permission:tools-materials-create')->name('tools-materials.import');
 
     Route::prefix('payment-methods')->name('payment-methods.')->group(function () {
         Route::middleware('permission:payment-methods-list')->group(function () {

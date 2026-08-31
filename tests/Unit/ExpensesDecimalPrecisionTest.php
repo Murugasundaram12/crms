@@ -6,10 +6,12 @@ use App\Models\Expense;
 use App\Models\User;
 use App\Models\Category;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExpensesDecimalPrecisionTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_expenses_table_supports_decimal_monetary_precision(): void
     {
         $user = User::first();

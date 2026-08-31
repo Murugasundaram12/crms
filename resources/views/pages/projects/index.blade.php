@@ -17,6 +17,7 @@
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
             @can('projects-create')
+                <a href="{{ route('projects.import.form') }}" class="btn btn-outline-primary">Import</a>
                 <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add New Project</a>
             @endcan
