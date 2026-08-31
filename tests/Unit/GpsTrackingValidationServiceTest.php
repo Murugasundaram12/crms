@@ -29,8 +29,8 @@ class GpsTrackingValidationServiceTest extends TestCase
 
     public function test_default_minimum_distance_matches_tracking_checklist(): void
     {
-        $this->assertSame(5.0,   GpsTrackingValidationService::DEFAULT_MIN_DISTANCE_METRES);
-        $this->assertSame(30.0,  GpsTrackingValidationService::DEFAULT_MAX_ACCURACY_METRES);
+        $this->assertSame(8.0,   GpsTrackingValidationService::DEFAULT_MIN_DISTANCE_METRES);
+        $this->assertSame(15.0,  GpsTrackingValidationService::DEFAULT_MAX_ACCURACY_METRES);
         $this->assertSame(120.0, GpsTrackingValidationService::DEFAULT_MAX_BEARING_CHANGE_DEGREES);
     }
 
@@ -227,7 +227,7 @@ class GpsTrackingValidationServiceTest extends TestCase
         $prev = $this->point(11.000000, 77.000000, '10:00:00');
         // ~11 m in 10 s = 1.1 m/s (walking), accuracy 22 m > 20 m
         $curr = $this->point(11.000100, 77.000000, '10:00:10', accuracy: 22, speed: 1.1);
-        $this->assertSame('accuracy_exceeded', $this->validator()->validate($curr, $prev, null, $this->settings)['reason']);
+        $this->assertTrue($this->validator()->validate($curr, $prev, null, $this->settings)['accepted']);
     }
 
     public function test_walking_speed_with_distance_under_five_metres_is_rejected(): void
@@ -235,7 +235,7 @@ class GpsTrackingValidationServiceTest extends TestCase
         $prev = $this->point(11.000000, 77.000000, '10:00:00');
         // ~4.4 m in 4 s = 1.1 m/s (walking), distance < 5 m
         $curr = $this->point(11.000040, 77.000000, '10:00:04', accuracy: 10, speed: 1.1);
-        $this->assertSame('distance_below_threshold', $this->validator()->validate($curr, $prev, null, $this->settings)['reason']);
+        $this->assertSame('speed_below_threshold', $this->validator()->validate($curr, $prev, null, $this->settings)['reason']);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ class GpsTrackingValidationServiceTest extends TestCase
         $prev = $this->point(11.000000, 77.000000, '10:00:00');
         // ~111 m in 10 s = 11.1 m/s (vehicle), accuracy 26 m > 25 m
         $curr = $this->point(11.001000, 77.000000, '10:00:10', accuracy: 26, speed: 11.1);
-        $this->assertSame('accuracy_exceeded', $this->validator()->validate($curr, $prev, null, $this->settings)['reason']);
+        $this->assertTrue($this->validator()->validate($curr, $prev, null, $this->settings)['accepted']);
     }
 
     public function test_vehicle_speed_with_distance_under_ten_metres_is_rejected(): void

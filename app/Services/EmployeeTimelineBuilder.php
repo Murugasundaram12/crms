@@ -150,7 +150,7 @@ class EmployeeTimelineBuilder
             $previousPrevious = $acceptedMovement[count($acceptedMovement) - 2] ?? null;
 
             if (! $previous) {
-                $currentSegment = $this->newSegment($tracking, ++$segmentNumber);
+                $currentSegment = $this->newSegment($tracking, ++$segmentNumber, $segmentBreakReason);
                 $this->addMovementPoint($currentSegment, $tracking, $diagnostic);
                 $acceptedMovement[] = $tracking;
                 $lastStillTracking = null;
@@ -391,17 +391,21 @@ class EmployeeTimelineBuilder
             'deviceId' => $tracking->device_id,
             'type' => $type,
             'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : null,
+            'speed' => $tracking->speed !== null ? (float) $tracking->speed : null,
             'bearing' => $tracking->bearing !== null ? (float) $tracking->bearing : null,
             'activity' => $tracking->activity,
             'batteryPercentage' => $tracking->battery_percentage,
             'isGPSOn' => (bool) $tracking->is_gps_on,
             'isWifiOn' => (bool) ($tracking->is_wifi_on ?? false),
             'isOffline' => (bool) ($tracking->is_offline ?? false),
+            'isMockLocation' => (bool) ($tracking->is_mock_location ?? false),
             'latitude' => (float) $tracking->latitude,
             'longitude' => (float) $tracking->longitude,
             'address' => null,
             'signalStrength' => $tracking->signal_strength,
             'trackingType' => $tracking->type,
+            'recordedAt' => $this->trackingTime($tracking)?->toISOString(),
+            'timestamp' => $this->trackingTime($tracking)?->getTimestamp(),
             'segmentBreakBefore' => $segmentBreak,
             'startTime' => $this->trackingTime($tracking)?->format('h:i A'),
             'endTime' => $this->trackingTime($tracking)?->format('h:i A'),
@@ -411,7 +415,7 @@ class EmployeeTimelineBuilder
         ];
     }
 
-    private function newSegment(LocationTracking $tracking, int $number): array
+    private function newSegment(LocationTracking $tracking, int $number, ?string $breakReason = null): array
     {
         return [
             'segment_number' => $number,
@@ -420,6 +424,7 @@ class EmployeeTimelineBuilder
             'device_id' => $tracking->device_id,
             'start_type' => $tracking->type,
             'end_type' => null,
+            'break_reason' => $breakReason,
             'distance_km' => 0,
             'points' => [],
             'unsimplified_points' => [],
@@ -436,11 +441,19 @@ class EmployeeTimelineBuilder
             'lat' => (float) $tracking->latitude,
             'lng' => (float) $tracking->longitude,
             'id' => $tracking->id,
-            'recorded_at' => $this->trackingTime($tracking)?->format('h:i A'),
+            'employee_id' => $tracking->employee_id,
+            'attendance_id' => $tracking->attendance_id,
+            'device_id' => $tracking->device_id,
+            'recorded_at' => $this->trackingTime($tracking)?->toISOString(),
+            'display_time' => $this->trackingTime($tracking)?->format('h:i A'),
             'activity' => $tracking->activity,
             'type' => $tracking->type,
             'is_offline' => (bool) ($tracking->is_offline ?? false),
+            'is_mock_location' => (bool) ($tracking->is_mock_location ?? false),
             'signal_strength' => $tracking->signal_strength,
+            'accuracy' => $tracking->accuracy !== null ? (float) $tracking->accuracy : null,
+            'speed' => $tracking->speed !== null ? (float) $tracking->speed : null,
+            'battery_percentage' => $tracking->battery_percentage,
             'distance_metres' => $metrics['distance_metres'] ?? null,
             'speed_mps' => $metrics['speed_mps'] ?? null,
             'bearing' => $metrics['bearing'] ?? null,
@@ -455,6 +468,8 @@ class EmployeeTimelineBuilder
         }
 
         if (count($segment['unsimplified_points']) >= 2) {
+            $lastPoint = $segment['unsimplified_points'][count($segment['unsimplified_points']) - 1];
+            $segment['end_type'] = $lastPoint['type'] ?? null;
             $segment['distance_km'] = round($this->pointsDistanceKm($segment['unsimplified_points']), 2);
             $simplifyAfterPoints = max(2, (int) ($settings['timeline_simplify_after_points'] ?? 1000));
             $segment['points'] = count($segment['unsimplified_points']) > $simplifyAfterPoints
@@ -473,7 +488,8 @@ class EmployeeTimelineBuilder
     {
         return collect($segments)
             ->map(function (array $segment): ?array {
-                $points = $segment['points'] ?? [];
+                $unsimplifiedPoints = $segment['unsimplified_points'] ?? [];
+                $points = $unsimplifiedPoints ?: ($segment['points'] ?? []);
                 if (count($points) < 2) {
                     return null;
                 }
@@ -484,6 +500,7 @@ class EmployeeTimelineBuilder
 
                 return [
                     'segment_number' => $segment['segment_number'] ?? null,
+                    'break_reason' => $segment['break_reason'] ?? null,
                     'employee_id' => $segment['employee_id'] ?? null,
                     'attendance_id' => $segment['attendance_id'] ?? null,
                     'device_id' => $segment['device_id'] ?? null,
@@ -491,7 +508,7 @@ class EmployeeTimelineBuilder
                     'origin' => $this->directionsPoint($origin),
                     'destination' => $this->directionsPoint($destination),
                     'waypoints' => array_map(fn(array $point): array => $this->directionsPoint($point), $waypoints),
-                    'source_point_ids' => collect($points)->pluck('id')->values()->all(),
+                    'source_point_ids' => collect($unsimplifiedPoints)->pluck('id')->values()->all(),
                 ];
             })
             ->filter()
@@ -527,9 +544,10 @@ class EmployeeTimelineBuilder
                     'end_time' => $last['recorded_at'] ?? null,
                     'distance_km' => $segment['distance_km'] ?? 0,
                     'points' => $points,
+                    'unsimplified_points' => $unsimplifiedPoints,
                     'unsimplified_points_count' => count($unsimplifiedPoints),
                     'simplified_points_count' => count($points),
-                    'source_point_ids' => collect($points)->pluck('id')->values()->all(),
+                    'source_point_ids' => collect($unsimplifiedPoints)->pluck('id')->values()->all(),
                 ];
             })
             ->values()

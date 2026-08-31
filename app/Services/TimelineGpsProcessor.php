@@ -36,17 +36,11 @@ class TimelineGpsProcessor
         $validatorSettings = $validator->settings($validatorOptions);
 
         $filtered = [];
-        $seenTimestamps = [];
         $seenCoordinates = [];
 
         $orderedTrackings = $this->ensureTimelineOrder($trackings);
 
         foreach ($orderedTrackings as $tracking) {
-            $timestampKey = $this->timestampKey($tracking);
-            if ($timestampKey !== null && isset($seenTimestamps[$timestampKey])) {
-                continue;
-            }
-
             $previousCoordinateKey = isset($filtered[count($filtered) - 1]) ? $this->coordinateKey($filtered[count($filtered) - 1]) : null;
             $coordinateKey = $this->coordinateKey($tracking);
             if ($previousCoordinateKey && $previousCoordinateKey === $coordinateKey) {
@@ -61,9 +55,6 @@ class TimelineGpsProcessor
                 if ($this->shouldKeepTimelineMarker($tracking, $result)) {
                     $filtered[] = $tracking;
                     $seenCoordinates[$coordinateKey] = true;
-                    if ($timestampKey !== null) {
-                        $seenTimestamps[$timestampKey] = true;
-                    }
                 }
 
                 continue;
@@ -71,9 +62,6 @@ class TimelineGpsProcessor
 
             $filtered[] = $tracking;
             $seenCoordinates[$coordinateKey] = true;
-            if ($timestampKey !== null) {
-                $seenTimestamps[$timestampKey] = true;
-            }
         }
 
         $filtered = $this->collapseStationaryDriftCluster($filtered);
@@ -165,6 +153,13 @@ class TimelineGpsProcessor
     private function collapseStationaryDriftCluster(array $trackings): array
     {
         if (count($trackings) < 4) {
+            return $trackings;
+        }
+
+        // A repeated coordinate can be a legitimate return traversal (A-B-A).
+        // Never collapse such a chronological path into its first point.
+        $coordinateKeys = array_map(fn (LocationTracking $tracking) => $this->coordinateKey($tracking), $trackings);
+        if (count($coordinateKeys) !== count(array_unique($coordinateKeys))) {
             return $trackings;
         }
 

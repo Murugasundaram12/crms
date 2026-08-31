@@ -299,19 +299,33 @@ class EmployeeTrackingController extends Controller
         $googleMapsKey = $this->googleMapsApiKey();
 
         if ($googleMapsKey === '') {
-            return response()->json(['snapped' => false, 'points' => []]);
+            return response()->json([
+                'snapped' => false,
+                'points' => [],
+                'reason' => 'API_KEY_MISSING',
+            ]);
         }
 
         $points = $validated['points'];
-        $cacheKey = 'gps_snap_road_v2_' . sha1(json_encode($points));
+        $cacheKey = 'gps_snap_road_v3_' . sha1(json_encode($points));
 
-        $snappedPoints = Cache::remember($cacheKey, now()->addDays(7), function () use ($points, $googleMapsKey) {
-            return $this->snapPointsToRoads($points, $googleMapsKey);
-        });
+        $snapResult = Cache::get($cacheKey);
+        if (! is_array($snapResult)) {
+            $snapResult = $this->snapPointsToRoads($points, $googleMapsKey);
+
+            // Only successful routes are cached. Temporary network, quota, or
+            // provider failures must be retried on a later request.
+            if (count($snapResult['points'] ?? []) >= 2) {
+                Cache::put($cacheKey, $snapResult, now()->addDays(7));
+            }
+        }
+
+        $snappedPoints = $snapResult['points'] ?? [];
 
         return response()->json([
             'snapped' => count($snappedPoints) >= 2,
             'points' => $snappedPoints,
+            'reason' => $snapResult['reason'] ?? null,
         ]);
     }
 
@@ -1098,6 +1112,8 @@ class EmployeeTrackingController extends Controller
             'address' => $location['address'] ?? null,
             'signalStrength' => null,
             'trackingType' => $isCheckIn ? 'attendance_check_in' : 'attendance_check_out',
+            'recordedAt' => $dateTime?->toISOString(),
+            'timestamp' => $dateTime?->getTimestamp(),
             'source' => $location ? 'attendance_notes' : 'attendance_record',
             'description' => $isCheckIn
                 ? ($location ? 'Attendance check-in location from attendance notes.' : 'Attendance check-in time saved.')
@@ -1380,7 +1396,13 @@ class EmployeeTrackingController extends Controller
                 ]);
 
                 if (! $response->ok()) {
-                    return [];
+                    $status = strtoupper((string) $response->json('error.status', ''));
+                    $message = strtoupper((string) $response->json('error.message', ''));
+
+                    return [
+                        'points' => [],
+                        'reason' => $status !== '' ? $status : ($message !== '' ? $message : 'HTTP_' . $response->status()),
+                    ];
                 }
 
                 foreach ($response->json('snappedPoints', []) as $snappedPoint) {
@@ -1403,11 +1425,17 @@ class EmployeeTrackingController extends Controller
                     $snappedPoints[] = $point;
                 }
             } catch (\Throwable $e) {
-                return [];
+                return [
+                    'points' => [],
+                    'reason' => 'NETWORK_ERROR',
+                ];
             }
         }
 
-        return $snappedPoints;
+        return [
+            'points' => $snappedPoints,
+            'reason' => count($snappedPoints) >= 2 ? null : 'ZERO_RESULTS',
+        ];
     }
 
     private function timelineModuleType(LocationTracking $tracking, ?LocationTracking $previous = null, ?LocationTracking $next = null): string
@@ -1574,7 +1602,12 @@ class EmployeeTrackingController extends Controller
         if ($attendances->isNotEmpty()) {
             return LocationTracking::query()
                 ->with('attendance')
+                ->where('employee_id', $employee?->id)
                 ->whereIn('attendance_id', $attendances->pluck('id'))
+                ->whereRaw('COALESCE(recorded_at, created_at) BETWEEN ? AND ?', [
+                    $timelineStart->toDateTimeString(),
+                    $timelineEnd->toDateTimeString(),
+                ])
                 ->orderByRaw('COALESCE(recorded_at, created_at) ASC')
                 ->orderBy('id')
                 ->get();

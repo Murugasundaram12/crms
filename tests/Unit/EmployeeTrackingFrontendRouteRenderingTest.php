@@ -53,8 +53,9 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
     public function test_route_markers_are_numbered_and_sampled_from_route_segments(): void
     {
         $this->assertStringContainsString('const routeMarkers = buildRouteMarkersFromSegments(movementPaths, attendanceMarkers);', $this->source);
-        $this->assertStringContainsString("const checkInMarker = attendanceMarkers.find((marker) => marker.type === 'checkIn') || null;", $this->source);
-        $this->assertStringContainsString("const checkOutMarker = attendanceMarkers.find((marker) => marker.type === 'checkOut') || null;", $this->source);
+        $this->assertStringContainsString('path.forEach((point, pointIndex)', $this->source);
+        $this->assertStringContainsString('isSegmentStart: pointIndex === 0', $this->source);
+        $this->assertStringContainsString('isSegmentEnd: pointIndex === path.length - 1', $this->source);
         $this->assertStringContainsString('function drawNumberedRouteMarker(point)', $this->source);
         $this->assertStringContainsString("point.isEnd ? '#ef4444' : '#16a34a'", $this->source);
         $this->assertStringContainsString('numberedPinSvg(label, color)', $this->source);
@@ -74,12 +75,26 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('snappedSegments.push(snappedPoints || routePath);', $this->source);
     }
 
+    public function test_frontend_never_reconnects_backend_segments_by_endpoint_proximity(): void
+    {
+        $this->assertStringContainsString('Backend segment boundaries are authoritative', $this->source);
+        $this->assertStringNotContainsString('effectivePath = [lastSegmentEnd, ...routePath]', $this->source);
+        $this->assertStringNotContainsString('inactiveGapSeconds', $this->source);
+    }
+
+    public function test_route_cache_key_contains_the_complete_ordered_point_sequence(): void
+    {
+        $this->assertStringContainsString('const routeKey = chunk.map((point) => ({', $this->source);
+        $this->assertStringContainsString('recorded_at: point.recorded_at ?? null', $this->source);
+        $this->assertStringContainsString('routeKey,', $this->source);
+        $this->assertStringNotContainsString('chunk.length}:${startKey}:${endKey}', $this->source);
+    }
+
     public function test_map_redraw_clears_old_layers_and_ignores_stale_ajax_responses(): void
     {
         $this->assertStringContainsString('clearTimelineMap();', $this->source);
         $this->assertStringContainsString('timelineMarkers.forEach', $this->source);
         $this->assertStringContainsString('timelinePolylines.forEach', $this->source);
-        $this->assertStringContainsString('timelineDirectionsRenderers.forEach', $this->source);
         $this->assertStringContainsString('const loadToken = ++timelineLoadToken;', $this->source);
         $this->assertStringContainsString('if (loadToken !== timelineLoadToken)', $this->source);
     }

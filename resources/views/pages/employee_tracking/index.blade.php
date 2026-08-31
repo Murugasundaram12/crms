@@ -309,6 +309,7 @@
             showLowSignalPoints: @json($mapSettings['show_low_signal_points'] ?? true),
             showGaps: @json($mapSettings['show_gaps'] ?? true),
             lowSignalThreshold: Number(@json($mapSettings['low_signal_threshold'] ?? 2)),
+            applicationDate: @json(now()->toDateString()),
         };
 
         let timelineMap;
@@ -316,25 +317,35 @@
         let timelineMarkers = [];
         let timelinePolylines = [];
         let timelineActualRoutePolylineCount = 0;
-        let timelineDirectionsRenderers = [];
         let timelineRenderToken = 0;
         let timelineLoadToken = 0;
+        let timelineRequestController = null;
         let lastTimelinePayload = null;
         let timelineHasFittedMapForSession = false;
         let timelineRequestInProgress = false;
         let timelineMapInitializing = false;
         let timelineGoogleRoutingDisabled = false;
+        let timelineRoutingRequestCount = 0;
         const routeCache = new Map();
 
         function getRouteCacheKey(chunk, travelMode) {
             if (!chunk || !chunk.length) return '';
             const userId = document.getElementById('trackingEmployee')?.value || '';
             const date = document.getElementById('trackingDate')?.value || '';
-            const start = chunk[0];
-            const end = chunk[chunk.length - 1];
-            const startKey = `${Number(start.lat).toFixed(5)},${Number(start.lng).toFixed(5)}`;
-            const endKey = `${Number(end.lat).toFixed(5)},${Number(end.lng).toFixed(5)}`;
-            return `${userId}:${date}:${travelMode}:${chunk.length}:${startKey}:${endKey}`;
+            const routeKey = chunk.map((point) => ({
+                id: point.id ?? null,
+                lat: Number(point.lat),
+                lng: Number(point.lng),
+                recorded_at: point.recorded_at ?? null,
+            }));
+            return JSON.stringify({
+                version: 3,
+                userId,
+                date,
+                travelMode,
+                snapRouteUrl: timelineConfig.snapRouteUrl,
+                routeKey,
+            });
         }
 
         function initEmployeeTrackingMap() {
@@ -417,13 +428,7 @@
         function startTimelineAutoRefreshIfNeeded(data, date) {
             stopTimelineAutoRefresh();
 
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const todayString = `${year}-${month}-${day}`;
-
-            if (date !== todayString) {
+            if (date !== timelineConfig.applicationDate) {
                 return;
             }
 
@@ -437,17 +442,26 @@
 
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('trackingEmployee')?.addEventListener('change', function () {
-                stopTimelineAutoRefresh();
-                timelineHasFittedMapForSession = false;
-                routeCache.clear();
-                loadTimelineData(true);
+                resetTimelineSelectionAndReload();
             });
             document.getElementById('trackingDate')?.addEventListener('change', function () {
+                resetTimelineSelectionAndReload();
+            });
+
+            function resetTimelineSelectionAndReload() {
                 stopTimelineAutoRefresh();
                 timelineHasFittedMapForSession = false;
                 routeCache.clear();
+                timelineLoadToken++;
+                timelineRenderToken++;
+                if (timelineRequestController) {
+                    timelineRequestController.abort();
+                }
+                timelineRequestController = null;
+                isTimelineLoading = false;
+                timelineRequestInProgress = false;
                 loadTimelineData(true);
-            });
+            }
 
             if (!timelineConfig.hasGoogleMapsKey) {
                 initEmployeeTrackingMap();
@@ -468,6 +482,8 @@
             timelineRequestInProgress = true;
             isTimelineLoading = true;
             const loadToken = ++timelineLoadToken;
+            const requestController = new AbortController();
+            timelineRequestController = requestController;
 
             if (!timelineMap) {
                 initEmployeeTrackingMap();
@@ -505,6 +521,7 @@
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                         'X-CSRF-TOKEN': timelineConfig.csrfToken,
                     },
+                    signal: requestController.signal,
                     body,
                 });
 
@@ -530,12 +547,15 @@
                 await renderTimeline(payload, isUserAction);
                 startTimelineAutoRefreshIfNeeded(payload, date);
             } catch (e) {
-                if (loadToken === timelineLoadToken) {
+                if (loadToken === timelineLoadToken && !requestController.signal.aborted) {
                     stopTimelineAutoRefresh();
                 }
             } finally {
-                isTimelineLoading = false;
-                timelineRequestInProgress = false;
+                if (timelineRequestController === requestController) {
+                    timelineRequestController = null;
+                    isTimelineLoading = false;
+                    timelineRequestInProgress = false;
+                }
             }
         }
 
@@ -625,7 +645,7 @@
 
             document.getElementById('timelineOverlayCard').innerHTML = overlayShell(contents, data, finalDistance, directionsDistance);
             updateDistanceDisplay(finalDistance, directionsDistance);
-            resolveMissingAddresses(addressLookups);
+            resolveMissingAddresses(addressLookups, renderToken);
         }
 
         function filterOpenAttendanceCheckOutItems(items, data = {}) {
@@ -754,53 +774,15 @@
             }
 
             const snappedSegments = [];
-            let lastSegmentEnd = null;
-            let lastPath = null;
-
+            // Backend segment boundaries are authoritative; each segment is
+            // routed independently and is never reconnected in the browser.
             for (const routePath of movementPaths) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
 
-                let effectivePath = routePath;
-
-                if (lastSegmentEnd && routePath.length > 0) {
-                    const prevAttendanceId = lastPath?.attendanceId;
-                    const currAttendanceId = routePath.attendanceId;
-                    const prevDeviceId = lastPath?.deviceId;
-                    const currDeviceId = routePath.deviceId;
-
-                    const sameAttendance = prevAttendanceId === undefined || currAttendanceId === undefined || prevAttendanceId === currAttendanceId;
-                    const sameDevice = prevDeviceId === undefined || currDeviceId === undefined || prevDeviceId === currDeviceId;
-
-                    const firstPt = routePath[0];
-                    const distMeters = computeDistanceMeters(lastSegmentEnd, firstPt);
-
-                    const prevTimeStr = lastPath?.[lastPath.length - 1]?.recorded_at;
-                    const currTimeStr = firstPt?.recorded_at;
-                    const prevTime = prevTimeStr ? new Date(prevTimeStr).getTime() : null;
-                    const currTime = currTimeStr ? new Date(currTimeStr).getTime() : null;
-                    const timeDiffSec = (prevTime && currTime && Number.isFinite(prevTime) && Number.isFinite(currTime))
-                        ? Math.abs(currTime - prevTime) / 1000
-                        : null;
-
-                    const maxInactiveGapSeconds = Number(timelineConfig?.inactiveGapSeconds) || 600;
-                    const validTimeWindow = timeDiffSec === null || timeDiffSec < maxInactiveGapSeconds;
-
-                    if (sameAttendance && sameDevice && validTimeWindow && distMeters > 0 && distMeters <= 600) {
-                        effectivePath = [lastSegmentEnd, ...routePath];
-                        if (routePath.attendanceId !== undefined) effectivePath.attendanceId = routePath.attendanceId;
-                        if (routePath.deviceId !== undefined) effectivePath.deviceId = routePath.deviceId;
-                        if (routePath.startType !== undefined) effectivePath.startType = routePath.startType;
-                    }
-                }
-
-                const snappedPoints = await drawRoadFollowingPolyline(effectivePath, renderToken);
+                const snappedPoints = await drawRoadFollowingPolyline(routePath, renderToken);
                 snappedSegments.push(snappedPoints || routePath);
-
-                const currentEffectivePoints = (snappedPoints && snappedPoints.length) ? snappedPoints : effectivePath;
-                lastSegmentEnd = currentEffectivePoints[currentEffectivePoints.length - 1] || null;
-                lastPath = routePath;
 
                 await wait(20);
             }
@@ -894,8 +876,11 @@
             return segments
                 .map((segment) => {
                     const points = Array.isArray(segment) ? segment : segment?.points;
-                    const path = Array.isArray(points)
-                        ? filterPolylineCoordinates(points.map((point) => itemLatLng(point)).filter(Boolean), 3)
+                    const sourcePoints = Array.isArray(segment?.unsimplified_points)
+                        ? segment.unsimplified_points
+                        : points;
+                    const path = Array.isArray(sourcePoints)
+                        ? filterPolylineCoordinates(sourcePoints.map((point) => itemLatLng(point)).filter(Boolean), 0)
                         : [];
                     if (segment?.attendance_id !== undefined) {
                         path.attendanceId = segment.attendance_id;
@@ -915,36 +900,25 @@
         function buildRouteMarkersFromSegments(movementPaths, attendanceMarkers = []) {
             const allRoutePoints = Array.isArray(movementPaths) ? movementPaths.flat() : [];
             const candidates = [];
-            const checkInMarker = attendanceMarkers.find((marker) => marker.type === 'checkIn') || null;
-            const checkOutMarker = attendanceMarkers.find((marker) => marker.type === 'checkOut') || null;
 
             movementPaths.forEach((path, segmentIndex) => {
                 if (!path.length) {
                     return;
                 }
 
-                if (segmentIndex === 0) {
-                    candidates.push({ ...path[0], segmentIndex, isSegmentStart: true });
-                }
-
-                if (path.length > 3) {
-                    candidates.push({ ...path[Math.floor(path.length / 2)], segmentIndex });
-                }
-
-                candidates.push({ ...path[path.length - 1], segmentIndex, isSegmentEnd: true });
+                path.forEach((point, pointIndex) => {
+                    candidates.push({
+                        ...point,
+                        segmentIndex,
+                        isSegmentStart: pointIndex === 0,
+                        isSegmentEnd: pointIndex === path.length - 1,
+                    });
+                });
             });
 
-            let markerPoints = dedupeCloseRoutePoints(candidates, 50);
-            if (markerPoints.length > 10) {
-                markerPoints = sampleRoutePoints(markerPoints, 10);
-            }
-
-            if (markerPoints.length < 2 && allRoutePoints.length > 1) {
-                markerPoints = [
-                    { ...allRoutePoints[0], segmentIndex: 0, isSegmentStart: true },
-                    { ...allRoutePoints[allRoutePoints.length - 1], segmentIndex: Math.max(0, movementPaths.length - 1), isSegmentEnd: true }
-                ];
-            }
+            const markerPoints = candidates.length
+                ? candidates
+                : (allRoutePoints.length ? [{...allRoutePoints[0], segmentIndex: 0, isSegmentStart: true}] : []);
 
             return markerPoints.map((point, index) => {
                 const rawLat = Number(point.lat);
@@ -991,10 +965,11 @@
                 };
             }
 
-            const start = Math.max(
+            const minimumProgress = Math.max(
                 0,
-                Math.min(minSearchIndex, snappedPoints.length - 2)
+                Math.min(Number(minSearchIndex) || 0, snappedPoints.length - 1)
             );
+            const start = Math.min(Math.floor(minimumProgress), snappedPoints.length - 2);
 
             let bestPoint = null;
             let bestIndex = start;
@@ -1055,13 +1030,18 @@
                     projectedPoint
                 );
 
+                const progress = i + t;
+                if (i === start && progress < minimumProgress) {
+                    continue;
+                }
+
                 if (distance < minDistance) {
                     minDistance = distance;
                     bestPoint = projectedPoint;
 
-                    // Keep the segment index so the next marker
-                    // continues searching forward from here.
-                    bestIndex = i;
+                    // Keep the fractional route position so a repeated
+                    // physical road cannot map a later marker backwards.
+                    bestIndex = progress;
                 }
             }
 
@@ -1137,7 +1117,7 @@
                         const lng = Number(typeof lastPt.lng === 'function' ? lastPt.lng() : lastPt.lng);
                         snappedTarget = { lat, lng };
                         matchDist = computeDistanceMeters(rawPoint, snappedTarget);
-                        lastSnappedIndex = snapped.length - 1;
+                    lastSnappedIndex = snapped.length - 1;
                     } else {
                         const nearest = findNearestSnappedPoint(rawPoint, snapped, lastSnappedIndex);
                         snappedTarget = nearest.point;
@@ -1304,7 +1284,7 @@
             const latitude = Number(item.latitude ?? item.lat);
             const longitude = Number(item.longitude ?? item.lng);
 
-            if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude === 0 || longitude === 0) {
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || (latitude === 0 && longitude === 0)) {
                 return null;
             }
 
@@ -1314,6 +1294,9 @@
                 id: item.id ?? null,
                 recorded_at: item.recorded_at ?? item.recordedAt ?? null,
                 type: item.type ?? item.tracking_type ?? null,
+                employee_id: item.employee_id ?? item.employeeId ?? null,
+                attendance_id: item.attendance_id ?? item.attendanceId ?? null,
+                device_id: item.device_id ?? item.deviceId ?? null,
             };
         }
 
@@ -1342,7 +1325,7 @@
         }
 
         function drawRoutePolyline(latLngs, renderToken) {
-            const cleanPath = filterPolylineCoordinates(latLngs, 3);
+            const cleanPath = filterPolylineCoordinates(latLngs, 0);
 
             if (cleanPath.length < 2) {
                 return;
@@ -1520,6 +1503,12 @@
             const travelMode = isWalking ? 'WALK' : 'DRIVE';
             const cacheKey = getRouteCacheKey(chunk, travelMode);
             if (routeCache.has(cacheKey)) {
+                if (timelineConfig.gpsDebug) {
+                    console.info('[EmployeeTracking] road routing cache hit', {
+                        travelMode,
+                        pointCount: chunk.length,
+                    });
+                }
                 return routeCache.get(cacheKey);
             }
 
@@ -1531,6 +1520,15 @@
 
                 if (formattedPoints.length < 2) {
                     return rawRouteFallback(chunk, 'INSUFFICIENT_POINTS');
+                }
+
+                timelineRoutingRequestCount++;
+                if (timelineConfig.gpsDebug) {
+                    console.info('[EmployeeTracking] road routing request', {
+                        requestCount: timelineRoutingRequestCount,
+                        travelMode,
+                        pointCount: formattedPoints.length,
+                    });
                 }
 
                 const response = await fetch(timelineConfig.snapRouteUrl, {
@@ -1562,7 +1560,11 @@
                     return result;
                 }
 
-                const fallback = rawRouteFallback(chunk, 'SNAP_FAILED');
+                const failureReason = data?.reason || 'SNAP_FAILED';
+                if (isPermanentRoutingFailure(failureReason)) {
+                    timelineGoogleRoutingDisabled = true;
+                }
+                const fallback = rawRouteFallback(chunk, failureReason);
                 return fallback;
             } catch (err) {
                 if (timelineConfig.gpsDebug) {
@@ -1858,13 +1860,14 @@
             });
         }
 
-        function resolveMissingAddresses(addressLookups) {
+        function resolveMissingAddresses(addressLookups, renderToken = timelineRenderToken) {
             if (!addressLookups.length) {
                 return;
             }
 
             addressLookups.forEach(function (lookup, index) {
                 setTimeout(async function () {
+                    if (renderToken !== timelineRenderToken) return;
                     const node = document.getElementById(lookup.id);
                     if (!node) return;
 
@@ -1886,7 +1889,7 @@
 
                         if (res.ok) {
                             const data = await res.json();
-                            if (data.address) {
+                            if (renderToken === timelineRenderToken && data.address) {
                                 node.innerHTML = `${escapeHtml(data.address)}<br><a href="javascript:void(0)" onclick="focusTimelinePoint(${lookup.latitude}, ${lookup.longitude})">View in map</a>`;
                                 return;
                             }
@@ -2070,10 +2073,6 @@
             timelinePolylines = [];
             timelineActualRoutePolylineCount = 0;
 
-            timelineDirectionsRenderers.forEach(function (renderer) {
-                renderer.setMap(null);
-            });
-            timelineDirectionsRenderers = [];
         }
 
         function wait(milliseconds) {

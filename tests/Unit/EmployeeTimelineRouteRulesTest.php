@@ -267,6 +267,27 @@ class EmployeeTimelineRouteRulesTest extends TestCase
         $this->assertSame([1, 2, 3], collect($timeline['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
     }
 
+    public function test_same_road_return_trip_stays_in_one_chronological_segment(): void
+    {
+        $builder = app(EmployeeTimelineBuilder::class);
+        $attendance = $this->attendance(1, '2026-07-21 10:00:00', '2026-07-21 11:00:00');
+        $trackings = collect([
+            $this->point(11.000000, 77.000000, '2026-07-21 10:00:00', id: 1, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:01:00', id: 2, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:02:00', id: 3, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000900, 77.000000, '2026-07-21 10:03:00', id: 4, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000600, 77.000000, '2026-07-21 10:04:00', id: 5, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000300, 77.000000, '2026-07-21 10:05:00', id: 6, attendanceId: 1)->setRelation('attendance', $attendance),
+            $this->point(11.000000, 77.000000, '2026-07-21 10:06:00', id: 7, attendanceId: 1)->setRelation('attendance', $attendance),
+        ]);
+
+        $timeline = $builder->build($trackings, $this->builderOptions());
+
+        $this->assertCount(1, $timeline['polylineSegments']);
+        $this->assertSame([1, 2, 3, 4, 5, 6, 7], collect($timeline['polylineSegments'][0]['unsimplified_points'])->pluck('id')->all());
+        $this->assertSame([1, 2, 3, 4, 5, 6, 7], collect($timeline['directionsSegments'][0]['source_point_ids'])->all());
+    }
+
     public function test_rejected_point_does_not_break_the_route_before_the_next_accepted_point(): void
     {
         $builder = app(EmployeeTimelineBuilder::class);

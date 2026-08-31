@@ -61,9 +61,9 @@ class TimelineGpsProcessorTest extends TestCase
 
         $points = collect([
             $this->point(11.016844, 76.955832, '2026-07-21 10:00:00', id: 1),
-            $this->point(11.017100, 76.955832, '2026-07-21 10:01:00', id: 2),
-            $this->point(11.016844, 76.955832, '2026-07-21 10:02:00', id: 3),
-            $this->point(11.017300, 76.955832, '2026-07-21 10:03:00', id: 4),
+            $this->point(11.017100, 76.955832, '2026-07-21 10:00:10', id: 2),
+            $this->point(11.016844, 76.955832, '2026-07-21 10:00:20', id: 3),
+            $this->point(11.017000, 76.955832, '2026-07-21 10:00:30', id: 4),
         ]);
 
         $filtered = $processor->filter($points, [
@@ -79,9 +79,9 @@ class TimelineGpsProcessorTest extends TestCase
         $processor = new TimelineGpsProcessor();
 
         $points = collect([
-            $this->point(11.017300, 76.955832, '2026-07-21 10:03:00', id: 4),
+            $this->point(11.017300, 76.955832, '2026-07-21 10:00:30', id: 4),
             $this->point(11.016844, 76.955832, '2026-07-21 10:00:00', id: 1),
-            $this->point(11.017100, 76.955832, '2026-07-21 10:01:00', id: 2),
+            $this->point(11.017100, 76.955832, '2026-07-21 10:00:10', id: 2),
         ]);
 
         $filtered = $processor->filter($points, [
