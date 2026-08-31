@@ -189,8 +189,6 @@ class TrackingSettingsController extends Controller
         $validated['max_accuracy_meters'] = $validated['minimum_accuracy'];
         $validated['gps_max_accuracy_metres'] = $validated['minimum_accuracy'];
         $validated['timeline_max_accuracy_meters'] = $validated['minimum_accuracy'];
-        $validated['gps_min_distance_metres'] = $validated['minimum_distance_meters'];
-        $validated['timeline_minimum_distance_meters'] = $validated['minimum_distance_meters'];
         $validated['gps_max_speed_mps'] = ((float) $validated['maximum_speed_kmph']) / 3.6;
         $validated['timeline_max_computed_speed_kmh'] = $validated['maximum_speed_kmph'];
 
