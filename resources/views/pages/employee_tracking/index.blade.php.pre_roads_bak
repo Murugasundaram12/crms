@@ -675,9 +675,9 @@
                 ? (checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage)
                 : (checkOutItem?.batteryPercentage ?? lastTracking?.batteryPercentage ?? checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage);
             const checkInAccuracy = accuracyHtml(checkInItem?.accuracy ?? firstTracking?.accuracy);
-            const checkOutAccuracy = isOpenAttendance ? '-' : accuracyHtml(checkOutItem?.accuracy ?? lastTracking?.accuracy);
+            const checkOutAccuracy = isOpenAttendance ? '-' : accuracyHtml(checkOutItem?.accuracy);
             const checkInBattery = batteryHtml(checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage);
-            const checkOutBattery = isOpenAttendance ? '' : batteryHtml(checkOutItem?.batteryPercentage ?? lastTracking?.batteryPercentage);
+            const checkOutBattery = isOpenAttendance ? '' : batteryHtml(checkOutItem?.batteryPercentage);
             const statusLabel = attendance.status_label || (isOpenAttendance ? 'Active' : (attendance.status || 'Present'));
 
             const checkInAddress = checkInItem
@@ -753,75 +753,29 @@
                 return;
             }
 
-            const snappedSegments = [];
-            let lastSegmentEnd = null;
-            let lastPath = null;
-
             for (const routePath of movementPaths) {
                 if (renderToken !== timelineRenderToken) {
                     return;
                 }
 
-                let effectivePath = routePath;
-
-                if (lastSegmentEnd && routePath.length > 0) {
-                    const prevAttendanceId = lastPath?.attendanceId;
-                    const currAttendanceId = routePath.attendanceId;
-                    const prevDeviceId = lastPath?.deviceId;
-                    const currDeviceId = routePath.deviceId;
-
-                    const sameAttendance = prevAttendanceId === undefined || currAttendanceId === undefined || prevAttendanceId === currAttendanceId;
-                    const sameDevice = prevDeviceId === undefined || currDeviceId === undefined || prevDeviceId === currDeviceId;
-
-                    const firstPt = routePath[0];
-                    const distMeters = computeDistanceMeters(lastSegmentEnd, firstPt);
-
-                    const prevTimeStr = lastPath?.[lastPath.length - 1]?.recorded_at;
-                    const currTimeStr = firstPt?.recorded_at;
-                    const prevTime = prevTimeStr ? new Date(prevTimeStr).getTime() : null;
-                    const currTime = currTimeStr ? new Date(currTimeStr).getTime() : null;
-                    const timeDiffSec = (prevTime && currTime && Number.isFinite(prevTime) && Number.isFinite(currTime))
-                        ? Math.abs(currTime - prevTime) / 1000
-                        : null;
-
-                    const maxInactiveGapSeconds = Number(timelineConfig?.inactiveGapSeconds) || 600;
-                    const validTimeWindow = timeDiffSec === null || timeDiffSec < maxInactiveGapSeconds;
-
-                    if (sameAttendance && sameDevice && validTimeWindow && distMeters > 0 && distMeters <= 600) {
-                        effectivePath = [lastSegmentEnd, ...routePath];
-                        if (routePath.attendanceId !== undefined) effectivePath.attendanceId = routePath.attendanceId;
-                        if (routePath.deviceId !== undefined) effectivePath.deviceId = routePath.deviceId;
-                        if (routePath.startType !== undefined) effectivePath.startType = routePath.startType;
-                    }
-                }
-
-                const snappedPoints = await drawRoadFollowingPolyline(effectivePath, renderToken);
-                snappedSegments.push(snappedPoints || routePath);
-
-                const currentEffectivePoints = (snappedPoints && snappedPoints.length) ? snappedPoints : effectivePath;
-                lastSegmentEnd = currentEffectivePoints[currentEffectivePoints.length - 1] || null;
-                lastPath = routePath;
-
+                await drawRoadFollowingPolyline(routePath, renderToken);
                 await wait(20);
             }
 
-            const mappedRouteMarkers = mapMarkersToSnappedRoute(routeMarkers, snappedSegments, movementPaths);
-            const mappedAttendanceMarkers = mapAttendanceMarkersToSnappedRoute(attendanceMarkers, snappedSegments, movementPaths);
-
-            if (mappedRouteMarkers.length) {
-                mappedRouteMarkers.forEach(drawNumberedRouteMarker);
+            if (routeMarkers.length) {
+                routeMarkers.forEach(drawNumberedRouteMarker);
             } else if (singleVisiblePoint) {
                 drawNumberedRouteMarker({...singleVisiblePoint, label: 1, isEnd: false, title: 'Timeline point'});
             }
 
-            mappedAttendanceMarkers.forEach(drawAttendanceMarker);
+            attendanceMarkers.forEach(drawAttendanceMarker);
 
             if (timelineConfig.gpsDebug) {
                 drawGapIndicators(data?.trackingHealth?.largest_gaps || []);
             }
 
             if (isUserAction || !timelineHasFittedMapForSession) {
-                fitTimelineMapToPoints(boundsPoints.concat(mappedRouteMarkers).concat(mappedAttendanceMarkers));
+                fitTimelineMapToPoints(boundsPoints.concat(routeMarkers).concat(attendanceMarkers));
                 timelineHasFittedMapForSession = true;
             }
         }
@@ -924,14 +878,14 @@
                 }
 
                 if (segmentIndex === 0) {
-                    candidates.push({ ...path[0], segmentIndex, isSegmentStart: true });
+                    candidates.push(path[0]);
                 }
 
                 if (path.length > 3) {
-                    candidates.push({ ...path[Math.floor(path.length / 2)], segmentIndex });
+                    candidates.push(path[Math.floor(path.length / 2)]);
                 }
 
-                candidates.push({ ...path[path.length - 1], segmentIndex, isSegmentEnd: true });
+                candidates.push(path[path.length - 1]);
             });
 
             let markerPoints = dedupeCloseRoutePoints(candidates, 50);
@@ -940,310 +894,17 @@
             }
 
             if (markerPoints.length < 2 && allRoutePoints.length > 1) {
-                markerPoints = [
-                    { ...allRoutePoints[0], segmentIndex: 0, isSegmentStart: true },
-                    { ...allRoutePoints[allRoutePoints.length - 1], segmentIndex: Math.max(0, movementPaths.length - 1), isSegmentEnd: true }
-                ];
+                markerPoints = [allRoutePoints[0], allRoutePoints[allRoutePoints.length - 1]];
             }
 
-            return markerPoints.map((point, index) => {
-                const rawLat = Number(point.lat);
-                const rawLng = Number(point.lng);
-                return {
-                    ...point,
-                    rawLat,
-                    rawLng,
-                    label: index + 1,
-                    isEnd: index === markerPoints.length - 1 && markerPoints.length > 1,
-                    title: index === 0
-                        ? 'Route start'
-                        : (index === markerPoints.length - 1 ? 'Route end' : `Route point ${index + 1}`),
-                };
-            });
-        }
-
-        function findNearestSnappedPoint(rawPoint, snappedPoints, minSearchIndex = 0) {
-            if (!rawPoint || !Array.isArray(snappedPoints) || snappedPoints.length === 0) {
-                return { point: rawPoint, index: 0, distance: 0 };
-            }
-
-            const rawLat = Number(typeof rawPoint.lat === 'function' ? rawPoint.lat() : rawPoint.lat);
-            const rawLng = Number(typeof rawPoint.lng === 'function' ? rawPoint.lng() : rawPoint.lng);
-
-            if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
-                return { point: rawPoint, index: 0, distance: 0 };
-            }
-
-            if (snappedPoints.length === 1) {
-                const pt = snappedPoints[0];
-                const point = {
-                    lat: Number(typeof pt.lat === 'function' ? pt.lat() : pt.lat),
-                    lng: Number(typeof pt.lng === 'function' ? pt.lng() : pt.lng),
-                };
-
-                return {
-                    point,
-                    index: 0,
-                    distance: computeDistanceMeters(
-                        { lat: rawLat, lng: rawLng },
-                        point
-                    ),
-                };
-            }
-
-            const start = Math.max(
-                0,
-                Math.min(minSearchIndex, snappedPoints.length - 2)
-            );
-
-            let bestPoint = null;
-            let bestIndex = start;
-            let minDistance = Infinity;
-
-            // Find the closest POINT ON each route segment,
-            // instead of only checking route vertices.
-            for (let i = start; i < snappedPoints.length - 1; i++) {
-                const a = snappedPoints[i];
-                const b = snappedPoints[i + 1];
-
-                const aLat = Number(typeof a.lat === 'function' ? a.lat() : a.lat);
-                const aLng = Number(typeof a.lng === 'function' ? a.lng() : a.lng);
-                const bLat = Number(typeof b.lat === 'function' ? b.lat() : b.lat);
-                const bLng = Number(typeof b.lng === 'function' ? b.lng() : b.lng);
-
-                if (
-                    !Number.isFinite(aLat) ||
-                    !Number.isFinite(aLng) ||
-                    !Number.isFinite(bLat) ||
-                    !Number.isFinite(bLng)
-                ) {
-                    continue;
-                }
-
-                // Local equirectangular projection.
-                const refLat = ((aLat + bLat + rawLat) / 3) * Math.PI / 180;
-                const cosLat = Math.cos(refLat);
-
-                const ax = aLng * cosLat;
-                const ay = aLat;
-                const bx = bLng * cosLat;
-                const by = bLat;
-                const px = rawLng * cosLat;
-                const py = rawLat;
-
-                const dx = bx - ax;
-                const dy = by - ay;
-                const segmentLengthSquared = (dx * dx) + (dy * dy);
-
-                let t = 0;
-
-                if (segmentLengthSquared > 0) {
-                    t = ((px - ax) * dx + (py - ay) * dy) / segmentLengthSquared;
-                    t = Math.max(0, Math.min(1, t));
-                }
-
-                const projectedLat = aLat + ((bLat - aLat) * t);
-                const projectedLng = aLng + ((bLng - aLng) * t);
-
-                const projectedPoint = {
-                    lat: projectedLat,
-                    lng: projectedLng,
-                };
-
-                const distance = computeDistanceMeters(
-                    { lat: rawLat, lng: rawLng },
-                    projectedPoint
-                );
-
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    bestPoint = projectedPoint;
-
-                    // Keep the segment index so the next marker
-                    // continues searching forward from here.
-                    bestIndex = i;
-                }
-            }
-
-            if (!bestPoint) {
-                const fallback = snappedPoints[start];
-
-                bestPoint = {
-                    lat: Number(typeof fallback.lat === 'function' ? fallback.lat() : fallback.lat),
-                    lng: Number(typeof fallback.lng === 'function' ? fallback.lng() : fallback.lng),
-                };
-
-                minDistance = computeDistanceMeters(
-                    { lat: rawLat, lng: rawLng },
-                    bestPoint
-                );
-            }
-
-            return {
-                point: bestPoint,
-                index: bestIndex,
-                distance: minDistance,
-            };
-        }
-
-        function mapMarkersToSnappedRoute(routeMarkers, snappedSegments, movementPaths = []) {
-            if (!Array.isArray(routeMarkers) || !routeMarkers.length) {
-                return [];
-            }
-            if (!Array.isArray(snappedSegments) || !snappedSegments.length) {
-                return routeMarkers;
-            }
-
-            const mappedMarkers = [];
-            const markersBySegment = new Map();
-
-            routeMarkers.forEach((marker) => {
-                let segIdx = marker.segmentIndex;
-                if (segIdx === undefined || segIdx < 0 || segIdx >= snappedSegments.length) {
-                    segIdx = 0;
-                }
-                if (!markersBySegment.has(segIdx)) {
-                    markersBySegment.set(segIdx, []);
-                }
-                markersBySegment.get(segIdx).push(marker);
-            });
-
-            markersBySegment.forEach((segmentMarkers, segIdx) => {
-                const snapped = snappedSegments[segIdx];
-                if (!Array.isArray(snapped) || snapped.length < 2) {
-                    segmentMarkers.forEach((m) => mappedMarkers.push(m));
-                    return;
-                }
-
-                let lastSnappedIndex = 0;
-                segmentMarkers.forEach((marker, markerIdxInSeg) => {
-                    const rawPoint = {
-                        lat: Number(marker.rawLat ?? marker.lat),
-                        lng: Number(marker.rawLng ?? marker.lng),
-                    };
-                    let snappedTarget;
-                    let matchDist = 0;
-
-                    if (marker.isSegmentStart || (segIdx === 0 && markerIdxInSeg === 0 && marker.label === 1)) {
-                        const firstPt = snapped[0];
-                        const lat = Number(typeof firstPt.lat === 'function' ? firstPt.lat() : firstPt.lat);
-                        const lng = Number(typeof firstPt.lng === 'function' ? firstPt.lng() : firstPt.lng);
-                        snappedTarget = { lat, lng };
-                        matchDist = computeDistanceMeters(rawPoint, snappedTarget);
-                        lastSnappedIndex = 0;
-                    } else if (marker.isSegmentEnd && markerIdxInSeg === segmentMarkers.length - 1) {
-                        const lastPt = snapped[snapped.length - 1];
-                        const lat = Number(typeof lastPt.lat === 'function' ? lastPt.lat() : lastPt.lat);
-                        const lng = Number(typeof lastPt.lng === 'function' ? lastPt.lng() : lastPt.lng);
-                        snappedTarget = { lat, lng };
-                        matchDist = computeDistanceMeters(rawPoint, snappedTarget);
-                        lastSnappedIndex = snapped.length - 1;
-                    } else {
-                        const nearest = findNearestSnappedPoint(rawPoint, snapped, lastSnappedIndex);
-                        snappedTarget = nearest.point;
-                        matchDist = nearest.distance;
-                        lastSnappedIndex = nearest.index;
-                    }
-
-                    if (timelineConfig.gpsDebug) {
-                        console.info('[EmployeeTracking] Marker mapped to snapped route', {
-                            markerLabel: marker.label || marker.type,
-                            markerIndex: marker.label,
-                            segmentIndex: segIdx,
-                            rawPoint,
-                            snappedPoint: snappedTarget,
-                            distanceMeters: Math.round(matchDist * 100) / 100,
-                        });
-                    }
-
-                    mappedMarkers.push({
-                        ...marker,
-                        rawLat: rawPoint.lat,
-                        rawLng: rawPoint.lng,
-                        lat: snappedTarget.lat,
-                        lng: snappedTarget.lng,
-                        snapped: true,
-                        snapDistanceMeters: matchDist,
-                    });
-                });
-            });
-
-            return mappedMarkers.sort((a, b) => (Number(a.label) || 0) - (Number(b.label) || 0));
-        }
-
-        function mapAttendanceMarkersToSnappedRoute(attendanceMarkers, snappedSegments, movementPaths = []) {
-            if (!Array.isArray(attendanceMarkers) || !attendanceMarkers.length) {
-                return [];
-            }
-            if (!Array.isArray(snappedSegments) || !snappedSegments.length) {
-                return attendanceMarkers;
-            }
-
-            return attendanceMarkers.map((marker) => {
-                const rawPoint = {
-                    lat: Number(marker.rawLat ?? marker.lat),
-                    lng: Number(marker.rawLng ?? marker.lng),
-                };
-
-                if (marker.type === 'checkIn' && snappedSegments.length > 0 && snappedSegments[0].length >= 2) {
-                    const firstSnapped = snappedSegments[0][0];
-                    const firstLat = Number(typeof firstSnapped.lat === 'function' ? firstSnapped.lat() : firstSnapped.lat);
-                    const firstLng = Number(typeof firstSnapped.lng === 'function' ? firstSnapped.lng() : firstSnapped.lng);
-                    const dist = computeDistanceMeters(rawPoint, { lat: firstLat, lng: firstLng });
-                    if (dist <= 250) {
-                        if (timelineConfig.gpsDebug) {
-                            console.info('[EmployeeTracking] Attendance checkIn marker mapped to snapped route start', {
-                                rawPoint,
-                                snappedPoint: { lat: firstLat, lng: firstLng },
-                                distanceMeters: Math.round(dist * 100) / 100,
-                            });
-                        }
-                        return {
-                            ...marker,
-                            rawLat: rawPoint.lat,
-                            rawLng: rawPoint.lng,
-                            lat: firstLat,
-                            lng: firstLng,
-                            snapped: true,
-                            snapDistanceMeters: dist,
-                        };
-                    }
-                }
-
-                if (marker.type === 'checkOut' && snappedSegments.length > 0) {
-                    const lastSeg = snappedSegments[snappedSegments.length - 1];
-                    if (lastSeg && lastSeg.length >= 2) {
-                        const lastSnapped = lastSeg[lastSeg.length - 1];
-                        const lastLat = Number(typeof lastSnapped.lat === 'function' ? lastSnapped.lat() : lastSnapped.lat);
-                        const lastLng = Number(typeof lastSnapped.lng === 'function' ? lastSnapped.lng() : lastSnapped.lng);
-                        const dist = computeDistanceMeters(rawPoint, { lat: lastLat, lng: lastLng });
-                        if (dist <= 250) {
-                            if (timelineConfig.gpsDebug) {
-                                console.info('[EmployeeTracking] Attendance checkOut marker mapped to snapped route end', {
-                                    rawPoint,
-                                    snappedPoint: { lat: lastLat, lng: lastLng },
-                                    distanceMeters: Math.round(dist * 100) / 100,
-                                });
-                            }
-                            return {
-                                ...marker,
-                                rawLat: rawPoint.lat,
-                                rawLng: rawPoint.lng,
-                                lat: lastLat,
-                                lng: lastLng,
-                                snapped: true,
-                                snapDistanceMeters: dist,
-                            };
-                        }
-                    }
-                }
-
-                return {
-                    ...marker,
-                    rawLat: rawPoint.lat,
-                    rawLng: rawPoint.lng,
-                };
-            });
+            return markerPoints.map((point, index) => ({
+                ...point,
+                label: index + 1,
+                isEnd: index === markerPoints.length - 1 && markerPoints.length > 1,
+                title: index === 0
+                    ? 'Route start'
+                    : (index === markerPoints.length - 1 ? 'Route end' : `Route point ${index + 1}`),
+            }));
         }
 
         function buildAttendanceMarkers(items) {
@@ -1259,13 +920,8 @@
                         return null;
                     }
 
-                    const rawLat = Number(point.lat);
-                    const rawLng = Number(point.lng);
-
                     return {
                         ...point,
-                        rawLat,
-                        rawLng,
                         type: item.type,
                         label: item.type === 'checkIn' ? 'IN' : 'OUT',
                         title: item.description || (item.type === 'checkIn' ? 'Attendance check-in location' : 'Attendance check-out location'),
@@ -1524,79 +1180,142 @@
             }
 
             try {
-                const formattedPoints = chunk.map((pt) => ({
-                    lat: Number(typeof pt.lat === 'function' ? pt.lat() : pt.lat),
-                    lng: Number(typeof pt.lng === 'function' ? pt.lng() : pt.lng),
-                })).filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
-
-                if (formattedPoints.length < 2) {
-                    return rawRouteFallback(chunk, 'INSUFFICIENT_POINTS');
+                let RouteClass = window.google?.maps?.routes?.Route;
+                if (!RouteClass && window.google?.maps?.importLibrary) {
+                    const routesLib = await google.maps.importLibrary('routes');
+                    RouteClass = routesLib?.Route;
                 }
 
-                const response = await fetch(timelineConfig.snapRouteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': timelineConfig.csrfToken,
-                    },
-                    body: JSON.stringify({
-                        _token: timelineConfig.csrfToken,
-                        points: formattedPoints,
-                    }),
-                });
+                if (RouteClass?.computeRoutes) {
+                    // ComputeRoutesRequest takes endpoint coordinates directly.
+                    // `{ location: ... }` is valid only for intermediate
+                    // waypoints and makes the Routes API reject endpoints as
+                    // INVALID_REQUEST.
+                    const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);
+                    const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);
+                    const intermediates = prepareRoutingWaypoints(chunk).map((point) => ({
+                        location: new google.maps.LatLng(point.lat, point.lng),
+                        via: true,
+                    }));
 
-                if (!response.ok) {
-                    const fallback = rawRouteFallback(chunk, `HTTP_${response.status}`);
-                    return fallback;
-                }
+                    const response = await RouteClass.computeRoutes({
+                        origin,
+                        destination,
+                        intermediates,
+                        travelMode: isWalking
+                            ? (window.google?.maps?.routes?.TravelMode?.WALK || 'WALK')
+                            : (window.google?.maps?.routes?.TravelMode?.DRIVE || 'DRIVE'),
+                        polylineQuality: window.google?.maps?.routes?.PolylineQuality?.HIGH_QUALITY || 'HIGH_QUALITY',
+                        fields: ['path', 'legs'],
+                    });
 
-                const data = await response.json();
-                if (data && data.snapped && Array.isArray(data.points) && data.points.length >= 2) {
-                    const result = { points: data.points, routed: true, reason: null };
-                    if (routeCache.size > 300) {
-                        const firstKey = routeCache.keys().next().value;
-                        if (firstKey) routeCache.delete(firstKey);
+                    const route = response?.routes?.[0];
+                    if (route) {
+                        let resolvedPoints = [];
+                        if (Array.isArray(route.path) && route.path.length > 0) {
+                            resolvedPoints = route.path;
+                        } else if (Array.isArray(route.legs)) {
+                            const roadPoints = [];
+                            route.legs.forEach((leg) => {
+                                (leg.steps || []).forEach((step) => {
+                                    const stepPath = step.path || step.polyline?.path || [];
+                                    (stepPath || []).forEach((roadPoint) => roadPoints.push(roadPoint));
+                                });
+                            });
+                            if (roadPoints.length > 0) {
+                                resolvedPoints = roadPoints;
+                            }
+                        }
+
+                        if (resolvedPoints.length > 0) {
+                            let chunkDist = 0;
+                            for (let c = 0; c < chunk.length - 1; c++) {
+                                chunkDist += computeDistanceMeters(chunk[c], chunk[c + 1]);
+                            }
+
+                            let routeDist = 0;
+                            let maxDisplacement = 0;
+                            for (let r = 0; r < resolvedPoints.length - 1; r++) {
+                                const p1 = resolvedPoints[r];
+                                const p2 = resolvedPoints[r + 1];
+                                const lat1 = typeof p1.lat === 'function' ? p1.lat() : p1.lat;
+                                const lng1 = typeof p1.lng === 'function' ? p1.lng() : p1.lng;
+                                const lat2 = typeof p2.lat === 'function' ? p2.lat() : p2.lat;
+                                const lng2 = typeof p2.lng === 'function' ? p2.lng() : p2.lng;
+                                routeDist += computeDistanceMeters({ lat: lat1, lng: lng1 }, { lat: lat2, lng: lng2 });
+
+                                let minChunkDist = Infinity;
+                                for (let c = 0; c < chunk.length; c++) {
+                                    const d = computeDistanceMeters({ lat: lat1, lng: lng1 }, chunk[c]);
+                                    if (d < minChunkDist) minChunkDist = d;
+                                }
+                                if (minChunkDist > maxDisplacement) maxDisplacement = minChunkDist;
+                            }
+
+                            if ((chunkDist > 100 && routeDist > (2.5 * chunkDist)) || maxDisplacement > 400) {
+                                if (timelineConfig.gpsDebug) {
+                                    console.warn('[EmployeeTracking] Routes API detour rejected (deviation/displacement):', { chunkDist, routeDist, maxDisplacement });
+                                }
+                            } else {
+                                if (routeCache.size > 300) {
+                                    const firstKey = routeCache.keys().next().value;
+                                    if (firstKey) routeCache.delete(firstKey);
+                                }
+                                const result = {points: resolvedPoints, routed: true, reason: null};
+                                routeCache.set(cacheKey, result);
+                                return result;
+                            }
+                        }
                     }
-                    routeCache.set(cacheKey, result);
-                    return result;
                 }
-
-                const fallback = rawRouteFallback(chunk, 'SNAP_FAILED');
-                return fallback;
             } catch (err) {
                 if (timelineConfig.gpsDebug) {
-                    console.warn('[EmployeeTracking] Roads API snap request failed:', err);
+                    console.warn('[EmployeeTracking] Routes API request failed:', googleRouteFailureCode(err), err);
                 }
-                const fallback = rawRouteFallback(chunk, 'NETWORK_ERROR');
+
+                const fallback = rawRouteFallback(chunk, googleRouteFailureCode(err));
+                if (!isPermanentRoutingFailure(fallback.reason)) {
+                    routeCache.set(cacheKey, fallback);
+                }
                 return fallback;
             }
+
+            // Route.computeRoutes may be absent even though Maps itself loaded
+            // (for example, when Routes API is not enabled for this key). Keep
+            // the exact server-validated GPS segment as the fallback; do not
+            // remove endpoints or manufacture a route across a GPS gap.
+            const fallback = rawRouteFallback(chunk, 'ROUTING_UNAVAILABLE');
+            return fallback;
         }
 
         async function drawRoadFollowingPolyline(routePath, renderToken) {
             if (!renderToken || renderToken !== timelineRenderToken) {
-                return routePath;
+                return;
             }
 
             if (timelineMapProvider !== 'google' || !window.google?.maps || !timelineConfig.roadRouteEnabled) {
                 drawRoutePolyline(routePath);
 
-                return routePath;
+                return;
             }
 
             const isWalking = isWalkingPath(routePath);
-            const chunks = chunkForDirectionsRequest(routePath, 300);
+            const chunks = chunkForDirectionsRequest(routePath, 10);
             const combinedPoints = [];
             const routingFailures = [];
 
             for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
                 const chunk = chunks[chunkIndex];
                 if (renderToken !== timelineRenderToken) {
-                    return routePath;
+                    return;
                 }
                 const result = await requestDrivingPath(chunk, isWalking);
                 if (!result.routed) {
                     routingFailures.push(result.reason);
+                    if (isPermanentRoutingFailure(result.reason) && !timelineGoogleRoutingDisabled) {
+                        timelineGoogleRoutingDisabled = true;
+                        console.warn(`[EmployeeTracking] Google Cloud Routes API is disabled/unauthorized (${result.reason}). Short-circuiting remaining route chunks and using raw GPS fallback for the current timeline render.`);
+                    }
                 }
 
                 // Consecutive request chunks deliberately share an endpoint.
@@ -1604,7 +1323,7 @@
                 // and a continuous path through the waypoint limit boundary.
                 const segmentPoints = result.points || [];
                 if (combinedPoints.length && segmentPoints.length
-                    && computeDistanceMeters(combinedPoints[combinedPoints.length - 1], segmentPoints[0]) < 20) {
+                    && computeDistanceMeters(combinedPoints[combinedPoints.length - 1], segmentPoints[0]) < 1) {
                     combinedPoints.push(...segmentPoints.slice(1));
                 } else {
                     combinedPoints.push(...segmentPoints);
@@ -1612,7 +1331,7 @@
             }
 
             if (renderToken !== timelineRenderToken || combinedPoints.length < 2) {
-                return routePath;
+                return;
             }
 
             const routeColor = isWalking ? '#f5c400' : '#0d47ff';
@@ -1642,8 +1361,6 @@
                     endpoint: combinedPoints[combinedPoints.length - 1],
                 });
             }
-
-            return combinedPoints;
         }
 
         function drawNumberedRouteMarker(point) {

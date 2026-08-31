@@ -390,6 +390,7 @@ Route::middleware('auth')->group(function () {
         Route::middleware('permission:employees-salary-create')->group(function () {
             Route::get('/create', [EmployeeSalaryController::class, 'create'])->name('create');
             Route::post('/store', [EmployeeSalaryController::class, 'store'])->name('store');
+            Route::post('/calculate', [EmployeeSalaryController::class, 'calculate'])->name('calculate');
         });
         Route::middleware('permission:employees-salary-edit')->group(function () {
             Route::get('/{employeeSalary}/edit', [EmployeeSalaryController::class, 'edit'])->name('edit');

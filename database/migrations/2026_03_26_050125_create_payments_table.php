@@ -11,11 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('payments')) {
+            return;
+        }
+
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->string('payment_code')->unique();
             $table->unsignedBigInteger('project_id')->nullable();
-            $table->foreign('project_id')->references('id')->on('projects')->nullOnDelete();
+            if (Schema::hasTable('projects')) {
+                $table->foreign('project_id')->references('id')->on('projects')->nullOnDelete();
+            }
             $table->foreignId('client_id')->nullable()->constrained()->nullOnDelete();
             $table->decimal('amount', 14, 2);
             $table->string('method');

@@ -21,9 +21,12 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('function buildMovementPathsFromSegments(segments)', $this->source);
         $this->assertStringContainsString('drawRoutePolyline(routePath);', $this->source);
         $this->assertStringContainsString('requestDrivingPath(chunk, isWalking)', $this->source);
-        $this->assertStringContainsString('timelineConfig.snapRouteUrl', $this->source);
+        $this->assertStringContainsString('RouteClass.computeRoutes', $this->source);
         $this->assertStringContainsString('timelineConfig.roadRouteEnabled', $this->source);
-        $this->assertStringContainsString("data.snapped", $this->source);
+        $this->assertStringContainsString('const origin = new google.maps.LatLng(chunk[0].lat, chunk[0].lng);', $this->source);
+        $this->assertStringContainsString('const destination = new google.maps.LatLng(chunk[chunk.length - 1].lat, chunk[chunk.length - 1].lng);', $this->source);
+        $this->assertStringNotContainsString('const origin = { location:', $this->source);
+        $this->assertStringNotContainsString('const destination = { location:', $this->source);
         $this->assertStringContainsString("return 'actual';", $this->source);
         $this->assertStringNotContainsString('drawDirectionsSegments(', $this->source);
         $this->assertStringNotContainsString("if (routeMode === 'road'", $this->source);
@@ -46,8 +49,11 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringContainsString('chunks.push(latLngs.slice(i, end));', $this->source);
         $this->assertStringContainsString('combinedPoints.push(...segmentPoints.slice(1));', $this->source);
         $this->assertStringContainsString('function rawRouteFallback(chunk, reason)', $this->source);
-        $this->assertStringContainsString("'SNAP_FAILED'", $this->source);
-        $this->assertStringContainsString("'NETWORK_ERROR'", $this->source);
+        $this->assertStringContainsString("'REQUEST_DENIED'", $this->source);
+        $this->assertStringContainsString("'ZERO_RESULTS'", $this->source);
+        $this->assertStringContainsString("'OVER_QUERY_LIMIT'", $this->source);
+        $this->assertStringContainsString("'INVALID_REQUEST'", $this->source);
+        $this->assertStringContainsString("'ROUTING_UNAVAILABLE'", $this->source);
     }
 
     public function test_route_markers_are_numbered_and_sampled_from_route_segments(): void
@@ -62,18 +68,6 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
         $this->assertStringNotContainsString('red_circle.png', $this->source);
     }
 
-    public function test_route_markers_are_mapped_to_snapped_route_preserving_raw_coordinates_and_monotonic_order(): void
-    {
-        $this->assertStringContainsString('function findNearestSnappedPoint(rawPoint, snappedPoints, minSearchIndex = 0)', $this->source);
-        $this->assertStringContainsString('function mapMarkersToSnappedRoute(routeMarkers, snappedSegments, movementPaths = [])', $this->source);
-        $this->assertStringContainsString('function mapAttendanceMarkersToSnappedRoute(attendanceMarkers, snappedSegments, movementPaths = [])', $this->source);
-        $this->assertStringContainsString('const mappedRouteMarkers = mapMarkersToSnappedRoute(routeMarkers, snappedSegments, movementPaths);', $this->source);
-        $this->assertStringContainsString('const mappedAttendanceMarkers = mapAttendanceMarkersToSnappedRoute(attendanceMarkers, snappedSegments, movementPaths);', $this->source);
-        $this->assertStringContainsString('rawLat,', $this->source);
-        $this->assertStringContainsString('rawLng,', $this->source);
-        $this->assertStringContainsString('snappedSegments.push(snappedPoints || routePath);', $this->source);
-    }
-
     public function test_map_redraw_clears_old_layers_and_ignores_stale_ajax_responses(): void
     {
         $this->assertStringContainsString('clearTimelineMap();', $this->source);
@@ -86,7 +80,7 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
 
     public function test_map_fits_visible_route_or_resets_for_empty_timelines(): void
     {
-        $this->assertStringContainsString('fitTimelineMapToPoints(boundsPoints.concat(mappedRouteMarkers).concat(mappedAttendanceMarkers));', $this->source);
+        $this->assertStringContainsString('fitTimelineMapToPoints(boundsPoints.concat(routeMarkers).concat(attendanceMarkers));', $this->source);
         $this->assertStringContainsString('resetTimelineMapView();', $this->source);
         $this->assertStringContainsString('firstTimelineCoordinate(items)', $this->source);
         $this->assertStringContainsString('timelineMap.fitBounds(bounds, 72);', $this->source);
