@@ -40,7 +40,7 @@ class GpsTrackingValidationService
         return [
             ...$settings,
             ...$this->databaseSettings(),
-            ...array_filter($overrides, fn ($value) => $value !== null),
+            ...array_filter($overrides, fn($value) => $value !== null),
         ];
     }
 
@@ -61,14 +61,18 @@ class GpsTrackingValidationService
             return $this->rejected('gps_off');
         }
 
-        if ((bool) ($currentPoint['is_mock_location'] ?? false)
-            && ! (bool) ($settings['mock_location_allowed'] ?? false)) {
+        if (
+            (bool) ($currentPoint['is_mock_location'] ?? false)
+            && ! (bool) ($settings['mock_location_allowed'] ?? false)
+        ) {
             return $this->rejected('mock_location');
         }
 
-        if ($currentPoint['accuracy'] === null
+        if (
+            $currentPoint['accuracy'] === null
             || (float) $currentPoint['accuracy'] <= 0
-            || (float) $currentPoint['accuracy'] > (float) $settings['gps_max_accuracy_metres']) {
+            || (float) $currentPoint['accuracy'] > (float) $settings['gps_max_accuracy_metres']
+        ) {
             return $this->rejected('accuracy_exceeded');
         }
 
@@ -110,9 +114,11 @@ class GpsTrackingValidationService
             ]);
         }
 
-        if ($this->isStillState($currentPoint['activity'] ?? null, $currentPoint['type'] ?? null)
+        if (
+            $this->isStillState($currentPoint['activity'] ?? null, $currentPoint['type'] ?? null)
             && ($currentPoint['speed'] === null || (float) $currentPoint['speed'] < 0.8)
-            && $distanceMetres <= max(5.0, (float) $settings['gps_min_distance_metres'])) {
+            && $distanceMetres <= max(5.0, (float) $settings['gps_min_distance_metres'])
+        ) {
             return $this->rejected('distance_below_threshold', [
                 'distance_metres' => $distanceMetres,
                 'time_difference_seconds' => $timeDifferenceSeconds,
@@ -149,8 +155,10 @@ class GpsTrackingValidationService
                 (float) $previousPoint['longitude'],
             );
 
-            if ($previousSegmentDistance >= (float) $settings['gps_bearing_min_distance_metres']
-                && $distanceMetres >= (float) $settings['gps_bearing_min_distance_metres']) {
+            if (
+                $previousSegmentDistance >= (float) $settings['gps_bearing_min_distance_metres']
+                && $distanceMetres >= (float) $settings['gps_bearing_min_distance_metres']
+            ) {
                 $previousBearing = $this->bearingDegrees(
                     (float) $previousPreviousPoint['latitude'],
                     (float) $previousPreviousPoint['longitude'],
@@ -158,7 +166,6 @@ class GpsTrackingValidationService
                     (float) $previousPoint['longitude'],
                 );
                 $bearingDifference = $this->bearingDifferenceDegrees($previousBearing, $bearing);
-
             }
         }
 
@@ -360,8 +367,10 @@ class GpsTrackingValidationService
                 }
             }
 
-            if (! array_key_exists('tracking_interval_seconds', $settings)
-                && isset($values['location_update_interval'])) {
+            if (
+                ! array_key_exists('tracking_interval_seconds', $settings)
+                && isset($values['location_update_interval'])
+            ) {
                 $settings['tracking_interval_seconds'] = $this->secondsFrom(
                     (int) $values['location_update_interval'],
                     (string) ($values['location_update_interval_type'] ?? 'seconds')

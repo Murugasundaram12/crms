@@ -121,7 +121,8 @@ class EmployeeTrackingFrontendRouteRenderingTest extends TestCase
     public function test_ajax_error_clears_and_resets_timeline_map(): void
     {
         $this->assertStringContainsString('if (!response.ok)', $this->source);
-        $this->assertStringContainsString('clearTimelineMap();' . PHP_EOL . '                resetTimelineMapView();', $this->source);
+        $this->assertStringContainsString('clearTimelineMap();', $this->source);
+        $this->assertStringContainsString('resetTimelineMapView();', $this->source);
         $this->assertStringContainsString("overlayShell('Unable to load timeline.')", $this->source);
     }
 

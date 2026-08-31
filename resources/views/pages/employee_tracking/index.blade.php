@@ -662,9 +662,9 @@
                 ? (checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage)
                 : (checkOutItem?.batteryPercentage ?? lastTracking?.batteryPercentage ?? checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage);
             const checkInAccuracy = accuracyHtml(checkInItem?.accuracy ?? firstTracking?.accuracy);
-            const checkOutAccuracy = isOpenAttendance ? '-' : accuracyHtml(checkOutItem?.accuracy);
+            const checkOutAccuracy = isOpenAttendance ? '-' : accuracyHtml(checkOutItem?.accuracy ?? lastTracking?.accuracy);
             const checkInBattery = batteryHtml(checkInItem?.batteryPercentage ?? firstTracking?.batteryPercentage);
-            const checkOutBattery = isOpenAttendance ? '' : batteryHtml(checkOutItem?.batteryPercentage);
+            const checkOutBattery = isOpenAttendance ? '' : batteryHtml(checkOutItem?.batteryPercentage ?? lastTracking?.batteryPercentage);
             const statusLabel = attendance.status_label || (isOpenAttendance ? 'Active' : (attendance.status || 'Present'));
 
             const checkInAddress = checkInItem
