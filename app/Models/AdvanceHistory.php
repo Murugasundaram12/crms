@@ -13,6 +13,7 @@ class AdvanceHistory extends Model
         'labour_id',
         'vendor_id',
         'labour_expense_transaction_id',
+        'labour_salary_id',
         'amount',
         'entry_type',
         'notes',
@@ -34,6 +35,11 @@ class AdvanceHistory extends Model
     public function expense(): BelongsTo
     {
         return $this->belongsTo(Expense::class, 'labour_expense_transaction_id');
+    }
+
+    public function salary(): BelongsTo
+    {
+        return $this->belongsTo(LabourSalary::class, 'labour_salary_id');
     }
 
     public function user(): BelongsTo

@@ -15,6 +15,7 @@ use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\ExpensesController;
 use App\Http\Controllers\ExpenseTransactionController;
 use App\Http\Controllers\LabourController;
+use App\Http\Controllers\LabourAttendanceController;
 use App\Http\Controllers\LabourExpensesController;
 use App\Http\Controllers\LabourRoleController;
 use App\Http\Controllers\LabourSalaryController;
@@ -81,11 +82,21 @@ Route::middleware('auth')->group(function () {
             ->name('index');
         Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
         Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
-        Route::get('/labours/available', [AttendanceController::class, 'labourOptions'])->name('labours.available');
-        Route::post('/labours', [AttendanceController::class, 'storeLabour'])->name('labours.store');
+        Route::get('/labours/available', [LabourAttendanceController::class, 'summaryJson'])->name('labours.available');
+        Route::post('/labours', [LabourAttendanceController::class, 'store'])->name('labours.store');
         Route::delete('/{attendance}', [AttendanceController::class, 'destroy'])
             ->middleware('permission:attendance-list')
             ->name('destroy');
+    });
+
+    Route::prefix('labour-attendances')->name('labour-attendances.')->group(function () {
+        Route::middleware('permission:attendance-list')->group(function () {
+            Route::get('/', [LabourAttendanceController::class, 'index'])->name('index');
+            Route::get('/summary-json', [LabourAttendanceController::class, 'summaryJson'])->name('summary-json');
+            Route::post('/store', [LabourAttendanceController::class, 'store'])->name('store');
+            Route::post('/bulk-store', [LabourAttendanceController::class, 'bulkStore'])->name('bulk-store');
+            Route::delete('/{labourAttendance}', [LabourAttendanceController::class, 'destroy'])->name('destroy');
+        });
     });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -630,6 +641,7 @@ Route::middleware('auth')->group(function () {
         });
         Route::middleware('permission:labour-salaries-create')->group(function () {
             Route::get('/create', [LabourSalaryController::class, 'create'])->name('create');
+            Route::get('/calculate', [LabourSalaryController::class, 'calculate'])->name('calculate');
             Route::post('/store', [LabourSalaryController::class, 'store'])->name('store');
         });
         Route::middleware('permission:labour-salaries-edit')->group(function () {

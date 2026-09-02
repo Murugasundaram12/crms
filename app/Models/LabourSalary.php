@@ -18,6 +18,7 @@ class LabourSalary extends Model
         'salary_period_end',
         'salary_amount',
         'paid_amount',
+        'advance_adjusted',
         'remaining_amount',
         'payment_date',
         'payment_method_id',
@@ -29,6 +30,7 @@ class LabourSalary extends Model
     protected $casts = [
         'salary_amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
+        'advance_adjusted' => 'decimal:2',
         'remaining_amount' => 'decimal:2',
         'salary_period_start' => 'date',
         'salary_period_end' => 'date',

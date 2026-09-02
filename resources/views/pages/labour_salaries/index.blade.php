@@ -59,6 +59,7 @@
                             <th>Labour Name</th>
                             <th>Phone</th>
                             <th>Wage / Salary</th>
+                            <th>Advance Adjusted</th>
                             <th>Paid Amount</th>
                             <th>Remaining</th>
                             <th>Payment Method</th>
@@ -74,6 +75,7 @@
                                 <td><span class="fw-semibold text-dark">{{ $ls->labour?->name }}</span></td>
                                 <td>{{ $ls->labour?->phone ?: ($ls->labour?->phone_number ?: '-') }}</td>
                                 <td>Rs {{ number_format((float) $ls->salary_amount, 2) }}</td>
+                                <td><span class="badge badge-soft-warning">Rs {{ number_format((float) $ls->advance_adjusted, 2) }}</span></td>
                                 <td><span class="badge badge-soft-success">Rs {{ number_format((float) $ls->paid_amount, 2) }}</span></td>
                                 <td class="fw-bold text-danger">Rs {{ number_format((float) $ls->remaining_amount, 2) }}</td>
                                 <td>{{ $ls->paymentMethod?->name ?: 'N/A' }}</td>

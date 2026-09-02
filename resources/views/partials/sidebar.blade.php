@@ -12,6 +12,7 @@
     @php($isToolsMaterialsMenuActive = request()->routeIs('tools-materials.*') || request()->routeIs('tools-material-assignments.*') || request()->routeIs('preorders.*'))
     @php($isDeviceManagementActive = request()->routeIs('device-management.*'))
     @php($isSalariesMenuActive = request()->routeIs('employee-salaries.*') || request()->routeIs('labour-salaries.*'))
+    @php($isAttendanceMenuActive = request()->routeIs('attendance.*') || request()->routeIs('labour-attendances.*'))
     @php($isSettingsMenuActive = request()->routeIs('main_categories.*') || request()->routeIs('categories.*') || request()->routeIs('units.*') || request()->routeIs('payment-stages.*') || request()->routeIs('payment-methods.*'))
 
     <!-- Start Logo -->
@@ -126,8 +127,17 @@
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('attendance-list'))
-                            <li><a href="{{ route('attendance.index') }}"><i
-                                        class="ti ti-clock"></i><span>Attendance</span></a></li>
+                            <li class="submenu {{ $isAttendanceMenuActive ? 'active' : '' }}">
+                                <a href="javascript:void(0);" class="{{ $isAttendanceMenuActive ? 'subdrop active' : '' }}">
+                                    <i class="ti ti-clock me-2"></i><span>Attendance</span><span class="menu-arrow"></span>
+                                </a>
+                                <ul style="{{ $isAttendanceMenuActive ? 'display: block;' : 'display: none;' }}">
+                                    <li><a class="{{ request()->routeIs('attendance.index') ? 'active' : '' }}"
+                                            href="{{ route('attendance.index') }}">Employee Attendance</a></li>
+                                    <li><a class="{{ request()->routeIs('labour-attendances.*') ? 'active' : '' }}"
+                                            href="{{ route('labour-attendances.index') }}">Labour Attendance</a></li>
+                                </ul>
+                            </li>
                         @endif
 
                         @if($currentUser && $currentUser->hasPermission('employees-list'))

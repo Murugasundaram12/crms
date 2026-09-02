@@ -263,7 +263,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Amount</label>
-                        <input type="number" name="amount" class="form-control" min="1" required>
+                        <input type="number" name="amount" class="form-control" min="1" step="0.01" required>
+                        <small class="text-muted"><i class="ti ti-info-circle"></i> Amount will be debited from your company wallet and added to labour advance balance.</small>
                     </div>
                     <div class="mb-0">
                         <label class="form-label">Notes</label>
@@ -273,7 +274,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button class="btn btn-primary" type="submit">
-                        <i class="ti ti-plus me-1"></i>Add Amount
+                        <i class="ti ti-plus me-1"></i>Give Advance
                     </button>
                 </div>
             </form>
@@ -303,7 +304,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Amount</label>
-                        <input type="number" name="amount" class="form-control" min="1" required>
+                        <input type="number" name="amount" class="form-control" min="1" step="0.01" required>
+                        <small class="text-muted"><i class="ti ti-info-circle"></i> Amount will be deducted from labour advance and credited back to your company wallet.</small>
                     </div>
                     <div class="mb-0">
                         <label class="form-label">Notes</label>

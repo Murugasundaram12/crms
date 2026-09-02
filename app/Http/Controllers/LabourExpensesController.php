@@ -220,79 +220,146 @@ class LabourExpensesController extends Controller
             'labour_id' => ['required', 'exists:labours,id'],
             'entry_type' => ['required', 'in:credit,withdraw,settle'],
             'labour_expense_transaction_id' => ['nullable', 'required_if:entry_type,settle', 'exists:expenses,id'],
-            'amount' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $userId = (int) Auth::id();
+
+        DB::transaction(function () use ($validated, $userId) {
             $labour = Labour::query()->lockForUpdate()->findOrFail((int) $validated['labour_id']);
-            $amount = (int) $validated['amount'];
+            $amount = (float) $validated['amount'];
+            $balanceService = app(CrmBalanceService::class);
 
             if ($validated['entry_type'] === 'credit') {
-                app(CrmBalanceService::class)->adjustLabourAdvance((int) $labour->id, $amount);
+                // Check company/admin wallet balance
+                $userWallet = (float) DB::table('users')
+                    ->where('id', $userId)
+                    ->lockForUpdate()
+                    ->value('wallet');
 
-                AdvanceHistory::create([
+                if ($userWallet < $amount) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'amount' => 'Insufficient company wallet balance. Available balance is Rs ' . number_format($userWallet, 2) . '.',
+                    ]);
+                }
+
+                // Debit company wallet
+                $balanceService->debitUserWallet($userId, $amount, 'Labour advance given to ' . $labour->name);
+
+                // Increment labour advance balance
+                $balanceService->adjustLabourAdvance((int) $labour->id, $amount);
+
+                $advanceHistory = AdvanceHistory::create([
                     'labour_id' => $labour->id,
                     'amount' => $amount,
                     'entry_type' => 'credit',
-                    'notes' => $validated['notes'] ?? 'Labour wallet credited',
-                    'user_id' => Auth::id(),
+                    'notes' => $validated['notes'] ?? 'Labour advance given',
+                    'user_id' => $userId,
                     'current_date' => now()->toDateString(),
                     'current_time' => now()->format('H:i:s'),
+                ]);
+
+                \App\Models\Wallet::query()->create([
+                    'user_id' => $userId,
+                    'client_id' => 0,
+                    'project_id' => 0,
+                    'amount' => (int) round($amount),
+                    'payment_mode' => 1,
+                    'transfer_type' => 1, // Debit
+                    'source_type' => 'labour_advance',
+                    'source_id' => $advanceHistory->id,
+                    'description' => 'Labour advance given to ' . $labour->name,
+                    'created_by' => $userId,
+                    'current_date' => now(),
+                    'active_status' => 1,
+                    'delete_status' => 0,
                 ]);
 
                 return;
             }
 
             if ($validated['entry_type'] === 'withdraw') {
-                $withdraw = min($amount, (int) $labour->advance_amt);
+                $currentAdvance = (float) $labour->advance_amt;
 
-                if ($withdraw <= 0) {
-                    return;
+                if ($amount > $currentAdvance) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'amount' => 'Withdrawal amount cannot exceed current labour advance balance of Rs ' . number_format($currentAdvance, 2) . '.',
+                    ]);
                 }
 
-                app(CrmBalanceService::class)->adjustLabourAdvance((int) $labour->id, -$withdraw);
+                // Decrement labour advance balance
+                $balanceService->adjustLabourAdvance((int) $labour->id, -$amount);
 
-                AdvanceHistory::create([
+                // Credit back company wallet
+                $balanceService->creditUserWallet($userId, $amount, 'Labour advance withdrawal/reversal from ' . $labour->name);
+
+                $advanceHistory = AdvanceHistory::create([
                     'labour_id' => $labour->id,
-                    'amount' => $withdraw,
+                    'amount' => $amount,
                     'entry_type' => 'withdraw',
-                    'notes' => $validated['notes'] ?? 'Labour wallet withdrawn',
-                    'user_id' => Auth::id(),
+                    'notes' => $validated['notes'] ?? 'Labour advance withdrawn',
+                    'user_id' => $userId,
                     'current_date' => now()->toDateString(),
                     'current_time' => now()->format('H:i:s'),
+                ]);
+
+                \App\Models\Wallet::query()->create([
+                    'user_id' => $userId,
+                    'client_id' => 0,
+                    'project_id' => 0,
+                    'amount' => (int) round($amount),
+                    'payment_mode' => 1,
+                    'transfer_type' => 0, // Credit
+                    'source_type' => 'labour_advance_withdraw',
+                    'source_id' => $advanceHistory->id,
+                    'description' => 'Labour advance withdrawal from ' . $labour->name,
+                    'created_by' => $userId,
+                    'current_date' => now(),
+                    'active_status' => 1,
+                    'delete_status' => 0,
                 ]);
 
                 return;
             }
 
+            // Settle against expense if requested
             $expense = Expense::query()
                 ->where('labour_id', $labour->id)
                 ->where('unpaid_amt', '>', 0)
                 ->lockForUpdate()
                 ->findOrFail((int) $validated['labour_expense_transaction_id']);
 
-            $settle = min($amount, (int) $labour->advance_amt, (int) $expense->unpaid_amt);
+            $currentAdvance = (float) $labour->advance_amt;
+            $unpaidAmt = (float) $expense->unpaid_amt;
 
-            if ($settle <= 0) {
-                return;
+            if ($amount > $currentAdvance) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' => 'Settlement amount cannot exceed available labour advance balance of Rs ' . number_format($currentAdvance, 2) . '.',
+                ]);
             }
 
-            app(CrmBalanceService::class)->adjustLabourAdvance((int) $labour->id, -$settle);
+            if ($amount > $unpaidAmt) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' => 'Settlement amount cannot exceed unpaid expense amount of Rs ' . number_format($unpaidAmt, 2) . '.',
+                ]);
+            }
+
+            $balanceService->adjustLabourAdvance((int) $labour->id, -$amount);
             $expense->update([
-                'paid_amt' => (int) $expense->paid_amt + $settle,
-                'unpaid_amt' => max((int) $expense->unpaid_amt - $settle, 0),
-                'editedBy' => Auth::id(),
+                'paid_amt' => (float) $expense->paid_amt + $amount,
+                'unpaid_amt' => max((float) $expense->unpaid_amt - $amount, 0),
+                'editedBy' => $userId,
                 'is_advance' => 1,
             ]);
 
             AdvanceHistory::create([
                 'labour_id' => $labour->id,
                 'labour_expense_transaction_id' => $expense->id,
-                'amount' => $settle,
+                'amount' => $amount,
                 'entry_type' => 'settle',
                 'notes' => $validated['notes'] ?? 'Advance settled against unpaid labour expense',
-                'user_id' => Auth::id(),
+                'user_id' => $userId,
                 'current_date' => now()->toDateString(),
                 'current_time' => now()->format('H:i:s'),
             ]);
