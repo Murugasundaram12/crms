@@ -9,6 +9,7 @@ use App\Models\Attendance;
 use App\Models\Expense;
 use App\Support\DeleteDependencyGuard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
@@ -92,7 +93,12 @@ class EmployeeController extends Controller
 
     public function profile(Request $request)
     {
-        return $this->show($request->user());
+        $user = $request->user() ?? Auth::user();
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        return $this->show($user);
     }
 
     public function edit(User $employee)

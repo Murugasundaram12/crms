@@ -1599,6 +1599,10 @@
                 const result = await requestDrivingPath(chunk, isWalking);
                 if (!result.routed) {
                     routingFailures.push(result.reason);
+                    if (isPermanentRoutingFailure(result.reason) && !timelineGoogleRoutingDisabled) {
+                        timelineGoogleRoutingDisabled = true;
+                        console.warn(`[EmployeeTracking] Google Cloud Routes API is disabled/unauthorized (${result.reason}). Short-circuiting remaining route chunks and using raw GPS fallback for the current timeline render.`);
+                    }
                 }
 
                 // Consecutive request chunks deliberately share an endpoint.

@@ -75,9 +75,7 @@ class LabourSalaryController extends Controller
         $startDate = Carbon::parse($validated['salary_period_start']);
         $endDate = Carbon::parse($validated['salary_period_end']);
 
-        // Determine month string for calculation (default start date's Y-m)
-        $monthStr = $startDate->format('Y-m');
-        $summary = LabourAttendanceController::calculateMonthlySummary($labour, $monthStr);
+        $summary = LabourAttendanceController::calculatePeriodSummary($labour, $validated['salary_period_start'], $validated['salary_period_end']);
 
         return response()->json($summary);
     }
@@ -275,7 +273,7 @@ class LabourSalaryController extends Controller
             'advance_adjusted' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['required', 'date'],
-            'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
+            'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'status' => ['nullable', Rule::in(['paid', 'partial', 'pending'])],
         ]);

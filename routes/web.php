@@ -15,6 +15,7 @@ use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\ExpensesController;
 use App\Http\Controllers\ExpenseTransactionController;
 use App\Http\Controllers\LabourController;
+use App\Http\Controllers\LabourAssignmentController;
 use App\Http\Controllers\LabourAttendanceController;
 use App\Http\Controllers\LabourExpensesController;
 use App\Http\Controllers\LabourRoleController;
@@ -632,6 +633,22 @@ Route::middleware('auth')->group(function () {
         });
         Route::middleware('permission:labours-delete')->group(function () {
             Route::delete('/delete/{id}', [LabourController::class, 'destroy'])->name('delete');
+        });
+    });
+
+    Route::prefix('labour-assignments')->name('labour_assignments.')->group(function () {
+        Route::middleware('permission:labour-assignments-list')->group(function () {
+            Route::get('/', [LabourAssignmentController::class, 'index'])->name('index');
+        });
+        Route::middleware('permission:labour-assignments-create')->group(function () {
+            Route::post('/store', [LabourAssignmentController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:labour-assignments-edit')->group(function () {
+            Route::get('/{labourAssignment}/edit', [LabourAssignmentController::class, 'edit'])->name('edit');
+            Route::put('/{labourAssignment}', [LabourAssignmentController::class, 'update'])->name('update');
+        });
+        Route::middleware('permission:labour-assignments-delete')->group(function () {
+            Route::delete('/{labourAssignment}', [LabourAssignmentController::class, 'destroy'])->name('destroy');
         });
     });
 

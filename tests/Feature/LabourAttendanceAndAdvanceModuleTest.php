@@ -7,6 +7,9 @@ use App\Models\Labour;
 use App\Models\LabourAttendance;
 use App\Models\LabourRole;
 use App\Models\LabourSalary;
+use App\Models\LabourAssignment;
+use App\Models\PaymentMethod;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
@@ -21,6 +24,8 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
     protected User $user;
 
     protected LabourRole $labourRole;
+
+    protected Project $project;
 
     protected function setUp(): void
     {
@@ -48,18 +53,38 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
         }
 
         $this->labourRole = LabourRole::query()->firstOrCreate(['name' => 'Mason'], ['salary_type' => 'daily', 'salary' => 500.00]);
+
+        $client = \App\Models\Client::firstOrCreate(['name' => 'Default Test Client ' . uniqid()]);
+        $this->project = Project::create([
+            'client_id' => $client->id,
+            'name' => 'Test Project ' . uniqid(),
+            'project_code' => 'PRJ-' . strtoupper(uniqid()),
+            'type' => 'general',
+            'status' => 'active',
+        ]);
     }
 
     protected function createTestLabour(array $attributes = []): Labour
     {
-        return Labour::create(array_merge([
-            'name' => 'John Workman',
+        $labour = Labour::create(array_merge([
+            'name' => 'John Workman ' . uniqid(),
             'phone_number' => '9876543210',
             'phone' => '9876543210',
             'labour_role_id' => $this->labourRole->id,
             'salary' => 26000,
             'advance_amt' => 0,
         ], $attributes));
+
+        LabourAssignment::create([
+            'labour_id' => $labour->id,
+            'project_id' => $this->project->id,
+            'employee_id' => $this->user->id,
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-08-31',
+            'status' => 'active',
+        ]);
+
+        return $labour;
     }
 
     /** @test */
@@ -105,7 +130,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
     }
 
     /** @test */
-    public function it_blocks_marking_attendance_on_sundays()
+    public function it_allows_marking_attendance_on_sundays()
     {
         $labour = $this->createTestLabour();
 
@@ -115,10 +140,11 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'status' => 'present',
         ]);
 
-        $response->assertSessionHas('error');
-        $this->assertDatabaseMissing('labour_attendances', [
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('labour_attendances', [
             'labour_id' => $labour->id,
             'attendance_date' => '2026-08-02',
+            'status' => 'present',
         ]);
     }
 
@@ -166,7 +192,12 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
     /** @test */
     public function it_calculates_monthly_mon_sat_working_days_and_payable_salary()
     {
-        $labour = $this->createTestLabour();
+        $monthlyRole = LabourRole::create([
+            'name' => 'Monthly Mason ' . uniqid(),
+            'salary_type' => 'monthly',
+            'salary' => 26000.00,
+        ]);
+        $labour = $this->createTestLabour(['labour_role_id' => $monthlyRole->id]);
 
         // August 2026 has 31 days, 5 Sundays => 26 Mon-Sat working days.
         // Mark 10 present, 2 half_day, 1 absent => payable_days = 10 + 1 = 11.
@@ -281,6 +312,11 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
         $labour = $this->createTestLabour(['advance_amt' => 5000]);
         $initialWallet = (float) $this->user->fresh()->wallet; // 50000
 
+        $paymentMethod = PaymentMethod::firstOrCreate(
+            ['name' => 'Cash'],
+            ['code' => 'CASH', 'type' => 'Cash', 'active_status' => 1, 'sort_order' => 1]
+        );
+
         // Calculated salary = 15,000, Advance adjusted = 5,000, Net Payable = 10,000, Paid = 10,000
         $response = $this->actingAs($this->user)->post(route('labour-salaries.store'), [
             'labour_id' => $labour->id,
@@ -290,6 +326,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'advance_adjusted' => 5000,
             'paid_amount' => 10000,
             'payment_date' => '2026-08-31',
+            'payment_method_id' => $paymentMethod->id,
         ]);
 
         $response->assertRedirect();

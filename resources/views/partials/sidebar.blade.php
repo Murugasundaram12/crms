@@ -171,6 +171,11 @@
                                         class="ti ti-user-cog"></i><span>Labours</span></a></li>
                         @endif
 
+                        @if($currentUser && $currentUser->hasPermission('labour-assignments-list'))
+                            <li><a href="{{ route('labour_assignments.index') }}"><i
+                                        class="ti ti-building-community"></i><span>Labour Assignments</span></a></li>
+                        @endif
+
                         @if($currentUser && $currentUser->hasPermission('vendors-list'))
                             <li><a href="{{ route('vendors.index') }}"><i
                                         class="ti ti-building-warehouse"></i><span>Vendors</span></a></li>

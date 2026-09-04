@@ -21,6 +21,7 @@ class PermissionSeeder extends Seeder
         'variations' => 'Variations',
         'labour-roles' => 'Labour Roles',
         'labours' => 'Labours',
+        'labour-assignments' => 'Labour Assignments',
         'quotations' => 'Quotations',
         'leave-requests' => 'Leave Requests',
         'vendors' => 'Vendors',

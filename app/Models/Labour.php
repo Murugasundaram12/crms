@@ -34,4 +34,9 @@ class Labour extends Model
     {
         return $this->belongsTo(LabourRole::class);
     }
+
+    public function assignments()
+    {
+        return $this->hasMany(LabourAssignment::class);
+    }
 }

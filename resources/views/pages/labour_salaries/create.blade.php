@@ -183,8 +183,8 @@
                     </div>
 
                     <div class="col-12 col-md-6">
-                        <label class="form-label fw-semibold">Payment Method</label>
-                        <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror">
+                        <label class="form-label required fw-semibold">Payment Method</label>
+                        <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" required>
                             <option value="">Select Payment Method</option>
                             @foreach ($paymentMethods as $pm)
                                 <option value="{{ $pm->id }}" @selected(old('payment_method_id') == $pm->id)>{{ $pm->name }}</option>
