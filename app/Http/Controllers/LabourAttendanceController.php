@@ -71,15 +71,14 @@ class LabourAttendanceController extends Controller
             : collect();
 
         // Check if salary is already paid for any of the eligible labours for this date
-        $paidLabourIds = $eligibleLabours->isNotEmpty()
-            ? LabourSalary::query()
-                ->where('status', 'paid')
-                ->where('salary_period_start', '<=', $selectedDate)
-                ->where('salary_period_end', '>=', $selectedDate)
-                ->whereIn('labour_id', $eligibleLabours->pluck('id'))
-                ->pluck('labour_id')
-                ->toArray()
-            : [];
+        $paidLabourIds = [];
+        if ($eligibleLabours->isNotEmpty()) {
+            foreach ($eligibleLabours as $labour) {
+                if ($this->isSalaryPaidForDate($labour->id, $selectedDate)) {
+                    $paidLabourIds[] = $labour->id;
+                }
+            }
+        }
 
         // Batch-resolve projects for the paginated attendance history table
         $historyLabourIds = $attendances->pluck('labour_id')->unique()->filter()->values();
@@ -97,6 +96,8 @@ class LabourAttendanceController extends Controller
             }
         }
 
+        $isSunday = Carbon::parse($selectedDate)->isSunday();
+
         return view('pages.labour_attendances.index', compact(
             'attendances',
             'projects',
@@ -109,7 +110,8 @@ class LabourAttendanceController extends Controller
             'selectedMonth',
             'selectedLabourId',
             'selectedProjectId',
-            'summary'
+            'summary',
+            'isSunday'
         ));
     }
 
@@ -125,6 +127,10 @@ class LabourAttendanceController extends Controller
 
         $attendanceDate = Carbon::parse($validated['attendance_date']);
         $dateStr = $attendanceDate->toDateString();
+
+        if ($attendanceDate->isSunday()) {
+            return redirect()->back()->withInput()->with('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        }
 
         $projectId = ! empty($validated['project_id']) ? (int) $validated['project_id'] : null;
 
@@ -167,17 +173,24 @@ class LabourAttendanceController extends Controller
         $validated = $request->validate([
             'attendance_date' => ['required', 'date'],
             'project_id' => ['nullable', 'exists:projects,id'],
-            'attendances' => ['required', 'array'],
-            'attendances.*.labour_id' => ['required', 'exists:labours,id'],
-            'attendances.*.status' => ['required', Rule::in(['present', 'absent', 'half_day', 'off'])],
+            'attendances' => ['nullable', 'array'],
+            'attendances.*.labour_id' => ['required_with:attendances.*', 'exists:labours,id'],
+            'attendances.*.status' => ['nullable', Rule::in(['present', 'absent', 'half_day', 'off'])],
             'attendances.*.notes' => ['nullable', 'string', 'max:500'],
             'attendances.*.project_id' => ['nullable', 'exists:projects,id'],
+        ], [
+            'attendances.*.status.in' => 'Please select a valid attendance status (Present, Half Day, or Absent).',
+            'attendances.*.labour_id.exists' => 'Selected labour is invalid.',
         ]);
 
         $attendanceDate = Carbon::parse($validated['attendance_date']);
+        $dateStr = $attendanceDate->toDateString();
+
+        if ($attendanceDate->isSunday()) {
+            return redirect()->back()->withInput()->with('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        }
 
         $userId = Auth::id();
-        $dateStr = $attendanceDate->toDateString();
         $selectedProjectId = ! empty($validated['project_id']) ? (int) $validated['project_id'] : null;
 
         $savedCount = 0;
@@ -186,8 +199,9 @@ class LabourAttendanceController extends Controller
         $mismatchedCount = 0;
 
         DB::transaction(function () use ($validated, $dateStr, $userId, $selectedProjectId, &$savedCount, &$blockedCount, &$unassignedCount, &$mismatchedCount) {
-            foreach ($validated['attendances'] as $item) {
-                if (($item['status'] ?? 'off') === 'off') {
+            foreach ($validated['attendances'] ?? [] as $item) {
+                $status = $item['status'] ?? 'off';
+                if (! in_array($status, ['present', 'absent', 'half_day'], true)) {
                     continue;
                 }
 
@@ -218,7 +232,7 @@ class LabourAttendanceController extends Controller
                     ],
                     [
                         'employee_id' => $userId,
-                        'status' => $item['status'],
+                        'status' => $status,
                         'notes' => $item['notes'] ?? null,
                     ]
                 );
@@ -233,6 +247,14 @@ class LabourAttendanceController extends Controller
 
         if ($savedCount === 0 && $unassignedCount > 0) {
             return redirect()->back()->withInput()->with('error', 'Attendance rejected: Selected labour is not assigned to an active project on ' . $dateStr . '.');
+        }
+
+        if ($savedCount === 0 && $blockedCount > 0) {
+            return redirect()->back()->with('info', "No attendance records saved. {$blockedCount} labour(s) skipped because salary for this period was already paid.");
+        }
+
+        if ($savedCount === 0) {
+            return redirect()->back()->with('info', 'No attendance records were selected to save.');
         }
 
         $message = "Saved attendance for {$savedCount} labour(s).";
@@ -330,6 +352,16 @@ class LabourAttendanceController extends Controller
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
             ->get();
 
+        // Business rule: Sunday is Weekly Off. Exclude any historical Sunday attendance records so they never contribute to payable days or salary calculations.
+        $attendances = $attendances->reject(function ($att) {
+            return Carbon::parse($att->attendance_date)->isSunday();
+        });
+
+        // Stage 3: Exclude attendance records that have already been paid
+        $attendances = $attendances->reject(function ($att) {
+            return static::isAttendancePaid($att);
+        });
+
         $presentDays = $attendances->where('status', 'present')->count();
         $halfDays = $attendances->where('status', 'half_day')->count();
         $absentDays = $attendances->where('status', 'absent')->count();
@@ -350,6 +382,10 @@ class LabourAttendanceController extends Controller
 
         $calculatedSalary = round($dailyRate * $payableDays, 2);
 
+        $payableAttendances = $attendances->filter(function ($att) {
+            return in_array($att->status, ['present', 'half_day'], true);
+        });
+
         return [
             'labour_id' => $labour->id,
             'labour_name' => $labour->name,
@@ -368,6 +404,7 @@ class LabourAttendanceController extends Controller
             'calculated_salary' => $calculatedSalary,
             'current_advance_balance' => (float) ($labour->advance_amt ?? 0),
             'month' => $start->format('Y-m'),
+            'attendance_ids' => $payableAttendances->pluck('id')->values()->all(),
         ];
     }
 
@@ -383,13 +420,45 @@ class LabourAttendanceController extends Controller
         return $summary;
     }
 
+    public static function isAttendancePaid(LabourAttendance $attendance): bool
+    {
+        // 1. When labour_salary_id column exists, an attendance is paid iff it has a paid salary ID
+        if (\Illuminate\Support\Facades\Schema::hasColumn('labour_attendances', 'labour_salary_id')) {
+            if (empty($attendance->labour_salary_id)) {
+                return false;
+            }
+
+            return LabourSalary::query()
+                ->where('id', $attendance->labour_salary_id)
+                ->where('status', 'paid')
+                ->exists();
+        }
+
+        // 2. Fallback only if labour_salary_id column does not exist in schema:
+        $attDate = Carbon::parse($attendance->attendance_date)->toDateString();
+        $attCreatedAt = $attendance->created_at ?? Carbon::parse($attDate)->endOfDay();
+
+        return LabourSalary::query()
+            ->where('labour_id', $attendance->labour_id)
+            ->where('status', 'paid')
+            ->where('salary_period_start', '<=', $attDate)
+            ->where('salary_period_end', '>=', $attDate)
+            ->where('created_at', '>', $attCreatedAt)
+            ->exists();
+    }
+
     private function isSalaryPaidForDate(int $labourId, string $date): bool
     {
-        return LabourSalary::query()
+        $attendance = LabourAttendance::query()
             ->where('labour_id', $labourId)
-            ->where('status', 'paid')
-            ->where('salary_period_start', '<=', $date)
-            ->where('salary_period_end', '>=', $date)
-            ->exists();
+            ->whereDate('attendance_date', $date)
+            ->first();
+
+        // If no attendance record exists for this date, the date is NOT paid and remains selectable!
+        if (! $attendance) {
+            return false;
+        }
+
+        return static::isAttendancePaid($attendance);
     }
 }

@@ -106,6 +106,13 @@
         <div class="card-body">
             <form action="{{ route('labour-salaries.store') }}" method="POST">
                 @csrf
+                <div id="attendance_ids_container">
+                    @if(old('attendance_ids'))
+                        @foreach((array) old('attendance_ids') as $attId)
+                            <input type="hidden" name="attendance_ids[]" value="{{ $attId }}">
+                        @endforeach
+                    @endif
+                </div>
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label class="form-label required fw-semibold">Labour</label>
@@ -151,12 +158,24 @@
                     </div>
 
                     <div class="col-12 col-md-4">
-                        <label class="form-label fw-semibold">Advance Adjustment</label>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label class="form-label fw-semibold mb-0" for="advance_adjusted">Advance Adjustment</label>
+                            <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                <input type="hidden" name="advance_paid" value="0">
+                                <input class="form-check-input" type="checkbox" name="advance_paid" id="advance_paid" value="1" role="switch" @checked(old('advance_paid', false))>
+                                <label class="form-check-label fw-semibold text-primary" for="advance_paid" id="advance_paid_label">
+                                    Advance Paid: <span id="advance_paid_status">{{ old('advance_paid') ? 'ON' : 'OFF' }}</span>
+                                </label>
+                            </div>
+                        </div>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
                             <input type="number" step="0.01" name="advance_adjusted" id="advance_adjusted" class="form-control @error('advance_adjusted') is-invalid @enderror" value="{{ old('advance_adjusted', '0.00') }}" min="0">
                         </div>
-                        <small class="text-muted">Current Advance Balance: <span id="available_advance_text" class="fw-semibold text-danger">₹0.00</span></small>
+                        <div class="d-flex justify-content-between align-items-center mt-1 flex-wrap">
+                            <small class="text-muted">Current Advance Balance: <span id="available_advance_text" class="fw-semibold text-danger">₹0.00</span></small>
+                            <small id="advance_max_hint" class="text-muted d-none">Max: <span id="advance_max_text">₹0.00</span></small>
+                        </div>
                         @error('advance_adjusted')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
@@ -223,6 +242,11 @@
                 const paidAmountInput = document.getElementById('paid_amount');
                 const availableAdvanceText = document.getElementById('available_advance_text');
 
+                const advancePaidToggle = document.getElementById('advance_paid');
+                const advancePaidStatus = document.getElementById('advance_paid_status');
+                const advanceMaxHint = document.getElementById('advance_max_hint');
+                const advanceMaxText = document.getElementById('advance_max_text');
+
                 const summaryPanel = document.getElementById('attendance_summary_panel');
                 const summaryWorkingDays = document.getElementById('summary_working_days');
                 const summaryPresentDays = document.getElementById('summary_present_days');
@@ -231,9 +255,25 @@
                 const summaryPayableDays = document.getElementById('summary_payable_days');
                 const summaryCalculatedSalary = document.getElementById('summary_calculated_salary');
 
+                function getCurrentAdvanceBalance() {
+                    const opt = labourSelect.options[labourSelect.selectedIndex];
+                    return opt && opt.dataset.advance ? Math.max(0, parseFloat(opt.dataset.advance)) : 0;
+                }
+
+                function getCalculatedSalary() {
+                    return Math.max(0, parseFloat(salaryAmountInput.value) || 0);
+                }
+
+                function getMaxValidAdvanceAdjustment() {
+                    const balance = getCurrentAdvanceBalance();
+                    const salary = getCalculatedSalary();
+                    return Math.min(balance, salary);
+                }
+
                 function updateCalculations() {
-                    const salary = parseFloat(salaryAmountInput.value) || 0;
-                    const advance = parseFloat(advanceAdjustedInput.value) || 0;
+                    const salary = getCalculatedSalary();
+                    const isAdvanceOn = advancePaidToggle.checked;
+                    const advance = isAdvanceOn ? (parseFloat(advanceAdjustedInput.value) || 0) : 0;
                     const netPayable = Math.max(0, salary - advance);
 
                     if (!paidAmountInput.dataset.userModified) {
@@ -241,17 +281,48 @@
                     }
                 }
 
+                function syncToggleUI() {
+                    const isAdvanceOn = advancePaidToggle.checked;
+                    advancePaidStatus.textContent = isAdvanceOn ? 'ON' : 'OFF';
+
+                    if (isAdvanceOn) {
+                        advanceAdjustedInput.removeAttribute('readonly');
+                        advanceAdjustedInput.classList.remove('bg-light');
+
+                        const maxValid = getMaxValidAdvanceAdjustment();
+                        advanceMaxText.textContent = '₹' + maxValid.toFixed(2);
+                        advanceMaxHint.classList.remove('d-none');
+
+                        if (!advanceAdjustedInput.dataset.userModifiedOn) {
+                            advanceAdjustedInput.value = maxValid.toFixed(2);
+                        } else {
+                            const currentVal = parseFloat(advanceAdjustedInput.value) || 0;
+                            if (currentVal > maxValid) {
+                                advanceAdjustedInput.value = maxValid.toFixed(2);
+                            }
+                        }
+                    } else {
+                        advanceAdjustedInput.setAttribute('readonly', 'true');
+                        advanceAdjustedInput.classList.add('bg-light');
+                        advanceAdjustedInput.value = '0.00';
+                        advanceAdjustedInput.removeAttribute('data-user-modified-on');
+                        advanceMaxHint.classList.add('d-none');
+                    }
+
+                    updateCalculations();
+                }
+
                 function fetchAttendanceSummary() {
                     const labourId = labourSelect.value;
                     const startDate = startDateInput.value;
                     const endDate = endDateInput.value;
 
-                    const opt = labourSelect.options[labourSelect.selectedIndex];
-                    const currentAdvance = opt && opt.dataset.advance ? parseFloat(opt.dataset.advance) : 0;
+                    const currentAdvance = getCurrentAdvanceBalance();
                     availableAdvanceText.textContent = '₹' + currentAdvance.toFixed(2);
 
                     if (!labourId || !startDate || !endDate) {
                         summaryPanel.classList.add('d-none');
+                        syncToggleUI();
                         return;
                     }
 
@@ -269,24 +340,42 @@
                                 summaryCalculatedSalary.textContent = '₹' + data.calculated_salary.toFixed(2);
                                 summaryPanel.classList.remove('d-none');
 
+                                const attContainer = document.getElementById('attendance_ids_container');
+                                if (attContainer) {
+                                    attContainer.innerHTML = '';
+                                    if (Array.isArray(data.attendance_ids)) {
+                                        data.attendance_ids.forEach(function(id) {
+                                            const input = document.createElement('input');
+                                            input.type = 'hidden';
+                                            input.name = 'attendance_ids[]';
+                                            input.value = id;
+                                            attContainer.appendChild(input);
+                                        });
+                                    }
+                                }
+
                                 if (!salaryAmountInput.dataset.userModified) {
                                     salaryAmountInput.value = data.calculated_salary.toFixed(2);
                                 }
 
-                                // Default Advance Adjustment to 0.00 unless user edited it
-                                if (!advanceAdjustedInput.dataset.userModified) {
-                                    advanceAdjustedInput.value = '0.00';
-                                }
-
-                                updateCalculations();
+                                syncToggleUI();
                             }
                         })
-                        .catch(err => console.error('Error fetching attendance summary:', err));
+                        .catch(err => {
+                            console.error('Error fetching attendance summary:', err);
+                            syncToggleUI();
+                        });
                 }
+
+                advancePaidToggle.addEventListener('change', function() {
+                    advanceAdjustedInput.removeAttribute('data-user-modified-on');
+                    paidAmountInput.removeAttribute('data-user-modified');
+                    syncToggleUI();
+                });
 
                 labourSelect.addEventListener('change', function() {
                     salaryAmountInput.removeAttribute('data-user-modified');
-                    advanceAdjustedInput.removeAttribute('data-user-modified');
+                    advanceAdjustedInput.removeAttribute('data-user-modified-on');
                     paidAmountInput.removeAttribute('data-user-modified');
                     fetchAttendanceSummary();
                 });
@@ -296,11 +385,22 @@
 
                 salaryAmountInput.addEventListener('input', function() {
                     this.dataset.userModified = 'true';
-                    updateCalculations();
+                    syncToggleUI();
                 });
 
                 advanceAdjustedInput.addEventListener('input', function() {
-                    this.dataset.userModified = 'true';
+                    if (!advancePaidToggle.checked) {
+                        this.value = '0.00';
+                        return;
+                    }
+                    this.dataset.userModifiedOn = 'true';
+                    const maxValid = getMaxValidAdvanceAdjustment();
+                    const entered = parseFloat(this.value) || 0;
+                    if (entered > maxValid) {
+                        this.value = maxValid.toFixed(2);
+                    } else if (entered < 0) {
+                        this.value = '0.00';
+                    }
                     updateCalculations();
                 });
 
@@ -308,6 +408,16 @@
                     this.dataset.userModified = 'true';
                 });
 
+                const form = advancePaidToggle.closest('form');
+                if (form) {
+                    form.addEventListener('submit', function() {
+                        if (!advancePaidToggle.checked) {
+                            advanceAdjustedInput.value = '0.00';
+                        }
+                    });
+                }
+
+                syncToggleUI();
                 fetchAttendanceSummary();
             });
         </script>

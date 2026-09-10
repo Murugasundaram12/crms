@@ -31,7 +31,11 @@ class DashboardService
         $paidRevenue = Schema::hasTable('payments')
             ? (float) Payment::where('status', 'paid')->sum('amount')
             : 0.0;
-        $expenseTotal = $this->sumIfTableExists(Expense::class, 'amount');
+        $expenseTotal = Schema::hasTable('expenses') && Schema::hasColumn('expenses', 'source_type')
+            ? (float) Expense::where(function ($q) {
+                $q->whereNull('source_type')->orWhere('source_type', '!=', 'labour_salary');
+            })->sum('amount')
+            : $this->sumIfTableExists(Expense::class, 'amount');
         $employeeSalaryTotal = $this->sumIfTableExists(EmployeeSalary::class, 'salary');
         $labourSalaryTotal = $this->sumLabourExpenses();
         $totalExpenses = $expenseTotal + $employeeSalaryTotal + $labourSalaryTotal;

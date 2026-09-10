@@ -14,6 +14,7 @@ class AdvanceHistory extends Model
         'vendor_id',
         'labour_expense_transaction_id',
         'labour_salary_id',
+        'payment_method_id',
         'amount',
         'entry_type',
         'notes',
@@ -26,6 +27,11 @@ class AdvanceHistory extends Model
         'amount' => 'decimal:2',
         'current_date' => 'date',
     ];
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
+    }
 
     public function labour(): BelongsTo
     {

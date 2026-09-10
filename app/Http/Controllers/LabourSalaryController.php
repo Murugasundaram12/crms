@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdvanceHistory;
+use App\Models\Category;
+use App\Models\Expense;
 use App\Models\Labour;
 use App\Models\LabourSalary;
+use App\Models\MainCategory;
 use App\Models\PaymentMethod;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
@@ -14,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -88,14 +92,23 @@ class LabourSalaryController extends Controller
         $paidAmount = round((float) $validated['paid_amount'], 2);
         $advanceAdjusted = round((float) ($validated['advance_adjusted'] ?? 0), 2);
         $salaryAmount = round((float) $validated['salary_amount'], 2);
+        $advancePaid = (bool) ($validated['advance_paid'] ?? false);
+        $attendanceIds = $validated['attendance_ids'] ?? [];
+        unset($validated['attendance_ids']);
 
-        DB::transaction(function () use ($validated, $paidAmount, $advanceAdjusted, $salaryAmount, $payer): void {
+        DB::transaction(function () use ($validated, $paidAmount, $advanceAdjusted, $salaryAmount, $payer, $advancePaid, $attendanceIds): void {
             $balanceService = app(CrmBalanceService::class);
             $labour = Labour::query()->lockForUpdate()->findOrFail((int) $validated['labour_id']);
 
-            if ($advanceAdjusted > (float) $labour->advance_amt) {
+            if ($advancePaid && $advanceAdjusted > (float) $labour->advance_amt) {
                 throw ValidationException::withMessages([
                     'advance_adjusted' => 'Advance adjusted amount (Rs ' . number_format($advanceAdjusted, 2) . ') cannot exceed available advance balance (Rs ' . number_format($labour->advance_amt, 2) . ').',
+                ]);
+            }
+
+            if ($advancePaid && $advanceAdjusted > $salaryAmount) {
+                throw ValidationException::withMessages([
+                    'advance_adjusted' => 'Advance adjusted amount (Rs ' . number_format($advanceAdjusted, 2) . ') cannot exceed calculated salary (Rs ' . number_format($salaryAmount, 2) . ').',
                 ]);
             }
 
@@ -119,10 +132,28 @@ class LabourSalaryController extends Controller
             $validated['remaining_amount'] = round(max(0.0, $netPayable - $paidAmount), 2);
             $validated['status'] = $paidAmount >= $netPayable ? 'paid' : ($paidAmount > 0 ? 'partial' : 'pending');
 
+            if (! Schema::hasColumn('labour_salaries', 'advance_paid')) {
+                unset($validated['advance_paid']);
+            }
+
             $labourSalary = LabourSalary::create($validated);
 
+            // Explicit attendance linking within transaction
+            if (empty($attendanceIds) && ! empty($validated['salary_period_start']) && ! empty($validated['salary_period_end'])) {
+                $summary = LabourAttendanceController::calculatePeriodSummary(
+                    $labour,
+                    $validated['salary_period_start'],
+                    $validated['salary_period_end']
+                );
+                $attendanceIds = $summary['attendance_ids'] ?? [];
+            }
+
+            if ($labourSalary->status === 'paid' && ! empty($attendanceIds)) {
+                $labourSalary->linkAttendances($attendanceIds);
+            }
+
             if ($advanceAdjusted > 0) {
-                AdvanceHistory::create([
+                $advanceHistoryPayload = [
                     'labour_id' => $labour->id,
                     'labour_salary_id' => $labourSalary->id,
                     'amount' => $advanceAdjusted,
@@ -131,7 +162,13 @@ class LabourSalaryController extends Controller
                     'user_id' => $payer->id,
                     'current_date' => now()->toDateString(),
                     'current_time' => now()->format('H:i:s'),
-                ]);
+                ];
+
+                if (Schema::hasColumn('advance_history', 'payment_method_id') && isset($validated['payment_method_id'])) {
+                    $advanceHistoryPayload['payment_method_id'] = $validated['payment_method_id'];
+                }
+
+                AdvanceHistory::create($advanceHistoryPayload);
             }
 
             if ($paidAmount > 0) {
@@ -151,6 +188,16 @@ class LabourSalaryController extends Controller
                     'active_status' => 1,
                     'delete_status' => 0,
                 ]);
+
+                $this->syncSalaryExpense(
+                    $labourSalary,
+                    $labour,
+                    (int) $payer->id,
+                    $paidAmount,
+                    $advanceAdjusted,
+                    isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null,
+                    $validated['payment_date'] ?? now()
+                );
             }
         });
 
@@ -179,6 +226,16 @@ class LabourSalaryController extends Controller
         $advanceDiff = round($newAdvanceAdjusted - $oldAdvanceAdjusted, 2);
 
         $salaryAmount = round((float) $validated['salary_amount'], 2);
+        $advancePaid = (bool) ($validated['advance_paid'] ?? false);
+        $attendanceIds = $validated['attendance_ids'] ?? null;
+        unset($validated['attendance_ids']);
+
+        if ($advancePaid && $newAdvanceAdjusted > $salaryAmount) {
+            throw ValidationException::withMessages([
+                'advance_adjusted' => 'Advance adjusted amount (Rs ' . number_format($newAdvanceAdjusted, 2) . ') cannot exceed calculated salary (Rs ' . number_format($salaryAmount, 2) . ').',
+            ]);
+        }
+
         $netPayable = round(max(0.0, $salaryAmount - $newAdvanceAdjusted), 2);
 
         if ($newPaidAmount > $netPayable) {
@@ -187,7 +244,7 @@ class LabourSalaryController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($labourSalary, $validated, $diff, $advanceDiff, $newAdvanceAdjusted, $payer, $newPaidAmount, $netPayable): void {
+        DB::transaction(function () use ($labourSalary, $validated, $diff, $advanceDiff, $newAdvanceAdjusted, $payer, $newPaidAmount, $netPayable, $attendanceIds): void {
             $balanceService = app(CrmBalanceService::class);
             $labour = Labour::query()->lockForUpdate()->findOrFail((int) $validated['labour_id']);
 
@@ -207,26 +264,85 @@ class LabourSalaryController extends Controller
                 // Adjust advance balance by the difference
                 $balanceService->adjustLabourAdvance((int) $labour->id, -$advanceDiff);
 
-                AdvanceHistory::query()
+                $history = AdvanceHistory::query()
                     ->where('labour_salary_id', $labourSalary->id)
-                    ->update([
+                    ->first();
+
+                if ($newAdvanceAdjusted > 0) {
+                    $historyPayload = [
                         'amount' => $newAdvanceAdjusted,
-                    ]);
+                    ];
+
+                    if (Schema::hasColumn('advance_history', 'payment_method_id') && isset($validated['payment_method_id'])) {
+                        $historyPayload['payment_method_id'] = $validated['payment_method_id'];
+                    }
+
+                    if ($history) {
+                        $history->update($historyPayload);
+                    } else {
+                        AdvanceHistory::create($historyPayload + [
+                            'labour_id' => $labour->id,
+                            'labour_salary_id' => $labourSalary->id,
+                            'entry_type' => 'settle',
+                            'notes' => 'Advance adjusted against salary period ' . ($validated['salary_period_start'] ?? '') . ' to ' . ($validated['salary_period_end'] ?? ''),
+                            'user_id' => $payer->id,
+                            'current_date' => now()->toDateString(),
+                            'current_time' => now()->format('H:i:s'),
+                        ]);
+                    }
+                } elseif ($history) {
+                    $history->delete();
+                }
             }
 
             $validated['remaining_amount'] = round(max(0.0, $netPayable - $newPaidAmount), 2);
             $validated['status'] = $newPaidAmount >= $netPayable ? 'paid' : ($newPaidAmount > 0 ? 'partial' : 'pending');
 
+            if (! Schema::hasColumn('labour_salaries', 'advance_paid')) {
+                unset($validated['advance_paid']);
+            }
+
             $labourSalary->update($validated);
 
-            Wallet::query()
-                ->where('source_type', 'labour_salary')
-                ->where('source_id', $labourSalary->id)
-                ->update([
-                    'amount' => (int) round($newPaidAmount),
-                    'payment_method_id' => $validated['payment_method_id'] ?? null,
-                    'description' => 'Paid Labour Salary to ' . $labour->name,
-                ]);
+            if ($attendanceIds !== null && $labourSalary->status === 'paid') {
+                $labourSalary->linkAttendances($attendanceIds);
+            }
+
+            if ($newPaidAmount > 0) {
+                Wallet::query()
+                    ->updateOrCreate([
+                        'source_type' => 'labour_salary',
+                        'source_id' => $labourSalary->id,
+                    ], [
+                        'user_id' => $payer->id,
+                        'client_id' => 0,
+                        'project_id' => 0,
+                        'amount' => (int) round($newPaidAmount),
+                        'payment_mode' => $validated['payment_method_id'] ?? 1,
+                        'payment_method_id' => $validated['payment_method_id'] ?? null,
+                        'transfer_type' => 1,
+                        'description' => 'Paid Labour Salary to ' . $labour->name,
+                        'created_by' => $payer->id,
+                        'current_date' => $validated['payment_date'] ?? now(),
+                        'active_status' => 1,
+                        'delete_status' => 0,
+                    ]);
+            } else {
+                Wallet::query()
+                    ->where('source_type', 'labour_salary')
+                    ->where('source_id', $labourSalary->id)
+                    ->delete();
+            }
+
+            $this->syncSalaryExpense(
+                $labourSalary,
+                $labour,
+                (int) $payer->id,
+                $newPaidAmount,
+                $newAdvanceAdjusted,
+                isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null,
+                $validated['payment_date'] ?? now()
+            );
         });
 
         return redirect()->route('labour-salaries.index')->with('success', 'Labour salary updated successfully.');
@@ -257,10 +373,78 @@ class LabourSalaryController extends Controller
                 ->where('source_id', $labourSalary->id)
                 ->delete();
 
+            if (Schema::hasTable('expenses')) {
+                Expense::query()
+                    ->where('source_type', 'labour_salary')
+                    ->where('source_id', $labourSalary->id)
+                    ->delete();
+            }
+
             $labourSalary->delete();
         });
 
         return redirect()->route('labour-salaries.index')->with('success', 'Labour salary deleted and balances restored successfully.');
+    }
+
+    private function syncSalaryExpense(
+        LabourSalary $labourSalary,
+        Labour $labour,
+        int $payerId,
+        float $paidAmount,
+        float $advanceAdjusted,
+        ?int $paymentMethodId,
+        $paymentDate
+    ): void {
+        if (! Schema::hasTable('expenses')) {
+            return;
+        }
+
+        $expense = Expense::query()
+            ->where('source_type', 'labour_salary')
+            ->where('source_id', $labourSalary->id)
+            ->first();
+
+        if ($paidAmount <= 0) {
+            $expense?->delete();
+            return;
+        }
+
+        $category = Category::query()
+            ->where('name', 'LABOUR SALARY')
+            ->first()
+            ?? Category::query()->where('name', 'like', '%LABOUR SALARY%')->first()
+            ?? Category::query()->where('name', 'like', '%SALARY%')->first();
+
+        $mainCategoryId = $category?->main_category_id
+            ?? MainCategory::query()->where('name', 'CIVIL')->value('id')
+            ?? MainCategory::query()->first()?->id;
+
+        $desc = 'Paid Labour Salary to ' . $labour->name . ($advanceAdjusted > 0 ? ' (Rs ' . number_format($advanceAdjusted, 2) . ' advance adjusted)' : '');
+
+        $payload = [
+            'user_id' => $payerId,
+            'labour_id' => $labour->id,
+            'project_id' => null,
+            'main_category_id' => $mainCategoryId,
+            'category_id' => $category?->id,
+            'amount' => $paidAmount,
+            'paid_amt' => $paidAmount,
+            'unpaid_amt' => 0.0,
+            'extra_amt' => 0.0,
+            'current_date' => $paymentDate,
+            'payment_method_id' => $paymentMethodId,
+            'payment_mode' => $paymentMethodId,
+            'description' => $desc,
+            'is_advance' => $advanceAdjusted > 0 ? 1 : null,
+            'source_type' => 'labour_salary',
+            'source_id' => $labourSalary->id,
+        ];
+
+        if ($expense) {
+            $expense->update($payload + ['editedBy' => $payerId]);
+        } else {
+            Expense::create($payload);
+        }
     }
 
     private function validateLabourSalary(Request $request, ?LabourSalary $labourSalary = null): array
@@ -270,15 +454,40 @@ class LabourSalaryController extends Controller
             'salary_period_start' => ['nullable', 'date'],
             'salary_period_end' => ['nullable', 'date'],
             'salary_amount' => ['required', 'numeric', 'min:0.01'],
+            'advance_paid' => ['nullable'],
             'advance_adjusted' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['required', 'date'],
             'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'status' => ['nullable', Rule::in(['paid', 'partial', 'pending'])],
+            'attendance_ids' => ['nullable'],
+            'attendance_ids.*' => ['integer'],
         ]);
 
-        $validated['advance_adjusted'] = (float) ($validated['advance_adjusted'] ?? 0);
+        if (isset($validated['attendance_ids'])) {
+            if (is_string($validated['attendance_ids'])) {
+                $decoded = json_decode($validated['attendance_ids'], true);
+                $validated['attendance_ids'] = is_array($decoded)
+                    ? $decoded
+                    : array_filter(array_map('trim', explode(',', $validated['attendance_ids'])));
+            }
+            $validated['attendance_ids'] = array_values(array_unique(array_filter(array_map('intval', (array) $validated['attendance_ids']))));
+        }
+
+        $hasAdvancePaidKey = $request->has('advance_paid');
+        $advancePaid = $hasAdvancePaidKey
+            ? $request->boolean('advance_paid')
+            : ((float) ($request->input('advance_adjusted') ?? 0) > 0);
+
+        $validated['advance_paid'] = $advancePaid;
+
+        if (! $advancePaid) {
+            // Manipulation-proof: if Advance Paid is OFF, advance_adjusted is ALWAYS 0.0
+            $validated['advance_adjusted'] = 0.0;
+        } else {
+            $validated['advance_adjusted'] = round((float) ($validated['advance_adjusted'] ?? 0), 2);
+        }
 
         return $validated;
     }

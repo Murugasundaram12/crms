@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class LabourExpensesController extends Controller
 {
@@ -203,10 +204,12 @@ class LabourExpensesController extends Controller
             ->get();
         $totalWalletBalance = (float) $walletLabours->sum('advance_amt');
         $totalUnpaidAmount = (float) $unpaidExpenses->sum('unpaid_amt');
+        $paymentMethods = PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
 
         return view('pages.labour_expenses.advance', compact(
             'history',
             'labours',
+            'paymentMethods',
             'walletLabours',
             'unpaidExpenses',
             'totalWalletBalance',
@@ -221,7 +224,14 @@ class LabourExpensesController extends Controller
             'entry_type' => ['required', 'in:credit,withdraw,settle'],
             'labour_expense_transaction_id' => ['nullable', 'required_if:entry_type,settle', 'exists:expenses,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'payment_method_id' => [
+                'required_if:entry_type,credit',
+                'nullable',
+                Rule::exists('payment_methods', 'id')->where('active_status', true),
+            ],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ], [], [
+            'payment_method_id' => 'Payment Method',
         ]);
 
         $userId = (int) Auth::id();
@@ -250,7 +260,7 @@ class LabourExpensesController extends Controller
                 // Increment labour advance balance
                 $balanceService->adjustLabourAdvance((int) $labour->id, $amount);
 
-                $advanceHistory = AdvanceHistory::create([
+                $advanceHistoryData = [
                     'labour_id' => $labour->id,
                     'amount' => $amount,
                     'entry_type' => 'credit',
@@ -258,14 +268,21 @@ class LabourExpensesController extends Controller
                     'user_id' => $userId,
                     'current_date' => now()->toDateString(),
                     'current_time' => now()->format('H:i:s'),
-                ]);
+                ];
+
+                if (\Illuminate\Support\Facades\Schema::hasColumn('advance_history', 'payment_method_id')) {
+                    $advanceHistoryData['payment_method_id'] = (int) $validated['payment_method_id'];
+                }
+
+                $advanceHistory = AdvanceHistory::create($advanceHistoryData);
 
                 \App\Models\Wallet::query()->create([
                     'user_id' => $userId,
                     'client_id' => 0,
                     'project_id' => 0,
                     'amount' => (int) round($amount),
-                    'payment_mode' => 1,
+                    'payment_mode' => (int) $validated['payment_method_id'],
+                    'payment_method_id' => (int) $validated['payment_method_id'],
                     'transfer_type' => 1, // Debit
                     'source_type' => 'labour_advance',
                     'source_id' => $advanceHistory->id,
@@ -309,7 +326,8 @@ class LabourExpensesController extends Controller
                     'client_id' => 0,
                     'project_id' => 0,
                     'amount' => (int) round($amount),
-                    'payment_mode' => 1,
+                    'payment_mode' => isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : 1,
+                    'payment_method_id' => $validated['payment_method_id'] ?? null,
                     'transfer_type' => 0, // Credit
                     'source_type' => 'labour_advance_withdraw',
                     'source_id' => $advanceHistory->id,

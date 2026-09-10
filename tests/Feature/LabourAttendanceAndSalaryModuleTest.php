@@ -212,8 +212,8 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
         ]);
     }
 
-    // 8. Sunday attendance is allowed and can be saved
-    public function test_sunday_attendance_allowed_and_can_be_saved(): void
+    // 8. Sunday attendance is rejected and cannot be saved
+    public function test_sunday_attendance_rejected_and_cannot_be_saved(): void
     {
         LabourAssignment::create([
             'labour_id' => $this->labour->id,
@@ -232,11 +232,10 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'status' => 'present',
         ]);
 
-        $response->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('labour_attendances', [
+        $response->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-06',
-            'status' => 'present',
         ]);
     }
 
@@ -488,7 +487,7 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
         $resAfter->assertDontSee($this->labour->name);
     }
 
-    // 8. Sunday UI shows attendance entry without weekly off message & 9. Sunday Present, Half Day, Absent can be saved
+    // 8. Sunday UI shows Sunday Weekly Off and disables saving & 9. Sunday Present, Half Day, Absent cannot be saved
     public function test_sunday_ui_shows_attendance_entry_without_weekly_off_message(): void
     {
         LabourAssignment::create([
@@ -506,9 +505,8 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'date' => '2026-09-06',
         ]));
         $resUi->assertOk();
-        $resUi->assertDontSee('Sunday is Weekly Off — Labour attendance is not available.');
-        $resUi->assertDontSee('Sunday Weekly Off:');
-        $resUi->assertSee('Save Attendance Records');
+        $resUi->assertSee('Sunday - Weekly Off');
+        $resUi->assertDontSee('Save Attendance Records');
         $resUi->assertSee($this->labour->name);
     }
 
@@ -559,7 +557,7 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'status' => 'active',
         ]);
 
-        // 2026-09-06 is Sunday: Save present via single store
+        // 2026-09-06 is Sunday: Save present via single store is rejected
         $resPresent = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
             'labour_id' => $this->labour->id,
@@ -567,14 +565,13 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'status' => 'present',
             'notes' => 'Sunday work',
         ]);
-        $resPresent->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('labour_attendances', [
+        $resPresent->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-06',
-            'status' => 'present',
         ]);
 
-        // Bulk store: save half_day and absent on Sunday
+        // Bulk store: save half_day and absent on Sunday is rejected
         $resBulk = $this->post(route('labour-attendances.bulk-store'), [
             'project_id' => $this->project->id,
             'attendance_date' => '2026-09-06',
@@ -583,16 +580,14 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
                 ['labour_id' => $labour3->id, 'status' => 'absent', 'notes' => 'Absent Sunday'],
             ],
         ]);
-        $resBulk->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('labour_attendances', [
+        $resBulk->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $labour2->id,
             'attendance_date' => '2026-09-06',
-            'status' => 'half_day',
         ]);
-        $this->assertDatabaseHas('labour_attendances', [
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $labour3->id,
             'attendance_date' => '2026-09-06',
-            'status' => 'absent',
         ]);
     }
 
@@ -647,32 +642,44 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'status' => 'active',
         ]);
 
-        // Start date (Sunday Sept 6) -> allowed
+        // Start date (Sunday Sept 6) -> rejected because Sunday is Weekly Off
         $resStart = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-06',
             'status' => 'present',
         ]);
-        $resStart->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('labour_attendances', [
+        $resStart->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-06',
+        ]);
+
+        // Working day within range (Monday Sept 7) -> allowed
+        $resMon = $this->post(route('labour-attendances.store'), [
+            'project_id' => $this->project->id,
+            'labour_id' => $this->labour->id,
+            'attendance_date' => '2026-09-07',
+            'status' => 'present',
+        ]);
+        $resMon->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('labour_attendances', [
+            'labour_id' => $this->labour->id,
+            'attendance_date' => '2026-09-07',
             'status' => 'present',
         ]);
 
-        // End date (Sunday Sept 13) -> allowed
+        // End date (Sunday Sept 13) -> rejected because Sunday is Weekly Off
         $resEnd = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-13',
             'status' => 'present',
         ]);
-        $resEnd->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('labour_attendances', [
+        $resEnd->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-13',
-            'status' => 'present',
         ]);
     }
 
@@ -789,8 +796,8 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'status' => 'present',
         ]);
 
-        // Create paid salary for period
-        LabourSalary::create([
+        // Create paid salary for period and link attendance
+        $salary = LabourSalary::create([
             'labour_id' => $this->labour->id,
             'salary_period_start' => '2026-09-01',
             'salary_period_end' => '2026-09-05',
@@ -799,19 +806,16 @@ class LabourAttendanceAndSalaryModuleTest extends TestCase
             'status' => 'paid',
             'payment_date' => '2026-09-05',
         ]);
+        $salary->linkAttendances([$att->id]);
 
-        // Cannot add attendance for date in paid period
+        // Cannot add attendance for actually paid attendance date
         $resAdd = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
             'labour_id' => $this->labour->id,
-            'attendance_date' => '2026-09-03',
+            'attendance_date' => '2026-09-02',
             'status' => 'present',
         ]);
         $resAdd->assertSessionHas('error');
-        $this->assertDatabaseMissing('labour_attendances', [
-            'labour_id' => $this->labour->id,
-            'attendance_date' => '2026-09-03',
-        ]);
 
         // Cannot delete attendance in paid period
         $resDel = $this->delete(route('labour-attendances.destroy', $att));

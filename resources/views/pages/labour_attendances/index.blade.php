@@ -107,6 +107,16 @@
                 </div>
             </form>
 
+            @if($isSunday)
+                <div class="alert alert-warning border-0 shadow-sm mb-4 d-flex align-items-center gap-2">
+                    <i class="ti ti-calendar-off fs-4 text-warning"></i>
+                    <div>
+                        <strong class="d-block text-dark">Sunday - Weekly Off</strong>
+                        <span class="small text-muted">Labour attendance cannot be recorded on Sundays. Monday to Saturday are working days.</span>
+                    </div>
+                </div>
+            @endif
+
             @if(!$selectedProjectId)
                 <div class="alert alert-info border-0 shadow-sm mb-0 d-flex align-items-center gap-2">
                     <i class="ti ti-info-circle fs-4"></i>
@@ -150,8 +160,10 @@
                                         @php($isLocked = in_array($labour->id, $paidLabourIds))
                                         <tr>
                                             <td>
-                                                <input type="hidden" name="attendances[{{ $index }}][labour_id]" value="{{ $labour->id }}">
-                                                <input type="hidden" name="attendances[{{ $index }}][project_id]" value="{{ $selectedProjectId }}">
+                                                @if(!$isLocked && !$isSunday)
+                                                    <input type="hidden" name="attendances[{{ $index }}][labour_id]" value="{{ $labour->id }}">
+                                                    <input type="hidden" name="attendances[{{ $index }}][project_id]" value="{{ $selectedProjectId }}">
+                                                @endif
                                                 <div class="d-flex align-items-center justify-content-between">
                                                     <div>
                                                         <div class="fw-bold text-dark">{{ $labour->name }}</div>
@@ -163,7 +175,9 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                @if($isLocked)
+                                                @if($isSunday)
+                                                    <span class="badge bg-light text-muted p-2"><i class="ti ti-calendar-off me-1"></i> Sunday - Weekly Off</span>
+                                                @elseif($isLocked)
                                                     <span class="badge bg-light text-muted p-2">Status: {{ ucfirst($currentStatus) }} (Locked)</span>
                                                 @else
                                                     <input type="hidden" name="attendances[{{ $index }}][status]" value="off">
@@ -180,16 +194,18 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                <input type="text" name="attendances[{{ $index }}][notes]" class="form-control form-control-sm" placeholder="Optional notes" value="{{ $existingRecord?->notes }}" @disabled($isLocked)>
+                                                <input type="text" name="attendances[{{ $index }}][notes]" class="form-control form-control-sm" placeholder="Optional notes" value="{{ $existingRecord?->notes }}" @disabled($isLocked || $isSunday)>
                                             </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                             </table>
                         </div>
-                        <div class="d-flex justify-content-end">
-                            <button type="submit" class="btn btn-success shadow-sm px-4"><i class="ti ti-device-floppy me-1"></i> Save Attendance Records</button>
-                        </div>
+                        @if(!$isSunday)
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-success shadow-sm px-4"><i class="ti ti-device-floppy me-1"></i> Save Attendance Records</button>
+                            </div>
+                        @endif
                     </form>
                 </div>
             @endif

@@ -27,6 +27,8 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
 
     protected Project $project;
 
+    protected PaymentMethod $paymentMethod;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -53,6 +55,11 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
         }
 
         $this->labourRole = LabourRole::query()->firstOrCreate(['name' => 'Mason'], ['salary_type' => 'daily', 'salary' => 500.00]);
+
+        $this->paymentMethod = PaymentMethod::query()->firstOrCreate(
+            ['name' => 'Cash'],
+            ['code' => 'CASH', 'type' => 'cash', 'active_status' => true]
+        );
 
         $client = \App\Models\Client::firstOrCreate(['name' => 'Default Test Client ' . uniqid()]);
         $this->project = Project::create([
@@ -130,7 +137,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
     }
 
     /** @test */
-    public function it_allows_marking_attendance_on_sundays()
+    public function it_rejects_marking_attendance_on_sundays()
     {
         $labour = $this->createTestLabour();
 
@@ -140,11 +147,10 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'status' => 'present',
         ]);
 
-        $response->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('labour_attendances', [
+        $response->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
+        $this->assertDatabaseMissing('labour_attendances', [
             'labour_id' => $labour->id,
             'attendance_date' => '2026-08-02',
-            'status' => 'present',
         ]);
     }
 
@@ -200,9 +206,9 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
         $labour = $this->createTestLabour(['labour_role_id' => $monthlyRole->id]);
 
         // August 2026 has 31 days, 5 Sundays => 26 Mon-Sat working days.
-        // Mark 10 present, 2 half_day, 1 absent => payable_days = 10 + 1 = 11.
-        for ($day = 3; $day <= 12; $day++) {
-            $dateStr = sprintf('2026-08-%02d', $day);
+        // Mark 10 present Mon-Sat working days (Aug 3-8, Aug 10-13), 2 half_days (Aug 14, Aug 15) => payable_days = 10 + 1 = 11.
+        $workingDays = ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08', '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13'];
+        foreach ($workingDays as $dateStr) {
             LabourAttendance::create([
                 'labour_id' => $labour->id,
                 'employee_id' => $this->user->id,
@@ -213,13 +219,13 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
         LabourAttendance::create([
             'labour_id' => $labour->id,
             'employee_id' => $this->user->id,
-            'attendance_date' => '2026-08-13',
+            'attendance_date' => '2026-08-14',
             'status' => 'half_day',
         ]);
         LabourAttendance::create([
             'labour_id' => $labour->id,
             'employee_id' => $this->user->id,
-            'attendance_date' => '2026-08-14',
+            'attendance_date' => '2026-08-15',
             'status' => 'half_day',
         ]);
 
@@ -243,6 +249,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'entry_type' => 'credit',
             'labour_id' => $labour->id,
             'amount' => 5000,
+            'payment_method_id' => $this->paymentMethod->id,
             'notes' => 'Site advance',
         ]);
 
@@ -266,6 +273,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'entry_type' => 'credit',
             'labour_id' => $labour->id,
             'amount' => 5000,
+            'payment_method_id' => $this->paymentMethod->id,
         ]);
 
         $response->assertSessionHasErrors('amount');
@@ -363,7 +371,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'status' => 'present',
         ]);
 
-        LabourSalary::create([
+        $salary = LabourSalary::create([
             'labour_id' => $labour->id,
             'salary_period_start' => '2026-08-01',
             'salary_period_end' => '2026-08-31',
@@ -372,6 +380,7 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
             'payment_date' => '2026-08-31',
             'status' => 'paid',
         ]);
+        $salary->linkAttendances([$attendance->id]);
 
         // Attempting to delete attendance for paid period
         $response = $this->actingAs($this->user)->delete(route('labour-attendances.destroy', $attendance));

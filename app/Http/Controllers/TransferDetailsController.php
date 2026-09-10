@@ -133,12 +133,7 @@ class TransferDetailsController extends Controller
 
         DB::transaction(function () use ($transfer) {
             if ($transfer->transfer_type === 'labour' && $transfer->labour_id) {
-                $labour = Labour::query()->where('id', $transfer->labour_id)->lockForUpdate()->first();
-                if ($labour && (float) $labour->advance_amt < (float) $transfer->amount) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'Cannot delete transfer. Labour has already consumed part of this advance balance.',
-                    ]);
-                }
+                Labour::query()->where('id', $transfer->labour_id)->lockForUpdate()->first();
             }
 
             $this->applyTransferBalances($transfer, -1, 'Deleted transfer reversal');
@@ -217,25 +212,12 @@ class TransferDetailsController extends Controller
         }
 
         if ($transfer->transfer_type === 'labour' && $transfer->labour_id) {
+            // Normal Labour Wallet Transfer:
+            // Employee wallet is debited/credited above.
+            // Transfer details row represents the recipient transaction.
+            // Labour advance_amt is NOT modified, and AdvanceHistory is NOT created.
             Labour::query()->where('id', $transfer->labour_id)->lockForUpdate()->first();
-
-            $balanceService->adjustLabourAdvance((int) $transfer->labour_id, $amount);
-
-            $entryType = $direction > 0 ? 'credit' : 'withdraw';
-            $defaultNote = $direction > 0
-                ? 'Wallet Transfer from Employee #' . $transfer->user_id
-                : 'Reversal for Wallet Transfer #' . $transfer->id;
-            $note = $customNotes ? $defaultNote . ': ' . $customNotes : $defaultNote;
-
-            AdvanceHistory::create([
-                'labour_id' => $transfer->labour_id,
-                'amount' => abs((float) $transfer->amount),
-                'entry_type' => $entryType,
-                'notes' => $note,
-                'user_id' => $transfer->user_id,
-                'current_date' => $transfer->current_date ? \Carbon\Carbon::parse($transfer->current_date)->toDateString() : now()->toDateString(),
-                'current_time' => $transfer->current_time ?? now()->format('H:i:s'),
-            ]);
+            return;
         }
     }
 

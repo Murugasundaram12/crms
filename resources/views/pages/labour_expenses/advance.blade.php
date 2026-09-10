@@ -266,6 +266,17 @@
                         <input type="number" name="amount" class="form-control" min="1" step="0.01" required>
                         <small class="text-muted"><i class="ti ti-info-circle"></i> Amount will be debited from your company wallet and added to labour advance balance.</small>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                        <select name="payment_method_id" class="form-select" required>
+                            <option value="">Select payment method</option>
+                            @foreach($paymentMethods as $paymentMethod)
+                                <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id') === (string) $paymentMethod->id)>
+                                    {{ $paymentMethod->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="mb-0">
                         <label class="form-label">Notes</label>
                         <input type="text" name="notes" class="form-control" placeholder="Advance paid to labour">
