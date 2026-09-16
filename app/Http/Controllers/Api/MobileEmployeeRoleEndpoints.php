@@ -228,6 +228,18 @@ trait MobileEmployeeRoleEndpoints
             return $forbidden;
         }
 
+        if ($employee->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'The Super Admin account cannot be deleted.',
+            ], 422);
+        }
+
+        if ((int) $request->user()?->id === (int) $employee->id) {
+            return response()->json([
+                'message' => 'You cannot delete your own user account.',
+            ], 422);
+        }
+
         $employee->update(['status' => 'inactive']);
         $employee->mobileApiTokens()->delete();
         $this->syncTaskEmployeeRecord($employee->fresh());

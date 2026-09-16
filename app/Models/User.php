@@ -131,9 +131,24 @@ class User extends Authenticatable
             ->get();
     }
 
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user) {
+            if ($user->isSuperAdmin()) {
+                throw new \LogicException('The Super Admin account cannot be deleted.');
+            }
+        });
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return ($this->role ?? null) === 'Super Admin'
+            || $this->assignedRoles()->contains('name', 'Super Admin');
+    }
+
     public function hasPermission(string $key): bool
     {
-        if (($this->role ?? null) === 'Super Admin' || $this->assignedRoles()->contains('name', 'Super Admin')) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 

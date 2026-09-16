@@ -119,13 +119,15 @@
                                                     class="ti ti-edit me-1"></i>Edit</a>
                                         @endcan
                                         @can('employees-delete')
-                                            <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
-                                                data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
-                                                data-delete-action="{{ route('employees.destroy', $employee) }}"
-                                                data-delete-title="Delete User"
-                                                data-delete-message="Are you sure you want to delete user '{{ $employee->name }}'?">
-                                                <i class="ti ti-trash me-1"></i>Delete
-                                            </button>
+                                            @if(! $employee->isSuperAdmin() && auth()->id() !== $employee->id)
+                                                <button type="button" class="btn btn-sm btn-outline-danger crm-delete-trigger"
+                                                    data-bs-toggle="modal" data-bs-target="#crmDeleteModal"
+                                                    data-delete-action="{{ route('employees.destroy', $employee) }}"
+                                                    data-delete-title="Delete User"
+                                                    data-delete-message="Are you sure you want to delete user '{{ $employee->name }}'?">
+                                                    <i class="ti ti-trash me-1"></i>Delete
+                                                </button>
+                                            @endif
                                         @endcan
                                     </div>
                                 </td>

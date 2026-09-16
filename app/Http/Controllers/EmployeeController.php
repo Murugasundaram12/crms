@@ -127,8 +127,15 @@ class EmployeeController extends Controller
     public function destroy(User $employee)
     {
         if (auth()->id() === $employee->id) {
-            return redirect()->route('employees.index')
-                ->with('error', 'You cannot delete your own user account.');
+            return request()->expectsJson() || request()->ajax()
+                ? response()->json(['message' => 'You cannot delete your own user account.'], 422)
+                : redirect()->route('employees.index')->with('error', 'You cannot delete your own user account.');
+        }
+
+        if ($employee->isSuperAdmin()) {
+            return request()->expectsJson() || request()->ajax()
+                ? response()->json(['message' => 'The Super Admin account cannot be deleted.'], 422)
+                : redirect()->route('employees.index')->with('error', 'The Super Admin account cannot be deleted.');
         }
 
         $blockedBy = DeleteDependencyGuard::firstBlockingReference($employee->id, [
@@ -154,14 +161,18 @@ class EmployeeController extends Controller
         ]);
 
         if ($blockedBy['blocked']) {
-            return redirect()->route('employees.index')
-                ->with('error', DeleteDependencyGuard::message('User', $blockedBy['label']));
+            $errorMessage = DeleteDependencyGuard::message('User', $blockedBy['label']);
+
+            return request()->expectsJson() || request()->ajax()
+                ? response()->json(['message' => $errorMessage], 422)
+                : redirect()->route('employees.index')->with('error', $errorMessage);
         }
 
         $employee->delete();
 
-        return redirect()->route('employees.index')
-            ->with('success', 'User deleted successfully.');
+        return request()->expectsJson() || request()->ajax()
+            ? response()->json(['message' => 'User deleted successfully.'])
+            : redirect()->route('employees.index')->with('success', 'User deleted successfully.');
     }
 
     private function applySearchFilter($employeeQuery, Request $request): void
