@@ -37,8 +37,8 @@
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#walletCreditModal">
                     <i class="ti ti-plus me-1"></i>Add Amount
                 </button>
-                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#walletWithdrawModal">
-                    <i class="ti ti-arrow-back-up me-1"></i>Withdraw
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#walletReverseModal">
+                    <i class="ti ti-arrow-back-up me-1"></i>Reverse Amount
                 </button>
             @endcan
         </div>
@@ -292,6 +292,109 @@
         </div>
     </div>
 
+    <div class="modal fade" id="walletReverseModal" tabindex="-1" aria-labelledby="walletReverseModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form method="POST" action="{{ route('labour-expenses.advance-reverse') }}" class="modal-content border-0 shadow" id="reverseWalletForm">
+                @csrf
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title" id="walletReverseModalLabel">
+                        <i class="ti ti-arrow-back-up me-1 text-danger"></i>Reverse Labour Wallet Amount
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Select Labour <span class="text-danger">*</span></label>
+                        <select name="labour_id" id="reverse_labour_id" class="form-select" required>
+                            <option value="">Select labour</option>
+                            @foreach($labours as $labour)
+                                <option value="{{ $labour->id }}" @selected((string) request('labour_id') === (string) $labour->id) data-balance="{{ (float) $labour->advance_amt }}">
+                                    {{ $labour->name }} (Wallet: Rs. {{ number_format((float) $labour->advance_amt, 2) }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Contributor Table Section -->
+                    <div class="mb-3 d-none" id="contributorsBreakdownCard">
+                        <label class="form-label fw-semibold">Wallet Contributors</label>
+                        <div class="table-responsive border rounded mb-2">
+                            <table class="table table-sm table-hover align-middle mb-0" id="contributorsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th class="text-end">Original Added</th>
+                                        <th class="text-end">Already Reversed</th>
+                                        <th class="text-end">Available to Reverse</th>
+                                        <th class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contributorsTableBody">
+                                    <!-- Populated via AJAX -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Contributor Employee <span class="text-danger">*</span></label>
+                        <select name="employee_id" id="reverse_employee_id" class="form-select" required disabled>
+                            <option value="">Select Labour First</option>
+                        </select>
+                        <small class="text-muted" id="employeeHelpText">Showing only employees with eligible remaining contribution.</small>
+                    </div>
+
+                    <!-- Available to Reverse Box -->
+                    <div class="alert alert-light border py-2 px-3 mb-3 d-none" id="contributorSummaryBox">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="text-muted">Selected Contributor:</span> <strong id="summaryEmpName">-</strong><br>
+                                <small class="text-muted">Original Added: <span class="fw-semibold text-dark" id="summaryOriginal">Rs. 0.00</span> | Already Reversed: <span class="fw-semibold text-danger" id="summaryReversed">Rs. 0.00</span></small>
+                            </div>
+                            <div class="text-end">
+                                <span class="text-muted d-block small">Available to Reverse:</span>
+                                <h5 class="mb-0 text-success fw-bold" id="summaryAvailable">Rs. 0.00</h5>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Reverse Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rs.</span>
+                                <input type="number" name="amount" id="reverse_amount" class="form-control" min="0.01" step="0.01" required disabled placeholder="0.00">
+                            </div>
+                            <small class="text-danger d-none" id="amountValidationMsg"></small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
+                            <select name="payment_method_id" id="reverse_payment_method_id" class="form-select" required>
+                                <option value="">Select payment method</option>
+                                @foreach($paymentMethods as $paymentMethod)
+                                    <option value="{{ $paymentMethod->id }}">
+                                        {{ $paymentMethod->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label">Notes</label>
+                        <input type="text" name="notes" class="form-control" placeholder="Optional notes for reversal">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger" type="submit" id="reverseSubmitBtn" disabled>
+                        <i class="ti ti-arrow-back-up me-1"></i>Reverse Amount
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="modal fade" id="walletWithdrawModal" tabindex="-1" aria-labelledby="walletWithdrawModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <form method="POST" action="{{ route('labour-expenses.advance-store') }}" class="modal-content border-0 shadow">
@@ -333,3 +436,168 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const labourSelect = document.getElementById('reverse_labour_id');
+            const employeeSelect = document.getElementById('reverse_employee_id');
+            const amountInput = document.getElementById('reverse_amount');
+            const submitBtn = document.getElementById('reverseSubmitBtn');
+            const breakdownCard = document.getElementById('contributorsBreakdownCard');
+            const tableBody = document.getElementById('contributorsTableBody');
+            const summaryBox = document.getElementById('contributorSummaryBox');
+            const summaryEmpName = document.getElementById('summaryEmpName');
+            const summaryOriginal = document.getElementById('summaryOriginal');
+            const summaryReversed = document.getElementById('summaryReversed');
+            const summaryAvailable = document.getElementById('summaryAvailable');
+            const amountError = document.getElementById('amountValidationMsg');
+
+            let contributorsData = [];
+            let labourWalletBalance = 0;
+
+            if (!labourSelect) return;
+
+            function resetContributorState() {
+                employeeSelect.innerHTML = '<option value="">Select Labour First</option>';
+                employeeSelect.disabled = true;
+                amountInput.value = '';
+                amountInput.disabled = true;
+                submitBtn.disabled = true;
+                breakdownCard.classList.add('d-none');
+                tableBody.innerHTML = '';
+                summaryBox.classList.add('d-none');
+                amountError.classList.add('d-none');
+            }
+
+            labourSelect.addEventListener('change', function () {
+                const labourId = this.value;
+                if (!labourId) {
+                    resetContributorState();
+                    return;
+                }
+
+                const selectedOption = this.options[this.selectedIndex];
+                labourWalletBalance = parseFloat(selectedOption.dataset.balance || '0');
+
+                fetch(`{{ url('labour-expenses/contributors') }}/${labourId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        contributorsData = data.contributors || [];
+                        labourWalletBalance = parseFloat(data.wallet_balance || '0');
+
+                        employeeSelect.innerHTML = '<option value="">Select Contributor Employee</option>';
+                        tableBody.innerHTML = '';
+
+                        let eligibleCount = 0;
+
+                        contributorsData.forEach(c => {
+                            const tr = document.createElement('tr');
+                            const isEligible = c.available_to_reverse > 0 && labourWalletBalance > 0;
+                            tr.innerHTML = `
+                                <td><strong>${c.employee_name}</strong></td>
+                                <td class="text-end">Rs. ${parseFloat(c.original_amount).toFixed(2)}</td>
+                                <td class="text-end text-muted">Rs. ${parseFloat(c.already_reversed).toFixed(2)}</td>
+                                <td class="text-end ${c.available_to_reverse > 0 ? 'text-success fw-semibold' : 'text-muted'}">Rs. ${parseFloat(c.available_to_reverse).toFixed(2)}</td>
+                                <td class="text-center">
+                                    ${isEligible ? `<button type="button" class="btn btn-sm btn-outline-primary select-emp-btn py-0 px-2" data-id="${c.employee_id}">Select</button>` : `<span class="badge bg-light text-muted">Exhausted</span>`}
+                                </td>
+                            `;
+                            tableBody.appendChild(tr);
+
+                            if (c.available_to_reverse > 0) {
+                                eligibleCount++;
+                                const opt = document.createElement('option');
+                                opt.value = c.employee_id;
+                                opt.textContent = `${c.employee_name} (Avail: Rs. ${parseFloat(c.available_to_reverse).toFixed(2)})`;
+                                employeeSelect.appendChild(opt);
+                            }
+                        });
+
+                        if (contributorsData.length > 0) {
+                            breakdownCard.classList.remove('d-none');
+                        } else {
+                            breakdownCard.classList.remove('d-none');
+                            tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No recorded wallet contributions for this labour.</td></tr>';
+                        }
+
+                        if (eligibleCount > 0 && labourWalletBalance > 0) {
+                            employeeSelect.disabled = false;
+                        } else {
+                            employeeSelect.innerHTML = `<option value="">No eligible contributors (Wallet Balance: Rs. ${labourWalletBalance.toFixed(2)})</option>`;
+                            employeeSelect.disabled = true;
+                        }
+
+                        document.querySelectorAll('.select-emp-btn').forEach(btn => {
+                            btn.addEventListener('click', function () {
+                                const empId = this.dataset.id;
+                                employeeSelect.value = empId;
+                                employeeSelect.dispatchEvent(new Event('change'));
+                            });
+                        });
+                    })
+                    .catch(err => {
+                        console.error('Error fetching contributors:', err);
+                    });
+            });
+
+            employeeSelect.addEventListener('change', function () {
+                const empId = parseInt(this.value);
+                const contributor = contributorsData.find(c => c.employee_id === empId);
+
+                if (!contributor) {
+                    summaryBox.classList.add('d-none');
+                    amountInput.disabled = true;
+                    amountInput.value = '';
+                    submitBtn.disabled = true;
+                    return;
+                }
+
+                const maxReversible = Math.min(contributor.available_to_reverse, labourWalletBalance);
+
+                summaryEmpName.textContent = contributor.employee_name;
+                summaryOriginal.textContent = `Rs. ${parseFloat(contributor.original_amount).toFixed(2)}`;
+                summaryReversed.textContent = `Rs. ${parseFloat(contributor.already_reversed).toFixed(2)}`;
+                summaryAvailable.textContent = `Rs. ${parseFloat(contributor.available_to_reverse).toFixed(2)}`;
+                summaryBox.classList.remove('d-none');
+
+                amountInput.disabled = false;
+                amountInput.max = maxReversible;
+                amountInput.value = maxReversible > 0 ? maxReversible : '';
+                validateAmount();
+            });
+
+            amountInput.addEventListener('input', validateAmount);
+
+            function validateAmount() {
+                const empId = parseInt(employeeSelect.value);
+                const contributor = contributorsData.find(c => c.employee_id === empId);
+                if (!contributor) return;
+
+                const val = parseFloat(amountInput.value);
+                const maxReversible = Math.min(contributor.available_to_reverse, labourWalletBalance);
+
+                if (isNaN(val) || val <= 0) {
+                    amountError.textContent = 'Please enter a valid amount greater than 0.';
+                    amountError.classList.remove('d-none');
+                    submitBtn.disabled = true;
+                } else if (val > contributor.available_to_reverse) {
+                    amountError.textContent = `Amount cannot exceed employee available contribution of Rs. ${contributor.available_to_reverse.toFixed(2)}.`;
+                    amountError.classList.remove('d-none');
+                    submitBtn.disabled = true;
+                } else if (val > labourWalletBalance) {
+                    amountError.textContent = `Amount cannot exceed overall Labour Wallet balance of Rs. ${labourWalletBalance.toFixed(2)}.`;
+                    amountError.classList.remove('d-none');
+                    submitBtn.disabled = true;
+                } else {
+                    amountError.classList.add('d-none');
+                    submitBtn.disabled = false;
+                }
+            }
+
+            if (labourSelect.value) {
+                labourSelect.dispatchEvent(new Event('change'));
+            }
+        });
+    </script>
+@endpush

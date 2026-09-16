@@ -6,15 +6,19 @@ use App\Models\AdvanceHistory;
 use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Labour;
+use App\Models\LabourWalletAllocation;
+use App\Models\LabourWalletTransaction;
 use App\Models\MainCategory;
 use App\Models\PaymentMethod;
 use App\Models\Project;
+use App\Models\User;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class LabourExpensesController extends Controller
 {
@@ -219,9 +223,13 @@ class LabourExpensesController extends Controller
 
     public function advanceStore(Request $request): RedirectResponse
     {
+        if ($request->input('entry_type') === 'reverse') {
+            return $this->advanceReverse($request);
+        }
+
         $validated = $request->validate([
             'labour_id' => ['required', 'exists:labours,id'],
-            'entry_type' => ['required', 'in:credit,withdraw,settle'],
+            'entry_type' => ['required', 'in:credit,withdraw,settle,reverse'],
             'labour_expense_transaction_id' => ['nullable', 'required_if:entry_type,settle', 'exists:expenses,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method_id' => [
@@ -249,7 +257,7 @@ class LabourExpensesController extends Controller
                     ->value('wallet');
 
                 if ($userWallet < $amount) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'amount' => 'Insufficient company wallet balance. Available balance is Rs ' . number_format($userWallet, 2) . '.',
                     ]);
                 }
@@ -293,6 +301,18 @@ class LabourExpensesController extends Controller
                     'delete_status' => 0,
                 ]);
 
+                LabourWalletTransaction::query()->create([
+                    'labour_id' => $labour->id,
+                    'employee_id' => $userId,
+                    'type' => 'credit',
+                    'amount' => $amount,
+                    'payment_method_id' => (int) $validated['payment_method_id'],
+                    'notes' => $validated['notes'] ?? 'Labour advance given',
+                    'created_by' => $userId,
+                    'current_date' => now()->toDateString(),
+                    'current_time' => now()->format('H:i:s'),
+                ]);
+
                 return;
             }
 
@@ -300,7 +320,7 @@ class LabourExpensesController extends Controller
                 $currentAdvance = (float) $labour->advance_amt;
 
                 if ($amount > $currentAdvance) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'amount' => 'Withdrawal amount cannot exceed current labour advance balance of Rs ' . number_format($currentAdvance, 2) . '.',
                     ]);
                 }
@@ -352,13 +372,13 @@ class LabourExpensesController extends Controller
             $unpaidAmt = (float) $expense->unpaid_amt;
 
             if ($amount > $currentAdvance) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'amount' => 'Settlement amount cannot exceed available labour advance balance of Rs ' . number_format($currentAdvance, 2) . '.',
                 ]);
             }
 
             if ($amount > $unpaidAmt) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'amount' => 'Settlement amount cannot exceed unpaid expense amount of Rs ' . number_format($unpaidAmt, 2) . '.',
                 ]);
             }
@@ -386,6 +406,216 @@ class LabourExpensesController extends Controller
         return redirect()
             ->route('labour-expenses.advance-history', ['labour_id' => $validated['labour_id']])
             ->with('success', 'Labour wallet updated successfully.');
+    }
+
+    public function advanceReverse(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'labour_id' => ['required', 'exists:labours,id'],
+            'employee_id' => ['required', 'exists:users,id'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'payment_method_id' => [
+                'required',
+                Rule::exists('payment_methods', 'id')->where('active_status', true),
+            ],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ], [], [
+            'payment_method_id' => 'Payment Method',
+            'employee_id' => 'Contributor Employee',
+            'labour_id' => 'Labour',
+        ]);
+
+        $labourId = (int) $validated['labour_id'];
+        $employeeId = (int) $validated['employee_id'];
+        $reverseAmount = round((float) $validated['amount'], 2);
+        $paymentMethodId = (int) $validated['payment_method_id'];
+        $notes = $validated['notes'] ?? null;
+        $operatorId = (int) Auth::id();
+
+        DB::transaction(function () use ($labourId, $employeeId, $reverseAmount, $paymentMethodId, $notes, $operatorId) {
+            $labour = Labour::query()->lockForUpdate()->findOrFail($labourId);
+            $employee = DB::table('users')->where('id', $employeeId)->lockForUpdate()->first();
+            if (! $employee) {
+                throw ValidationException::withMessages([
+                    'employee_id' => 'Selected employee does not exist.',
+                ]);
+            }
+
+            $currentLabourBalance = (float) $labour->advance_amt;
+            if ($reverseAmount > $currentLabourBalance) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Reverse amount (Rs ' . number_format($reverseAmount, 2) . ') cannot exceed current Labour Wallet available balance of Rs ' . number_format($currentLabourBalance, 2) . '.',
+                ]);
+            }
+
+            // Lock all credits of this employee for this labour
+            $credits = LabourWalletTransaction::query()
+                ->where('labour_id', $labourId)
+                ->where('employee_id', $employeeId)
+                ->where('type', 'credit')
+                ->withSum('allocationsAsCredit as allocated_amount', 'amount')
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+
+            // Total credits
+            $totalCredit = (float) $credits->sum('amount');
+            // Total already reversed by this employee for this labour
+            $alreadyReversed = (float) LabourWalletTransaction::query()
+                ->where('labour_id', $labourId)
+                ->where('employee_id', $employeeId)
+                ->where('type', 'reverse')
+                ->lockForUpdate()
+                ->sum('amount');
+
+            $availableToReverse = max(0.0, round($totalCredit - $alreadyReversed, 2));
+
+            if ($availableToReverse <= 0.0) {
+                throw ValidationException::withMessages([
+                    'employee_id' => 'Selected employee has no eligible remaining contribution to reverse for this labour.',
+                ]);
+            }
+
+            if ($reverseAmount > $availableToReverse) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Reverse amount (Rs ' . number_format($reverseAmount, 2) . ') exceeds remaining attributable contribution (Rs ' . number_format($availableToReverse, 2) . ') for this employee.',
+                ]);
+            }
+
+            $balanceService = app(CrmBalanceService::class);
+
+            // 1. Decrement Labour balance atomically
+            $balanceService->adjustLabourAdvance($labourId, -$reverseAmount);
+
+            // 2. Credit target employee wallet atomically (and sync employee table)
+            $balanceService->creditUserWallet(
+                $employeeId,
+                $reverseAmount,
+                'Labour Wallet reverse from ' . $labour->name,
+                'labour_wallet_reverse',
+                $labourId
+            );
+
+            // 3. Create reversal transaction
+            $reversalTx = LabourWalletTransaction::create([
+                'labour_id' => $labourId,
+                'employee_id' => $employeeId,
+                'type' => 'reverse',
+                'amount' => $reverseAmount,
+                'payment_method_id' => $paymentMethodId,
+                'notes' => $notes ?: 'Labour Wallet reverse to ' . $employee->name,
+                'created_by' => $operatorId,
+                'current_date' => now()->toDateString(),
+                'current_time' => now()->format('H:i:s'),
+            ]);
+
+            // 4. Allocate across credits FIFO (resolves multi-credit allocation cleanly)
+            $toAllocate = $reverseAmount;
+            foreach ($credits as $credit) {
+                if ($toAllocate <= 0.0) {
+                    break;
+                }
+                $allocated = (float) ($credit->allocated_amount ?? 0);
+                $creditRemaining = max(0.0, round((float) $credit->amount - $allocated, 2));
+                if ($creditRemaining <= 0.0) {
+                    continue;
+                }
+
+                $allocAmount = min($toAllocate, $creditRemaining);
+                LabourWalletAllocation::create([
+                    'reversal_transaction_id' => $reversalTx->id,
+                    'credit_transaction_id' => $credit->id,
+                    'amount' => $allocAmount,
+                ]);
+
+                $toAllocate = round($toAllocate - $allocAmount, 2);
+            }
+
+            // 5. Create Wallet ledger row for employee
+            $walletData = [
+                'user_id' => $employeeId,
+                'client_id' => 0,
+                'project_id' => 0,
+                'amount' => (int) round($reverseAmount),
+                'payment_mode' => $paymentMethodId,
+                'transfer_type' => 0, // 0 = Credit
+                'description' => 'Labour Wallet reverse from ' . $labour->name,
+                'created_by' => $operatorId,
+                'current_date' => now(),
+                'active_status' => 1,
+                'delete_status' => 0,
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('wallet', 'payment_method_id')) {
+                $walletData['payment_method_id'] = $paymentMethodId;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('wallet', 'source_type')) {
+                $walletData['source_type'] = 'labour_wallet_reverse';
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('wallet', 'source_id')) {
+                $walletData['source_id'] = $reversalTx->id;
+            }
+            \App\Models\Wallet::query()->create($walletData);
+
+            // 6. Create advance_history row for unified history display
+            $advanceHistoryData = [
+                'labour_id' => $labourId,
+                'amount' => $reverseAmount,
+                'entry_type' => 'withdraw',
+                'notes' => $notes ?: 'Labour Wallet reverse to ' . $employee->name,
+                'user_id' => $employeeId,
+                'current_date' => now()->toDateString(),
+                'current_time' => now()->format('H:i:s'),
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('advance_history', 'payment_method_id')) {
+                $advanceHistoryData['payment_method_id'] = $paymentMethodId;
+            }
+            AdvanceHistory::create($advanceHistoryData);
+        });
+
+        return redirect()
+            ->route('labour-expenses.advance-history', ['labour_id' => $labourId])
+            ->with('success', 'Labour wallet amount reversed successfully to employee wallet.');
+    }
+
+    public function contributorsJson(Request $request, int $labourId)
+    {
+        $labour = Labour::findOrFail($labourId);
+
+        $credits = LabourWalletTransaction::query()
+            ->where('labour_id', $labourId)
+            ->where('type', 'credit')
+            ->selectRaw('employee_id, SUM(amount) as total_credit')
+            ->groupBy('employee_id')
+            ->pluck('total_credit', 'employee_id');
+
+        $reversals = LabourWalletTransaction::query()
+            ->where('labour_id', $labourId)
+            ->where('type', 'reverse')
+            ->selectRaw('employee_id, SUM(amount) as total_reversed')
+            ->groupBy('employee_id')
+            ->pluck('total_reversed', 'employee_id');
+
+        $contributors = [];
+        foreach ($credits as $empId => $totalCredit) {
+            $reversed = (float) ($reversals[$empId] ?? 0.0);
+            $available = max(0.0, round((float) $totalCredit - $reversed, 2));
+            $user = User::find($empId);
+            $contributors[] = [
+                'employee_id' => (int) $empId,
+                'employee_name' => $user?->name ?? ('Employee #' . $empId),
+                'original_amount' => round((float) $totalCredit, 2),
+                'already_reversed' => round($reversed, 2),
+                'available_to_reverse' => $available,
+                'effective_available' => min($available, (float) $labour->advance_amt),
+            ];
+        }
+
+        return response()->json([
+            'labour_id' => $labour->id,
+            'labour_name' => $labour->name,
+            'wallet_balance' => (float) $labour->advance_amt,
+            'contributors' => $contributors,
+        ]);
     }
 
     public function deleteRecord(Request $request): RedirectResponse

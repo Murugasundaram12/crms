@@ -338,6 +338,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/labour-advance/store', [LabourExpensesController::class, 'advanceStore'])
         ->middleware('permission:expenses-edit')
         ->name('labour-expenses.advance-store');
+    Route::post('/labour-advance/reverse', [LabourExpensesController::class, 'advanceReverse'])
+        ->middleware('permission:expenses-edit')
+        ->name('labour-expenses.advance-reverse');
+    Route::get('/labour-expenses/contributors/{labourId}', [LabourExpensesController::class, 'contributorsJson'])
+        ->middleware('permission:expenses-list')
+        ->name('labour-expenses.contributors');
     Route::post('/labour-expenses-delete_record', [LabourExpensesController::class, 'deleteRecord'])
         ->middleware('permission:expenses-delete')
         ->name('labour-expenses.delete-record');
