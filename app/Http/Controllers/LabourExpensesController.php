@@ -227,9 +227,15 @@ class LabourExpensesController extends Controller
             return $this->advanceReverse($request);
         }
 
+        if ($request->input('entry_type') === 'withdraw') {
+            throw ValidationException::withMessages([
+                'entry_type' => 'Direct unattributed advance withdrawal is disabled. Please use the Reverse Amount feature with contributor attribution.',
+            ]);
+        }
+
         $validated = $request->validate([
             'labour_id' => ['required', 'exists:labours,id'],
-            'entry_type' => ['required', 'in:credit,withdraw,settle,reverse'],
+            'entry_type' => ['required', 'in:credit,settle,reverse'],
             'labour_expense_transaction_id' => ['nullable', 'required_if:entry_type,settle', 'exists:expenses,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method_id' => [
@@ -316,51 +322,6 @@ class LabourExpensesController extends Controller
                 return;
             }
 
-            if ($validated['entry_type'] === 'withdraw') {
-                $currentAdvance = (float) $labour->advance_amt;
-
-                if ($amount > $currentAdvance) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'Withdrawal amount cannot exceed current labour advance balance of Rs ' . number_format($currentAdvance, 2) . '.',
-                    ]);
-                }
-
-                // Decrement labour advance balance
-                $balanceService->adjustLabourAdvance((int) $labour->id, -$amount);
-
-                // Credit back company wallet
-                $balanceService->creditUserWallet($userId, $amount, 'Labour advance withdrawal/reversal from ' . $labour->name);
-
-                $advanceHistory = AdvanceHistory::create([
-                    'labour_id' => $labour->id,
-                    'amount' => $amount,
-                    'entry_type' => 'withdraw',
-                    'notes' => $validated['notes'] ?? 'Labour advance withdrawn',
-                    'user_id' => $userId,
-                    'current_date' => now()->toDateString(),
-                    'current_time' => now()->format('H:i:s'),
-                ]);
-
-                \App\Models\Wallet::query()->create([
-                    'user_id' => $userId,
-                    'client_id' => 0,
-                    'project_id' => 0,
-                    'amount' => (int) round($amount),
-                    'payment_mode' => isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : 1,
-                    'payment_method_id' => $validated['payment_method_id'] ?? null,
-                    'transfer_type' => 0, // Credit
-                    'source_type' => 'labour_advance_withdraw',
-                    'source_id' => $advanceHistory->id,
-                    'description' => 'Labour advance withdrawal from ' . $labour->name,
-                    'created_by' => $userId,
-                    'current_date' => now(),
-                    'active_status' => 1,
-                    'delete_status' => 0,
-                ]);
-
-                return;
-            }
-
             // Settle against expense if requested
             $expense = Expense::query()
                 ->where('labour_id', $labour->id)
@@ -405,7 +366,7 @@ class LabourExpensesController extends Controller
 
         return redirect()
             ->route('labour-expenses.advance-history', ['labour_id' => $validated['labour_id']])
-            ->with('success', 'Labour wallet updated successfully.');
+            ->with('success', 'Labour advance transaction recorded successfully.');
     }
 
     public function advanceReverse(Request $request): RedirectResponse
@@ -431,6 +392,14 @@ class LabourExpensesController extends Controller
         $paymentMethodId = (int) $validated['payment_method_id'];
         $notes = $validated['notes'] ?? null;
         $operatorId = (int) Auth::id();
+        $currentUser = Auth::user();
+        $isSuperAdmin = $currentUser instanceof User && $currentUser->isSuperAdmin();
+
+        if (! $isSuperAdmin && $employeeId !== $operatorId) {
+            throw ValidationException::withMessages([
+                'employee_id' => 'You are only authorized to reverse your own contributions.',
+            ]);
+        }
 
         DB::transaction(function () use ($labourId, $employeeId, $reverseAmount, $paymentMethodId, $notes, $operatorId) {
             $labour = Labour::query()->lockForUpdate()->findOrFail($labourId);

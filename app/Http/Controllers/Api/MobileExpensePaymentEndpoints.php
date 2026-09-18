@@ -159,6 +159,10 @@ trait MobileExpensePaymentEndpoints
             return $forbidden;
         }
 
+        if (! $this->canViewAllAppData($request->user()) && (int) $expense->user_id !== (int) $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $validated = $this->validateExpenseData($request);
         DB::transaction(function () use ($expense, $validated, $request) {
             $oldUserId = (int) $expense->user_id;
@@ -192,6 +196,10 @@ trait MobileExpensePaymentEndpoints
     {
         if ($forbidden = $this->authorizeApiPermission($request, 'expenses-delete')) {
             return $forbidden;
+        }
+
+        if (! $this->canViewAllAppData($request->user()) && (int) $expense->user_id !== (int) $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         DB::transaction(function () use ($expense) {

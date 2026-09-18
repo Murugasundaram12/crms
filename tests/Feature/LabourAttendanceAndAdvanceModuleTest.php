@@ -283,34 +283,24 @@ class LabourAttendanceAndAdvanceModuleTest extends TestCase
     }
 
     /** @test */
-    public function it_validates_advance_withdrawal_and_credits_company_wallet()
+    public function it_rejects_legacy_unattributed_advance_withdrawal()
     {
         $labour = $this->createTestLabour(['advance_amt' => 5000]);
         $initialWallet = (float) $this->user->fresh()->wallet;
 
-        // Try withdrawing 10000 (exceeds advance balance of 5000)
-        $invalidResponse = $this->actingAs($this->user)->post(route('labour-expenses.advance-store'), [
-            'entry_type' => 'withdraw',
-            'labour_id' => $labour->id,
-            'amount' => 10000,
-        ]);
-        $invalidResponse->assertSessionHasErrors('amount');
-        $this->assertEquals(5000.00, (float) $labour->fresh()->advance_amt);
-
-        // Valid withdrawal of 3000
-        $validResponse = $this->actingAs($this->user)->post(route('labour-expenses.advance-store'), [
+        $response = $this->actingAs($this->user)->post(route('labour-expenses.advance-store'), [
             'entry_type' => 'withdraw',
             'labour_id' => $labour->id,
             'amount' => 3000,
-            'notes' => 'Returned unused advance',
+            'notes' => 'Attempted legacy withdraw',
         ]);
-        $validResponse->assertRedirect();
-        $this->assertEquals(2000.00, (float) $labour->fresh()->advance_amt);
-        $this->assertEquals($initialWallet + 3000, (float) $this->user->fresh()->wallet);
-        $this->assertDatabaseHas('advance_history', [
+
+        $response->assertSessionHasErrors('entry_type');
+        $this->assertEquals(5000.00, (float) $labour->fresh()->advance_amt);
+        $this->assertEquals($initialWallet, (float) $this->user->fresh()->wallet);
+        $this->assertDatabaseMissing('advance_history', [
             'labour_id' => $labour->id,
             'entry_type' => 'withdraw',
-            'amount' => 3000.00,
         ]);
     }
 

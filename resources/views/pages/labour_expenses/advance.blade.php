@@ -395,46 +395,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="walletWithdrawModal" tabindex="-1" aria-labelledby="walletWithdrawModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <form method="POST" action="{{ route('labour-expenses.advance-store') }}" class="modal-content border-0 shadow">
-                @csrf
-                <input type="hidden" name="entry_type" value="withdraw">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title" id="walletWithdrawModalLabel">Withdraw Wallet Amount</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Labour</label>
-                        <select name="labour_id" class="form-select" required>
-                            <option value="">Select labour</option>
-                            @foreach($labours as $labour)
-                                <option value="{{ $labour->id }}" @selected((string) request('labour_id') === (string) $labour->id)>
-                                    {{ $labour->name }} - Rs. {{ number_format((float) $labour->advance_amt, 2) }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Amount</label>
-                        <input type="number" name="amount" class="form-control" min="1" step="0.01" required>
-                        <small class="text-muted"><i class="ti ti-info-circle"></i> Amount will be deducted from labour advance and credited back to your company wallet.</small>
-                    </div>
-                    <div class="mb-0">
-                        <label class="form-label">Notes</label>
-                        <input type="text" name="notes" class="form-control" placeholder="Advance returned or corrected">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-danger" type="submit">
-                        <i class="ti ti-arrow-back-up me-1"></i>Withdraw
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
 @endsection
 
 @push('scripts')
