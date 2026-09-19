@@ -38,7 +38,7 @@ class CrmBalanceService
                 'user_id' => $userId,
                 'client_id' => $clientId ?? 0,
                 'project_id' => $projectId ?? 0,
-                'amount' => (int) round($amount),
+                'amount' => round($amount, 2),
                 'payment_mode' => $paymentMethodId ?? 1,
                 'transfer_type' => $transferType,
                 'description' => $description,
@@ -86,7 +86,7 @@ class CrmBalanceService
         }
 
         DB::table('users')->where('id', $userId)->update([
-            'wallet' => $wallet - $amount,
+            'wallet' => round($wallet - $amount, 2),
         ]);
 
         $this->syncEmployeeWalletFromUser($userId);

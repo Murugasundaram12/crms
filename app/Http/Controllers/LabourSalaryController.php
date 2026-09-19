@@ -6,6 +6,7 @@ use App\Models\AdvanceHistory;
 use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Labour;
+use App\Models\LabourAssignment;
 use App\Models\LabourSalary;
 use App\Models\MainCategory;
 use App\Models\PaymentMethod;
@@ -176,7 +177,7 @@ class LabourSalaryController extends Controller
                     'user_id' => $payer->id,
                     'client_id' => 0,
                     'project_id' => 0,
-                    'amount' => (int) round($paidAmount),
+                    'amount' => round($paidAmount, 2),
                     'payment_mode' => $validated['payment_method_id'] ?? 1,
                     'payment_method_id' => $validated['payment_method_id'] ?? null,
                     'transfer_type' => 1,
@@ -188,17 +189,17 @@ class LabourSalaryController extends Controller
                     'active_status' => 1,
                     'delete_status' => 0,
                 ]);
-
-                $this->syncSalaryExpense(
-                    $labourSalary,
-                    $labour,
-                    (int) $payer->id,
-                    $paidAmount,
-                    $advanceAdjusted,
-                    isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null,
-                    $validated['payment_date'] ?? now()
-                );
             }
+
+            $this->syncSalaryExpense(
+                $labourSalary,
+                $labour,
+                (int) $payer->id,
+                $paidAmount,
+                $advanceAdjusted,
+                isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null,
+                $validated['payment_date'] ?? now()
+            );
         });
 
         return redirect()->route('labour-salaries.index')->with('success', 'Labour salary recorded and payer wallet debited successfully.');
@@ -317,7 +318,7 @@ class LabourSalaryController extends Controller
                         'user_id' => $payer->id,
                         'client_id' => 0,
                         'project_id' => 0,
-                        'amount' => (int) round($newPaidAmount),
+                        'amount' => round($newPaidAmount, 2),
                         'payment_mode' => $validated['payment_method_id'] ?? 1,
                         'payment_method_id' => $validated['payment_method_id'] ?? null,
                         'transfer_type' => 1,
@@ -399,12 +400,18 @@ class LabourSalaryController extends Controller
             return;
         }
 
+        $salaryAmount = round((float) $labourSalary->salary_amount, 2);
+        $cashPaid = round($paidAmount, 2);
+        $advanceAdj = round($advanceAdjusted, 2);
+        $totalPaid = round($cashPaid + $advanceAdj, 2);
+        $unpaidAmt = round(max(0, $salaryAmount - $totalPaid), 2);
+
         $expense = Expense::query()
             ->where('source_type', 'labour_salary')
             ->where('source_id', $labourSalary->id)
             ->first();
 
-        if ($paidAmount <= 0) {
+        if ($salaryAmount <= 0 && $totalPaid <= 0) {
             $expense?->delete();
             return;
         }
@@ -421,15 +428,17 @@ class LabourSalaryController extends Controller
 
         $desc = 'Paid Labour Salary to ' . $labour->name . ($advanceAdjusted > 0 ? ' (Rs ' . number_format($advanceAdjusted, 2) . ' advance adjusted)' : '');
 
+        $projectId = $this->resolveSalaryProjectId($labourSalary);
+
         $payload = [
             'user_id' => $payerId,
             'labour_id' => $labour->id,
-            'project_id' => null,
+            'project_id' => $projectId,
             'main_category_id' => $mainCategoryId,
             'category_id' => $category?->id,
-            'amount' => $paidAmount,
-            'paid_amt' => $paidAmount,
-            'unpaid_amt' => 0.0,
+            'amount' => $salaryAmount,
+            'paid_amt' => $totalPaid,
+            'unpaid_amt' => $unpaidAmt,
             'extra_amt' => 0.0,
             'current_date' => $paymentDate,
             'payment_method_id' => $paymentMethodId,
@@ -445,6 +454,103 @@ class LabourSalaryController extends Controller
         } else {
             Expense::create($payload);
         }
+    }
+
+    private function resolveSalaryProjectId(LabourSalary $labourSalary): ?int
+    {
+        if (! Schema::hasTable('labour_assignments')) {
+            return null;
+        }
+
+        // A. For every linked LabourAttendance: resolve project using LabourAssignment::activeForDate(attendance_date)
+        $attendances = $labourSalary->attendances()->get();
+        $projectCounts = [];
+        $projectLatestDate = [];
+
+        foreach ($attendances as $att) {
+            $attDate = $att->attendance_date ? Carbon::parse($att->attendance_date)->toDateString() : null;
+            if (! $attDate) {
+                continue;
+            }
+
+            $projectId = LabourAssignment::query()
+                ->where('labour_id', $labourSalary->labour_id)
+                ->activeForDate($attDate)
+                ->value('project_id');
+
+            if ($projectId) {
+                $pid = (int) $projectId;
+                $projectCounts[$pid] = ($projectCounts[$pid] ?? 0) + 1;
+                if (! isset($projectLatestDate[$pid]) || $attDate > $projectLatestDate[$pid]) {
+                    $projectLatestDate[$pid] = $attDate;
+                }
+            }
+        }
+
+        // B. If all resolved attendances have one project: return that project.
+        if (count($projectCounts) === 1) {
+            return (int) array_key_first($projectCounts);
+        }
+
+        // C & D. If multiple projects: count attendance dates per project.
+        // Select project with highest attendance count. If tied: select project associated with latest attendance date.
+        if (count($projectCounts) > 1) {
+            $bestProjectId = null;
+            $bestCount = -1;
+            $bestLatestDate = null;
+
+            foreach ($projectCounts as $pid => $count) {
+                $latestDate = $projectLatestDate[$pid];
+                if ($count > $bestCount) {
+                    $bestCount = $count;
+                    $bestLatestDate = $latestDate;
+                    $bestProjectId = $pid;
+                } elseif ($count === $bestCount) {
+                    if ($bestLatestDate === null || $latestDate > $bestLatestDate) {
+                        $bestLatestDate = $latestDate;
+                        $bestProjectId = $pid;
+                    }
+                }
+            }
+
+            return $bestProjectId ? (int) $bestProjectId : null;
+        }
+
+        // E. If no attendance project can be resolved: look for assignment overlapping salary period.
+        $startDate = $labourSalary->salary_period_start ? Carbon::parse($labourSalary->salary_period_start)->toDateString() : null;
+        $endDate = $labourSalary->salary_period_end ? Carbon::parse($labourSalary->salary_period_end)->toDateString() : null;
+
+        if ($startDate && $endDate) {
+            $overlappingProjectId = LabourAssignment::query()
+                ->where('labour_id', $labourSalary->labour_id)
+                ->whereNotNull('project_id')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereDate('start_date', '<=', $endDate)
+                      ->whereDate('end_date', '>=', $startDate);
+                })
+                ->orderByDesc('end_date')
+                ->orderByDesc('id')
+                ->value('project_id');
+
+            if ($overlappingProjectId) {
+                return (int) $overlappingProjectId;
+            }
+        }
+
+        // F. If still unresolved: use latest LabourAssignment project.
+        $latestProjectId = LabourAssignment::query()
+            ->where('labour_id', $labourSalary->labour_id)
+            ->whereNotNull('project_id')
+            ->orderByDesc('end_date')
+            ->orderByDesc('id')
+            ->value('project_id');
+
+        if ($latestProjectId) {
+            return (int) $latestProjectId;
+        }
+
+        // G. If no assignment exists: return null.
+        return null;
     }
 
     private function validateLabourSalary(Request $request, ?LabourSalary $labourSalary = null): array

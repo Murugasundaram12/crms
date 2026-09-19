@@ -116,13 +116,16 @@ trait MobileExpensePaymentEndpoints
 
         $validated = $this->validateExpenseData($request);
         $expense = DB::transaction(function () use ($validated, $request) {
-            $paidAmount = (int) $validated['paid_amt'];
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amt'], 2);
             $userId = (int) $request->user()->id;
 
             $expense = Expense::query()->create($validated + [
                 'user_id' => $userId,
-                'unpaid_amt' => max((int) $validated['amount'] - $paidAmount, 0),
-                'extra_amt' => max($paidAmount - (int) $validated['amount'], 0),
+                'amount' => $amount,
+                'paid_amt' => $paidAmount,
+                'unpaid_amt' => round(max($amount - $paidAmount, 0), 2),
+                'extra_amt' => round(max($paidAmount - $amount, 0), 2),
             ]);
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(
@@ -166,13 +169,16 @@ trait MobileExpensePaymentEndpoints
         $validated = $this->validateExpenseData($request);
         DB::transaction(function () use ($expense, $validated, $request) {
             $oldUserId = (int) $expense->user_id;
-            $oldPaidAmount = (int) $expense->paid_amt;
-            $newPaidAmount = (int) $validated['paid_amt'];
+            $oldPaidAmount = round((float) $expense->paid_amt, 2);
+            $amount = round((float) $validated['amount'], 2);
+            $newPaidAmount = round((float) $validated['paid_amt'], 2);
 
             $expense->update($validated + [
                 'editedBy' => $request->user()->id,
-                'unpaid_amt' => max((int) $validated['amount'] - $newPaidAmount, 0),
-                'extra_amt' => max($newPaidAmount - (int) $validated['amount'], 0),
+                'amount' => $amount,
+                'paid_amt' => $newPaidAmount,
+                'unpaid_amt' => round(max($amount - $newPaidAmount, 0), 2),
+                'extra_amt' => round(max($newPaidAmount - $amount, 0), 2),
             ]);
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(
@@ -205,7 +211,7 @@ trait MobileExpensePaymentEndpoints
         DB::transaction(function () use ($expense) {
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (int) $expense->paid_amt,
+                round((float) $expense->paid_amt, 2),
                 null,
                 0,
                 'Deleted expense refund',

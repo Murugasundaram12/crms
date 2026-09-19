@@ -67,15 +67,15 @@ class UnpaidExpensesController extends Controller
     {
         $validated = $request->validate([
             'expense_id' => ['required', 'integer', 'exists:expenses,id'],
-            'paid_amount' => ['required', 'integer', 'min:1'],
+            'paid_amount' => ['required', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $expense = Expense::query()->whereNull('deleted_at')->findOrFail((int) $validated['expense_id']);
-        $payAmount = (int) $validated['paid_amount'];
+        $payAmount = round((float) $validated['paid_amount'], 2);
 
         DB::transaction(function () use ($expense, $payAmount, $validated) {
-            $settlement = min($payAmount, (int) $expense->unpaid_amt);
+            $settlement = round(min($payAmount, (float) $expense->unpaid_amt), 2);
 
             if ($settlement <= 0) {
                 return;
@@ -93,8 +93,8 @@ class UnpaidExpensesController extends Controller
             app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $settlement, 'Unpaid expense settlement', 'expense_unpaid_settlement', (int) $expense->id);
 
             $expense->update([
-                'paid_amt' => (int) $expense->paid_amt + $settlement,
-                'unpaid_amt' => max((int) $expense->unpaid_amt - $settlement, 0),
+                'paid_amt' => round((float) $expense->paid_amt + $settlement, 2),
+                'unpaid_amt' => round(max((float) $expense->unpaid_amt - $settlement, 0), 2),
                 'editedBy' => Auth::id(),
             ]);
         });

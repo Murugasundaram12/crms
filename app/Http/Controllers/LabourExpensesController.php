@@ -66,10 +66,10 @@ class LabourExpensesController extends Controller
         $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($validated) {
-            $amount = (int) $validated['amount'];
-            $paidAmount = (int) $validated['paid_amount'];
-            $unpaidAmount = max($amount - $paidAmount, 0);
-            $extraAmount = max($paidAmount - $amount, 0);
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amount'], 2);
+            $unpaidAmount = round(max($amount - $paidAmount, 0), 2);
+            $extraAmount = round(max($paidAmount - $amount, 0), 2);
             $userId = (int) Auth::id();
 
             $expense = Expense::create([
@@ -130,16 +130,15 @@ class LabourExpensesController extends Controller
         $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($expense, $validated) {
-            $amount = (int) $validated['amount'];
-            $paidAmount = (int) $validated['paid_amount'];
-            $unpaidAmount = max($amount - $paidAmount, 0);
-            $extraAmount = max($paidAmount - $amount, 0);
-            $oldExtra = (int) $expense->extra_amt;
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amount'], 2);
+            $unpaidAmount = round(max($amount - $paidAmount, 0), 2);
+            $extraAmount = round(max($paidAmount - $amount, 0), 2);
+            $oldExtra = round((float) $expense->extra_amt, 2);
             $oldLabourId = (int) $expense->labour_id;
-            $oldUserId = (int) $expense->user_id;
-            $oldPaidAmount = (int) $expense->paid_amt;
+            $originalUserId = (int) $expense->user_id;
+            $oldPaidAmount = round((float) $expense->paid_amt, 2);
             $newLabourId = (int) $validated['labour_id'];
-            $newUserId = (int) Auth::id();
             $balanceService = app(CrmBalanceService::class);
 
             if ($oldExtra > 0) {
@@ -151,7 +150,6 @@ class LabourExpensesController extends Controller
 
             $expense->update([
                 'labour_id' => $newLabourId,
-                'user_id' => $newUserId,
                 'main_category_id' => $validated['main_category_id'] ?? null,
                 'category_id' => $validated['category_id'],
                 'project_id' => $validated['project_id'] ?? null,
@@ -167,9 +165,9 @@ class LabourExpensesController extends Controller
             ]);
 
             $balanceService->replaceUserWalletDebit(
-                $oldUserId,
+                $originalUserId,
                 $oldPaidAmount,
-                $newUserId,
+                $originalUserId,
                 $paidAmount,
                 'Labour expense payment update',
                 'labour_expense',
@@ -294,7 +292,7 @@ class LabourExpensesController extends Controller
                     'user_id' => $userId,
                     'client_id' => 0,
                     'project_id' => 0,
-                    'amount' => (int) round($amount),
+                    'amount' => round($amount, 2),
                     'payment_mode' => (int) $validated['payment_method_id'],
                     'payment_method_id' => (int) $validated['payment_method_id'],
                     'transfer_type' => 1, // Debit
@@ -346,8 +344,8 @@ class LabourExpensesController extends Controller
 
             $balanceService->adjustLabourAdvance((int) $labour->id, -$amount);
             $expense->update([
-                'paid_amt' => (float) $expense->paid_amt + $amount,
-                'unpaid_amt' => max((float) $expense->unpaid_amt - $amount, 0),
+                'paid_amt' => round((float) $expense->paid_amt + $amount, 2),
+                'unpaid_amt' => round(max((float) $expense->unpaid_amt - $amount, 0), 2),
                 'editedBy' => $userId,
                 'is_advance' => 1,
             ]);
@@ -505,7 +503,7 @@ class LabourExpensesController extends Controller
                 'user_id' => $employeeId,
                 'client_id' => 0,
                 'project_id' => 0,
-                'amount' => (int) round($reverseAmount),
+                'amount' => round($reverseAmount, 2),
                 'payment_mode' => $paymentMethodId,
                 'transfer_type' => 0, // 0 = Credit
                 'description' => 'Labour Wallet reverse from ' . $labour->name,
@@ -597,13 +595,13 @@ class LabourExpensesController extends Controller
         DB::transaction(function () use ($validated) {
             $expense = Expense::query()->whereNotNull('labour_id')->findOrFail((int) $validated['id']);
 
-            if ((int) $expense->extra_amt > 0) {
-                app(CrmBalanceService::class)->adjustLabourAdvance((int) $expense->labour_id, -(int) $expense->extra_amt);
+            if ((float) $expense->extra_amt > 0) {
+                app(CrmBalanceService::class)->adjustLabourAdvance((int) $expense->labour_id, -round((float) $expense->extra_amt, 2));
             }
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (float) $expense->paid_amt,
+                round((float) $expense->paid_amt, 2),
                 null,
                 0,
                 'Deleted labour expense refund',
@@ -706,8 +704,8 @@ class LabourExpensesController extends Controller
             'main_category_id' => ['nullable', 'exists:main_categories,id'],
             'category_id' => ['required', 'exists:categories,id'],
             'description' => ['nullable', 'string'],
-            'amount' => ['required', 'integer', 'min:0'],
-            'paid_amount' => ['required', 'integer', 'min:0'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'current_date' => ['nullable', 'date'],
             'image' => ['nullable', 'string', 'max:250'],

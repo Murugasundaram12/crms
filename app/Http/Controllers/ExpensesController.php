@@ -44,10 +44,10 @@ class ExpensesController extends Controller
         $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($validated) {
-            $amount = (int) $validated['amount'];
-            $paidAmount = (int) $validated['paid_amt'];
-            $unpaidAmount = max($amount - $paidAmount, 0);
-            $extraAmount = max($paidAmount - $amount, 0);
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amt'], 2);
+            $unpaidAmount = round(max($amount - $paidAmount, 0), 2);
+            $extraAmount = round(max($paidAmount - $amount, 0), 2);
             $userId = (int) Auth::id();
 
             $expense = Expense::create([
@@ -83,11 +83,11 @@ class ExpensesController extends Controller
         $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($expense, $validated) {
-            $amount = (int) $validated['amount'];
-            $paidAmount = (int) $validated['paid_amt'];
-            $unpaidAmount = max($amount - $paidAmount, 0);
-            $extraAmount = max($paidAmount - $amount, 0);
-            $oldPaidAmount = (int) $expense->paid_amt;
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amt'], 2);
+            $unpaidAmount = round(max($amount - $paidAmount, 0), 2);
+            $extraAmount = round(max($paidAmount - $amount, 0), 2);
+            $oldPaidAmount = round((float) $expense->paid_amt, 2);
 
             $expense->update([
                 ...$validated,
@@ -126,7 +126,7 @@ class ExpensesController extends Controller
             $expense->save();
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (float) $expense->paid_amt,
+                round((float) $expense->paid_amt, 2),
                 null,
                 0,
                 'Deleted expense refund',
@@ -148,7 +148,7 @@ class ExpensesController extends Controller
         $expense = Expense::onlyTrashed()->findOrFail((int) $validated['expense_id']);
 
         DB::transaction(function () use ($expense) {
-            $paidAmt = (float) $expense->paid_amt;
+            $paidAmt = round((float) $expense->paid_amt, 2);
             $userId = (int) $expense->user_id;
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(

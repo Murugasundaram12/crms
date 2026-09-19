@@ -33,17 +33,17 @@ class VendorExpensesController extends Controller
         $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($validated) {
-            $amount = (int) $validated['amount'];
-            $paidAmount = (int) $validated['paid_amount'];
-            $unpaidAmount = max($amount - $paidAmount, 0);
-            $extraAmount = max($paidAmount - $amount, 0);
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amount'], 2);
+            $unpaidAmount = round(max($amount - $paidAmount, 0), 2);
+            $extraAmount = round(max($paidAmount - $amount, 0), 2);
             $userId = (int) Auth::id();
             $vendorId = (int) $validated['vendor_id'];
 
             $vendor = Vendor::query()->lockForUpdate()->find($vendorId);
             $existingAdvance = (float) ($vendor?->advance_amt ?? 0);
-            $advanceUsed = min($paidAmount, $existingAdvance);
-            $netWalletDebit = max(0, $paidAmount - $advanceUsed);
+            $advanceUsed = round(min($paidAmount, $existingAdvance), 2);
+            $netWalletDebit = round(max(0, $paidAmount - $advanceUsed), 2);
 
             $expense = Expense::create([
                 'user_id' => $userId,
@@ -119,16 +119,15 @@ class VendorExpensesController extends Controller
         $validated = $this->validateExpense($request);
 
         DB::transaction(function () use ($expense, $validated) {
-            $amount = (int) $validated['amount'];
-            $paidAmount = (int) $validated['paid_amount'];
-            $unpaidAmount = max($amount - $paidAmount, 0);
-            $extraAmount = max($paidAmount - $amount, 0);
-            $oldExtra = (int) $expense->extra_amt;
+            $amount = round((float) $validated['amount'], 2);
+            $paidAmount = round((float) $validated['paid_amount'], 2);
+            $unpaidAmount = round(max($amount - $paidAmount, 0), 2);
+            $extraAmount = round(max($paidAmount - $amount, 0), 2);
+            $oldExtra = round((float) $expense->extra_amt, 2);
             $oldVendorId = (int) $expense->vendor_id;
-            $oldUserId = (int) $expense->user_id;
-            $oldPaidAmount = (int) $expense->paid_amt;
+            $originalUserId = (int) $expense->user_id;
+            $oldPaidAmount = round((float) $expense->paid_amt, 2);
             $newVendorId = (int) $validated['vendor_id'];
-            $newUserId = (int) Auth::id();
             $balanceService = app(CrmBalanceService::class);
 
             if ($oldExtra > 0) {
@@ -140,7 +139,6 @@ class VendorExpensesController extends Controller
 
             $expense->update([
                 'vendor_id' => $newVendorId,
-                'user_id' => $newUserId,
                 'main_category_id' => $validated['main_category_id'] ?? null,
                 'category_id' => $validated['category_id'],
                 'project_id' => $validated['project_id'] ?? null,
@@ -156,9 +154,9 @@ class VendorExpensesController extends Controller
             ]);
 
             $balanceService->replaceUserWalletDebit(
-                $oldUserId,
+                $originalUserId,
                 $oldPaidAmount,
-                $newUserId,
+                $originalUserId,
                 $paidAmount,
                 'Vendor expense payment update',
                 'vendor_expense',
@@ -194,13 +192,13 @@ class VendorExpensesController extends Controller
     {
         $validated = $request->validate([
             'id' => ['required', 'exists:expenses,id'],
-            'paid_amount' => ['required', 'integer', 'min:1'],
+            'paid_amount' => ['required', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         DB::transaction(function () use ($validated) {
             $expense = Expense::query()->whereNotNull('vendor_id')->lockForUpdate()->findOrFail((int) $validated['id']);
-            $pay = min((int) $validated['paid_amount'], (int) $expense->unpaid_amt);
+            $pay = round(min((float) $validated['paid_amount'], (float) $expense->unpaid_amt), 2);
 
             if ($pay <= 0) {
                 return;
@@ -219,8 +217,8 @@ class VendorExpensesController extends Controller
             app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $pay, 'Vendor unpaid settlement', 'vendor_expense_unpaid', (int) $expense->id);
 
             $expense->update([
-                'paid_amt' => (int) $expense->paid_amt + $pay,
-                'unpaid_amt' => max((int) $expense->unpaid_amt - $pay, 0),
+                'paid_amt' => round((float) $expense->paid_amt + $pay, 2),
+                'unpaid_amt' => round(max((float) $expense->unpaid_amt - $pay, 0), 2),
                 'editedBy' => Auth::id(),
             ]);
         });
@@ -245,17 +243,17 @@ class VendorExpensesController extends Controller
     {
         $validated = $request->validate([
             'vendor_id' => ['required', 'exists:vendors,id'],
-            'amount' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
             'entry_type' => ['required', 'in:credit,withdraw'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         DB::transaction(function () use ($validated) {
             $vendor = Vendor::query()->lockForUpdate()->findOrFail((int) $validated['vendor_id']);
-            $amount = (int) $validated['amount'];
+            $amount = round((float) $validated['amount'], 2);
 
             if ($validated['entry_type'] === 'withdraw') {
-                $amount = min($amount, (int) $vendor->advance_amt);
+                $amount = round(min($amount, (float) $vendor->advance_amt), 2);
                 app(CrmBalanceService::class)->adjustVendorAdvance((int) $vendor->id, -$amount);
                 app(CrmBalanceService::class)->creditUserWallet((int) Auth::id(), $amount, 'Vendor advance withdraw refund', 'vendor_advance_withdraw', (int) $vendor->id);
             } else {
@@ -287,13 +285,13 @@ class VendorExpensesController extends Controller
         DB::transaction(function () use ($validated) {
             $expense = Expense::query()->whereNotNull('vendor_id')->findOrFail((int) $validated['id']);
 
-            if ((int) $expense->extra_amt > 0) {
-                app(CrmBalanceService::class)->adjustVendorAdvance((int) $expense->vendor_id, -(int) $expense->extra_amt);
+            if ((float) $expense->extra_amt > 0) {
+                app(CrmBalanceService::class)->adjustVendorAdvance((int) $expense->vendor_id, -round((float) $expense->extra_amt, 2));
             }
 
             app(CrmBalanceService::class)->replaceUserWalletDebit(
                 (int) $expense->user_id,
-                (float) $expense->paid_amt,
+                round((float) $expense->paid_amt, 2),
                 null,
                 0,
                 'Deleted vendor expense refund',
@@ -401,8 +399,8 @@ class VendorExpensesController extends Controller
             'main_category_id' => ['nullable', 'exists:main_categories,id'],
             'category_id' => ['required', 'exists:categories,id'],
             'description' => ['nullable', 'string'],
-            'amount' => ['required', 'integer', 'min:0'],
-            'paid_amount' => ['required', 'integer', 'min:0'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_method_id' => ['nullable', 'exists:payment_methods,id'],
             'current_date' => ['nullable', 'date'],
             'image' => ['nullable', 'string', 'max:250'],
