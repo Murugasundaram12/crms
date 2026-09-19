@@ -331,9 +331,9 @@ trait MobileTaskWalletEndpoints
         }
 
         $validated = $this->validateWalletData($request);
-        $amount = (int) $validated['amount'];
-        $actor = $request->user();
-        $targetUser = $this->resolveWalletUser($validated, $request->user());
+        $amount = round((float) $validated['amount'], 2);
+        $actorUser = $request->user();
+        $targetUserResolved = $this->resolveWalletUser($validated, $actorUser);
         $project = Project::query()->findOrFail((int) $validated['project_id']);
 
         if ((int) $project->client_id !== (int) $validated['client_id']) {
@@ -342,23 +342,37 @@ trait MobileTaskWalletEndpoints
             ]);
         }
 
-        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
-            throw ValidationException::withMessages([
-                'amount' => 'Amount is insufficient',
-            ]);
-        }
+        $targetUserId = (int) $targetUserResolved->id;
+        $actorId = (int) $actorUser->id;
 
-        if (
-            (int) $validated['transfer_type'] === 0
-            && (int) $targetUser->id !== (int) $actor->id
-            && $amount > (float) ($actor->wallet ?? 0)
-        ) {
-            throw ValidationException::withMessages([
-                'amount' => 'Amount is insufficient',
-            ]);
-        }
+        [$wallet, $counterWallet] = DB::transaction(function () use ($validated, $amount, $targetUserId, $actorId) {
+            $firstId = min($targetUserId, $actorId);
+            $secondId = max($targetUserId, $actorId);
 
-        [$wallet, $counterWallet] = DB::transaction(function () use ($validated, $amount, $targetUser, $actor) {
+            $firstUser = User::query()->where('id', $firstId)->lockForUpdate()->firstOrFail();
+            $secondUser = ($firstId === $secondId)
+                ? $firstUser
+                : User::query()->where('id', $secondId)->lockForUpdate()->firstOrFail();
+
+            $targetUser = ($targetUserId === $firstId) ? $firstUser : $secondUser;
+            $actor = ($actorId === $firstId) ? $firstUser : $secondUser;
+
+            if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Amount is insufficient',
+                ]);
+            }
+
+            if (
+                (int) $validated['transfer_type'] === 0
+                && (int) $targetUser->id !== (int) $actor->id
+                && $amount > (float) ($actor->wallet ?? 0)
+            ) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Amount is insufficient',
+                ]);
+            }
+
             $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
             $description = $validated['description'] ?? null;
             $transferType = (int) $validated['transfer_type'];
@@ -415,10 +429,10 @@ trait MobileTaskWalletEndpoints
                     'user_id' => $actor->id,
                     'client_id' => $validated['client_id'],
                     'project_id' => $validated['project_id'],
-                        'amount' => $amount,
-                        'payment_mode' => $validated['payment_mode'],
-                        'payment_method_id' => $validated['payment_method_id'],
-                        'transfer_type' => 0,
+                    'amount' => $amount,
+                    'payment_mode' => $validated['payment_mode'],
+                    'payment_method_id' => $validated['payment_method_id'],
+                    'transfer_type' => 0,
                     'stage_id' => $validated['stage_id'] ?? null,
                     'description' => $description,
                     'current_date' => $dateTime,
@@ -434,8 +448,8 @@ trait MobileTaskWalletEndpoints
             'message' => 'Wallet entry saved successfully.',
             'wallet' => $this->walletPayload($wallet->load(['user', 'client', 'project', 'stage', 'paymentMethod'])),
             'counter_wallet' => $counterWallet ? $this->walletPayload($counterWallet->load(['user', 'client', 'project', 'stage', 'paymentMethod'])) : null,
-            'wallet_balance' => (float) $targetUser->fresh()->wallet,
-            'sender_wallet_balance' => (float) $actor->fresh()->wallet,
+            'wallet_balance' => (float) User::query()->where('id', $targetUserId)->value('wallet'),
+            'sender_wallet_balance' => (float) User::query()->where('id', $actorId)->value('wallet'),
         ], 201);
     }
 }

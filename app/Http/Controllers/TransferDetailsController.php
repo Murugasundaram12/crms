@@ -8,11 +8,13 @@ use App\Models\Labour;
 use App\Models\PaymentMethod;
 use App\Models\TransferDetails;
 use App\Models\Vendor;
+use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class TransferDetailsController extends Controller
@@ -192,13 +194,69 @@ class TransferDetailsController extends Controller
 
     private function applyTransferBalances(TransferDetails $transfer, int $direction, ?string $customNotes = null): void
     {
-        $amount = (float) $transfer->amount * $direction;
+        $amount = round((float) $transfer->amount * $direction, 2);
         $balanceService = app(CrmBalanceService::class);
 
         if ($amount > 0) {
             $balanceService->debitUserWallet((int) $transfer->user_id, $amount, 'Transfer debit', 'transfer', (int) $transfer->id);
+
+            if (Schema::hasTable('wallet')) {
+                $exists = Wallet::query()
+                    ->where('source_type', 'transfer_out')
+                    ->where('source_id', $transfer->id)
+                    ->where('user_id', $transfer->user_id)
+                    ->where('transfer_type', 1)
+                    ->exists();
+
+                if (! $exists) {
+                    Wallet::query()->create([
+                        'user_id' => (int) $transfer->user_id,
+                        'client_id' => 0,
+                        'project_id' => 0,
+                        'amount' => $amount,
+                        'payment_mode' => (int) ($transfer->payment_method_id ?? 1),
+                        'payment_method_id' => $transfer->payment_method_id ?? null,
+                        'transfer_type' => 1,
+                        'source_type' => 'transfer_out',
+                        'source_id' => (int) $transfer->id,
+                        'description' => $customNotes ?: ('Transfer to ' . $transfer->transfer_type . ' #' . ($transfer->employee_id ?? $transfer->vendor_id ?? $transfer->labour_id)),
+                        'created_by' => (int) $transfer->user_id,
+                        'current_date' => now(),
+                        'active_status' => 1,
+                        'delete_status' => 0,
+                    ]);
+                }
+            }
         } elseif ($amount < 0) {
             $balanceService->creditUserWallet((int) $transfer->user_id, abs($amount), 'Transfer rollback credit', 'transfer', (int) $transfer->id);
+
+            if (Schema::hasTable('wallet')) {
+                $exists = Wallet::query()
+                    ->where('source_type', 'transfer_out_reversal')
+                    ->where('source_id', $transfer->id)
+                    ->where('user_id', $transfer->user_id)
+                    ->where('transfer_type', 0)
+                    ->exists();
+
+                if (! $exists) {
+                    Wallet::query()->create([
+                        'user_id' => (int) $transfer->user_id,
+                        'client_id' => 0,
+                        'project_id' => 0,
+                        'amount' => abs($amount),
+                        'payment_mode' => (int) ($transfer->payment_method_id ?? 1),
+                        'payment_method_id' => $transfer->payment_method_id ?? null,
+                        'transfer_type' => 0,
+                        'source_type' => 'transfer_out_reversal',
+                        'source_id' => (int) $transfer->id,
+                        'description' => $customNotes ?: ('Reversal of transfer #' . $transfer->id),
+                        'created_by' => (int) $transfer->user_id,
+                        'current_date' => now(),
+                        'active_status' => 1,
+                        'delete_status' => 0,
+                    ]);
+                }
+            }
         }
 
         if ($transfer->transfer_type === 'vendor' && $transfer->vendor_id) {
@@ -207,7 +265,64 @@ class TransferDetailsController extends Controller
         }
 
         if ($transfer->transfer_type === 'employee' && $transfer->employee_id) {
+            $recipientUserId = $balanceService->userIdFromEmployeeId((int) $transfer->employee_id);
             $balanceService->adjustEmployeeWallet((int) $transfer->employee_id, $amount);
+
+            if ($recipientUserId && Schema::hasTable('wallet')) {
+                if ($amount > 0) {
+                    $exists = Wallet::query()
+                        ->where('source_type', 'transfer_in')
+                        ->where('source_id', $transfer->id)
+                        ->where('user_id', $recipientUserId)
+                        ->where('transfer_type', 0)
+                        ->exists();
+
+                    if (! $exists) {
+                        Wallet::query()->create([
+                            'user_id' => $recipientUserId,
+                            'client_id' => 0,
+                            'project_id' => 0,
+                            'amount' => $amount,
+                            'payment_mode' => (int) ($transfer->payment_method_id ?? 1),
+                            'payment_method_id' => $transfer->payment_method_id ?? null,
+                            'transfer_type' => 0,
+                            'source_type' => 'transfer_in',
+                            'source_id' => (int) $transfer->id,
+                            'description' => $customNotes ?: ('Transfer received from user #' . $transfer->user_id),
+                            'created_by' => (int) $transfer->user_id,
+                            'current_date' => now(),
+                            'active_status' => 1,
+                            'delete_status' => 0,
+                        ]);
+                    }
+                } elseif ($amount < 0) {
+                    $exists = Wallet::query()
+                        ->where('source_type', 'transfer_in_reversal')
+                        ->where('source_id', $transfer->id)
+                        ->where('user_id', $recipientUserId)
+                        ->where('transfer_type', 1)
+                        ->exists();
+
+                    if (! $exists) {
+                        Wallet::query()->create([
+                            'user_id' => $recipientUserId,
+                            'client_id' => 0,
+                            'project_id' => 0,
+                            'amount' => abs($amount),
+                            'payment_mode' => (int) ($transfer->payment_method_id ?? 1),
+                            'payment_method_id' => $transfer->payment_method_id ?? null,
+                            'transfer_type' => 1,
+                            'source_type' => 'transfer_in_reversal',
+                            'source_id' => (int) $transfer->id,
+                            'description' => $customNotes ?: ('Reversal of transfer received #' . $transfer->id),
+                            'created_by' => (int) $transfer->user_id,
+                            'current_date' => now(),
+                            'active_status' => 1,
+                            'delete_status' => 0,
+                        ]);
+                    }
+                }
+            }
             return;
         }
 

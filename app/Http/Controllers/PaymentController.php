@@ -268,10 +268,32 @@ class PaymentController extends Controller
         unset($validatedData['paid_at']);
 
         DB::transaction(function () use ($payment, $validatedData) {
-            $this->applyPaymentBalance($payment, -1);
-            $payment->update($this->buildPaymentPayload($validatedData));
+            $oldWasAffecting = in_array($payment->status, self::BALANCE_AFFECTING_STATUSES, true);
+            $oldAmount = round((float) $payment->amount, 2);
+            $oldProjectId = (int) $payment->project_id;
+
+            $payload = $this->buildPaymentPayload($validatedData);
+            $newStatus = $payload['status'] ?? $payment->status;
+            $newIsAffecting = in_array($newStatus, self::BALANCE_AFFECTING_STATUSES, true);
+            $newAmount = isset($payload['amount']) ? round((float) $payload['amount'], 2) : $oldAmount;
+            $newProjectId = isset($payload['project_id']) ? (int) $payload['project_id'] : $oldProjectId;
+
+            // Idempotency: If financial state did not change, update record without mutating balances or duplicating ledger
+            if ($oldWasAffecting === $newIsAffecting && $oldAmount === $newAmount && $oldProjectId === $newProjectId) {
+                $payment->update($payload);
+                return;
+            }
+
+            if ($oldWasAffecting) {
+                $this->applyPaymentBalance($payment, -1);
+            }
+
+            $payment->update($payload);
             $payment->refresh();
-            $this->applyPaymentBalance($payment, 1);
+
+            if ($newIsAffecting) {
+                $this->applyPaymentBalance($payment, 1);
+            }
         });
 
         return redirect()->route('payments.index')->with('success', 'Payment updated successfully.');
@@ -447,7 +469,7 @@ class PaymentController extends Controller
     private function buildPaymentPayload(array $validatedData): array
     {
         if (Schema::hasColumn('payments', 'payment_method')) {
-            $validatedData['payment_method'] = $validatedData['method'];
+            $validatedData['payment_method'] = $validatedData['method'] ?? null;
             unset($validatedData['method']);
         }
 
@@ -479,7 +501,7 @@ class PaymentController extends Controller
             return;
         }
 
-        $amount = (float) $payment->amount * $direction;
+        $amount = round((float) $payment->amount * $direction, 2);
         $balanceService = app(CrmBalanceService::class);
 
         if ($payment->project_id) {
@@ -491,12 +513,32 @@ class PaymentController extends Controller
         }
 
         $referenceId = (int) $payment->id;
+        $userId = (int) Auth::id();
+
         if ($amount > 0) {
-            $balanceService->creditUserWallet((int) Auth::id(), $amount, 'Payment income credit', 'payment', $referenceId);
-            $this->recordWalletHistory($payment, (int) Auth::id(), $amount, 0, 'Payment income credit');
+            $alreadyCredited = Wallet::query()
+                ->where('source_type', 'payment')
+                ->where('source_id', $referenceId)
+                ->where('transfer_type', 0)
+                ->where('amount', $amount)
+                ->exists();
+
+            if (! $alreadyCredited) {
+                $balanceService->creditUserWallet($userId, $amount, 'Payment income credit', 'payment', $referenceId);
+                $this->recordWalletHistory($payment, $userId, $amount, 0, 'Payment income credit', 'payment');
+            }
         } elseif ($amount < 0) {
-            $balanceService->debitUserWallet((int) Auth::id(), abs($amount), 'Payment income rollback debit', 'payment', $referenceId);
-            $this->recordWalletHistory($payment, (int) Auth::id(), abs($amount), 1, 'Payment income rollback debit');
+            $alreadyRolledBack = Wallet::query()
+                ->where('source_type', 'payment_rollback')
+                ->where('source_id', $referenceId)
+                ->where('transfer_type', 1)
+                ->where('amount', abs($amount))
+                ->exists();
+
+            if (! $alreadyRolledBack) {
+                $balanceService->debitUserWallet($userId, abs($amount), 'Payment income rollback debit', 'payment', $referenceId);
+                $this->recordWalletHistory($payment, $userId, abs($amount), 1, 'Payment income rollback debit', 'payment_rollback');
+            }
         }
     }
 
@@ -512,24 +554,39 @@ class PaymentController extends Controller
         return $totalAmount > 0 ? $totalAmount : $amount;
     }
 
-    private function recordWalletHistory(Payment $payment, int $userId, float $amount, int $transferType, string $description): void
+    private function recordWalletHistory(Payment $payment, int $userId, float $amount, int $transferType, string $description, string $sourceType = 'payment'): void
     {
         if ($amount <= 0 || ! Schema::hasTable('wallet')) {
             return;
         }
 
-        Wallet::query()->create([
+        $walletPayload = [
             'user_id' => $userId,
             'client_id' => (int) $payment->client_id,
             'project_id' => (int) $payment->project_id,
-            'amount' => (int) round($amount),
-            'payment_method_id' => $payment->payment_method_id,
+            'amount' => round($amount, 2),
+            'payment_mode' => (int) ($payment->payment_method_id ?? 1),
             'transfer_type' => $transferType,
             'stage_id' => $payment->stage_id,
             'description' => $description . ' - ' . ($payment->quotation?->quotation_number ?? $payment->payment_code ?? $payment->id),
             'current_date' => $payment->payment_date ?? Carbon::now(),
             'active_status' => 1,
             'delete_status' => 0,
-        ]);
+        ];
+
+        if (Schema::hasColumn('wallet', 'payment_method_id')) {
+            $walletPayload['payment_method_id'] = $payment->payment_method_id;
+        }
+        if (Schema::hasColumn('wallet', 'source_type')) {
+            $walletPayload['source_type'] = $sourceType;
+        }
+        if (Schema::hasColumn('wallet', 'source_id')) {
+            $walletPayload['source_id'] = (int) $payment->id;
+        }
+        if (Schema::hasColumn('wallet', 'created_by')) {
+            $walletPayload['created_by'] = $userId;
+        }
+
+        Wallet::query()->create($walletPayload);
     }
 }

@@ -94,11 +94,19 @@ class CrmBalanceService
 
     public function creditUserWallet(int $userId, float $amount, string $description = '', string $referenceType = 'wallet', int $referenceId = 0): void
     {
-        if ($amount <= 0.0) {
+        if ($amount <= 0.0 || ! Schema::hasColumn('users', 'wallet')) {
             return;
         }
 
-        $this->adjustColumn('users', $userId, 'wallet', $amount);
+        $wallet = (float) DB::table('users')
+            ->where('id', $userId)
+            ->lockForUpdate()
+            ->value('wallet');
+
+        DB::table('users')->where('id', $userId)->update([
+            'wallet' => round($wallet + $amount, 2),
+        ]);
+
         $this->syncEmployeeWalletFromUser($userId);
     }
 
@@ -121,8 +129,7 @@ class CrmBalanceService
             return;
         }
 
-        $this->adjustColumn('users', $userId, 'wallet', $amount);
-        $this->syncEmployeeWalletFromUser($userId);
+        $this->creditUserWallet($userId, $amount, 'Wallet credit', 'wallet', 0);
     }
 
     public function replaceUserWalletDebit(
@@ -137,25 +144,127 @@ class CrmBalanceService
         $oldAmount = round(max(0, $oldAmount), 2);
         $newAmount = round(max(0, $newAmount), 2);
 
+        // Case 1: Same user update or no-op
         if ($oldUserId && $newUserId && (int) $oldUserId === (int) $newUserId) {
             $diff = round($newAmount - $oldAmount, 2);
 
             if ($diff > 0) {
                 $this->debitUserWallet((int) $newUserId, $diff, $description, $referenceType, $referenceId);
+                $this->recordLedgerEntry(
+                    userId: (int) $newUserId,
+                    amount: $diff,
+                    transferType: 1, // debit
+                    sourceType: $referenceType . '_update',
+                    sourceId: $referenceId,
+                    description: $description ?: 'Expense payment update'
+                );
             } elseif ($diff < 0) {
                 $this->creditUserWallet((int) $newUserId, abs($diff), $description, $referenceType, $referenceId);
+                $this->recordLedgerEntry(
+                    userId: (int) $newUserId,
+                    amount: abs($diff),
+                    transferType: 0, // credit
+                    sourceType: $referenceType . '_update',
+                    sourceId: $referenceId,
+                    description: $description ?: 'Expense payment update refund'
+                );
             }
 
             return;
         }
 
+        // Case 2: Old user refund (delete or reassignment away)
         if ($oldUserId && $oldAmount > 0) {
             $this->creditUserWallet((int) $oldUserId, $oldAmount, $description, $referenceType, $referenceId);
+
+            $sourceType = (! $newUserId)
+                ? $referenceType . '_refund'
+                : $referenceType . '_reassign_refund';
+
+            $this->recordLedgerEntry(
+                userId: (int) $oldUserId,
+                amount: $oldAmount,
+                transferType: 0, // credit
+                sourceType: $sourceType,
+                sourceId: $referenceId,
+                description: $description ?: 'Expense refund'
+            );
         }
 
+        // Case 3: New user debit (create, restore, or reassignment to)
         if ($newUserId && $newAmount > 0) {
             $this->debitUserWallet((int) $newUserId, $newAmount, $description, $referenceType, $referenceId);
+
+            $isRestore = stripos($description, 'restore') !== false;
+            $sourceType = (! $oldUserId)
+                ? ($isRestore ? $referenceType . '_restore' : $referenceType)
+                : $referenceType . '_reassign_debit';
+
+            $this->recordLedgerEntry(
+                userId: (int) $newUserId,
+                amount: $newAmount,
+                transferType: 1, // debit
+                sourceType: $sourceType,
+                sourceId: $referenceId,
+                description: $description ?: 'Expense payment'
+            );
         }
+    }
+
+    public function recordLedgerEntry(
+        int $userId,
+        float $amount,
+        int $transferType,
+        string $sourceType,
+        int $sourceId,
+        string $description = '',
+        ?int $paymentMethodId = null,
+        ?int $projectId = null,
+        ?int $clientId = null
+    ): void {
+        if ($amount <= 0.0 || ! Schema::hasTable('wallet')) {
+            return;
+        }
+
+        $alreadyExists = Wallet::query()
+            ->where('user_id', $userId)
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('transfer_type', $transferType)
+            ->where('amount', round($amount, 2))
+            ->exists();
+
+        if ($alreadyExists) {
+            return;
+        }
+
+        $walletPayload = [
+            'user_id' => $userId,
+            'client_id' => $clientId ?? 0,
+            'project_id' => $projectId ?? 0,
+            'amount' => round($amount, 2),
+            'payment_mode' => $paymentMethodId ?? 1,
+            'transfer_type' => $transferType,
+            'description' => $description,
+            'current_date' => now(),
+            'active_status' => 1,
+            'delete_status' => 0,
+        ];
+
+        if (Schema::hasColumn('wallet', 'payment_method_id')) {
+            $walletPayload['payment_method_id'] = $paymentMethodId;
+        }
+        if (Schema::hasColumn('wallet', 'source_type')) {
+            $walletPayload['source_type'] = $sourceType;
+        }
+        if (Schema::hasColumn('wallet', 'source_id')) {
+            $walletPayload['source_id'] = $sourceId;
+        }
+        if (Schema::hasColumn('wallet', 'created_by')) {
+            $walletPayload['created_by'] = $userId;
+        }
+
+        Wallet::query()->create($walletPayload);
     }
 
     public function syncEmployeeWalletFromUser(int $userId): void

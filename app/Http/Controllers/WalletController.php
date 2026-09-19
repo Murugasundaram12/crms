@@ -112,7 +112,7 @@ class WalletController extends Controller
             'user_id' => ['nullable', 'exists:users,id'],
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
-            'amount' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method_id' => ['required', 'exists:payment_methods,id'],
             'transfer_type' => ['required', 'integer', 'in:0,1'],
             'stage_id' => ['nullable', 'exists:payment_stages,id'],
@@ -121,11 +121,11 @@ class WalletController extends Controller
             'time' => ['nullable', 'date_format:H:i'],
         ]);
 
-        $amount = (int) $validated['amount'];
+        $amount = round((float) $validated['amount'], 2);
         $actor = Auth::user();
-        $targetUser = ! blank($validated['user_id'] ?? null)
-            ? User::query()->findOrFail((int) $validated['user_id'])
-            : $actor;
+        $targetUserId = ! blank($validated['user_id'] ?? null)
+            ? (int) $validated['user_id']
+            : (int) $actor->id;
         $project = Project::query()->findOrFail((int) $validated['project_id']);
 
         if ((int) $project->client_id !== (int) $validated['client_id']) {
@@ -134,13 +134,14 @@ class WalletController extends Controller
             ]);
         }
 
-        if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
-            throw ValidationException::withMessages([
-                'amount' => 'Amount is insufficient',
-            ]);
-        }
+        DB::transaction(function () use ($validated, $amount, $targetUserId) {
+            $targetUser = User::query()->where('id', $targetUserId)->lockForUpdate()->firstOrFail();
 
-        DB::transaction(function () use ($validated, $amount, $targetUser) {
+            if ((int) $validated['transfer_type'] === 1 && $amount > (float) ($targetUser->wallet ?? 0)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Amount is insufficient',
+                ]);
+            }
             $dateTime = Carbon::parse($validated['current_date'] . ' ' . ($validated['time'] ?? now()->format('H:i')));
             $description = $validated['description'] ?? null;
 

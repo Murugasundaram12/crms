@@ -28,7 +28,7 @@ class Wallet extends Model
     ];
 
     protected $casts = [
-        'amount' => 'integer',
+        'amount' => 'decimal:2',
         'current_date' => 'datetime',
         'active_status' => 'integer',
         'delete_status' => 'integer',

@@ -8,11 +8,13 @@ use App\Models\ExpenseUnpaidDate;
 use App\Models\MainCategory;
 use App\Models\Project;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class UnpaidExpensesController extends Controller
 {
@@ -71,11 +73,17 @@ class UnpaidExpensesController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $expense = Expense::query()->whereNull('deleted_at')->findOrFail((int) $validated['expense_id']);
         $payAmount = round((float) $validated['paid_amount'], 2);
 
-        DB::transaction(function () use ($expense, $payAmount, $validated) {
-            $settlement = round(min($payAmount, (float) $expense->unpaid_amt), 2);
+        DB::transaction(function () use ($validated, $payAmount) {
+            $expense = Expense::query()->whereNull('deleted_at')->lockForUpdate()->findOrFail((int) $validated['expense_id']);
+            $unpaidAmt = round((float) $expense->unpaid_amt, 2);
+
+            if ($unpaidAmt <= 0) {
+                return;
+            }
+
+            $settlement = round(min($payAmount, $unpaidAmt), 2);
 
             if ($settlement <= 0) {
                 return;
@@ -92,9 +100,28 @@ class UnpaidExpensesController extends Controller
 
             app(CrmBalanceService::class)->debitUserWallet((int) Auth::id(), $settlement, 'Unpaid expense settlement', 'expense_unpaid_settlement', (int) $expense->id);
 
+            if (Schema::hasTable('wallet')) {
+                Wallet::query()->create([
+                    'user_id' => (int) Auth::id(),
+                    'client_id' => (int) ($expense->client_id ?? 0),
+                    'project_id' => (int) ($expense->project_id ?? 0),
+                    'amount' => $settlement,
+                    'payment_mode' => (int) ($expense->payment_method_id ?? 1),
+                    'payment_method_id' => $expense->payment_method_id ?? null,
+                    'transfer_type' => 1,
+                    'source_type' => 'expense_unpaid_settlement',
+                    'source_id' => (int) $expense->id,
+                    'description' => $validated['notes'] ?? ('Unpaid expense settlement - ' . ($expense->expense_name ?? '#' . $expense->id)),
+                    'created_by' => (int) Auth::id(),
+                    'current_date' => now(),
+                    'active_status' => 1,
+                    'delete_status' => 0,
+                ]);
+            }
+
             $expense->update([
                 'paid_amt' => round((float) $expense->paid_amt + $settlement, 2),
-                'unpaid_amt' => round(max((float) $expense->unpaid_amt - $settlement, 0), 2),
+                'unpaid_amt' => round(max($unpaidAmt - $settlement, 0), 2),
                 'editedBy' => Auth::id(),
             ]);
         });

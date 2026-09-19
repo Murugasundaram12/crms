@@ -63,7 +63,7 @@ class EmployeeSalaryController extends Controller
                     'user_id' => $payer->id,
                     'client_id' => 0,
                     'project_id' => 0,
-                    'amount' => (int) round($paidAmount),
+                    'amount' => round($paidAmount, 2),
                     'payment_mode' => $validatedData['payment_method_id'] ?? 1,
                     'payment_method_id' => $validatedData['payment_method_id'] ?? null,
                     'transfer_type' => 1,
@@ -116,7 +116,7 @@ class EmployeeSalaryController extends Controller
                 ->where('source_type', 'employee_salary')
                 ->where('source_id', $employeeSalary->id)
                 ->update([
-                    'amount' => (int) round($newPaidAmount),
+                    'amount' => round($newPaidAmount, 2),
                     'payment_method_id' => $validatedData['payment_method_id'] ?? null,
                     'description' => 'Paid Employee Salary to ' . $validatedData['name'] . ' for period ' . ($validatedData['salary_period'] ?? 'N/A'),
                 ]);
