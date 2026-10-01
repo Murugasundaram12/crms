@@ -17,7 +17,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('categories-create')
-                <a href="{{ route('categories.import.form') }}" class="btn btn-outline-primary">Import</a>
+                @include('partials.excel-import-modal', ['module'=>'categories','action'=>route('categories.import'),'sampleUrl'=>route('excel.import.sample','categories'),'title'=>'Categories'])
                 <a href="{{ route('categories.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Category
                 </a>

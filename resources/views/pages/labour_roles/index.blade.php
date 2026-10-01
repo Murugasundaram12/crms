@@ -17,7 +17,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('labour-roles-create')
-                <a href="{{ route('labour_roles.import.form') }}" class="btn btn-outline-primary">Import</a>
+                @include('partials.excel-import-modal', ['module'=>'labour_roles','action'=>route('labour_roles.import'),'sampleUrl'=>route('excel.import.sample','labour_roles'),'title'=>'Labour Roles'])
                 <a href="{{ route('labour_roles.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Labour Role
                 </a>

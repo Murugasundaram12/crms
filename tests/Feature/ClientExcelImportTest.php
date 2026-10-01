@@ -107,6 +107,27 @@ class ClientExcelImportTest extends TestCase
         $this->assertDatabaseHas('clients', ['name' => 'CSV Client']);
     }
 
+    public function test_legacy_client_columns_are_mapped_and_invalid_phone_is_rejected(): void
+    {
+        $result = $this->import([
+            ['first_name', 'last_name', 'email', 'company_name', 'address', 'phone', 'active_status', 'delete_status', 'created_at', 'updated_at'],
+            ['Legacy', 'Client', 'legacy@example.com', 'Legacy Co', 'Legacy Address', '9876543212', 1, 0, '2020-01-01', '2020-01-02'],
+            ['OnlyFirst', '', 'first@example.com', '', '', '9876543213', 1, 0, '', ''],
+            ['', 'OnlyLast', 'last@example.com', '', '', '9876543214', 0, 1, '', ''],
+            ['Invalid', 'Phone', 'invalid@example.com', '', '', '0000000000', 1, 0, '', ''],
+        ]);
+
+        $this->assertSame(3, $result->imported_rows);
+        $this->assertSame(0, $result->skipped_rows);
+        $this->assertSame(1, $result->failed_rows);
+        $this->assertSame(4, $result->total_rows);
+        $this->assertSame(4, $result->errors[0]['row']);
+        $this->assertDatabaseHas('clients', ['name' => 'Legacy Client', 'status' => 'active', 'company_name' => 'Legacy Co']);
+        $this->assertDatabaseHas('clients', ['name' => 'OnlyFirst', 'status' => 'active']);
+        $this->assertDatabaseHas('clients', ['name' => 'OnlyLast', 'status' => 'inactive']);
+        $this->assertDatabaseMissing('clients', ['email' => 'invalid@example.com']);
+    }
+
     private function import(array $rows, string $format = 'xlsx'): ExcelImport
     {
         $spreadsheet = new Spreadsheet();

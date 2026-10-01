@@ -1,107 +1,31 @@
 <?php
 namespace App\Http\Controllers;
 use App\Services\Excel\ExcelImportService;
-use App\Services\Excel\Imports\ClientImport;
-use App\Services\Excel\Imports\EmployeeImport;
-use App\Services\Excel\Imports\ProjectImport;
-use App\Services\Excel\Imports\VendorImport;
-use App\Services\Excel\Imports\LabourImport;
-use App\Services\Excel\Imports\LabourRoleImport;
-use App\Services\Excel\Imports\MainCategoryImport;
-use App\Services\Excel\Imports\CategoryImport;
-use App\Services\Excel\Imports\UnitImport;
-use App\Services\Excel\Imports\PaymentMethodImport;
-use App\Services\Excel\Imports\PaymentStageImport;
-use App\Services\Excel\Imports\TaskImport;
-use App\Services\Excel\Imports\ToolMaterialImport;
+use App\Services\Excel\Imports\{CategoryImport,ClientImport,EmployeeImport,ExpenseImport,LabourImport,LabourRoleImport,MainCategoryImport,PaymentMethodImport,PaymentStageImport,ProjectImport,TaskImport,ToolMaterialImport,UnitImport,VendorImport};
 use Illuminate\Http\Request;
 class ExcelImportController extends Controller
 {
-    public function clients() { return view('pages.excel.import', ['module'=>'clients','title'=>'Client Import','action'=>route('clients.import')]); }
-    public function importClients(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $path = $file->getRealPath(); $result = $service->run($path, $file->getClientOriginalName(), (int)auth()->id(), new ClientImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function employees() { return view('pages.excel.import', ['module'=>'employees','title'=>'Employee Import','action'=>route('employees.import')]); }
-    public function importEmployees(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file');
-        $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new EmployeeImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function projects() { return view('pages.excel.import', ['module'=>'projects','title'=>'Project Import','action'=>route('projects.import')]); }
-    public function importProjects(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new ProjectImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function vendors() { return view('pages.excel.import', ['module'=>'vendors','title'=>'Vendor Import','action'=>route('vendors.import')]); }
-    public function importVendors(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new VendorImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function labours() { return view('pages.excel.import', ['module'=>'labours','title'=>'Labour Import','action'=>route('labours.import')]); }
-    public function importLabours(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new LabourImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function labourRoles() { return view('pages.excel.import', ['module'=>'labour_roles','title'=>'Labour Role Import','action'=>route('labour_roles.import')]); }
-    public function importLabourRoles(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new LabourRoleImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function mainCategories() { return view('pages.excel.import', ['module'=>'main_categories','title'=>'Main Category Import','action'=>route('main_categories.import')]); }
-    public function importMainCategories(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new MainCategoryImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function categories() { return view('pages.excel.import', ['module'=>'categories','title'=>'Category Import','action'=>route('categories.import')]); }
-    public function importCategories(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new CategoryImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function units() { return view('pages.excel.import', ['module'=>'units','title'=>'Unit Import','action'=>route('units.import')]); }
-    public function importUnits(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new UnitImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-
-    public function paymentMethods() { return view('pages.excel.import', ['module'=>'payment_methods','title'=>'Payment Method Import','action'=>route('payment-methods.import')]); }
-    public function importPaymentMethods(Request $request, ExcelImportService $service)
-    {
-        $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);
-        $file = $request->file('file'); $result = $service->run($file->getRealPath(), $file->getClientOriginalName(), (int) auth()->id(), new PaymentMethodImport());
-        return back()->with($result->status === 'failed' ? 'error' : 'success', "Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed.");
-    }
-    private function import(Request $request, ExcelImportService $service, object $definition) { $request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]); $file=$request->file('file'); $result=$service->run($file->getRealPath(),$file->getClientOriginalName(),(int)auth()->id(),$definition); return back()->with($result->status==='failed'?'error':'success',"Import {$result->status}: {$result->imported_rows} imported, {$result->failed_rows} failed."); }
-    public function paymentStages(){return view('pages.excel.import',['module'=>'payment_stages','title'=>'Payment Stage Import','action'=>route('payment-stages.import')]);}
-    public function importPaymentStages(Request $r,ExcelImportService $s){return $this->import($r,$s,new PaymentStageImport());}
-    public function tasks(){return view('pages.excel.import',['module'=>'tasks','title'=>'Task Import','action'=>route('tasks.import')]);}
-    public function importTasks(Request $r,ExcelImportService $s){return $this->import($r,$s,new TaskImport());}
-    public function toolsMaterials(){return view('pages.excel.import',['module'=>'tools_materials','title'=>'Tools / Materials Import','action'=>route('tools-materials.import')]);}
-    public function importToolsMaterials(Request $r,ExcelImportService $s){return $this->import($r,$s,new ToolMaterialImport());}
+    public function clients(){return view('pages.excel.import',['module'=>'clients','title'=>'Client Import','action'=>route('clients.import')]);}
+    public function importClients(Request $request,ExcelImportService $service){$request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);$file=$request->file('file');$result=$service->run($file->getRealPath(),$file->getClientOriginalName(),(int)auth()->id(),new ClientImport());return redirect()->route('clients.index')->with('client_import_result',['status'=>$result->status,'imported'=>$result->created_rows??$result->imported_rows,'updated'=>$result->updated_rows??0,'skipped'=>$result->skipped_rows,'failed'=>$result->failed_rows,'errors'=>$result->errors??[]]);}
+    public function clientSample(){ $s=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$s->getActiveSheet()->fromArray([['Name','Mobile Number','Email','Company','Address','City','State','Country','Status','Notes'],['Sample Client','+91 98765 43210','sample@example.com','Sample Company','Address','Chennai','Tamil Nadu','India','active','']]);$w=new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($s);return response()->streamDownload(function()use($w,$s){$w->save('php://output');$s->disconnectWorksheets();},'client-import-sample.xlsx',['Content-Type'=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);}
+    public function expenses(){return view('pages.excel.import',['module'=>'expenses','title'=>'Expense Import','action'=>route('expenses.import')]);}
+    public function importExpenses(Request $request,ExcelImportService $service){$request->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);$file=$request->file('file');$result=$service->run($file->getRealPath(),$file->getClientOriginalName(),(int)auth()->id(),new ExpenseImport());$payload=['status'=>$result->status,'imported'=>$result->created_rows??$result->imported_rows,'updated'=>$result->updated_rows??0,'skipped'=>$result->skipped_rows,'failed'=>$result->failed_rows,'errors'=>$result->errors??[]];return redirect()->route('expenses.history')->with('excel_import_result_expenses',$payload)->with('expense_import_result',$payload);}
+    public function expenseSample(){$s=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$s->getActiveSheet()->fromArray([['Paid Date','Main Category','Category Name','Project Name','Amount','Paid Amount','Payment Mode','Description'],[now()->format('Y-m-d'),'CIVIL','TEST','Demo House Construction','1500.00','1500.00','CASH','Sample site expense']]);$w=new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($s);return response()->streamDownload(function()use($w,$s){$w->save('php://output');$s->disconnectWorksheets();},'expense-import-sample.xlsx',['Content-Type'=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);}
+    public function employees(){return view('pages.excel.import',['module'=>'employees','title'=>'Employee Import','action'=>route('employees.import')]);} public function importEmployees(Request $r,ExcelImportService $s){return $this->import($r,$s,new EmployeeImport());}
+    public function projects(){return view('pages.excel.import',['module'=>'projects','title'=>'Project Import','action'=>route('projects.import')]);} public function importProjects(Request $r,ExcelImportService $s){return $this->import($r,$s,new ProjectImport());}
+    public function vendors(){return view('pages.excel.import',['module'=>'vendors','title'=>'Vendor Import','action'=>route('vendors.import')]);} public function importVendors(Request $r,ExcelImportService $s){return $this->import($r,$s,new VendorImport());}
+    public function labours(){return view('pages.excel.import',['module'=>'labours','title'=>'Labour Import','action'=>route('labours.import')]);} public function importLabours(Request $r,ExcelImportService $s){return $this->import($r,$s,new LabourImport());}
+    public function labourRoles(){return view('pages.excel.import',['module'=>'labour_roles','title'=>'Labour Role Import','action'=>route('labour_roles.import')]);} public function importLabourRoles(Request $r,ExcelImportService $s){return $this->import($r,$s,new LabourRoleImport());}
+    public function mainCategories(){return view('pages.excel.import',['module'=>'main_categories','title'=>'Main Category Import','action'=>route('main_categories.import')]);} public function importMainCategories(Request $r,ExcelImportService $s){return $this->import($r,$s,new MainCategoryImport());}
+    public function categories(){return view('pages.excel.import',['module'=>'categories','title'=>'Category Import','action'=>route('categories.import')]);} public function importCategories(Request $r,ExcelImportService $s){return $this->import($r,$s,new CategoryImport());}
+    public function units(){return view('pages.excel.import',['module'=>'units','title'=>'Unit Import','action'=>route('units.import')]);} public function importUnits(Request $r,ExcelImportService $s){return $this->import($r,$s,new UnitImport());}
+    public function paymentMethods(){return view('pages.excel.import',['module'=>'payment_methods','title'=>'Payment Method Import','action'=>route('payment-methods.import')]);} public function importPaymentMethods(Request $r,ExcelImportService $s){return $this->import($r,$s,new PaymentMethodImport());}
+    public function paymentStages(){return view('pages.excel.import',['module'=>'payment_stages','title'=>'Payment Stage Import','action'=>route('payment-stages.import')]);} public function importPaymentStages(Request $r,ExcelImportService $s){return $this->import($r,$s,new PaymentStageImport());}
+    public function tasks(){return view('pages.excel.import',['module'=>'tasks','title'=>'Task Import','action'=>route('tasks.import')]);} public function importTasks(Request $r,ExcelImportService $s){return $this->import($r,$s,new TaskImport());}
+    public function toolsMaterials(){return view('pages.excel.import',['module'=>'tools_materials','title'=>'Tools / Materials Import','action'=>route('tools-materials.import')]);} public function importToolsMaterials(Request $r,ExcelImportService $s){return $this->import($r,$s,new ToolMaterialImport());}
+    public function sample(string $module){if($module==='expenses')return $this->expenseSample();$definitions=$this->definitions();abort_unless(isset($definitions[$module])&&auth()->user()->can($this->permissionFor($module)),403);$headers=array_map(fn($h)=>ucwords(str_replace(['_','-'],' ',$h)),$definitions[$module]->requiredHeaders());$s=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$s->getActiveSheet()->fromArray([$headers,array_fill(0,count($headers),'')]);$w=new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($s);return response()->streamDownload(function()use($w,$s){$w->save('php://output');$s->disconnectWorksheets();},$module.'-import-sample.xlsx',['Content-Type'=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);}
+    private function import(Request $r,ExcelImportService $s,object $definition){$r->validate(['file'=>['required','file','mimes:xlsx,xls,csv','max:10240']]);$file=$r->file('file');$result=$s->run($file->getRealPath(),$file->getClientOriginalName(),(int)auth()->id(),$definition);return redirect()->route($this->indexRoute($definition->module()))->with('excel_import_result_'.$definition->module(),['status'=>$result->status,'imported'=>$result->created_rows??$result->imported_rows,'updated'=>$result->updated_rows??0,'skipped'=>$result->skipped_rows,'failed'=>$result->failed_rows,'errors'=>$result->errors??[]]);}
+    private function definitions():array{return ['employees'=>new EmployeeImport(),'projects'=>new ProjectImport(),'vendors'=>new VendorImport(),'labours'=>new LabourImport(),'labour_roles'=>new LabourRoleImport(),'main_categories'=>new MainCategoryImport(),'categories'=>new CategoryImport(),'units'=>new UnitImport(),'payment_methods'=>new PaymentMethodImport(),'payment_stages'=>new PaymentStageImport(),'tasks'=>new TaskImport(),'tools_materials'=>new ToolMaterialImport(),'expenses'=>new ExpenseImport()];}
+    private function indexRoute(string $m):string{return ['employees'=>'employees.index','projects'=>'projects.index','vendors'=>'vendors.index','labours'=>'labours.index','labour_roles'=>'labour_roles.index','main_categories'=>'main_categories.index','categories'=>'categories.index','units'=>'units.index','payment_methods'=>'payment-methods.index','payment_stages'=>'payment-stages.index','tasks'=>'tasks.index','tools_materials'=>'tools-materials.index','expenses'=>'expenses.history'][$m];}
+    private function permissionFor(string $m):string{return str_replace('_','-',$m).'-create';}
 }

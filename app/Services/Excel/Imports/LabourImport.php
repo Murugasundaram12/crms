@@ -12,6 +12,7 @@ class LabourImport implements ExcelImportDefinition
 {
     public function module(): string { return 'labours'; }
     public function requiredHeaders(): array { return ['name', 'phonenumber', 'labourrole', 'gender', 'salary']; }
+    public function aliases(): array { return ['mobile'=>'phonenumber','mobilenumber'=>'phonenumber','phone'=>'phonenumber','contactnumber'=>'phonenumber','job'=>'jobtitle','role'=>'labourrole']; }
 
     public function importRow(array $row, int $rowNumber): string
     {

@@ -13,6 +13,7 @@ class EmployeeImport implements ExcelImportDefinition
 {
     public function module(): string { return 'employees'; }
     public function requiredHeaders(): array { return ['name', 'email', 'role', 'address', 'hiredate', 'status', 'password']; }
+    public function aliases(): array { return ['employeename'=>'name','mobile'=>'phone','mobilenumber'=>'phone','phonenumber'=>'phone','contactnumber'=>'phone','joiningdate'=>'hiredate']; }
 
     public function importRow(array $row, int $rowNumber): string
     {

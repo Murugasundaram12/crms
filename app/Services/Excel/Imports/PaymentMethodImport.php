@@ -12,6 +12,7 @@ class PaymentMethodImport implements ExcelImportDefinition
 {
     public function module(): string { return 'payment_methods'; }
     public function requiredHeaders(): array { return ['name']; }
+    public function aliases(): array { return ['paymentmethod'=>'name','paymentmethodname'=>'name','paymentcode'=>'code','sortorder'=>'sortorder']; }
     public function importRow(array $row, int $rowNumber): string
     {
         $name = trim((string) ($row['name'] ?? ''));

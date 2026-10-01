@@ -103,6 +103,10 @@ trait MobileClientProjectEndpoints
             return $forbidden;
         }
 
+        if (! $this->canAccessClient($request->user(), $client)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $client->update($this->validateClientData($request, $client));
 
         return response()->json([
@@ -115,6 +119,10 @@ trait MobileClientProjectEndpoints
     {
         if ($forbidden = $this->authorizeApiPermission($request, 'clients-delete')) {
             return $forbidden;
+        }
+
+        if (! $this->canAccessClient($request->user(), $client)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         if ($client->projects()->exists() || $client->payments()->exists()) {
@@ -219,6 +227,10 @@ trait MobileClientProjectEndpoints
             return $forbidden;
         }
 
+        if (! $this->canAccessProject($request->user(), $project)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $project->update($this->validateProjectData($request, $project));
 
         return response()->json([
@@ -233,6 +245,10 @@ trait MobileClientProjectEndpoints
             return $forbidden;
         }
 
+        if (! $this->canAccessProject($request->user(), $project)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         if ($project->tasks()->exists() || $project->payments()->exists() || $project->expenses()->exists()) {
             return response()->json(['message' => 'Project has related records. Mark it cancelled/completed instead.'], 409);
         }
@@ -242,4 +258,3 @@ trait MobileClientProjectEndpoints
         return response()->json(['message' => 'Project deleted successfully.']);
     }
 }
-

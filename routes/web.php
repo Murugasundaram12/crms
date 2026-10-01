@@ -64,7 +64,6 @@ Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail'])->
 Route::get('/reset-password/{token}', [AuthController::class, 'showResetPasswordForm'])->name('password.reset');
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset')->name('password.update');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-Route::get('/logout', [AuthController::class, 'logout'])->name('logout.get');
 
 Route::prefix('server-commands')->middleware(['auth', 'permission:permissions-edit'])->group(function () {
     Route::get('optimize', function () {
@@ -83,8 +82,12 @@ Route::middleware('auth')->group(function () {
             ->name('index');
         Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
         Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
-        Route::get('/labours/available', [LabourAttendanceController::class, 'summaryJson'])->name('labours.available');
-        Route::post('/labours', [LabourAttendanceController::class, 'store'])->name('labours.store');
+        Route::get('/labours/available', [LabourAttendanceController::class, 'summaryJson'])
+            ->middleware('permission:attendance-list')
+            ->name('labours.available');
+        Route::post('/labours', [LabourAttendanceController::class, 'store'])
+            ->middleware('permission:attendance-list')
+            ->name('labours.store');
         Route::delete('/{attendance}', [AttendanceController::class, 'destroy'])
             ->middleware('permission:attendance-list')
             ->name('destroy');
@@ -195,15 +198,15 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('projects')->name('projects.')->group(function () {
+        Route::middleware('permission:projects-create')->group(function () {
+            Route::get('/create', [ProjectController::class, 'create'])->name('create');
+            Route::post('/store', [ProjectController::class, 'store'])->name('store');
+        });
         Route::middleware('permission:projects-list')->group(function () {
             Route::get('/', [ProjectController::class, 'index'])->name('index');
             Route::get('/{project}', [ProjectController::class, 'show'])->name('show');
             Route::get('/{project}/final-bill', [ProjectController::class, 'finalBill'])->name('final-bill');
             Route::get('/{project}/invoice', [ProjectPdfController::class, 'generate'])->name('invoice');
-        });
-        Route::middleware('permission:projects-create')->group(function () {
-            Route::get('/create', [ProjectController::class, 'create'])->name('create');
-            Route::post('/store', [ProjectController::class, 'store'])->name('store');
         });
         Route::middleware('permission:projects-edit')->group(function () {
             Route::get('/{project}/edit', [ProjectController::class, 'edit'])->name('edit');
@@ -441,13 +444,13 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('tasks')->name('tasks.')->group(function () {
-        Route::middleware('permission:tasks-list')->group(function () {
-            Route::get('/', [TaskController::class, 'index'])->name('index');
-            Route::get('/{task}', [TaskController::class, 'show'])->name('show');
-        });
         Route::middleware('permission:tasks-create')->group(function () {
             Route::get('/create', [TaskController::class, 'create'])->name('create');
             Route::post('/store', [TaskController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:tasks-list')->group(function () {
+            Route::get('/', [TaskController::class, 'index'])->name('index');
+            Route::get('/{task}', [TaskController::class, 'show'])->name('show');
         });
         Route::middleware('permission:tasks-edit')->group(function () {
             Route::get('/{task}/edit', [TaskController::class, 'edit'])->name('edit');
@@ -785,8 +788,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/excel/import', [ExpenseImportController::class, 'import'])
         ->middleware('permission:expenses-create')
         ->name('excel.import');
+    Route::get('/excel/import/sample/{module}', [ExcelImportController::class, 'sample'])
+        ->name('excel.import.sample');
     Route::get('/clients/import', [ExcelImportController::class, 'clients'])->middleware('permission:clients-create')->name('clients.import.form');
+    Route::get('/clients/import/sample', [ExcelImportController::class, 'clientSample'])->middleware('permission:clients-create')->name('clients.import.sample');
     Route::post('/clients/import', [ExcelImportController::class, 'importClients'])->middleware('permission:clients-create')->name('clients.import');
+    Route::get('/expenses/import', [ExcelImportController::class, 'expenses'])->middleware('permission:expenses-create')->name('expenses.import.form');
+    Route::get('/expenses/import/sample', [ExcelImportController::class, 'expenseSample'])->middleware('permission:expenses-create')->name('expenses.import.sample');
+    Route::post('/expenses/import', [ExcelImportController::class, 'importExpenses'])->middleware('permission:expenses-create')->name('expenses.import');
     Route::get('/employees/import', [ExcelImportController::class, 'employees'])->middleware('permission:employees-create')->name('employees.import.form');
     Route::post('/employees/import', [ExcelImportController::class, 'importEmployees'])->middleware('permission:employees-create')->name('employees.import');
     Route::get('/projects/import', [ExcelImportController::class, 'projects'])->middleware('permission:projects-create')->name('projects.import.form');

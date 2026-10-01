@@ -11,6 +11,7 @@ class UnitImport implements ExcelImportDefinition
 {
     public function module(): string { return 'units'; }
     public function requiredHeaders(): array { return ['name', 'code']; }
+    public function aliases(): array { return ['unitname'=>'name','unitcode'=>'code','isactive'=>'activestatus']; }
     public function importRow(array $row, int $rowNumber): string
     {
         $data = ['name'=>$row['name'] ?? null, 'code'=>$row['code'] ?? null, 'description'=>$row['description'] ?? null, 'active_status'=>$row['activestatus'] ?? true];

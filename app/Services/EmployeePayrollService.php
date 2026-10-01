@@ -83,8 +83,10 @@ class EmployeePayrollService
 
                 if ($isHalfDay) {
                     $halfDays++;
-                } else {
+                } elseif ($status === 'present') {
                     $presentDays++;
+                } else {
+                    $absentDays++;
                 }
             } else {
                 $absentDays++;

@@ -37,6 +37,14 @@
             <form action="{{ route('labour-salaries.update', $labourSalary) }}" method="POST">
                 @csrf
                 @method('PUT')
+                @php
+                    $existingAttendanceIds = $labourSalary->attendances()->pluck('id')->all();
+                @endphp
+                <div id="attendance_ids_container">
+                    @foreach(old('attendance_ids', $existingAttendanceIds) as $attId)
+                        <input type="hidden" name="attendance_ids[]" value="{{ $attId }}">
+                    @endforeach
+                </div>
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label class="form-label required">Labour</label>

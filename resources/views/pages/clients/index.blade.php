@@ -5,6 +5,17 @@
 @section('content')
     @include('partials.alerts')
 
+    @if (session('client_import_result'))
+        @php($importResult = session('client_import_result'))
+        <div class="alert alert-{{ $importResult['failed'] ? 'warning' : 'success' }} border-0 shadow-sm">
+            <div class="fw-semibold mb-1">Client import {{ str_replace('_', ' ', $importResult['status']) }}</div>
+            <div>Imported: {{ $importResult['imported'] }} &nbsp; Updated: {{ $importResult['updated'] }} &nbsp; Skipped: {{ $importResult['skipped'] }} &nbsp; Failed: {{ $importResult['failed'] }}</div>
+            @if ($importResult['errors'])
+                <details class="mt-2"><summary>Show row issues</summary><ul class="mb-0 mt-2">@foreach ($importResult['errors'] as $error)<li>Row {{ $error['row'] ?? '-' }}: {{ $error['message'] }}</li>@endforeach</ul></details>
+            @endif
+        </div>
+    @endif
+
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">
         <div>
             <h4 class="mb-1">Clients<span class="badge badge-soft-primary ms-2">{{ $clients->total() }}</span></h4>
@@ -19,7 +30,7 @@
             @can('clients-create')
                 <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add Clients</a>
-                <a href="{{ route('clients.import.form') }}" class="btn btn-outline-primary">Import</a>
+                <a href="#clientImportModal" data-bs-toggle="modal" class="btn btn-outline-primary">Import</a>
             @endcan
         </div>
     </div>
@@ -230,5 +241,25 @@
             </div>
         </div>
     @endforeach
+    @endcan
+
+    @can('clients-create')
+        <div class="modal fade" id="clientImportModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header"><h5 class="modal-title">Import Clients</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <form action="{{ route('clients.import') }}" method="POST" enctype="multipart/form-data">
+                            @csrf
+                            <label class="form-label">Excel / CSV file</label>
+                            <input class="form-control mb-2" type="file" name="file" accept=".xlsx,.xls,.csv" required>
+                            <div class="form-text mb-3">Required columns: Name, Phone and Status. Empty status defaults to Active.</div>
+                            <a href="{{ route('clients.import.sample') }}" class="btn btn-link px-0">Download sample Excel</a>
+                            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Import</button></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     @endcan
 @endsection

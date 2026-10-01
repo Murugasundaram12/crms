@@ -49,13 +49,12 @@ class AttendanceController extends Controller
         $user = $request->user();
         $today = now()->toDateString();
 
-        $openAttendance = Attendance::query()
+        $existingAttendance = Attendance::query()
             ->where('user_id', $user->id)
             ->whereDate('attendance_date', $today)
-            ->whereNull('check_out_at')
             ->first();
 
-        if ($openAttendance) {
+        if ($existingAttendance) {
             return redirect()->route('dashboard')->with('error', 'You have already checked in today.');
         }
 

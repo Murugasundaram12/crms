@@ -204,7 +204,14 @@ class EmployeeSalaryController extends Controller
     {
         $validated = $request->validate([
             'user_id' => ['required', 'exists:users,id'],
-            'salary_period' => ['required', 'string', 'max:50'],
+            'salary_period' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('employee_salaries', 'salary_period')
+                    ->where('user_id', $request->input('user_id'))
+                    ->ignore($employeeSalary?->id),
+            ],
             'salary_amount' => ['required', 'numeric', 'min:0'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['required', 'date'],

@@ -117,7 +117,7 @@ class ArtisanTrackingSampleTest extends TestCase
 
         // 2. Create an untagged tracking point (simulate real data)
         $realAttendance = Attendance::create([
-            'user_id' => $this->testUser->id,
+            'user_id' => $this->realUser->id,
             'attendance_date' => $date,
             'check_in_at' => now(),
             'notes' => 'real notes',

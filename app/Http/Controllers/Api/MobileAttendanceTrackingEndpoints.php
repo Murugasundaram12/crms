@@ -568,7 +568,7 @@ trait MobileAttendanceTrackingEndpoints
 
         return response()->json([
             'message' => 'Messaging token updated successfully.',
-            'device' => $this->devicePayload($device->refresh()),
+            'device' => $this->devicePayload($device->refresh(), true),
         ]);
     }
 

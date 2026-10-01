@@ -12,6 +12,7 @@ class VendorImport implements ExcelImportDefinition
 {
     public function module(): string { return 'vendors'; }
     public function requiredHeaders(): array { return ['name']; }
+    public function aliases(): array { return ['vendorname'=>'name','mobile'=>'phone','mobilenumber'=>'phone','phonenumber'=>'phone','contactnumber'=>'phone']; }
 
     public function importRow(array $row, int $rowNumber): string
     {

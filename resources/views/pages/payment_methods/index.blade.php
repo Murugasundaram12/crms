@@ -16,7 +16,7 @@
             </nav>
         </div>
         @if(auth()->user()->hasPermission('payment-methods-create'))
-            <a href="{{ route('payment-methods.import.form') }}" class="btn btn-outline-primary">Import</a>
+            @include('partials.excel-import-modal', ['module'=>'payment_methods','action'=>route('payment-methods.import'),'sampleUrl'=>route('excel.import.sample','payment_methods'),'title'=>'Payment Methods'])
             <a href="{{ route('payment-methods.create') }}" class="btn btn-primary shadow-sm">
                 <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Payment Method
             </a>

@@ -4,7 +4,7 @@
 @section('content_class', 'pb-0')
 
 @section('content')
-    @can('tasks-create')<a href="{{ route('tasks.import.form') }}" class="btn btn-outline-primary mb-3">Import</a>@endcan
+    @can('tasks-create') @include('partials.excel-import-modal', ['module'=>'tasks','action'=>route('tasks.import'),'sampleUrl'=>route('excel.import.sample','tasks'),'title'=>'Tasks']) @endcan
     @include('partials.alerts')
 
     <div class="d-flex align-items-center justify-content-between gap-2 mb-4 flex-wrap">

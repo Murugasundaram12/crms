@@ -13,6 +13,7 @@ class ProjectImport implements ExcelImportDefinition
 {
     public function module(): string { return 'projects'; }
     public function requiredHeaders(): array { return ['projectcode','client','name','type','priority','status']; }
+    public function aliases(): array { return ['projectnumber'=>'projectcode','clientname'=>'client','projecttitle'=>'name','projecttype'=>'type','projectstatus'=>'status']; }
 
     public function importRow(array $row, int $rowNumber): string
     {

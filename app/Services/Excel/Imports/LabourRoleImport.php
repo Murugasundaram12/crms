@@ -11,6 +11,7 @@ class LabourRoleImport implements ExcelImportDefinition
 {
     public function module(): string { return 'labour_roles'; }
     public function requiredHeaders(): array { return ['name', 'salarytype', 'salary']; }
+    public function aliases(): array { return ['rolename'=>'name','salaryfrequency'=>'salarytype','amount'=>'salary']; }
     public function importRow(array $row, int $rowNumber): string
     {
         $data = ['name'=>$row['name'] ?? null, 'salary_type'=>$row['salarytype'] ?? null, 'salary'=>$row['salary'] ?? null];

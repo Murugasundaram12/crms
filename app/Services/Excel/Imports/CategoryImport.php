@@ -12,6 +12,7 @@ class CategoryImport implements ExcelImportDefinition
 {
     public function module(): string { return 'categories'; }
     public function requiredHeaders(): array { return ['name', 'maincategory']; }
+    public function aliases(): array { return ['categoryname'=>'name','maincategoryname'=>'maincategory','parentcategory'=>'maincategory']; }
     public function importRow(array $row, int $rowNumber): string
     {
         $data = ['name'=>$row['name'] ?? null, 'main_category_id'=>null];

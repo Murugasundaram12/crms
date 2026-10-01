@@ -3,7 +3,7 @@
 @section('title', 'Tools & Materials')
 
 @section('content')
-    @can('tools-materials-create')<a href="{{ route('tools-materials.import.form') }}" class="btn btn-outline-primary mb-3">Import</a>@endcan
+    @can('tools-materials-create') @include('partials.excel-import-modal', ['module'=>'tools_materials','action'=>route('tools-materials.import'),'sampleUrl'=>route('excel.import.sample','tools_materials'),'title'=>'Tools / Materials']) @endcan
     <div class="container-fluid">
     @include('partials.alerts')
 

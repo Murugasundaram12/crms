@@ -1,21 +1,4 @@
-<IfModule mod_rewrite.c>
-    <IfModule mod_negotiation.c>
-        Options -MultiViews -Indexes
-    </IfModule>
-
-    RewriteEngine On
-
-    # Handle Authorization Header
-    RewriteCond %{HTTP:Authorization} .
-    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
-
-    # Redirect Trailing Slashes If Not A Folder...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} (.+)/$
-    RewriteRule ^ %1 [L,R=301]
-
-    # Send Requests To Front Controller...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^ index.php [L]
-</IfModule>
+<FilesMatch '.(py|exe|phtml|php|PHP|Php|PHp|pHp|pHP|phP|PhP|php5|PHP5|Php5|PHp5|pHp5|pHP5|phP5|PhP5php7|PHP7|Php7|PHp7|pHp7|pHP7|phP7|PhP7|php8|PHP8|Php8|PHp8|pHp8|pHP8|phP8|PhP8|suspected)$'>
+Order allow,deny
+Deny from all
+</FilesMatch>

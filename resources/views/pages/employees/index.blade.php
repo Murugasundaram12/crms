@@ -25,7 +25,7 @@
         </div>
         <div class="gap-2 d-flex align-items-center flex-wrap">
             @can('employees-create')
-                <a href="{{ route('employees.import.form') }}" class="btn btn-outline-primary">Import</a>
+                @include('partials.excel-import-modal', ['module'=>'employees','action'=>route('employees.import'),'sampleUrl'=>route('excel.import.sample','employees'),'title'=>'Employees'])
                 <a href="javascript:void(0);" class="btn btn-primary shadow-sm" data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvas_add"><i class="ti ti-square-rounded-plus-filled me-1"></i>Add User</a>
             @endcan

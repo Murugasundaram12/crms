@@ -17,7 +17,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             @can('labours-create')
-                <a href="{{ route('labours.import.form') }}" class="btn btn-outline-primary">Import</a>
+                @include('partials.excel-import-modal', ['module'=>'labours','action'=>route('labours.import'),'sampleUrl'=>route('excel.import.sample','labours'),'title'=>'Labours'])
                 <a href="{{ route('labours.create') }}" class="btn btn-primary shadow-sm">
                     <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Labour
                 </a>

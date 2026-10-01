@@ -16,7 +16,7 @@
             </nav>
         </div>
         @can('units-create')
-            <a href="{{ route('units.import.form') }}" class="btn btn-outline-primary">Import</a>
+            @include('partials.excel-import-modal', ['module'=>'units','action'=>route('units.import'),'sampleUrl'=>route('excel.import.sample','units'),'title'=>'Units'])
             <a href="{{ route('units.create') }}" class="btn btn-primary shadow-sm">
                 <i class="ti ti-square-rounded-plus-filled me-1"></i>Add Unit
             </a>

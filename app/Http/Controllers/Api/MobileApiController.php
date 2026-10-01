@@ -1917,9 +1917,9 @@ class MobileApiController extends Controller
         ];
     }
 
-    protected function devicePayload(EmployeeDevice $device): array
+    protected function devicePayload(EmployeeDevice $device, bool $includeMessagingToken = false): array
     {
-        return [
+        $payload = [
             'id' => $device->id,
             'employee_id' => $device->employee_id,
             'device_id' => $device->device_id,
@@ -1929,7 +1929,6 @@ class MobileApiController extends Controller
             'board' => $device->board,
             'sdk_version' => $device->sdk_version,
             'model' => $device->model,
-            'messaging_token' => $device->messaging_token,
             'latitude' => $device->latitude !== null ? (float) $device->latitude : null,
             'longitude' => $device->longitude !== null ? (float) $device->longitude : null,
             'accuracy' => $device->accuracy !== null ? (float) $device->accuracy : null,
@@ -1944,6 +1943,12 @@ class MobileApiController extends Controller
             'signal_strength' => $device->signal_strength,
             'last_seen_at' => $device->last_seen_at?->toISOString(),
         ];
+
+        if ($includeMessagingToken) {
+            $payload['messaging_token'] = $device->messaging_token;
+        }
+
+        return $payload;
     }
 
     protected function availableEmployeeDeviceAttributes(array $attributes): array

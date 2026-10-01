@@ -87,6 +87,10 @@ class AuthController extends Controller
             return back()->with('status', __($status));
         }
 
+        if ($status === Password::INVALID_USER) {
+            return back()->with('status', __('If an account exists for that email, a password reset link has been sent.'));
+        }
+
         throw ValidationException::withMessages([
             'email' => [__($status)],
         ]);

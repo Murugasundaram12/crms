@@ -149,7 +149,7 @@ class LabourSalaryController extends Controller
                 $attendanceIds = $summary['attendance_ids'] ?? [];
             }
 
-            if ($labourSalary->status === 'paid' && ! empty($attendanceIds)) {
+            if (in_array($labourSalary->status, ['paid', 'partial'], true) && ! empty($attendanceIds)) {
                 $labourSalary->linkAttendances($attendanceIds);
             }
 
@@ -305,7 +305,7 @@ class LabourSalaryController extends Controller
 
             $labourSalary->update($validated);
 
-            if ($attendanceIds !== null && $labourSalary->status === 'paid') {
+            if ($attendanceIds !== null && in_array($labourSalary->status, ['paid', 'partial'], true)) {
                 $labourSalary->linkAttendances($attendanceIds);
             }
 
@@ -593,6 +593,23 @@ class LabourSalaryController extends Controller
             $validated['advance_adjusted'] = 0.0;
         } else {
             $validated['advance_adjusted'] = round((float) ($validated['advance_adjusted'] ?? 0), 2);
+        }
+
+        if (! empty($validated['salary_period_start']) && ! empty($validated['salary_period_end'])) {
+            $overlapQuery = LabourSalary::query()
+                ->where('labour_id', $validated['labour_id'])
+                ->where('salary_period_start', '<=', $validated['salary_period_end'])
+                ->where('salary_period_end', '>=', $validated['salary_period_start']);
+
+            if ($labourSalary) {
+                $overlapQuery->where('id', '!=', $labourSalary->id);
+            }
+
+            if ($overlapQuery->exists()) {
+                throw ValidationException::withMessages([
+                    'salary_period_start' => 'A salary record already exists for this labour that overlaps with the selected date range.',
+                ]);
+            }
         }
 
         return $validated;
