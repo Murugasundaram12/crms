@@ -22,3 +22,24 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Archives & Backups
+*.zip
+/.codex-backups
+/assets/wp
+.env.testing
+
+# Test artifacts
+/playwright-report
+/test-results
+
+# Ignore server-generated untracked .htaccess files across subdirectories
+.htaccess
+!/.htaccess
+!/public/.htaccess
+!/demo/.htaccess
+!/demo/public/.htaccess
+!/demo/vendor/phenx/php-font-lib/.htaccess
+
+# Quarantine / Suspicious files
+demo/vendor/vendor/fakerphp/faker/src/Faker/Provider/is_IS/aAAOBkFTVL.php
