@@ -14,6 +14,16 @@ class PaymentStage extends Model
     protected $fillable = [
         'stage_name',
         'project_id',
+        'percentage',
+        'amount',
+        'status',
+        'order',
+    ];
+
+    protected $casts = [
+        'percentage' => 'integer',
+        'amount' => 'decimal:2',
+        'order' => 'integer',
     ];
 
     public function getNameAttribute(): ?string

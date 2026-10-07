@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Labour;
 use App\Models\LabourAssignment;
+use App\Models\LabourAttendance;
 use App\Models\LabourSalary;
 use App\Models\MainCategory;
 use App\Models\PaymentMethod;
@@ -411,7 +412,10 @@ class LabourSalaryController extends Controller
             ->where('source_id', $labourSalary->id)
             ->first();
 
-        if ($salaryAmount <= 0 && $totalPaid <= 0) {
+        // Advance adjustment settles an existing liability; it is not a new
+        // cash outflow. Keep the expense ledger aligned with the wallet debit
+        // and remove stale rows when the salary was fully settled by advance.
+        if ($salaryAmount <= 0 || $cashPaid <= 0) {
             $expense?->delete();
             return;
         }
@@ -421,6 +425,24 @@ class LabourSalaryController extends Controller
             ->first()
             ?? Category::query()->where('name', 'like', '%LABOUR SALARY%')->first()
             ?? Category::query()->where('name', 'like', '%SALARY%')->first();
+
+        // Salary settlement must also work on a clean installation where the
+        // expense master data has not been created yet. The expenses table
+        // requires a category, so provision the system category once rather
+        // than attempting to insert a NULL category_id.
+        if (! $category) {
+            $salaryMainCategory = MainCategory::query()->firstOrCreate(
+                ['name' => 'LABOUR SALARY'],
+                ['status' => 'active']
+            );
+
+            $category = Category::query()->firstOrCreate(
+                [
+                    'name' => 'LABOUR SALARY',
+                    'main_category_id' => $salaryMainCategory->id,
+                ]
+            );
+        }
 
         $mainCategoryId = $category?->main_category_id
             ?? MainCategory::query()->where('name', 'CIVIL')->value('id')
@@ -436,8 +458,8 @@ class LabourSalaryController extends Controller
             'project_id' => $projectId,
             'main_category_id' => $mainCategoryId,
             'category_id' => $category?->id,
-            'amount' => $salaryAmount,
-            'paid_amt' => $totalPaid,
+            'amount' => $cashPaid,
+            'paid_amt' => $cashPaid,
             'unpaid_amt' => $unpaidAmt,
             'extra_amt' => 0.0,
             'current_date' => $paymentDate,
@@ -605,7 +627,17 @@ class LabourSalaryController extends Controller
                 $overlapQuery->where('id', '!=', $labourSalary->id);
             }
 
-            if ($overlapQuery->exists()) {
+            // A salary period may overlap when the caller explicitly selects
+            // unpaid attendance dates for a split settlement. linkAttendances
+            // still prevents already-paid dates from being linked again.
+            $hasExplicitAttendanceSelection = ! empty($validated['attendance_ids'] ?? []);
+            $hasAlreadyPaidSelectedAttendance = $hasExplicitAttendanceSelection
+                && LabourAttendance::query()
+                    ->whereIn('id', $validated['attendance_ids'])
+                    ->whereNotNull('labour_salary_id')
+                    ->exists();
+
+            if ((! $hasExplicitAttendanceSelection || $hasAlreadyPaidSelectedAttendance) && $overlapQuery->exists()) {
                 throw ValidationException::withMessages([
                     'salary_period_start' => 'A salary record already exists for this labour that overlaps with the selected date range.',
                 ]);

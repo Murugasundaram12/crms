@@ -225,9 +225,9 @@ class PaymentController extends Controller
         $validatedData = $this->validatePaymentData($request);
 
         // Map paid_at to payment_date before saving
-        if (!empty($validatedData['paid_at'])) {
-            $validatedData['payment_date'] = $validatedData['paid_at'];
-        }
+        $validatedData['payment_date'] = $validatedData['paid_at']
+            ?? $validatedData['payment_date']
+            ?? now()->toDateString();
         unset($validatedData['paid_at']);
 
         DB::transaction(function () use (&$validatedData) {
@@ -262,9 +262,10 @@ class PaymentController extends Controller
         $validatedData = $this->validatePaymentData($request, $payment);
 
         // Map paid_at to payment_date before saving
-        if (!empty($validatedData['paid_at'])) {
-            $validatedData['payment_date'] = $validatedData['paid_at'];
-        }
+        $validatedData['payment_date'] = $validatedData['paid_at']
+            ?? $validatedData['payment_date']
+            ?? $payment->payment_date
+            ?? now()->toDateString();
         unset($validatedData['paid_at']);
 
         DB::transaction(function () use ($payment, $validatedData) {
@@ -385,6 +386,7 @@ class PaymentController extends Controller
             'method' => ['nullable', 'string'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'paid_at' => ['nullable', 'date'],
+            'payment_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'status' => ['required', Rule::in(['pending', 'paid', 'overdue', 'partial'])],
             'notes' => ['nullable', 'string'],

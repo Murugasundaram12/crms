@@ -117,9 +117,13 @@ abstract class TestCase extends BaseTestCase
                 $table->foreignId('user_id')->nullable();
                 $table->date('date')->nullable();
                 $table->date('attendance_date')->nullable();
+                $table->timestamp('check_in_at')->nullable();
+                $table->timestamp('check_out_at')->nullable();
+                $table->unsignedInteger('worked_minutes')->nullable();
                 $table->string('status')->default('present');
                 $table->time('check_in')->nullable();
                 $table->time('check_out')->nullable();
+                $table->text('notes')->nullable();
                 $table->timestamps();
             });
         }
@@ -338,9 +342,13 @@ abstract class TestCase extends BaseTestCase
                 $table->unsignedInteger('leave_type_id')->nullable();
                 $table->date('from_date')->nullable();
                 $table->date('to_date')->nullable();
+                $table->text('document')->nullable();
                 $table->text('remarks')->nullable();
                 $table->string('status')->default('pending');
                 $table->unsignedInteger('created_by_id')->nullable();
+                $table->unsignedInteger('approved_by_id')->nullable();
+                $table->timestamp('approved_at')->nullable();
+                $table->text('approver_remarks')->nullable();
                 $table->timestamps();
             });
         }

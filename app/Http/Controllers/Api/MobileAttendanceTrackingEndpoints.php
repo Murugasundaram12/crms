@@ -79,6 +79,12 @@ trait MobileAttendanceTrackingEndpoints
         $user = $request->user();
         $today = now()->toDateString();
 
+        if (app(\App\Services\AttendanceLeaveIntegrationService::class)->isOnApprovedLeave($user->id, $today)) {
+            return response()->json([
+                'message' => 'You are on approved leave today and cannot check in.',
+            ], 422);
+        }
+
         $activeAttendance = $this->activeAttendance($user->id);
 
         if ($activeAttendance) {
@@ -357,12 +363,15 @@ trait MobileAttendanceTrackingEndpoints
             $latestAttendance = $activeAttendance;
         }
 
+        $isOnLeave = app(\App\Services\AttendanceLeaveIntegrationService::class)->isOnApprovedLeave($userId, $date);
+
         return response()->json([
             'user_id' => $userId,
             'date' => $date,
-            'status' => $activeAttendance ? 'checked_in' : 'checked_out',
+            'status' => $activeAttendance ? 'checked_in' : ($isOnLeave ? 'on_leave' : 'checked_out'),
             'is_checked_in' => (bool) $activeAttendance,
-            'can_check_in' => ! $activeAttendance,
+            'is_on_leave' => $isOnLeave,
+            'can_check_in' => ! $activeAttendance && ! $isOnLeave,
             'can_check_out' => (bool) $activeAttendance,
             'active_attendance' => $activeAttendance ? $this->attendancePayload($activeAttendance) : null,
             'latest_attendance' => $latestAttendance ? $this->attendancePayload($latestAttendance) : null,

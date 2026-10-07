@@ -107,6 +107,20 @@ class LeaveRequestController extends Controller
             return back()->with('error', 'This leave request is already processed.');
         }
 
+        if ($validated['status'] === 'approved') {
+            $conflicts = app(\App\Services\AttendanceLeaveIntegrationService::class)
+                ->getExistingAttendanceConflictsForLeave($leaveRequest);
+
+            if ($conflicts->isNotEmpty()) {
+                $conflictDates = $conflicts->map(fn($a) => optional($a->attendance_date)->toDateString())
+                    ->filter()
+                    ->unique()
+                    ->implode(', ');
+
+                return back()->with('error', "Cannot approve leave: Attendance record already exists for date(s): {$conflictDates}. Please resolve the attendance record before approving leave.");
+            }
+        }
+
         $leaveRequest->status = $validated['status'];
         $leaveRequest->approved_by_id = auth()->id();
         $leaveRequest->approved_at = now();

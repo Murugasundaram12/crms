@@ -105,6 +105,22 @@ class User extends Authenticatable
         return $this->hasMany(LocationTracking::class, 'employee_id');
     }
 
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function isOnApprovedLeave(mixed $date = null): bool
+    {
+        return app(\App\Services\AttendanceLeaveIntegrationService::class)
+            ->isOnApprovedLeave($this->id, $date ?? now()->toDateString());
+    }
+
     public function assignedRoles(): EloquentCollection
     {
         if ($this->resolvedAssignedRoles instanceof EloquentCollection) {

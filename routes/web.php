@@ -86,10 +86,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:attendance-list')
             ->name('labours.available');
         Route::post('/labours', [LabourAttendanceController::class, 'store'])
-            ->middleware('permission:attendance-list')
+            ->middleware('permission:attendance-create')
             ->name('labours.store');
         Route::delete('/{attendance}', [AttendanceController::class, 'destroy'])
-            ->middleware('permission:attendance-list')
+            ->middleware('permission:attendance-delete')
             ->name('destroy');
     });
 
@@ -97,10 +97,14 @@ Route::middleware('auth')->group(function () {
         Route::middleware('permission:attendance-list')->group(function () {
             Route::get('/', [LabourAttendanceController::class, 'index'])->name('index');
             Route::get('/summary-json', [LabourAttendanceController::class, 'summaryJson'])->name('summary-json');
+        });
+        Route::middleware('permission:attendance-create')->group(function () {
             Route::post('/store', [LabourAttendanceController::class, 'store'])->name('store');
             Route::post('/bulk-store', [LabourAttendanceController::class, 'bulkStore'])->name('bulk-store');
-            Route::delete('/{labourAttendance}', [LabourAttendanceController::class, 'destroy'])->name('destroy');
         });
+        Route::delete('/{labourAttendance}', [LabourAttendanceController::class, 'destroy'])
+            ->middleware('permission:attendance-delete')
+            ->name('destroy');
     });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -582,6 +586,8 @@ Route::middleware('auth')->group(function () {
 
         Route::middleware('permission:leave-requests-edit')->group(function () {
             Route::post('/{leaveRequest}/action', [LeaveRequestController::class, 'approveOrReject'])->name('action');
+            // Keep the older endpoint available for bookmarked/admin clients.
+            Route::post('/{leaveRequest}/status', [LeaveRequestController::class, 'approveOrReject']);
         });
 
         Route::middleware('permission:leave-requests-delete')->group(function () {

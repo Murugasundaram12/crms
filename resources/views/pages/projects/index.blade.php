@@ -198,15 +198,18 @@
                 @csrf
                 <div class="col-12">
                     <label class="form-label">Project Code</label>
+                    @error('project_code') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <input type="text" name="project_code" class="form-control"
                         value="{{ old('project_code', 'PRJ-' . now()->format('His')) }}" required>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Project Name</label>
+                    @error('name') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <input type="text" name="name" class="form-control" value="{{ old('name') }}" required>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Client</label>
+                    @error('client_id') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <select name="client_id" class="form-select" required>
                         <option value="">Select</option>
                         @foreach ($clients as $client)
@@ -225,10 +228,12 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Type</label>
+                    @error('type') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <input type="text" name="type" class="form-control" value="{{ old('type', 'Construction') }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Priority</label>
+                    @error('priority') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <select name="priority" class="form-select">
                         <option value="low">Low</option>
                         <option value="medium" selected>Medium</option>
@@ -237,6 +242,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Status</label>
+                    @error('status') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <select name="status" class="form-select">
                         <option value="planning">Planning</option>
                         <option value="active">Active</option>
@@ -247,14 +253,17 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Start Date</label>
+                    @error('start_date') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <input type="date" name="start_date" class="form-control" value="{{ old('start_date') }}">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">End Date</label>
+                    @error('end_date') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <input type="date" name="end_date" class="form-control" value="{{ old('end_date') }}">
                 </div>
                 <div class="col-12">
                     <label class="form-label">Location (URL)</label>
+                    @error('location') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                     <input type="url" name="location" class="form-control" value="{{ old('location') }}" placeholder="https://maps.google.com/...">
                 </div>
                 <div class="col-12">
@@ -285,15 +294,18 @@
                             @method('PUT')
                             <div class="col-md-6">
                                 <label class="form-label">Project Code</label>
+                                @error('project_code') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <input type="text" name="project_code" class="form-control" value="{{ $project->project_code }}"
                                     required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Project Name</label>
+                                @error('name') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <input type="text" name="name" class="form-control" value="{{ $project->name }}" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Client</label>
+                                @error('client_id') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <select name="client_id" class="form-select" required>
                                     @foreach ($clients as $client)
                                         <option value="{{ $client->id }}" @selected($client->id === $project->client_id)>
@@ -313,10 +325,12 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Type</label>
+                                @error('type') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <input type="text" name="type" class="form-control" value="{{ $project->type }}" required>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Priority</label>
+                                @error('priority') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <select name="priority" class="form-select">
                                     @foreach (['low', 'medium', 'high'] as $priority)
                                         <option value="{{ $priority }}" @selected($project->priority === $priority)>
@@ -326,6 +340,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Status</label>
+                                @error('status') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <select name="status" class="form-select">
                                     @foreach (['planning', 'active', 'on_hold', 'completed', 'cancelled'] as $status)
                                         <option value="{{ $status }}" @selected($project->status === $status)>
@@ -340,16 +355,19 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Start Date</label>
+                                @error('start_date') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <input type="date" name="start_date" class="form-control"
                                     value="{{ optional($project->start_date)->format('Y-m-d') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">End Date</label>
+                                @error('end_date') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <input type="date" name="end_date" class="form-control"
                                     value="{{ optional($project->end_date)->format('Y-m-d') }}">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Location</label>
+                                @error('location') <div class="validation-error text-danger small mb-1">{{ $message }}</div> @enderror
                                 <input type="text" name="location" class="form-control" value="{{ $project->location }}">
                             </div>
                             <div class="col-12">

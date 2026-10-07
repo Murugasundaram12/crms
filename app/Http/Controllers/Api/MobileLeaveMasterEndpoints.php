@@ -143,6 +143,23 @@ trait MobileLeaveMasterEndpoints
             return response()->json(['message' => 'This leave request is already processed.'], 409);
         }
 
+        if ($validated['status'] === 'approved') {
+            $conflicts = app(\App\Services\AttendanceLeaveIntegrationService::class)
+                ->getExistingAttendanceConflictsForLeave($leaveRequest);
+
+            if ($conflicts->isNotEmpty()) {
+                $conflictDates = $conflicts->map(fn(Attendance $a) => optional($a->attendance_date)->toDateString())
+                    ->filter()
+                    ->unique()
+                    ->implode(', ');
+
+                return response()->json([
+                    'message' => "Cannot approve leave: Attendance record already exists for date(s): {$conflictDates}. Please resolve the attendance record before approving leave.",
+                    'conflict_dates' => $conflicts->map(fn(Attendance $a) => optional($a->attendance_date)->toDateString())->filter()->unique()->values(),
+                ], 422);
+            }
+        }
+
         $leaveRequest->update([
             'status' => $validated['status'],
             'approved_by_id' => $request->user()->id,

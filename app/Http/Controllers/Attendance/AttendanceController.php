@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\LocationTracking;
 use App\Models\User;
+use App\Services\AttendanceLeaveIntegrationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +49,10 @@ class AttendanceController extends Controller
     {
         $user = $request->user();
         $today = now()->toDateString();
+
+        if (app(AttendanceLeaveIntegrationService::class)->isOnApprovedLeave($user->id, $today)) {
+            return redirect()->route('dashboard')->with('error', 'You are on approved leave today and cannot check in.');
+        }
 
         $existingAttendance = Attendance::query()
             ->where('user_id', $user->id)
