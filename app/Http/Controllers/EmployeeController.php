@@ -18,6 +18,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         // Build the employee list query and apply optional filters.
+        $this->validateDateRange($request);
         $employeeQuery = User::query()->with('roles.permissions');
         if (Schema::hasTable('model_has_permissions')) {
             $employeeQuery->with('directPermissions');
@@ -49,11 +50,13 @@ class EmployeeController extends Controller
         unset($validatedData['direct_permissions']);
         $selectedRole = Role::where('name', $validatedData['role'])->firstOrFail();
         $validatedData = $this->handleAvatarUpload($request, $validatedData);
+        $validatedData['is_employee'] = true;
 
         // Create the employee record and attach the selected role.
         $employee = User::create($validatedData);
         $employee->roles()->sync([$selectedRole->id]);
         $this->syncDirectPermissions($employee, $directPermissionIds);
+        app(\App\Services\EmployeeIdentityService::class)->syncEmployeeRecordForUser($employee);
 
         return redirect()->route('employees.index')->with('success', 'User created successfully.');
     }
@@ -115,11 +118,13 @@ class EmployeeController extends Controller
         unset($validatedData['direct_permissions']);
         $selectedRole = Role::where('name', $validatedData['role'])->firstOrFail();
         $validatedData = $this->handleAvatarUpload($request, $validatedData);
+        $validatedData['is_employee'] = true;
 
         // Save the updated employee values and sync the selected role.
         $employee->update($validatedData);
         $employee->roles()->sync([$selectedRole->id]);
         $this->syncDirectPermissions($employee, $directPermissionIds);
+        app(\App\Services\EmployeeIdentityService::class)->syncEmployeeRecordForUser($employee);
 
         return redirect()->route('employees.index')->with('success', 'User updated successfully.');
     }

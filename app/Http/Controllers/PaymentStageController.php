@@ -99,6 +99,7 @@ class PaymentStageController extends Controller
 
     private function applyDateFilter($paymentStageQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $paymentStageQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
         }

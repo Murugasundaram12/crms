@@ -23,6 +23,7 @@ class ExcelImportService
     {
         $record = ExcelImport::create(['module'=>$definition->module(),'filename'=>$filename,'user_id'=>$userId,'status'=>'processing']);
         $errors = []; $imported = $updated = $skipped = $total = 0;
+        $rolledBack = false;
         try {
             $sheet = IOFactory::load($path)->getActiveSheet();
             $rows = $sheet->toArray(null, true, true, false);
@@ -45,12 +46,16 @@ class ExcelImportService
             DB::transaction(function () use ($rows, $headers, $definition, &$errors, &$imported, &$updated, &$skipped, &$total): void {
                 foreach ($rows as $offset => $values) { $rowNumber = $offset + 2; if (collect($values)->filter(fn($v)=>(string)$v !== '')->isEmpty()) continue; $total++; $row = []; foreach ($headers as $i=>$key) $row[$key] = $values[$i] ?? null; try { $result = $definition->importRow($row, $rowNumber); $result === 'skipped' ? $skipped++ : ($result === 'updated' ? $updated++ : $imported++); } catch (\Throwable $e) { $errors[] = ['row'=>$rowNumber,'message'=>$e->getMessage()]; }
                 }
+
+                if ($errors) {
+                    throw new \RuntimeException('Import rolled back because one or more rows failed validation.');
+                }
             });
             $record->update(['status'=>$errors ? (($imported + $updated) ? 'completed_with_errors' : 'failed') : 'completed','total_rows'=>$total,'imported_rows'=>$imported + $updated,'skipped_rows'=>$skipped,'failed_rows'=>count($errors),'errors'=>$errors]);
-        } catch (\Throwable $e) { $errors[] = ['row'=>null,'message'=>$e->getMessage()]; $record->update(['status'=>'failed','total_rows'=>$total,'imported_rows'=>$imported,'skipped_rows'=>$skipped,'failed_rows'=>count($errors),'errors'=>$errors]); }
+        } catch (\Throwable $e) { $rolledBack = true; if (! $errors) $errors[] = ['row'=>null,'message'=>$e->getMessage()]; $record->update(['status'=>'failed','total_rows'=>$total,'imported_rows'=>0,'skipped_rows'=>0,'failed_rows'=>count($errors),'errors'=>$errors]); }
         $record = $record->fresh();
-        $record->setAttribute('updated_rows', $updated);
-        $record->setAttribute('created_rows', $imported);
+        $record->setAttribute('updated_rows', $rolledBack ? 0 : $updated);
+        $record->setAttribute('created_rows', $rolledBack ? 0 : $imported);
         return $record;
     }
     public function key($value): string { return preg_replace('/[^a-z0-9]/','',mb_strtolower(trim((string)$value))); }

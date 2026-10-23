@@ -42,6 +42,20 @@ We would like to extend our thanks to the following sponsors for funding Laravel
 - **[Redberry](https://redberry.international/laravel-development)**
 - **[Active Logic](https://activelogic.com)**
 
+## Safe test execution
+
+Use the project-local wrapper for PHPUnit only after a disposable, isolated test database has been independently approved:
+
+```text
+php8.2 tests/run-safe-phpunit.php
+```
+
+The wrapper requires the effective database connection, database name, and explicit approval values through the process environment. MySQL execution also requires an explicitly approved host and non-empty credentials; missing values fail closed. Do not place credentials in tracked files.
+
+The wrapper uses the project `phpunit.xml` and rejects alternate PHPUnit configuration or bootstrap arguments. Direct PHPUnit commands, the Composer `test` script, and standalone runner scripts are outside the wrapper's protection and must not be used for database-backed testing. The wrapper cannot prevent a caller from deliberately invoking those paths directly.
+
+Database-backed testing remains blocked until the target database is independently confirmed isolated and explicitly authorized. This documentation does not run tests or change database configuration.
+
 ## Contributing
 
 Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).

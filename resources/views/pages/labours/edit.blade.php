@@ -26,7 +26,7 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-0 pb-0">
                     <h5 class="card-title mb-1">Labour Details</h5>
-                    <p class="text-muted fs-13 mb-0">Update the labour record and salary from the selected role.</p>
+                    <p class="text-muted fs-13 mb-0">Update the labour record and salary.</p>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
@@ -101,10 +101,10 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Salary</label>
+                            <label class="form-label">Salary <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" name="salary" id="salary"
                                 class="form-control @error('salary') is-invalid @enderror"
-                                value="{{ old('salary', $labour->salary) }}" readonly>
+                                value="{{ old('salary', $labour->salary) }}" min="0" required>
                             @error('salary')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -136,24 +136,3 @@
         </div>
     </form>
 @endsection
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const labourRoleField = document.getElementById('labour_role_id');
-            const salaryField = document.getElementById('salary');
-
-            const updateSalaryFromRole = () => {
-                const selectedOption = labourRoleField.options[labourRoleField.selectedIndex];
-                const roleSalary = selectedOption ? selectedOption.getAttribute('data-salary') : '';
-
-                salaryField.value = roleSalary || '';
-            };
-
-            if (labourRoleField && salaryField) {
-                labourRoleField.addEventListener('change', updateSalaryFromRole);
-                updateSalaryFromRole();
-            }
-        });
-    </script>
-@endpush

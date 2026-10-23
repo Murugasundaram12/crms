@@ -19,6 +19,9 @@ class LabourAttendanceController extends Controller
 {
     public function index(Request $request): View
     {
+        $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
         $selectedDate = $request->filled('date') ? $request->string('date')->toString() : now()->toDateString();
         $selectedMonth = $request->filled('month') ? $request->string('month')->toString() : now()->format('Y-m');
         $selectedLabourId = $request->filled('labour_id') ? $request->integer('labour_id') : null;
@@ -128,9 +131,6 @@ class LabourAttendanceController extends Controller
         $attendanceDate = Carbon::parse($validated['attendance_date']);
         $dateStr = $attendanceDate->toDateString();
 
-        if ($attendanceDate->isSunday()) {
-            return redirect()->back()->withInput()->with('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
-        }
 
         $projectId = ! empty($validated['project_id']) ? (int) $validated['project_id'] : null;
 
@@ -186,9 +186,6 @@ class LabourAttendanceController extends Controller
         $attendanceDate = Carbon::parse($validated['attendance_date']);
         $dateStr = $attendanceDate->toDateString();
 
-        if ($attendanceDate->isSunday()) {
-            return redirect()->back()->withInput()->with('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
-        }
 
         $userId = Auth::id();
         $selectedProjectId = ! empty($validated['project_id']) ? (int) $validated['project_id'] : null;
@@ -287,7 +284,7 @@ class LabourAttendanceController extends Controller
         $validated = $request->validate([
             'labour_id' => ['required', 'integer', 'exists:labours,id'],
             'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'month' => ['nullable', 'string'],
         ]);
 
@@ -352,10 +349,6 @@ class LabourAttendanceController extends Controller
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
             ->get();
 
-        // Business rule: Sunday is Weekly Off. Exclude any historical Sunday attendance records so they never contribute to payable days or salary calculations.
-        $attendances = $attendances->reject(function ($att) {
-            return Carbon::parse($att->attendance_date)->isSunday();
-        });
 
         // Stage 3: Exclude attendance records that have already been paid
         $attendances = $attendances->reject(function ($att) {
@@ -367,17 +360,19 @@ class LabourAttendanceController extends Controller
         $absentDays = $attendances->where('status', 'absent')->count();
         $payableDays = $presentDays + ($halfDays * 0.5);
 
+        // The role defines the pay period, while the labour record owns the
+        // rate. Role salary is only used to prefill a new labour's salary.
         $role = $labour->labourRole;
         $salaryType = strtolower((string) ($role?->salary_type ?? 'monthly'));
-        $baseRate = (float) ($role?->salary ?? $labour->salary ?? 0);
+        $baseRate = (float) ($labour->salary ?? 0);
 
         if ($salaryType === 'daily') {
             $dailyRate = $baseRate;
         } elseif ($salaryType === 'weekly') {
             $dailyRate = $baseRate / 6.0;
         } else {
-            // Monthly: divide monthly rate by actual Mon-Sat working days in the period
-            $dailyRate = $workingDaysCount > 0 ? ($baseRate / $workingDaysCount) : 0.0;
+            // Monthly: fixed 30-day denominator policy
+            $dailyRate = $baseRate / 30.0;
         }
 
         $calculatedSalary = round($dailyRate * $payableDays, 2);

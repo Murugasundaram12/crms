@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Models\Project;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,8 +16,11 @@ class ExpenseReportController extends Controller
 
     public function index(Request $request)
     {
+        $this->validateDateRange($request);
         $projects = Project::query()->orderBy('name')->get(['id', 'name']);
-        $employees = Employee::query()->orderBy('name')->get(['id', 'name']);
+        // Report sources use users.id as their employee identifier. Employee
+        // profiles are legacy records linked to users through employees.user_id.
+        $employees = User::employees()->orderBy('name')->get(['id', 'name']);
 
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
         $expenseCategoryRaw = $isSqlite
@@ -129,7 +132,7 @@ class ExpenseReportController extends Controller
                 $expenseQuery->where('expenses.unpaid_amt', '<=', 0);
                 $includeSalary = false;
                 $includeLabour = false;
-            } elseif (in_array($status, ['recorded', 'approved'], true)) {
+            } elseif ($status === 'recorded') {
                 $expenseQuery->whereRaw('1 = 0');
             } else {
                 $expenseQuery->whereRaw('1 = 0');

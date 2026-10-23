@@ -18,6 +18,7 @@ class ExpenseTransactionController extends Controller
 {
     public function index(Request $request)
     {
+        $this->validateDateRange($request);
         $query = ExpenseTransaction::query()
             ->where('delete_status', false)
             ->with(['mainCategory', 'category', 'project', 'paymentMethod']);
@@ -53,7 +54,7 @@ class ExpenseTransactionController extends Controller
             $query->whereDate('current_date', '<=', $request->date('date_to')->toDateString());
         }
 
-        $expenseTransactions = $query->latest()->paginate((int) $request->get('paginate', 12))->withQueryString();
+        $expenseTransactions = $query->latest()->paginate($this->validatedPageSize($request, 'paginate', 12))->withQueryString();
 
         return view('pages.expense_transactions.index', [
             'expenseTransactions' => $expenseTransactions,

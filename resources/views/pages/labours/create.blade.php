@@ -103,7 +103,7 @@
                             <label class="form-label">Salary</label>
                             <input type="number" step="0.01" name="salary" id="salary"
                                 class="form-control @error('salary') is-invalid @enderror"
-                                value="{{ old('salary') }}" readonly>
+                                value="{{ old('salary') }}" min="0" required>
                             @error('salary')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror

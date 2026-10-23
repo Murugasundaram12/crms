@@ -104,7 +104,7 @@ trait MobilePreorderEndpoints
             'payment_status' => ['nullable', 'string'],
             'delivery_status' => ['nullable', 'string'],
             'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'sort_by' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'string'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],

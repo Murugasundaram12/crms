@@ -38,6 +38,7 @@ class QuotationController extends Controller
 
         $query = Quotation::with(['client', 'project'])
             ->latest();
+        $this->validateDateRange($request);
 
         if ($request->filled('q')) {
             $searchTerm = $request->q;

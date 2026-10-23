@@ -12,6 +12,7 @@ class LeaveRequestController extends Controller
 {
     public function index(Request $request)
     {
+        $this->validateDateRange($request);
         $leaveRequestsQuery = LeaveRequest::with(['leaveType', 'user', 'approvedBy'])
             ->orderByDesc('id');
 

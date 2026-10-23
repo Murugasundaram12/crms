@@ -13,6 +13,7 @@ class Employee extends Authenticatable
     use HasFactory;
 
     protected $fillable = [
+        'user_id',
         'name',
         'email',
         'phone',
@@ -31,6 +32,7 @@ class Employee extends Authenticatable
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'hourly_rate' => 'decimal:2',
         'hire_date' => 'date',
         'password' => 'hashed',
@@ -45,7 +47,30 @@ class Employee extends Authenticatable
         'remember_token',
     ];
 
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
+    public function canonicalUser(): ?User
+    {
+        if ($this->relationLoaded('user') && $this->user) {
+            return $this->user;
+        }
+
+        if ($this->user_id) {
+            return $this->user()->first();
+        }
+
+        $email = trim((string) $this->email);
+        if ($email !== '') {
+            $users = User::where('email', $email)->limit(2)->get(['id']);
+
+            return $users->count() === 1 ? User::find($users->first()->id) : null;
+        }
+
+        return null;
+    }
 
     public function managedProjects(): HasMany
     {

@@ -514,4 +514,349 @@ class LabourSalaryAdvanceToggleTest extends TestCase
         // Total expenses increased by exactly 2800
         $this->assertEquals($summaryBefore['totalExpenses'] + 2800.00, $summaryAfter['totalExpenses']);
     }
+
+    private function createSecondUserWithWallet(float $walletBalance = 50000.00): User
+    {
+        $secondUser = User::factory()->create([
+            'email' => 'editor_' . uniqid() . '@example.com',
+        ]);
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'role')) {
+            $secondUser->role = 'Super Admin';
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'wallet')) {
+            $secondUser->wallet = $walletBalance;
+        }
+        $secondUser->save();
+
+        return $secondUser;
+    }
+
+    /**
+     * AUDIT-01 Test 1:
+     * Different user decreases a salary payment:
+     * - Original payer receives the refund.
+     * - Editor wallet balance remains completely unchanged.
+     */
+    public function test_different_user_decreases_salary_refunds_original_payer_not_editor(): void
+    {
+        // 1. User A (original payer) creates salary for 4800
+        $this->actingAs($this->user);
+        $initialUserAWallet = (float) $this->user->fresh()->wallet;
+
+        $this->post(route('labour-salaries.store'), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary = LabourSalary::where('labour_id', $this->labour->id)->latest('id')->firstOrFail();
+        $this->assertEquals($this->user->id, $salary->paid_by);
+        $this->assertEquals($initialUserAWallet - 4800.00, (float) $this->user->fresh()->wallet);
+
+        // 2. User B (editor) updates salary downward to 2800
+        $userB = $this->createSecondUserWithWallet(50000.00);
+        $this->actingAs($userB);
+
+        $updateResponse = $this->put(route('labour-salaries.update', $salary), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '1',
+            'advance_adjusted' => 2000.00,
+            'paid_amount' => 2800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $updateResponse->assertRedirect(route('labour-salaries.index'));
+
+        // Assert: Editor User B wallet is completely UNTOUCHED
+        $this->assertEquals(50000.00, (float) $userB->fresh()->wallet);
+
+        // Assert: Original Payer User A received the 2000.00 refund (4800 - 2800 = 2000)
+        $this->assertEquals($initialUserAWallet - 2800.00, (float) $this->user->fresh()->wallet);
+
+        // Assert: Salary record preserves original payer
+        $salary->refresh();
+        $this->assertEquals($this->user->id, $salary->paid_by);
+        $this->assertEquals(2800.00, (float) $salary->paid_amount);
+
+        // Assert: Wallet ledger remains bound to User A
+        $wallet = Wallet::where('source_type', 'labour_salary')->where('source_id', $salary->id)->firstOrFail();
+        $this->assertEquals($this->user->id, $wallet->user_id);
+        $this->assertEquals(2800.00, (float) $wallet->amount);
+    }
+
+    /**
+     * AUDIT-01 Test 2:
+     * Different user increases a salary payment:
+     * - Original payer is debited the difference.
+     * - Editor wallet balance remains completely unchanged.
+     */
+    public function test_different_user_increases_salary_debits_original_payer_not_editor(): void
+    {
+        // 1. User A creates salary for 2800
+        $this->actingAs($this->user);
+        $initialUserAWallet = (float) $this->user->fresh()->wallet;
+
+        $this->post(route('labour-salaries.store'), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '1',
+            'advance_adjusted' => 2000.00,
+            'paid_amount' => 2800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary = LabourSalary::where('labour_id', $this->labour->id)->latest('id')->firstOrFail();
+        $this->assertEquals($initialUserAWallet - 2800.00, (float) $this->user->fresh()->wallet);
+
+        // 2. User B updates salary upward to 4800 (+2000 diff)
+        $userB = $this->createSecondUserWithWallet(50000.00);
+        $this->actingAs($userB);
+
+        $updateResponse = $this->put(route('labour-salaries.update', $salary), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $updateResponse->assertRedirect(route('labour-salaries.index'));
+
+        // Assert: Editor User B wallet is untouched
+        $this->assertEquals(50000.00, (float) $userB->fresh()->wallet);
+
+        // Assert: Original Payer User A is debited additional 2000 (total 4800 debited)
+        $this->assertEquals($initialUserAWallet - 4800.00, (float) $this->user->fresh()->wallet);
+
+        // Assert: Ledger entry updated and remains under User A
+        $wallet = Wallet::where('source_type', 'labour_salary')->where('source_id', $salary->id)->firstOrFail();
+        $this->assertEquals($this->user->id, $wallet->user_id);
+        $this->assertEquals(4800.00, (float) $wallet->amount);
+    }
+
+    /**
+     * AUDIT-01 Test 3:
+     * Increase fails if original payer has insufficient funds:
+     * - Entire transaction rolls back.
+     * - Editor wallet remains untouched.
+     */
+    public function test_different_user_increase_fails_if_original_payer_has_insufficient_funds(): void
+    {
+        // 1. User A creates salary for 2800
+        $this->actingAs($this->user);
+        $this->post(route('labour-salaries.store'), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '1',
+            'advance_adjusted' => 2000.00,
+            'paid_amount' => 2800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary = LabourSalary::where('labour_id', $this->labour->id)->latest('id')->firstOrFail();
+
+        // 2. Reduce User A wallet balance to 100.00 (insufficient for +2000 diff)
+        $this->user->wallet = 100.00;
+        $this->user->save();
+
+        // 3. User B (with plenty of funds) attempts to increase salary to 4800
+        $userB = $this->createSecondUserWithWallet(50000.00);
+        $this->actingAs($userB);
+
+        $updateResponse = $this->put(route('labour-salaries.update', $salary), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        // Validation fails because original payer has insufficient balance
+        $updateResponse->assertSessionHasErrors(['paid_amount']);
+
+        // Assert: User A wallet unchanged at 100.00
+        $this->assertEquals(100.00, (float) $this->user->fresh()->wallet);
+
+        // Assert: User B wallet untouched at 50000.00
+        $this->assertEquals(50000.00, (float) $userB->fresh()->wallet);
+
+        // Assert: Salary record remains at original 2800.00
+        $salary->refresh();
+        $this->assertEquals(2800.00, (float) $salary->paid_amount);
+    }
+
+    /**
+     * AUDIT-01 Test 4:
+     * Salary deletion refunds the authoritative original payer:
+     * - Even after a cross-user edit, the deletion refund returns funds to User A.
+     * - Editor and deleter balances remain untouched.
+     */
+    public function test_salary_deletion_refunds_original_payer_not_editor_or_deleter(): void
+    {
+        // 1. User A creates salary for 4800 (debited 4800)
+        $this->actingAs($this->user);
+        $initialUserAWallet = (float) $this->user->fresh()->wallet;
+
+        $this->post(route('labour-salaries.store'), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary = LabourSalary::where('labour_id', $this->labour->id)->latest('id')->firstOrFail();
+
+        // 2. User B edits salary down to 2800 (User A gets 2000 refund; net debited 2800)
+        $userB = $this->createSecondUserWithWallet(50000.00);
+        $this->actingAs($userB);
+
+        $this->put(route('labour-salaries.update', $salary), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '1',
+            'advance_adjusted' => 2000.00,
+            'paid_amount' => 2800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary->refresh();
+
+        // 3. User C (deleter) deletes the salary
+        $userC = $this->createSecondUserWithWallet(30000.00);
+        $this->actingAs($userC);
+
+        $deleteResponse = $this->delete(route('labour-salaries.destroy', $salary));
+        $deleteResponse->assertRedirect(route('labour-salaries.index'));
+
+        // Assert: Deleter User C wallet is untouched
+        $this->assertEquals(30000.00, (float) $userC->fresh()->wallet);
+
+        // Assert: Editor User B wallet is untouched
+        $this->assertEquals(50000.00, (float) $userB->fresh()->wallet);
+
+        // Assert: Original Payer User A received the remaining 2800 refund (net lifecycle impact on User A = 0)
+        $this->assertEquals($initialUserAWallet, (float) $this->user->fresh()->wallet);
+
+        // Assert: Salary and wallet rows deleted
+        $this->assertNull(LabourSalary::find($salary->id));
+        $this->assertEquals(0, Wallet::where('source_type', 'labour_salary')->where('source_id', $salary->id)->count());
+    }
+
+    /**
+     * AUDIT-01 Test 5:
+     * Wallet ledger and synchronized expense ownership remain bound to original payer.
+     */
+    public function test_wallet_ledger_and_expense_ownership_remain_bound_to_original_payer(): void
+    {
+        $this->actingAs($this->user);
+
+        $this->post(route('labour-salaries.store'), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary = LabourSalary::where('labour_id', $this->labour->id)->latest('id')->firstOrFail();
+
+        $userB = $this->createSecondUserWithWallet(50000.00);
+        $this->actingAs($userB);
+
+        $this->put(route('labour-salaries.update', $salary), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4000.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        // Assert: Wallet ledger user_id is User A, NOT User B
+        $wallet = Wallet::where('source_type', 'labour_salary')->where('source_id', $salary->id)->firstOrFail();
+        $this->assertEquals($this->user->id, $wallet->user_id);
+        $this->assertEquals($this->user->id, $wallet->created_by);
+        $this->assertEquals(4000.00, (float) $wallet->amount);
+
+        // Assert: Expense user_id is User A, and editedBy is User B
+        $expense = Expense::where('source_type', 'labour_salary')->where('source_id', $salary->id)->firstOrFail();
+        $this->assertEquals($this->user->id, $expense->user_id);
+        $this->assertEquals($userB->id, $expense->editedBy);
+    }
+
+    /**
+     * AUDIT-01 Test 6:
+     * Zero paid amount and missing ledger row are handled safely:
+     * - Missing ledger row does not cause a crash.
+     * - Reducing to zero refunds the original payer and removes the ledger row.
+     */
+    public function test_zero_paid_amount_and_missing_ledger_row_handled_safely(): void
+    {
+        $this->actingAs($this->user);
+        $initialUserAWallet = (float) $this->user->fresh()->wallet;
+
+        $this->post(route('labour-salaries.store'), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 4800.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $salary = LabourSalary::where('labour_id', $this->labour->id)->latest('id')->firstOrFail();
+
+        // Simulate missing ledger row
+        Wallet::where('source_type', 'labour_salary')->where('source_id', $salary->id)->delete();
+
+        // User B updates salary to paid_amount = 0 (fully pending)
+        $userB = $this->createSecondUserWithWallet(50000.00);
+        $this->actingAs($userB);
+
+        $updateResponse = $this->put(route('labour-salaries.update', $salary), [
+            'labour_id' => $this->labour->id,
+            'salary_amount' => 4800.00,
+            'advance_paid' => '0',
+            'advance_adjusted' => 0.00,
+            'paid_amount' => 0.00,
+            'payment_date' => '2026-09-08',
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        $updateResponse->assertRedirect(route('labour-salaries.index'));
+
+        // Assert: User A is refunded the full 4800
+        $this->assertEquals($initialUserAWallet, (float) $this->user->fresh()->wallet);
+
+        // Assert: User B wallet untouched
+        $this->assertEquals(50000.00, (float) $userB->fresh()->wallet);
+
+        // Assert: Salary status is pending and paid_amount is 0
+        $salary->refresh();
+        $this->assertEquals('pending', $salary->status);
+        $this->assertEquals(0.00, (float) $salary->paid_amount);
+
+        // Assert: Wallet row remains 0
+        $this->assertEquals(0, Wallet::where('source_type', 'labour_salary')->where('source_id', $salary->id)->count());
+    }
 }

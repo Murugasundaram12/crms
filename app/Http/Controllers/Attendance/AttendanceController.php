@@ -15,6 +15,7 @@ class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
+        $this->validateDateRange($request, 'from_date', 'to_date');
         $attendanceQuery = Attendance::query()->with('user')->latest('attendance_date')->latest('check_in_at');
 
         if ($request->filled('user_id')) {

@@ -20,6 +20,8 @@ class WalletController extends Controller
 {
     public function index(Request $request)
     {
+        $this->validateDateRange($request);
+        $this->validateDateRangeString($request);
         $paymentMethods = PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
 
         $query = Wallet::query()
@@ -77,7 +79,7 @@ class WalletController extends Controller
         $totalAmount = $creditTotal - $debitTotal;
         $wallets = $query
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 10))
+            ->paginate($this->validatedPageSize($request, 'paginate', 10))
             ->withQueryString();
 
         return view('pages.wallet.index', [

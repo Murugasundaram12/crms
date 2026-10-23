@@ -34,10 +34,12 @@ class EmployeeImport implements ExcelImportDefinition
         $password = $row['password'] ?? null;
         // Keep the denormalized role column in sync with the pivot, matching the
         // normal employee create flow.
+        $data['is_employee'] = true;
         DB::transaction(function () use (&$existing, $data, $password, $role): void {
             if ($existing) { unset($data['email']); if (blank($password)) unset($data['password']); else $data['password'] = Hash::make($password); $existing->update($data); }
             else { $data['password'] = Hash::make($password); $existing = User::create($data); }
             $existing->roles()->sync([$role->id]);
+            app(\App\Services\EmployeeIdentityService::class)->syncEmployeeRecordForUser($existing);
         });
         return $existing->wasRecentlyCreated ? 'created' : 'updated';
     }

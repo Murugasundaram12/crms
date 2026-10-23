@@ -12,6 +12,7 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         // Build the client list query with the requested filters.
+        $this->validateDateRange($request);
         $clientQuery = Client::query();
         $this->applySearchFilter($clientQuery, $request);
         $this->applyStatusFilter($clientQuery, $request);

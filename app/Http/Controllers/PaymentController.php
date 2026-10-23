@@ -358,6 +358,7 @@ class PaymentController extends Controller
 
     private function applyDateFilter($paymentQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $paymentQuery->whereDate('payment_date', '>=', $request->date('date_from')->toDateString());
         }

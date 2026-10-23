@@ -139,7 +139,7 @@ trait MobileInventoryEndpoints
             'item_type' => ['nullable', Rule::in(['tool', 'material'])],
             'low_stock' => ['nullable', 'boolean'],
             'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'status' => ['nullable', 'string'],
             'vendor_id' => ['nullable', 'integer'],
             'material_id' => ['nullable', 'integer'],
@@ -323,7 +323,7 @@ trait MobileInventoryEndpoints
             'transaction_type' => ['nullable', Rule::in(array_keys(self::INVENTORY_TRANSACTION_TYPES))],
             'status' => ['nullable', Rule::in(array_keys(self::INVENTORY_STATUSES))],
             'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 

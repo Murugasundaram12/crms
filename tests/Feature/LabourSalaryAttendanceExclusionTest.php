@@ -350,7 +350,7 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
         $this->assertEquals(2000.00, $summary['calculated_salary']);
     }
 
-    // TEST 10 — Monthly salary: Verify unpaid attendance only while preserving working-day formula
+    // TEST 10 — Monthly salary: Verify unpaid attendance only with fixed-30-day policy
     public function test_10_monthly_salary_preserves_working_days_formula_with_unpaid_attendance(): void
     {
         $monthlyRole = LabourRole::create([
@@ -361,14 +361,14 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
         $this->labour->update(['labour_role_id' => $monthlyRole->id]);
 
         // Period: 2026-09-07 (Mon) to 2026-09-12 (Sat) = 6 calendar days, 0 Sundays, 6 working days
-        // Daily rate = 26000 / 6 = 4333.3333...
+        // Fixed-30-day daily rate = 26000 / 30 = 866.6666...
         $this->seedAttendance([
             '2026-09-07', '2026-09-08', '2026-09-09',
             '2026-09-10', '2026-09-11', '2026-09-12',
         ]);
 
         // Pay 07, 08, 09
-        $this->createPaidSalary('2026-09-07', '2026-09-09', 13000.00, 'paid');
+        $this->createPaidSalary('2026-09-07', '2026-09-09', 2600.00, 'paid');
 
         // Calculate 07 to 12
         $summary = LabourAttendanceController::calculatePeriodSummary($this->labour->fresh('labourRole'), '2026-09-07', '2026-09-12');
@@ -376,8 +376,9 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
         // 3 unpaid days (10, 11, 12)
         $this->assertEquals(3.0, $summary['payable_days']);
         $this->assertEquals(6, $summary['total_working_days']);
-        // 26000 / 6 * 3 = 13000.00
-        $this->assertEquals(13000.00, $summary['calculated_salary']);
+        $this->assertEquals(866.67, $summary['daily_rate']);
+        // (26000 / 30) * 3 = 2600.00
+        $this->assertEquals(2600.00, $summary['calculated_salary']);
     }
 
     // TEST 11 — Sunday behavior: preserves Sunday count and non-Sunday working days
@@ -724,19 +725,19 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
 
         // 07, 08, 09 are excluded (already paid)
         // 10, 11, 12 are included (unpaid) -> 3 days
-        // 13 is Sunday -> excluded
-        $this->assertEquals(3.0, $summary2['payable_days']);
-        $this->assertEquals(3, $summary2['present_days']);
-        $this->assertEquals(1500.00, $summary2['calculated_salary']);
-        $this->assertEquals([$att10->id, $att11->id, $att12->id], $summary2['attendance_ids']);
+        // 13 is Sunday -> now included under business rules -> 4 days total
+        $this->assertEquals(4.0, $summary2['payable_days']);
+        $this->assertEquals(4, $summary2['present_days']);
+        $this->assertEquals(2000.00, $summary2['calculated_salary']);
+        $this->assertEquals([$att10->id, $att11->id, $att12->id, $att13->id], $summary2['attendance_ids']);
 
         // 7. PAY SALARY #2 USING THE DERIVED ATTENDANCE IDS
         $response2 = $this->post(route('labour-salaries.store'), [
             'labour_id' => $this->labour->id,
             'salary_period_start' => '2026-09-07',
             'salary_period_end' => '2026-09-13',
-            'salary_amount' => 1500.00,
-            'paid_amount' => 1500.00,
+            'salary_amount' => 2000.00,
+            'paid_amount' => 2000.00,
             'advance_paid' => 0,
             'advance_adjusted' => 0.00,
             'payment_date' => '2026-09-13',
@@ -756,7 +757,7 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
         $this->assertEquals($salary2->id, $att10->labour_salary_id);
         $this->assertEquals($salary2->id, $att11->labour_salary_id);
         $this->assertEquals($salary2->id, $att12->labour_salary_id);
-        $this->assertNull($att13->labour_salary_id); // Sunday remains unlinked
+        $this->assertEquals($salary2->id, $att13->labour_salary_id);
 
         // 8. PROVE NO DOUBLE PAYMENT
         $summary3 = LabourAttendanceController::calculatePeriodSummary($this->labour, '2026-09-07', '2026-09-13');
@@ -765,7 +766,7 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
         $this->assertEmpty($summary3['attendance_ids']);
 
         $totalPaid = LabourSalary::where('labour_id', $this->labour->id)->where('status', 'paid')->sum('paid_amount');
-        $this->assertEquals(3000.00, (float) $totalPaid);
+        $this->assertEquals(3500.00, (float) $totalPaid);
     }
 
     /**

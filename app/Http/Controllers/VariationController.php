@@ -128,6 +128,7 @@ class VariationController extends Controller
 
     private function applyDateFilter($variationQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $variationQuery->whereDate('date', '>=', $request->date('date_from')->toDateString());
         }

@@ -17,6 +17,9 @@ class LabourAssignmentController extends Controller
 {
     public function index(Request $request): View
     {
+        $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
         $query = LabourAssignment::query()->with(['labour', 'project', 'employee']);
 
         if ($request->filled('project_id')) {

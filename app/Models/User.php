@@ -33,6 +33,7 @@ class User extends Authenticatable
         'phone',
         'designation',
         'role',
+        'is_employee',
         'address',
         'hourly_rate',
         'hire_date',
@@ -68,8 +69,33 @@ class User extends Authenticatable
             'hourly_rate' => 'decimal:2',
             'salary_amount' => 'decimal:2',
             'wallet' => 'decimal:2',
+            'is_employee' => 'boolean',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * A user may have an employee profile in the legacy employees table.
+     */
+    public function employee(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Employee::class, 'user_id');
+    }
+
+    /**
+     * Scope query to only employee users.
+     */
+    public function scopeEmployees(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('is_employee', true);
+    }
+
+    /**
+     * Determine if this user is flagged as an employee.
+     */
+    public function isEmployee(): bool
+    {
+        return (bool) $this->is_employee;
     }
 
     /**

@@ -75,6 +75,7 @@ trait MobileTaskWalletEndpoints
             'date_to' => ['nullable', 'date'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
+        $this->validateAliasedDateRange($validated, 'date_from', 'date_to', 'from', 'to');
 
         $query = Task::query()->with(['project', 'employee']);
 

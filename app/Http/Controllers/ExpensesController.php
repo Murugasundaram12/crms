@@ -169,6 +169,7 @@ class ExpensesController extends Controller
 
     private function baseQuery(Request $request, bool $deleted = false)
     {
+        $this->validateDateRange($request);
         $query = $deleted ? Expense::onlyTrashed() : Expense::query();
 
         return $query
@@ -213,7 +214,7 @@ class ExpensesController extends Controller
 
         $expenses = $query
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 10))
+            ->paginate($this->validatedPageSize($request, 'paginate', 10))
             ->withQueryString();
 
         return [$expenses, $totals];

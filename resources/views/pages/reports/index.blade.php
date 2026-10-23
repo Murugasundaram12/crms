@@ -236,7 +236,7 @@
                             <th>Labour</th>
                             <th>Vendor</th>
                             @if($isSuperAdmin)
-                                <th>Income</th>
+                                <th>Paid Payment Income</th>
                             @endif
                             <th class="text-end">Amount</th>
                             <th class="text-end">Paid</th>

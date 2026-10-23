@@ -14,6 +14,7 @@ class RoleController extends Controller
     public function index(Request $request)
     {
         // Load roles with their permission counts for the listing page.
+        $this->validateDateRange($request);
         $roleQuery = Role::query()->withCount('permissions');
 
         if ($request->filled('q')) {

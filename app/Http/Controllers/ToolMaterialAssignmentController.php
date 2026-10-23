@@ -38,6 +38,7 @@ class ToolMaterialAssignmentController extends Controller
 
     public function index(Request $request): View
     {
+        $this->validateDateRange($request);
         $query = ToolMaterialAssignment::query()
             ->with(['toolMaterial.assignments.fromProject', 'toolMaterial.assignments.toProject', 'fromProject', 'toProject', 'vendor', 'handler', 'paymentMethod']);
 
@@ -86,7 +87,7 @@ class ToolMaterialAssignmentController extends Controller
 
         $assignments = $query
             ->latest('transferred_at')
-            ->paginate((int) $request->input('paginate', 10));
+            ->paginate($this->validatedPageSize($request, 'paginate', 10));
 
         $summaryQuery = clone $query;
         $summaryItems = $summaryQuery->get();

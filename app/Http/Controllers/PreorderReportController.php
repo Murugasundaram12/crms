@@ -12,6 +12,7 @@ class PreorderReportController extends Controller
 {
     public function index(Request $request): View
     {
+        $this->validateDateRange($request);
         $tab = $request->input('tab', 'summary');
 
         $query = Preorder::query()->with(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'advances', 'deliveries']);

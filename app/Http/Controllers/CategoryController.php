@@ -12,6 +12,7 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
+        $this->validateDateRange($request);
         $mainCategories = MainCategory::select("id", "name")->orderBy('name')->get();
 
         $query = DB::table('categories')

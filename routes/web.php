@@ -48,7 +48,6 @@ use App\Http\Controllers\WalletController;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login.form');
@@ -66,13 +65,10 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middle
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::prefix('server-commands')->middleware(['auth', 'permission:permissions-edit'])->group(function () {
-    Route::get('optimize', function () {
-        Artisan::call('optimize:clear');
-        Artisan::call('route:clear');
-        Artisan::call('config:clear');
-
-        return redirect()->route('dashboard')->with('success', 'Application cache cleared successfully.');
-    })->name('server-commands.optimize');
+    Route::get('optimize', fn () => abort(405))->name('server-commands.optimize');
+    Route::post('optimize', function () {
+        return redirect()->route('dashboard')->with('error', 'Cache maintenance must be run by an operator outside the web request.');
+    })->name('server-commands.optimize.post');
 });
 
 Route::middleware('auth')->group(function () {

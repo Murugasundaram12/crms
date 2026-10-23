@@ -39,6 +39,7 @@ class PreorderController extends Controller
 
     public function index(Request $request): View
     {
+        $this->validateDateRange($request);
         $query = Preorder::query()->with(['toolMaterial', 'vendor', 'paymentMethod', 'creator', 'approver', 'deliveries', 'advances']);
 
         if ($request->filled('q')) {
@@ -90,7 +91,7 @@ class PreorderController extends Controller
         $preorders = (clone $query)
             ->latest('preorder_date')
             ->latest()
-            ->paginate((int) $request->input('paginate', 10))
+            ->paginate($this->validatedPageSize($request, 'paginate', 10))
             ->withQueryString();
 
         // Dashboard KPI Metrics

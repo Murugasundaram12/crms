@@ -104,6 +104,7 @@ class MainCategoryController extends Controller
 
     private function applyDateFilter($mainCategoryQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $mainCategoryQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
         }

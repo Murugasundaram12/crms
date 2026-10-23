@@ -155,6 +155,7 @@ class ProjectController extends Controller
 
     private function applyDateFilter($projectQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $projectQuery->whereDate('start_date', '>=', $request->date('date_from')->toDateString());
         }

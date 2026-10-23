@@ -12,6 +12,7 @@ class PermissionController extends Controller
     public function index(Request $request)
     {
         // Load permissions for the listing page.
+        $this->validateDateRange($request);
         $permissionQuery = Permission::query();
 
         if ($request->filled('q')) {

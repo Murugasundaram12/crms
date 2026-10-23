@@ -62,8 +62,7 @@
                     <select name="status" class="form-select">
                         <option value="">All Status</option>
                         <option value="pending" @selected(request('status') === 'pending')>Pending</option>
-                        <option value="approved" @selected(request('status') === 'approved')>Approved</option>
-                        <option value="rejected" @selected(request('status') === 'rejected')>Rejected</option>
+                        <option value="paid" @selected(request('status') === 'paid')>Paid</option>
                         <option value="recorded" @selected(request('status') === 'recorded')>Recorded</option>
                     </select>
                 </div>
@@ -134,8 +133,7 @@
                                 <td>
                                     @php
                                         $statusClass = match ($expense['status']) {
-                                            'approved', 'recorded' => 'bg-soft-success text-success',
-                                            'rejected' => 'bg-soft-danger text-danger',
+                                            'paid', 'recorded' => 'bg-soft-success text-success',
                                             default => 'bg-soft-warning text-warning',
                                         };
                                     @endphp

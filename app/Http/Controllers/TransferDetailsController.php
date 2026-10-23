@@ -21,6 +21,7 @@ class TransferDetailsController extends Controller
 {
     public function index(Request $request)
     {
+        $this->validateDateRange($request, 'from_date', 'to_date');
         $query = TransferDetails::query()->where('delete_status', false)->with(['paymentMethod', 'labour']);
 
         if ($request->filled('search')) {
@@ -48,8 +49,7 @@ class TransferDetailsController extends Controller
             $query->where('transfer_type', $request->string('transfer_type'));
         }
 
-        $paginate = (int) $request->get('paginate', 10);
-        $transfers = $query->latest()->paginate($paginate);
+        $transfers = $query->latest()->paginate($this->validatedPageSize($request, 'paginate', 10));
 
         return view('pages.transfers.index', [
             'transfers' => $transfers,

@@ -28,6 +28,7 @@ class LabourSalaryController extends Controller
 {
     public function index(Request $request): View
     {
+        $this->validateDateRange($request);
         $query = LabourSalary::query()->with(['labour', 'paymentMethod', 'payer']);
 
         if ($request->filled('q')) {
@@ -53,7 +54,7 @@ class LabourSalaryController extends Controller
         $labourSalaries = $query
             ->latest('payment_date')
             ->latest()
-            ->paginate((int) $request->input('paginate', 10))
+            ->paginate($this->validatedPageSize($request, 'paginate', 10))
             ->withQueryString();
 
         return view('pages.labour_salaries.index', compact('labourSalaries'));
@@ -210,7 +211,7 @@ class LabourSalaryController extends Controller
     {
         $labours = Labour::query()->orderBy('name')->get();
         $paymentMethods = PaymentMethod::query()->active()->orderBy('sort_order')->orderBy('name')->get();
-        $payerWalletBalance = (float) (Auth::user()->wallet ?? 0);
+        $payerWalletBalance = (float) ($labourSalary->payer?->wallet ?? Auth::user()->wallet ?? 0);
 
         return view('pages.labour_salaries.edit', compact('labourSalary', 'labours', 'paymentMethods', 'payerWalletBalance'));
     }
@@ -218,7 +219,9 @@ class LabourSalaryController extends Controller
     public function update(Request $request, LabourSalary $labourSalary): RedirectResponse
     {
         $validated = $this->validateLabourSalary($request, $labourSalary);
-        $payer = Auth::user();
+        $editor = Auth::user();
+        $originalPayerId = $labourSalary->paid_by ? (int) $labourSalary->paid_by : null;
+
         $oldPaidAmount = round((float) $labourSalary->paid_amount, 2);
         $newPaidAmount = round((float) $validated['paid_amount'], 2);
         $diff = round($newPaidAmount - $oldPaidAmount, 2);
@@ -246,7 +249,14 @@ class LabourSalaryController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($labourSalary, $validated, $diff, $advanceDiff, $newAdvanceAdjusted, $payer, $newPaidAmount, $netPayable, $attendanceIds): void {
+        // Edge case: if paid amount changes but record has no original payer, fail safely rather than guessing or debiting editor
+        if ($diff != 0.0 && ! $originalPayerId) {
+            throw ValidationException::withMessages([
+                'paid_amount' => 'Cannot adjust payment amount for a salary record without an authoritative original payer.',
+            ]);
+        }
+
+        DB::transaction(function () use ($labourSalary, $validated, $diff, $advanceDiff, $newAdvanceAdjusted, $editor, $originalPayerId, $newPaidAmount, $netPayable, $attendanceIds): void {
             $balanceService = app(CrmBalanceService::class);
             $labour = Labour::query()->lockForUpdate()->findOrFail((int) $validated['labour_id']);
 
@@ -256,10 +266,10 @@ class LabourSalaryController extends Controller
                 ]);
             }
 
-            if ($diff > 0) {
-                $balanceService->debitUserWallet($payer->id, $diff, 'Updated Labour Salary payment difference');
-            } elseif ($diff < 0) {
-                $balanceService->creditUserWallet($payer->id, abs($diff), 'Reversal of Labour Salary payment difference');
+            if ($diff > 0 && $originalPayerId) {
+                $balanceService->debitUserWallet($originalPayerId, $diff, 'Updated Labour Salary payment difference for ' . $labour->name);
+            } elseif ($diff < 0 && $originalPayerId) {
+                $balanceService->creditUserWallet($originalPayerId, abs($diff), 'Reversal of Labour Salary payment difference for ' . $labour->name);
             }
 
             if ($advanceDiff != 0.0) {
@@ -287,7 +297,7 @@ class LabourSalaryController extends Controller
                             'labour_salary_id' => $labourSalary->id,
                             'entry_type' => 'settle',
                             'notes' => 'Advance adjusted against salary period ' . ($validated['salary_period_start'] ?? '') . ' to ' . ($validated['salary_period_end'] ?? ''),
-                            'user_id' => $payer->id,
+                            'user_id' => $originalPayerId ?? $editor->id,
                             'current_date' => now()->toDateString(),
                             'current_time' => now()->format('H:i:s'),
                         ]);
@@ -304,6 +314,9 @@ class LabourSalaryController extends Controller
                 unset($validated['advance_paid']);
             }
 
+            // Ensure paid_by is never changed on update
+            unset($validated['paid_by']);
+
             $labourSalary->update($validated);
 
             if ($attendanceIds !== null && in_array($labourSalary->status, ['paid', 'partial'], true)) {
@@ -311,24 +324,36 @@ class LabourSalaryController extends Controller
             }
 
             if ($newPaidAmount > 0) {
-                Wallet::query()
-                    ->updateOrCreate([
-                        'source_type' => 'labour_salary',
-                        'source_id' => $labourSalary->id,
-                    ], [
-                        'user_id' => $payer->id,
-                        'client_id' => 0,
-                        'project_id' => 0,
-                        'amount' => round($newPaidAmount, 2),
-                        'payment_mode' => $validated['payment_method_id'] ?? 1,
-                        'payment_method_id' => $validated['payment_method_id'] ?? null,
-                        'transfer_type' => 1,
-                        'description' => 'Paid Labour Salary to ' . $labour->name,
-                        'created_by' => $payer->id,
-                        'current_date' => $validated['payment_date'] ?? now(),
-                        'active_status' => 1,
-                        'delete_status' => 0,
-                    ]);
+                $walletPayload = [
+                    'client_id' => 0,
+                    'project_id' => 0,
+                    'amount' => round($newPaidAmount, 2),
+                    'payment_mode' => $validated['payment_method_id'] ?? 1,
+                    'payment_method_id' => $validated['payment_method_id'] ?? null,
+                    'transfer_type' => 1,
+                    'description' => 'Paid Labour Salary to ' . $labour->name,
+                    'current_date' => $validated['payment_date'] ?? now(),
+                    'active_status' => 1,
+                    'delete_status' => 0,
+                ];
+
+                if ($originalPayerId) {
+                    $walletPayload['user_id'] = $originalPayerId;
+                    $walletPayload['created_by'] = $originalPayerId;
+                }
+
+                $existingWallet = Wallet::query()
+                    ->where('source_type', 'labour_salary')
+                    ->where('source_id', $labourSalary->id)
+                    ->first();
+
+                if ($originalPayerId || $existingWallet) {
+                    Wallet::query()
+                        ->updateOrCreate([
+                            'source_type' => 'labour_salary',
+                            'source_id' => $labourSalary->id,
+                        ], $walletPayload);
+                }
             } else {
                 Wallet::query()
                     ->where('source_type', 'labour_salary')
@@ -339,11 +364,12 @@ class LabourSalaryController extends Controller
             $this->syncSalaryExpense(
                 $labourSalary,
                 $labour,
-                (int) $payer->id,
+                $originalPayerId,
                 $newPaidAmount,
                 $newAdvanceAdjusted,
                 isset($validated['payment_method_id']) ? (int) $validated['payment_method_id'] : null,
-                $validated['payment_date'] ?? now()
+                $validated['payment_date'] ?? now(),
+                $editor->id
             );
         });
 
@@ -358,7 +384,7 @@ class LabourSalaryController extends Controller
             $balanceService = app(CrmBalanceService::class);
 
             if ($paidAmount > 0 && $labourSalary->paid_by) {
-                $balanceService->creditUserWallet($labourSalary->paid_by, $paidAmount, 'Refund deleted Labour Salary #' . $labourSalary->id);
+                $balanceService->creditUserWallet((int) $labourSalary->paid_by, $paidAmount, 'Refund deleted Labour Salary #' . $labourSalary->id);
             }
 
             if ($advanceAdjusted > 0 && $labourSalary->labour_id) {
@@ -391,11 +417,12 @@ class LabourSalaryController extends Controller
     private function syncSalaryExpense(
         LabourSalary $labourSalary,
         Labour $labour,
-        int $payerId,
+        ?int $payerId,
         float $paidAmount,
         float $advanceAdjusted,
         ?int $paymentMethodId,
-        $paymentDate
+        $paymentDate,
+        ?int $editorId = null
     ): void {
         if (! Schema::hasTable('expenses')) {
             return;
@@ -452,8 +479,10 @@ class LabourSalaryController extends Controller
 
         $projectId = $this->resolveSalaryProjectId($labourSalary);
 
+        $effectivePayerId = $payerId ?? $expense?->user_id ?? $editorId;
+
         $payload = [
-            'user_id' => $payerId,
+            'user_id' => $effectivePayerId,
             'labour_id' => $labour->id,
             'project_id' => $projectId,
             'main_category_id' => $mainCategoryId,
@@ -472,7 +501,7 @@ class LabourSalaryController extends Controller
         ];
 
         if ($expense) {
-            $expense->update($payload + ['editedBy' => $payerId]);
+            $expense->update($payload + ['editedBy' => $editorId ?? $payerId]);
         } else {
             Expense::create($payload);
         }

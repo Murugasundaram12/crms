@@ -46,7 +46,7 @@ class DeviceManagementController extends Controller
             ];
         });
 
-        $devices = $query->paginate((int) $request->input('per_page', 15));
+        $devices = $query->paginate($this->validatedPageSize($request, 'per_page', 15));
 
         $devices->setCollection($devices->getCollection()->map(function (EmployeeDevice $device) use ($onlineThresholdSeconds, $activeDeviceKeys) {
             $isLoggedIn = in_array($this->deviceLoginKey((int) $device->employee_id, (string) $device->device_id), $activeDeviceKeys, true);

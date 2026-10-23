@@ -17,6 +17,7 @@ class ToolMaterialController extends Controller
 {
     public function index(Request $request): View
     {
+        $this->validateDateRange($request);
         $activeTab = $request->string('tab', 'purchase')->toString();
         if (! in_array($activeTab, ['preorder', 'purchase', 'issue_to_site'], true)) {
             $activeTab = 'purchase';
@@ -42,7 +43,7 @@ class ToolMaterialController extends Controller
         if ($request->filled('date_to')) {
             $preorderQuery->whereDate('preorder_date', '<=', $request->date('date_to')->toDateString());
         }
-        $preorders = $preorderQuery->latest('preorder_date')->latest()->paginate((int) $request->input('paginate', 10), ['*'], 'preorders_page')->withQueryString();
+        $preorders = $preorderQuery->latest('preorder_date')->latest()->paginate($this->validatedPageSize($request, 'paginate', 10), ['*'], 'preorders_page')->withQueryString();
 
         // 2. Purchase / Stock List Query
         $purchaseQuery = ToolMaterial::query()->with(['assignments.fromProject', 'assignments.toProject']);
@@ -64,7 +65,7 @@ class ToolMaterialController extends Controller
                 $purchaseQuery->where('active_status', false);
             }
         }
-        $toolsMaterials = $purchaseQuery->latest('date')->latest()->paginate((int) $request->input('paginate', 10), ['*'], 'purchases_page')->withQueryString();
+        $toolsMaterials = $purchaseQuery->latest('date')->latest()->paginate($this->validatedPageSize($request, 'paginate', 10), ['*'], 'purchases_page')->withQueryString();
 
         // 3. Issue to Site Query
         $issueQuery = ToolMaterialAssignment::query()
@@ -90,7 +91,7 @@ class ToolMaterialController extends Controller
         if ($request->filled('date_to')) {
             $issueQuery->whereDate('transferred_at', '<=', $request->date('date_to')->toDateString());
         }
-        $issueAssignments = $issueQuery->latest('transferred_at')->latest()->paginate((int) $request->input('paginate', 10), ['*'], 'issues_page')->withQueryString();
+        $issueAssignments = $issueQuery->latest('transferred_at')->latest()->paginate($this->validatedPageSize($request, 'paginate', 10), ['*'], 'issues_page')->withQueryString();
 
         $allItems = ToolMaterial::query()->with(['assignments.fromProject', 'assignments.toProject'])->get();
         $summary = [

@@ -14,6 +14,7 @@ class LabourController extends Controller
     public function index(Request $request)
     {
         // Build the labour query and apply the requested search and filters.
+        $this->validateDateRange($request);
         $labourQuery = Labour::with('labourRole');
         $this->applySearchFilter($labourQuery, $request);
         $this->applyRoleFilter($labourQuery, $request);
@@ -168,7 +169,7 @@ class LabourController extends Controller
             'phone_number' => ['required', 'regex:/^[6-9]\d{9}$/'],
             'labour_role_id' => ['required', 'exists:labour_roles,id'],
             'gender' => ['required', Rule::in(['male', 'female', 'other'])],
-            'salary' => ['required', 'numeric'],
+            'salary' => ['required', 'numeric', 'min:0'],
             'advance_amt' => ['nullable', 'numeric', 'min:0'],
             'government_photo' => ['nullable', 'image', 'max:2048'],
         ], [

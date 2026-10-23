@@ -192,6 +192,7 @@ class EmployeeSalaryController extends Controller
 
     private function applyDateFilter($employeeSalaryQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $employeeSalaryQuery->whereDate('payment_date', '>=', $request->date('date_from')->toDateString());
         }

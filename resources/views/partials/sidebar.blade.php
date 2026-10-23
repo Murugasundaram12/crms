@@ -7,7 +7,7 @@
     @php($isExpensesMenuActive = request()->routeIs('expenses.*') || request()->routeIs('expenseReports.*') || $isExpenseHistoryRoute)
     @php($isLabourExpensesMenuActive = request()->routeIs('labour-expenses.*'))
     @php($isVendorExpensesMenuActive = request()->routeIs('vendor-expenses.*'))
-    @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*') || request()->routeIs('vendor-expenses.history'))
+    @php($isHistoryMenuActive = request()->routeIs('transfers.*') || request()->routeIs('wallet.*'))
     @php($isTrackingMenuActive = request()->routeIs('tracking.*'))
     @php($isToolsMaterialsMenuActive = request()->routeIs('tools-materials.*') || request()->routeIs('tools-material-assignments.*') || request()->routeIs('preorders.*'))
     @php($isDeviceManagementActive = request()->routeIs('device-management.*'))
@@ -255,25 +255,29 @@
                                             href="{{ route('transfers.index') }}">Transfer History</a></li>
                                     <li><a class="{{ request()->routeIs('wallet.*') ? 'active' : '' }}"
                                             href="{{ route('wallet.index') }}">Wallet History</a></li>
-                                    <li><a class="{{ request()->routeIs('vendor-expenses.history') ? 'active' : '' }}"
-                                            href="{{ route('vendor-expenses.history') }}">Vendor History</a></li>
                                 </ul>
                             </li>
                         @endif
 
                         @if($currentUser && ($currentUser->hasPermission('reports-list') || $currentUser->hasPermission('expense-reports-list')))
-                            <li class="submenu {{ $isReportsRoute ? 'active' : '' }}">
-                                <a href="javascript:void(0);" class="{{ $isReportsRoute ? 'subdrop active' : '' }}"><i
+                            <li class="submenu {{ ($isReportsRoute || request()->routeIs('expenseReports.*')) ? 'active' : '' }}">
+                                <a href="javascript:void(0);" class="{{ ($isReportsRoute || request()->routeIs('expenseReports.*')) ? 'subdrop active' : '' }}"><i
                                         class="ti ti-report-analytics"></i><span>Reports</span><span
                                         class="menu-arrow"></span></a>
-                                <ul style="{{ $isReportsRoute ? 'display: block;' : 'display: none;' }}">
-                                    <li><a class="{{ $isReportsRoute && $reportType === 'site' ? 'active' : '' }}"
-                                            href="{{ route('reports.index', ['type' => 'site']) }}">Client Summary</a></li>
-                                    <li><a class="{{ $isReportsRoute && $reportType === 'office' ? 'active' : '' }}"
-                                            href="{{ route('reports.index', ['type' => 'office']) }}">Payment Summary</a>
-                                    </li>
-                                    <li><a class="{{ $isReportsRoute && $reportType === 'total' ? 'active' : '' }}"
-                                            href="{{ route('reports.index', ['type' => 'total']) }}">Total Report</a></li>
+                                <ul style="{{ ($isReportsRoute || request()->routeIs('expenseReports.*')) ? 'display: block;' : 'display: none;' }}">
+                                    @if($currentUser->hasPermission('reports-list'))
+                                        <li><a class="{{ $isReportsRoute && $reportType === 'site' ? 'active' : '' }}"
+                                                href="{{ route('reports.index', ['type' => 'site']) }}">Client Summary</a></li>
+                                        <li><a class="{{ $isReportsRoute && $reportType === 'office' ? 'active' : '' }}"
+                                                href="{{ route('reports.index', ['type' => 'office']) }}">Payment Summary</a>
+                                        </li>
+                                        <li><a class="{{ $isReportsRoute && $reportType === 'total' ? 'active' : '' }}"
+                                                href="{{ route('reports.index', ['type' => 'total']) }}">Total Report</a></li>
+                                    @endif
+                                    @if($currentUser->hasPermission('expense-reports-list'))
+                                        <li><a class="{{ request()->routeIs('expenseReports.index') ? 'active' : '' }}"
+                                                href="{{ route('expenseReports.index') }}">Expense Reports</a></li>
+                                    @endif
                                 </ul>
                             </li>
                         @endif

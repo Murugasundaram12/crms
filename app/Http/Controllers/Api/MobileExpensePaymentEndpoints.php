@@ -64,7 +64,7 @@ trait MobileExpensePaymentEndpoints
             'main_category_id' => ['nullable', 'exists:main_categories,id'],
             'category_id' => ['nullable', 'exists:categories,id'],
             'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 

@@ -65,7 +65,6 @@ class LabourSalary extends Model
      * - Existence of attendances
      * - Labour ownership (anti-tampering)
      * - Period boundaries
-     * - No Sunday attendance
      * - Valid working-day status (present, half_day)
      * - Not already linked to another paid salary
      *
@@ -113,12 +112,6 @@ class LabourSalary extends Model
                 ]);
             }
 
-            // 3. Do not allow Sunday attendance to be linked
-            if (\Carbon\Carbon::parse($att->attendance_date)->isSunday()) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'attendance_ids' => "Attendance ID {$att->id} on Sunday cannot be linked to salary payment.",
-                ]);
-            }
 
             // 4. Verify it is a valid working-day attendance
             if (! in_array($att->status, ['present', 'half_day'], true)) {

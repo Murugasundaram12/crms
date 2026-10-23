@@ -18,6 +18,7 @@ class ReportController extends Controller
             $user && ($user->hasPermission('reports-list') || $user->hasPermission('expense-reports-list')),
             403
         );
+        $this->validateDateRange($request);
 
         $type = $request->string('type')->toString();
         $type = in_array($type, ['site', 'office', 'total'], true) ? $type : 'site';

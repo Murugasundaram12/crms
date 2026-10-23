@@ -20,6 +20,7 @@ class UnpaidExpensesController extends Controller
 {
     public function history(Request $request)
     {
+        $this->validateDateRange($request);
         $query = Expense::query()
             ->with(['project', 'employee', 'editedByUser', 'mainCategory', 'category'])
             ->whereNull('labour_id')
@@ -53,7 +54,7 @@ class UnpaidExpensesController extends Controller
 
         $expenses = $query
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 10))
+            ->paginate($this->validatedPageSize($request, 'paginate', 10))
             ->withQueryString();
 
         $projects = Project::query()->orderBy('name')->get();

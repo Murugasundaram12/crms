@@ -245,6 +245,7 @@ trait MobileAttendanceTrackingEndpoints
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
+        $this->validateAliasedDateRange($validated, 'from_date', 'to_date', 'from', 'to');
 
         $query = Attendance::query()
             ->with('user')
@@ -297,6 +298,7 @@ trait MobileAttendanceTrackingEndpoints
             'status' => ['nullable', Rule::in(['checked_in', 'checked_out'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
+        $this->validateAliasedDateRange($validated, 'from_date', 'to_date', 'from', 'to');
 
         $query = Attendance::query()
             ->with('user')

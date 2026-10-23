@@ -92,6 +92,7 @@ class VendorController extends Controller
 
     private function applyDateFilter($vendorQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $vendorQuery->whereDate('created_at', '>=', $request->date('date_from')->toDateString());
         }

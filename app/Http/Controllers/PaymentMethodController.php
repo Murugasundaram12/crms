@@ -38,7 +38,7 @@ class PaymentMethodController extends Controller
         $paymentMethods = $query
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->paginate((int) $request->input('paginate', 15))
+            ->paginate($this->validatedPageSize($request, 'paginate', 15))
             ->withQueryString();
 
         return view('pages.payment_methods.index', compact('paymentMethods'));

@@ -55,7 +55,7 @@ class LabourExpensesController extends Controller
             ->when($request->filled('project_id'), fn($q) => $q->where('project_id', $request->integer('project_id')))
             ->with(['labour', 'project'])
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate($this->validatedPageSize($request, 'paginate', 12))
             ->withQueryString();
 
         return response()->json($transactions);
@@ -625,7 +625,7 @@ class LabourExpensesController extends Controller
             ->with(['labour', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
             ->when($request->filled('labour_id'), fn($q) => $q->where('labour_id', $request->integer('labour_id')))
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate($this->validatedPageSize($request, 'paginate', 12))
             ->withQueryString();
 
         $labours = Labour::query()->orderBy('name')->get();
@@ -635,6 +635,7 @@ class LabourExpensesController extends Controller
 
     private function labourExpenseQuery(Request $request)
     {
+        $this->validateDateRange($request);
         return Expense::query()
             ->whereNotNull('labour_id')
             ->with(['labour', 'project', 'mainCategory', 'category'])
@@ -663,7 +664,7 @@ class LabourExpensesController extends Controller
             ->selectRaw('COALESCE(SUM(extra_amt),0) as total_advanced_amount')
             ->first();
 
-        $transactions = $query->latest('current_date')->paginate((int) $request->get('paginate', 10))->withQueryString();
+        $transactions = $query->latest('current_date')->paginate($this->validatedPageSize($request, 'paginate', 10))->withQueryString();
 
         return [$transactions, $totals];
     }

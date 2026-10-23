@@ -180,7 +180,7 @@ class VendorExpensesController extends Controller
             ->with(['vendor', 'project'])
             ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate($this->validatedPageSize($request, 'paginate', 12))
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
@@ -231,7 +231,7 @@ class VendorExpensesController extends Controller
         $items = Vendor::query()
             ->when($request->filled('vendor_id'), fn($q) => $q->where('id', $request->integer('vendor_id')))
             ->latest()
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate($this->validatedPageSize($request, 'paginate', 12))
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
@@ -315,7 +315,7 @@ class VendorExpensesController extends Controller
             ->with(['vendor', 'project'])
             ->when($request->filled('vendor_id'), fn($q) => $q->where('vendor_id', $request->integer('vendor_id')))
             ->latest('current_date')
-            ->paginate((int) $request->get('paginate', 12))
+            ->paginate($this->validatedPageSize($request, 'paginate', 12))
             ->withQueryString();
 
         $vendors = Vendor::query()->orderBy('name')->get();
@@ -325,6 +325,7 @@ class VendorExpensesController extends Controller
 
     private function vendorExpenseQuery(Request $request)
     {
+        $this->validateDateRange($request);
         return Expense::query()
             ->whereNotNull('vendor_id')
             ->with(['vendor', 'project', 'mainCategory', 'category', 'user', 'editedByUser'])
@@ -353,7 +354,7 @@ class VendorExpensesController extends Controller
             ->selectRaw('COALESCE(SUM(extra_amt),0) as total_advanced_amount')
             ->first();
 
-        $transactions = $query->latest('current_date')->paginate((int) $request->get('paginate', 10))->withQueryString();
+        $transactions = $query->latest('current_date')->paginate($this->validatedPageSize($request, 'paginate', 10))->withQueryString();
 
         return [$transactions, $totals];
     }

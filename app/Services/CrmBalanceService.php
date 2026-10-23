@@ -279,10 +279,61 @@ class CrmBalanceService
             return;
         }
 
-        DB::table('employees')
+        if (Schema::hasColumn('employees', 'user_id')) {
+            $mappedEmployeeIds = DB::table('employees')
+                ->where('user_id', $user->id)
+                ->limit(2)
+                ->pluck('id');
+
+            if ($mappedEmployeeIds->count() === 1) {
+                DB::table('employees')
+                    ->where('id', $mappedEmployeeIds->first())
+                    ->update(['wallet' => $user->wallet]);
+
+                return;
+            }
+
+            $email = trim((string) $user->email);
+            if ($mappedEmployeeIds->isEmpty() && $email !== '') {
+                $legacyEmployeeIds = DB::table('employees')
+                    ->whereNull('user_id')
+                    ->where('email', $email)
+                    ->limit(2)
+                    ->pluck('id');
+
+                if ($legacyEmployeeIds->count() === 1) {
+                    DB::table('employees')
+                        ->where('id', $legacyEmployeeIds->first())
+                        ->update(['wallet' => $user->wallet]);
+                }
+            }
+
+            return;
+        }
+
+        if (DB::table('employees')->where('id', $user->id)->exists()) {
+            DB::table('employees')
             ->where('id', $user->id)
-            ->when($user->email, fn($query) => $query->orWhere('email', $user->email))
             ->update(['wallet' => $user->wallet]);
+
+            return;
+        }
+
+        $email = trim((string) $user->email);
+        if ($email === '') {
+            return;
+        }
+
+        $legacyEmployeeIds = DB::table('employees')
+            ->where('email', $email)
+            ->limit(2)
+            ->pluck('id');
+
+        if ($legacyEmployeeIds->count() === 1) {
+            DB::table('employees')
+                ->where('id', $legacyEmployeeIds->first())
+                ->update(['wallet' => $user->wallet]);
+        }
     }
 
     public function userIdFromEmployeeId(int $employeeId): ?int
@@ -291,18 +342,30 @@ class CrmBalanceService
             return null;
         }
 
-        $employee = DB::table('employees')->where('id', $employeeId)->first(['id', 'email']);
+        $employeeColumns = Schema::hasColumn('employees', 'user_id')
+            ? ['id', 'email', 'user_id']
+            : ['id', 'email'];
+        $employee = DB::table('employees')->where('id', $employeeId)->first($employeeColumns);
 
         if (! $employee) {
             return null;
         }
 
-        $user = DB::table('users')
-            ->where('id', $employee->id)
-            ->when($employee->email, fn($query) => $query->orWhere('email', $employee->email))
-            ->first(['id']);
+        if (Schema::hasColumn('employees', 'user_id') && $employee->user_id) {
+            return (int) $employee->user_id;
+        }
 
-        return $user ? (int) $user->id : null;
+        $email = trim((string) $employee->email);
+        if ($email === '') {
+            return null;
+        }
+
+        $userIds = DB::table('users')
+            ->where('email', $email)
+            ->limit(2)
+            ->pluck('id');
+
+        return $userIds->count() === 1 ? (int) $userIds->first() : null;
     }
 
     public function adjustVendorAdvance(int $vendorId, float $amount): void

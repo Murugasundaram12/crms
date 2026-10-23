@@ -92,8 +92,8 @@ class LabourSundayWeeklyOffTest extends TestCase
         ]);
     }
 
-    // 1. Sunday attendance cannot be created via single store
-    public function test_1_sunday_attendance_cannot_be_created(): void
+    // 1. Sunday attendance can be created via single store
+    public function test_1_sunday_attendance_can_be_created(): void
     {
         $response = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
@@ -102,15 +102,17 @@ class LabourSundayWeeklyOffTest extends TestCase
             'status' => 'present',
         ]);
 
-        $response->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
-        $this->assertDatabaseMissing('labour_attendances', [
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('success');
+        $this->assertDatabaseHas('labour_attendances', [
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-06',
+            'status' => 'present',
         ]);
     }
 
-    // 2. Sunday attendance cannot be bulk-created
-    public function test_2_sunday_attendance_cannot_be_bulk_created(): void
+    // 2. Sunday attendance can be bulk-created
+    public function test_2_sunday_attendance_can_be_bulk_created(): void
     {
         $response = $this->post(route('labour-attendances.bulk-store'), [
             'project_id' => $this->project->id,
@@ -124,15 +126,17 @@ class LabourSundayWeeklyOffTest extends TestCase
             ],
         ]);
 
-        $response->assertSessionHas('error', 'Attendance cannot be recorded on Sunday (Weekly Off).');
-        $this->assertDatabaseMissing('labour_attendances', [
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('success');
+        $this->assertDatabaseHas('labour_attendances', [
             'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-06',
+            'status' => 'present',
         ]);
     }
 
-    // 3. Sunday cannot be marked Present
-    public function test_3_sunday_cannot_be_marked_present(): void
+    // 3. Sunday can be marked Present
+    public function test_3_sunday_can_be_marked_present(): void
     {
         $response = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
@@ -141,15 +145,16 @@ class LabourSundayWeeklyOffTest extends TestCase
             'status' => 'present',
         ]);
 
-        $response->assertSessionHas('error');
-        $this->assertDatabaseMissing('labour_attendances', [
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('labour_attendances', [
+            'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-13',
             'status' => 'present',
         ]);
     }
 
-    // 4. Sunday cannot be marked Half Day
-    public function test_4_sunday_cannot_be_marked_half_day(): void
+    // 4. Sunday can be marked Half Day
+    public function test_4_sunday_can_be_marked_half_day(): void
     {
         $response = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
@@ -158,15 +163,16 @@ class LabourSundayWeeklyOffTest extends TestCase
             'status' => 'half_day',
         ]);
 
-        $response->assertSessionHas('error');
-        $this->assertDatabaseMissing('labour_attendances', [
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('labour_attendances', [
+            'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-13',
             'status' => 'half_day',
         ]);
     }
 
-    // 5. Sunday cannot be marked Absent
-    public function test_5_sunday_cannot_be_marked_absent(): void
+    // 5. Sunday can be marked Absent
+    public function test_5_sunday_can_be_marked_absent(): void
     {
         $response = $this->post(route('labour-attendances.store'), [
             'project_id' => $this->project->id,
@@ -175,17 +181,17 @@ class LabourSundayWeeklyOffTest extends TestCase
             'status' => 'absent',
         ]);
 
-        $response->assertSessionHas('error');
-        $this->assertDatabaseMissing('labour_attendances', [
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('labour_attendances', [
+            'labour_id' => $this->labour->id,
             'attendance_date' => '2026-09-13',
             'status' => 'absent',
         ]);
     }
 
-    // 6 & 7 & 9. Sunday does not contribute to payable days or salary even if historical Sunday record exists
-    public function test_6_and_7_and_9_sunday_historical_records_ignored_in_payable_days_and_salary(): void
+    // 6 & 7 & 9. Sunday contributes to payable days and salary when eligible
+    public function test_6_and_7_and_9_sunday_records_contribute_to_payable_days_and_salary(): void
     {
-        // Manually simulate historical Sunday records that may exist in database
         LabourAttendance::create([
             'labour_id' => $this->labour->id,
             'employee_id' => $this->admin->id,
@@ -201,7 +207,7 @@ class LabourSundayWeeklyOffTest extends TestCase
         LabourAttendance::create([
             'labour_id' => $this->labour->id,
             'employee_id' => $this->admin->id,
-            'attendance_date' => '2026-09-06', // Sunday (historical present!)
+            'attendance_date' => '2026-09-06', // Sunday
             'status' => 'present',
         ]);
         LabourAttendance::create([
@@ -214,15 +220,15 @@ class LabourSundayWeeklyOffTest extends TestCase
         // Period 2026-09-01 to 2026-09-10
         $summary = LabourAttendanceController::calculatePeriodSummary($this->labour, '2026-09-01', '2026-09-10');
 
-        // Present days must be 3 (Friday, Saturday, Monday). Sunday MUST BE EXCLUDED!
-        $this->assertEquals(3, $summary['present_days']);
-        $this->assertEquals(3.0, $summary['payable_days']);
-        // Daily rate is 600. Calculated salary = 3 * 600 = 1800.00 (NOT 2400.00!)
-        $this->assertEquals(1800.00, $summary['calculated_salary']);
+        // Present days must be 4 (Friday, Saturday, Sunday, Monday).
+        $this->assertEquals(4, $summary['present_days']);
+        $this->assertEquals(4.0, $summary['payable_days']);
+        // Daily rate is 600. Calculated salary = 4 * 600 = 2400.00
+        $this->assertEquals(2400.00, $summary['calculated_salary']);
     }
 
-    // 8. Sunday does not contribute to monthly working-day divisor
-    public function test_8_sunday_does_not_contribute_to_monthly_working_day_divisor(): void
+    // 8. Monthly salary uses fixed 30-day denominator policy
+    public function test_8_monthly_salary_uses_fixed_30_day_policy(): void
     {
         $monthlyRole = LabourRole::create([
             'name' => 'Monthly Role Test ' . uniqid(),
@@ -231,13 +237,10 @@ class LabourSundayWeeklyOffTest extends TestCase
         ]);
         $this->labour->update(['labour_role_id' => $monthlyRole->id]);
 
-        // September 2026 has 30 days, 4 Sundays => exactly 26 Mon-Sat working days.
         $summary = LabourAttendanceController::calculateMonthlySummary($this->labour->fresh('labourRole'), '2026-09');
 
-        $this->assertEquals(26, $summary['total_working_days']);
-        $this->assertEquals(4, $summary['sunday_count']);
-        // Daily rate divisor = 26000 / 26 = 1000.00
-        $this->assertEquals(1000.00, $summary['daily_rate']);
+        // Daily rate = 26000 / 30 = 866.67
+        $this->assertEquals(866.67, $summary['daily_rate']);
     }
 
     // 10. Monday-Saturday attendance still works
@@ -382,8 +385,8 @@ class LabourSundayWeeklyOffTest extends TestCase
         $resUiUnlocked->assertDontSee('Salary Paid');
     }
 
-    // Frontend UI on Sunday displays "Sunday - Weekly Off" and hides Save button
-    public function test_sunday_frontend_ui_displays_weekly_off(): void
+    // Frontend UI on Sunday does not show weekly off banner and enables Save button
+    public function test_sunday_frontend_ui_allows_attendance_recording(): void
     {
         // 2026-09-06 is Sunday
         $response = $this->get(route('labour-attendances.index', [
@@ -392,8 +395,39 @@ class LabourSundayWeeklyOffTest extends TestCase
         ]));
 
         $response->assertOk();
-        $response->assertSee('Sunday - Weekly Off');
-        $response->assertDontSee('Save Attendance Records');
+        $response->assertDontSee('Sunday - Weekly Off');
+        $response->assertSee('Save Attendance Records');
+    }
+
+    // Sunday attendance can be linked to salary payment
+    public function test_sunday_attendance_can_be_linked_to_salary(): void
+    {
+        $attSun = LabourAttendance::create([
+            'labour_id' => $this->labour->id,
+            'employee_id' => $this->admin->id,
+            'attendance_date' => '2026-09-06', // Sunday
+            'status' => 'present',
+        ]);
+
+        $salary = LabourSalary::create([
+            'labour_id' => $this->labour->id,
+            'salary_period_start' => '2026-09-01',
+            'salary_period_end' => '2026-09-06',
+            'salary_amount' => 600.00,
+            'paid_amount' => 600.00,
+            'remaining_amount' => 0.00,
+            'advance_adjusted' => 0.00,
+            'payment_date' => '2026-09-06',
+            'payment_method_id' => $this->paymentMethod->id,
+            'paid_by' => $this->admin->id,
+            'status' => 'paid',
+        ]);
+
+        // Must not throw validation exception
+        $salary->linkAttendances([$attSun->id]);
+
+        $attSun->refresh();
+        $this->assertEquals($salary->id, $attSun->labour_salary_id);
     }
 
     // Past date attendance entry is allowed when assignment is active, date is Mon-Sat, and not paid

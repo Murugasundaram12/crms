@@ -12,6 +12,7 @@ class LabourRoleController extends Controller
     public function index(Request $request)
     {
         // Build the labour role query and apply the requested filters.
+        $this->validateDateRange($request);
         $labourRoleQuery = LabourRole::query()->withCount('labours');
         $this->applySearchFilter($labourRoleQuery, $request);
         $this->applySalaryTypeFilter($labourRoleQuery, $request);

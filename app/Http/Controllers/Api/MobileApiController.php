@@ -28,6 +28,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\CrmBalanceService;
+use App\Services\EmployeeIdentityService;
 use App\Services\GpsTrackingValidationService;
 use App\Support\CompanyMapDefaults;
 use Illuminate\Http\Request;
@@ -67,10 +68,7 @@ class MobileApiController extends Controller
             return null;
         }
 
-        return Employee::query()
-            ->where('email', $user->email)
-            ->orWhere('id', $user->id)
-            ->value('id');
+        return app(EmployeeIdentityService::class)->resolveEmployee($user)?->id;
     }
 
     protected function userIdFromEmployeeId(?int $employeeId): ?int
@@ -79,19 +77,13 @@ class MobileApiController extends Controller
             return null;
         }
 
-        $user = User::query()->find($employeeId);
-
-        if ($user) {
-            return $user->id;
-        }
-
         $employee = Employee::query()->find($employeeId);
 
-        if ($employee && filled($employee->email)) {
-            return User::query()->where('email', $employee->email)->value('id');
+        if (! $employee) {
+            return null;
         }
 
-        return null;
+        return app(EmployeeIdentityService::class)->resolveUser($employee)?->id;
     }
 
     protected function incompleteDueTasksForUser(User $user)
@@ -145,18 +137,26 @@ class MobileApiController extends Controller
             return $employeeId;
         }
 
-        return $this->taskEmployeeIdFromUserId($employeeId);
+        return null;
     }
 
     protected function syncTaskEmployeeRecord(User $user, ?string $previousEmail = null): Employee
     {
-        $employee = Employee::query()->where('email', $user->email)->first();
+        $employee = app(EmployeeIdentityService::class)->resolveEmployee($user);
 
-        if (! $employee && $previousEmail && $previousEmail !== $user->email) {
-            $employee = Employee::query()->where('email', $previousEmail)->first();
+        if (! $employee && filled($previousEmail) && trim($previousEmail) !== trim((string) $user->email)) {
+            $previousEmailMatches = Employee::query()
+                ->where('email', trim($previousEmail))
+                ->limit(2)
+                ->get();
+
+            $employee = $previousEmailMatches->count() === 1
+                ? $previousEmailMatches->first()
+                : null;
         }
 
         $employee ??= new Employee();
+        $employee->user_id = $user->id;
 
         $employee->fill([
             'name' => $user->name,
@@ -445,21 +445,13 @@ class MobileApiController extends Controller
 
         if (! blank($validated['employee_id'] ?? null)) {
             $employeeId = (int) $validated['employee_id'];
-
-            $user = User::query()->find($employeeId);
+            $employee = Employee::query()->find($employeeId);
+            $user = $employee
+                ? app(EmployeeIdentityService::class)->resolveUser($employee)
+                : null;
 
             if ($user) {
                 return $user;
-            }
-
-            $employee = Employee::query()->find($employeeId);
-
-            if ($employee && filled($employee->email)) {
-                $user = User::query()->where('email', $employee->email)->first();
-
-                if ($user) {
-                    return $user;
-                }
             }
 
             throw ValidationException::withMessages([
@@ -1550,19 +1542,16 @@ class MobileApiController extends Controller
     protected function taskEmployeeIdsByUsers($users): array
     {
         $userIds = $users->pluck('id')->filter()->values();
-        $emails = $users->pluck('email')->filter()->values();
-
-        $byId = Employee::query()
-            ->whereIn('id', $userIds)
-            ->pluck('id', 'id');
-
-        $byEmail = Employee::query()
-            ->whereIn('email', $emails)
-            ->pluck('id', 'email');
+        $byUserId = Employee::query()
+            ->whereIn('user_id', $userIds)
+            ->get(['id', 'user_id'])
+            ->groupBy('user_id');
 
         return $users
             ->mapWithKeys(fn(User $user) => [
-                $user->id => $byId->get($user->id) ?? $byEmail->get($user->email),
+                $user->id => ($matches = $byUserId->get($user->id)) && $matches->count() === 1
+                    ? $matches->first()->id
+                    : null,
             ])
             ->all();
     }
@@ -1570,8 +1559,9 @@ class MobileApiController extends Controller
     protected function employeeDetailPayload(User $employee): array
     {
         $employee->load('roles.permissions');
-        $expensesPerPage = max(1, min((int) request('expenses_per_page', 10), 100));
-        $attendancePerPage = max(1, min((int) request('attendance_per_page', 10), 100));
+        $request = request();
+        $expensesPerPage = $this->validatedPageSize($request, 'expenses_per_page', 10);
+        $attendancePerPage = $this->validatedPageSize($request, 'attendance_per_page', 10);
 
         $expenses = Expense::query()
             ->with(['project', 'mainCategory', 'category'])

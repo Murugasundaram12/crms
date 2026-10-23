@@ -136,6 +136,7 @@ class TaskController extends Controller
 
     private function applyDateFilter($taskQuery, Request $request): void
     {
+        $this->validateDateRange($request);
         if ($request->filled('date_from')) {
             $taskQuery->whereDate('due_date', '>=', $request->date('date_from')->toDateString());
         }
@@ -164,16 +165,32 @@ class TaskController extends Controller
 
     private function buildTaskSummary($tasks): array
     {
-        return [
-            'total' => $tasks->count(),
-            'completed' => $tasks->where('status', 'completed')->count(),
-            'important' => $tasks->where('is_important', true)->count(),
-            'overdue' => $tasks->filter(function (Task $task) {
-                return $task->due_date
-                    && $task->due_date->lt(Carbon::today())
-                    && $task->status !== 'completed';
-            })->count(),
+        $summary = [
+            'total' => 0,
+            'completed' => 0,
+            'important' => 0,
+            'overdue' => 0,
         ];
+
+        foreach ($tasks as $task) {
+            $summary['total']++;
+
+            if ($task->status === 'completed') {
+                $summary['completed']++;
+            }
+
+            if ($task->is_important) {
+                $summary['important']++;
+            }
+
+            if ($task->due_date
+                && $task->due_date->lt(Carbon::today())
+                && $task->status !== 'completed') {
+                $summary['overdue']++;
+            }
+        }
+
+        return $summary;
     }
 
     private function validateTaskData(Request $request): array
