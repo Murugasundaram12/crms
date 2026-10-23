@@ -189,7 +189,7 @@
         <div class="col-xl-3 col-sm-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
-                    <p class="fw-medium mb-1">Revenue</p>
+                    <p class="fw-medium mb-1">Net Revenue</p>
                     <h4 class="mb-3">₹{{ number_format($summary['netRevenue'], 2) }}</h4>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <span
@@ -211,7 +211,7 @@
         <div class="col-xl-3 col-sm-6 d-flex">
             <div class="card border-0 shadow-sm flex-fill">
                 <div class="card-body position-relative">
-                    <p class="fw-medium mb-1">Active Projects</p>
+                    <p class="fw-medium mb-1">Total Projects</p>
                     <h4 class="mb-3">{{ $summary['projectCount'] }}</h4>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <span

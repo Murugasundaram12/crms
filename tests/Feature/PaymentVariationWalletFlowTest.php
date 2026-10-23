@@ -14,6 +14,7 @@ class PaymentVariationWalletFlowTest extends TestCase
     private int $clientId;
     private int $projectId;
     private int $stageId;
+    private int $paymentMethodId;
 
     protected function setUp(): void
     {
@@ -23,6 +24,7 @@ class PaymentVariationWalletFlowTest extends TestCase
             'wallet',
             'variations',
             'payments',
+            'payment_methods',
             'payment_stages',
             'quotations',
             'projects',
@@ -49,6 +51,15 @@ class PaymentVariationWalletFlowTest extends TestCase
             $table->string('avatar')->nullable();
             $table->string('password');
             $table->rememberToken();
+            $table->timestamps();
+        });
+
+        Schema::create('payment_methods', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->unique();
+            $table->string('code')->unique();
+            $table->boolean('active_status')->default(true);
+            $table->integer('sort_order')->default(0);
             $table->timestamps();
         });
 
@@ -101,6 +112,7 @@ class PaymentVariationWalletFlowTest extends TestCase
             $table->foreignId('project_id');
             $table->foreignId('quotation_id');
             $table->foreignId('stage_id');
+            $table->foreignId('payment_method_id')->nullable();
             $table->string('payment_method')->nullable();
             $table->string('transaction_id')->nullable()->unique();
             $table->decimal('amount', 14, 2);
@@ -140,6 +152,14 @@ class PaymentVariationWalletFlowTest extends TestCase
         });
 
         $this->admin = User::factory()->create(['role' => 'Super Admin', 'wallet' => 0]);
+        $this->paymentMethodId = DB::table('payment_methods')->insertGetId([
+            'name' => 'Cash',
+            'code' => 'CASH',
+            'active_status' => 1,
+            'sort_order' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $this->clientId = DB::table('clients')->insertGetId(['name' => 'Client', 'created_at' => now(), 'updated_at' => now()]);
         $this->projectId = DB::table('projects')->insertGetId([
             'name' => 'Site A',
@@ -234,6 +254,7 @@ class PaymentVariationWalletFlowTest extends TestCase
             'project_id' => $this->projectId,
             'quotation_id' => $quotationId,
             'stage_id' => $this->stageId,
+            'payment_method_id' => $this->paymentMethodId,
             'method' => 'cash',
             'amount' => $amount,
             'paid_at' => '2026-07-17T10:00',

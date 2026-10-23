@@ -23,6 +23,8 @@ class PaymentMethodMasterFlowTest extends TestCase
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('role')->nullable();
+            $table->decimal('wallet', 14, 2)->default(1000.00);
             $table->string('password');
             $table->timestamps();
         });
@@ -63,6 +65,7 @@ class PaymentMethodMasterFlowTest extends TestCase
             $table->unsignedBigInteger('project_id')->nullable();
             $table->string('description')->nullable();
             $table->decimal('paid_amount', 12, 2)->default(0);
+            $table->foreignId('payment_method_id')->nullable();
             $table->integer('payment_mode')->nullable();
             $table->date('current_date')->nullable();
             $table->string('current_time')->nullable();
@@ -78,6 +81,8 @@ class PaymentMethodMasterFlowTest extends TestCase
         $user = User::create([
             'name' => 'Admin',
             'email' => 'admin@example.com',
+            'role' => 'Super Admin',
+            'wallet' => 1000.00,
             'password' => bcrypt('secret'),
         ]);
 
@@ -114,14 +119,14 @@ class PaymentMethodMasterFlowTest extends TestCase
                 'project_id' => $projectId,
                 'description' => 'Fuel expense',
                 'paid_amount' => 250,
-                'payment_mode' => $paymentMethod->id,
+                'payment_method_id' => $paymentMethod->id,
                 'current_date' => '01/02/2026',
                 'current_time' => '10:00:00 AM',
             ])
             ->assertRedirect(route('expense-transactions.index'));
 
         $this->assertDatabaseHas('expense_transactions', [
-            'payment_mode' => $paymentMethod->id,
+            'payment_method_id' => $paymentMethod->id,
             'user_id' => $user->id,
         ]);
     }

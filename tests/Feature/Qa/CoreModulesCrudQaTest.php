@@ -21,10 +21,20 @@ class CoreModulesCrudQaTest extends QaTestCase
         if (config('database.default') === 'sqlite') {
             Schema::dropIfExists('tasks');
             Schema::dropIfExists('projects');
+            Schema::dropIfExists('payments');
             Schema::dropIfExists('clients');
             Schema::dropIfExists('vendors');
             Schema::dropIfExists('labours');
             Schema::dropIfExists('labour_roles');
+
+            Schema::create('payments', function (Blueprint $table): void {
+                $table->id();
+                $table->foreignId('client_id')->nullable();
+                $table->foreignId('project_id')->nullable();
+                $table->decimal('amount', 14, 2)->default(0);
+                $table->string('status')->default('paid');
+                $table->timestamps();
+            });
 
             Schema::create('clients', function (Blueprint $table): void {
                 $table->id();

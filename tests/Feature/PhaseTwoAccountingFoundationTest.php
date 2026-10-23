@@ -492,11 +492,12 @@ class PhaseTwoAccountingFoundationTest extends TestCase
         $this->assertNotNull($advHist);
         $this->assertEquals(2000.00, (float) $advHist->amount);
 
-        // Expense created with amount=5000, paid_amt=5000 (cash + advance), is_advance=1
+        // Under cash-basis accounting: Expense records actual new cash disbursed (3000), not gross entitlement (5000),
+        // preventing double-counting with the previously paid advance (2000).
         $expense = Expense::query()->where('source_type', 'labour_salary')->first();
         $this->assertNotNull($expense);
-        $this->assertEquals(5000.00, (float) $expense->amount);
-        $this->assertEquals(5000.00, (float) $expense->paid_amt);
+        $this->assertEquals(3000.00, (float) $expense->amount);
+        $this->assertEquals(3000.00, (float) $expense->paid_amt);
         $this->assertEquals(0.00, (float) $expense->unpaid_amt);
         $this->assertEquals(1, $expense->is_advance);
 
@@ -538,13 +539,10 @@ class PhaseTwoAccountingFoundationTest extends TestCase
         // Labour advance balance reduced to 0
         $this->assertEquals(0.00, (float) $this->labour->fresh()->advance_amt);
 
-        // Expense MUST exist with amount=5000, paid_amt=5000, unpaid_amt=0, is_advance=1
+        // Under cash-basis accounting: When cash paid is 0 (fully settled via advance),
+        // no new cash outflow occurs. The expense ledger remains aligned with the wallet debit (no new expense row).
         $expense = Expense::query()->where('source_type', 'labour_salary')->first();
-        $this->assertNotNull($expense, 'Expense must not be deleted or omitted when cash paid is zero but advance adjusted');
-        $this->assertEquals(5000.00, (float) $expense->amount);
-        $this->assertEquals(5000.00, (float) $expense->paid_amt);
-        $this->assertEquals(0.00, (float) $expense->unpaid_amt);
-        $this->assertEquals(1, $expense->is_advance);
+        $this->assertNull($expense);
 
         // No cash wallet debit ledger row created
         $walletTx = Wallet::query()->where('source_type', 'labour_salary')->first();
@@ -595,10 +593,11 @@ class PhaseTwoAccountingFoundationTest extends TestCase
         // Advance reduced by additional 1000 -> becomes 2000
         $this->assertEquals(2000.00, (float) $this->labour->fresh()->advance_amt);
 
-        // Expense updated
+        // Expense updated to match new cash paid (3000)
         $expense = Expense::query()->where('source_type', 'labour_salary')->first();
-        $this->assertEquals(6000.00, (float) $expense->amount);
-        $this->assertEquals(6000.00, (float) $expense->paid_amt);
+        $this->assertNotNull($expense);
+        $this->assertEquals(3000.00, (float) $expense->amount);
+        $this->assertEquals(3000.00, (float) $expense->paid_amt);
         $this->assertEquals(0.00, (float) $expense->unpaid_amt);
         $this->assertEquals(1, $expense->is_advance);
     }

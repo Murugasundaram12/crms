@@ -51,6 +51,7 @@ class SettingsMasterQaTest extends QaTestCase
 
             Schema::create('payment_stages', function (Blueprint $table): void {
                 $table->id();
+                $table->foreignId('project_id')->nullable();
                 $table->string('stage_name');
                 $table->timestamps();
             });
@@ -67,8 +68,19 @@ class SettingsMasterQaTest extends QaTestCase
 
             Schema::create('payments', function (Blueprint $table): void {
                 $table->id();
+                $table->string('invoice_number')->nullable();
+                $table->string('payment_code')->nullable();
+                $table->foreignId('client_id')->nullable();
+                $table->foreignId('project_id')->nullable();
+                $table->foreignId('quotation_id')->nullable();
                 $table->foreignId('stage_id')->nullable();
+                $table->foreignId('payment_method_id')->nullable();
+                $table->string('payment_method')->nullable();
                 $table->decimal('amount', 14, 2)->default(0);
+                $table->timestamp('due_date')->nullable();
+                $table->timestamp('payment_date')->nullable();
+                $table->string('status')->default('paid');
+                $table->text('notes')->nullable();
                 $table->timestamps();
             });
         }

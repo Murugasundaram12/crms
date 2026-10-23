@@ -182,6 +182,7 @@ abstract class TestCase extends BaseTestCase
             $schema->create('labours', function (\Illuminate\Database\Schema\Blueprint $table) {
                 $table->id();
                 $table->string('name');
+                $table->string('job_title')->nullable();
                 $table->string('phone')->nullable();
                 $table->string('phone_number')->nullable();
                 $table->unsignedBigInteger('labour_role_id')->nullable();
@@ -252,7 +253,7 @@ abstract class TestCase extends BaseTestCase
                 $table->decimal('unpaid_amt', 14, 2)->default(0);
                 $table->decimal('extra_amt', 14, 2)->default(0);
                 $table->date('current_date')->nullable();
-                $table->tinyInteger('is_advance')->default(0);
+                $table->tinyInteger('is_advance')->nullable()->default(0);
                 $table->string('source_type')->nullable();
                 $table->unsignedBigInteger('source_id')->nullable();
                 $table->foreignId('editedBy')->nullable();
@@ -292,6 +293,7 @@ abstract class TestCase extends BaseTestCase
                 $table->decimal('advance_adjusted', 14, 2)->default(0);
                 $table->tinyInteger('advance_paid')->default(0);
                 $table->decimal('paid_amount', 14, 2)->default(0);
+                $table->decimal('remaining_amount', 14, 2)->default(0);
                 $table->date('payment_date')->nullable();
                 $table->foreignId('payment_method_id')->nullable();
                 $table->string('status')->default('pending');
@@ -349,6 +351,94 @@ abstract class TestCase extends BaseTestCase
                 $table->unsignedInteger('approved_by_id')->nullable();
                 $table->timestamp('approved_at')->nullable();
                 $table->text('approver_remarks')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('clients')) {
+            $schema->create('clients', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('projects')) {
+            $schema->create('projects', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('project_code')->nullable();
+                $table->foreignId('client_id')->nullable();
+                $table->string('status')->default('planning');
+                $table->decimal('budget', 14, 2)->default(0);
+                $table->decimal('spent', 14, 2)->default(0);
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('tasks')) {
+            $schema->create('tasks', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->foreignId('project_id')->nullable();
+                $table->foreignId('employee_id')->nullable();
+                $table->string('name')->nullable();
+                $table->string('status')->default('pending');
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('payments')) {
+            $schema->create('payments', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->foreignId('client_id')->nullable();
+                $table->foreignId('project_id')->nullable();
+                $table->foreignId('quotation_id')->nullable();
+                $table->foreignId('stage_id')->nullable();
+                $table->foreignId('payment_method_id')->nullable();
+                $table->decimal('amount', 14, 2)->default(0);
+                $table->string('status')->default('pending');
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('employee_salaries')) {
+            $schema->create('employee_salaries', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->foreignId('employee_id')->nullable();
+                $table->decimal('salary', 14, 2)->default(0);
+                $table->decimal('paid_amount', 14, 2)->default(0);
+                $table->string('status')->default('pending');
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('labour_attendances')) {
+            $schema->create('labour_attendances', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->foreignId('labour_id');
+                $table->foreignId('employee_id')->nullable();
+                $table->foreignId('labour_salary_id')->nullable();
+                $table->date('attendance_date');
+                $table->string('status')->default('present');
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('main_categories')) {
+            $schema->create('main_categories', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('status')->default('active');
+                $table->timestamps();
+            });
+        }
+
+        if (! $schema->hasTable('categories')) {
+            $schema->create('categories', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->foreignId('main_category_id')->nullable();
+                $table->string('name');
                 $table->timestamps();
             });
         }

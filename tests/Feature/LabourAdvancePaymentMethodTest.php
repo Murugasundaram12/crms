@@ -179,13 +179,26 @@ class LabourAdvancePaymentMethodTest extends TestCase
         $this->assertEquals(7000.00, (float) $this->user->fresh()->wallet);
         $this->assertEquals(3000.00, (float) $this->labour->fresh()->advance_amt);
 
-        // Withdraw ₹1,000
-        $this->actingAs($this->user)->post(route('labour-expenses.advance-store'), [
+        // Direct unattributed withdrawal (entry_type = 'withdraw') is unsupported and blocked
+        $response = $this->actingAs($this->user)->post(route('labour-expenses.advance-store'), [
             'labour_id' => $this->labour->id,
             'entry_type' => 'withdraw',
             'amount' => 1000.00,
             'notes' => 'Returned part of advance',
         ]);
+        $response->assertSessionHasErrors(['entry_type']);
+        $this->assertEquals(7000.00, (float) $this->user->fresh()->wallet);
+        $this->assertEquals(3000.00, (float) $this->labour->fresh()->advance_amt);
+
+        // Supported attributed reversal via advance-reverse route
+        $reverseResponse = $this->actingAs($this->user)->post(route('labour-expenses.advance-reverse'), [
+            'labour_id' => $this->labour->id,
+            'employee_id' => $this->user->id,
+            'amount' => 1000.00,
+            'payment_method_id' => $this->paymentMethod->id,
+            'notes' => 'Returned part of advance',
+        ]);
+        $reverseResponse->assertRedirect();
 
         // Wallet refunded to ₹8,000, Labour advance reduced to ₹2,000
         $this->assertEquals(8000.00, (float) $this->user->fresh()->wallet);

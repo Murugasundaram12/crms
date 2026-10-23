@@ -5,6 +5,7 @@ namespace Tests;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +109,82 @@ abstract class QaTestCase extends BaseTestCase
                 $table->string('model_type');
                 $table->unsignedBigInteger('model_id');
                 $table->primary(['permission_id', 'model_id', 'model_type']);
+            });
+        }
+
+        if (! Schema::hasTable('clients')) {
+            Schema::create('clients', function (Blueprint $table): void {
+                $table->id();
+                $table->string('name');
+                $table->string('company_name')->nullable();
+                $table->string('email')->nullable();
+                $table->string('phone')->nullable();
+                $table->string('address')->nullable();
+                $table->string('city')->nullable();
+                $table->string('state')->nullable();
+                $table->string('country')->nullable();
+                $table->string('status')->default('active');
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('projects')) {
+            Schema::create('projects', function (Blueprint $table): void {
+                $table->id();
+                $table->string('project_code')->nullable();
+                $table->foreignId('client_id')->nullable();
+                $table->unsignedBigInteger('manager_id')->nullable();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->string('type')->nullable();
+                $table->string('priority')->nullable();
+                $table->string('status')->default('Ongoing');
+                $table->integer('progress')->default(0);
+                $table->date('start_date')->nullable();
+                $table->date('end_date')->nullable();
+                $table->string('location')->nullable();
+                $table->decimal('advance_amt', 14, 2)->default(0);
+                $table->decimal('profit', 14, 2)->default(0);
+                $table->decimal('budget', 14, 2)->default(0);
+                $table->decimal('spent', 14, 2)->default(0);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('quotations')) {
+            Schema::create('quotations', function (Blueprint $table): void {
+                $table->id();
+                $table->string('quotation_number')->nullable();
+                $table->foreignId('client_id')->nullable();
+                $table->foreignId('project_id')->nullable();
+                $table->timestamp('quotation_date')->nullable();
+                $table->string('quotation_title')->nullable();
+                $table->decimal('amount', 14, 2)->default(0);
+                $table->decimal('total_amount', 14, 2)->default(0);
+                $table->decimal('sub_total', 14, 2)->default(0);
+                $table->decimal('gst_percent', 8, 2)->default(0);
+                $table->decimal('discount_percent', 8, 2)->default(0);
+                $table->string('status')->default('Pending');
+                $table->integer('validity_days')->default(30);
+                $table->integer('duration_days')->default(30);
+                $table->timestamp('start_date')->nullable();
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('payments')) {
+            Schema::create('payments', function (Blueprint $table): void {
+                $table->id();
+                $table->foreignId('client_id')->nullable();
+                $table->foreignId('project_id')->nullable();
+                $table->foreignId('quotation_id')->nullable();
+                $table->foreignId('stage_id')->nullable();
+                $table->foreignId('payment_method_id')->nullable();
+                $table->decimal('amount', 14, 2)->default(0);
+                $table->string('status')->default('paid');
+                $table->timestamps();
             });
         }
     }

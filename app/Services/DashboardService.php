@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AdvanceHistory;
 use App\Models\Client;
 use App\Models\Employee;
 use App\Models\EmployeeSalary;
@@ -29,14 +30,18 @@ class DashboardService
             ? (float) Project::sum('spent')
             : (float) Project::with('expenses')->get()->sum(fn(Project $project) => $project->spent);
         $paidRevenue = Schema::hasTable('payments')
-            ? (float) Payment::where('status', 'paid')->sum('amount')
+            ? (float) (Schema::hasColumn('payments', 'status')
+                ? Payment::whereIn('status', ['paid', 'partial'])->sum('amount')
+                : Payment::sum('amount'))
             : 0.0;
+        $expenseColumn = Schema::hasTable('expenses') && Schema::hasColumn('expenses', 'paid_amt') ? 'paid_amt' : 'amount';
         $expenseTotal = Schema::hasTable('expenses') && Schema::hasColumn('expenses', 'source_type')
             ? (float) Expense::where(function ($q) {
                 $q->whereNull('source_type')->orWhere('source_type', '!=', 'labour_salary');
-            })->sum('amount')
-            : $this->sumIfTableExists(Expense::class, 'amount');
-        $employeeSalaryTotal = $this->sumIfTableExists(EmployeeSalary::class, 'salary');
+            })->sum($expenseColumn)
+            : $this->sumIfTableExists(Expense::class, $expenseColumn);
+        $employeeSalaryColumn = Schema::hasTable('employee_salaries') && Schema::hasColumn('employee_salaries', 'paid_amount') ? 'paid_amount' : 'salary';
+        $employeeSalaryTotal = $this->sumIfTableExists(EmployeeSalary::class, $employeeSalaryColumn);
         $labourSalaryTotal = $this->sumLabourExpenses();
         $totalExpenses = $expenseTotal + $employeeSalaryTotal + $labourSalaryTotal;
         $netRevenue = $paidRevenue - $totalExpenses;
@@ -71,6 +76,12 @@ class DashboardService
 
         if (Schema::hasTable('labour_expense_transactions') && Schema::hasColumn('labour_expense_transactions', 'paid_amount')) {
             $total += (float) LabourExpenseTransaction::where('delete_status', 0)->sum('paid_amount');
+        }
+
+        if (Schema::hasTable('advance_history') && Schema::hasColumn('advance_history', 'amount') && Schema::hasColumn('advance_history', 'entry_type')) {
+            $advanceCredits = (float) AdvanceHistory::whereNotNull('labour_id')->where('entry_type', 'credit')->sum('amount');
+            $advanceReversals = (float) AdvanceHistory::whereNotNull('labour_id')->where('entry_type', 'reverse')->sum('amount');
+            $total += max($advanceCredits - $advanceReversals, 0.0);
         }
 
         return $total;
