@@ -33,13 +33,13 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form action="{{ route('labour_assignments.update', $assignment) }}" method="POST">
+                    <form action="{{ route('labour_assignments.update', $assignment) }}" method="POST" novalidate>
                         @csrf
                         @method('PUT')
 
                         <div class="mb-3">
                             <label class="form-label required fw-bold">Labour</label>
-                            <select name="labour_id" class="form-select @error('labour_id') is-invalid @enderror" required>
+                            <select name="labour_id" class="form-select @error('labour_id') is-invalid @enderror" @error('labour_id') aria-describedby="edit_assignment_labour_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Labour</option>
                                 @foreach($labours as $l)
                                     <option value="{{ $l->id }}" @selected((string)old('labour_id', $assignment->labour_id) === (string)$l->id)>
@@ -48,13 +48,13 @@
                                 @endforeach
                             </select>
                             @error('labour_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="edit_assignment_labour_id_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label required fw-bold">Project / Site</label>
-                            <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" required>
+                            <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="edit_assignment_project_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Site</option>
                                 @foreach($projects as $p)
                                     <option value="{{ $p->id }}" @selected((string)old('project_id', $assignment->project_id) === (string)$p->id)>
@@ -63,44 +63,44 @@
                                 @endforeach
                             </select>
                             @error('project_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="edit_assignment_project_id_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label required fw-bold">Start Date</label>
-                                <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" value="{{ old('start_date', $assignment->start_date?->format('Y-m-d')) }}" required>
+                                <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" value="{{ old('start_date', $assignment->start_date?->format('Y-m-d')) }}" @error('start_date') aria-describedby="edit_assignment_start_date_error" aria-invalid="true" @enderror required>
                                 @error('start_date')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+                                    <div class="invalid-feedback d-block" id="edit_assignment_start_date_error">{{ $message }}</div>
                                 @enderror
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label required fw-bold">End Date</label>
-                                <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" value="{{ old('end_date', $assignment->end_date?->format('Y-m-d')) }}" required>
+                                <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" value="{{ old('end_date', $assignment->end_date?->format('Y-m-d')) }}" @error('end_date') aria-describedby="edit_assignment_end_date_error" aria-invalid="true" @enderror required>
                                 @error('end_date')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+                                    <div class="invalid-feedback d-block" id="edit_assignment_end_date_error">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label required fw-bold">Status</label>
-                            <select name="status" class="form-select @error('status') is-invalid @enderror" required>
+                            <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="edit_assignment_status_error" aria-invalid="true" @enderror required>
                                 <option value="active" @selected(old('status', $assignment->status) === 'active')>Active</option>
                                 <option value="completed" @selected(old('status', $assignment->status) === 'completed')>Completed</option>
                                 <option value="cancelled" @selected(old('status', $assignment->status) === 'cancelled')>Cancelled</option>
                             </select>
                             @error('status')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="edit_assignment_status_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="mb-4">
                             <label class="form-label fw-bold">Notes</label>
-                            <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="3" placeholder="Optional assignment notes">{{ old('notes', $assignment->notes) }}</textarea>
+                            <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="3" placeholder="Optional assignment notes" @error('notes') aria-describedby="edit_assignment_notes_error" aria-invalid="true" @enderror>{{ old('notes', $assignment->notes) }}</textarea>
                             @error('notes')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="edit_assignment_notes_error">{{ $message }}</div>
                             @enderror
                         </div>
 

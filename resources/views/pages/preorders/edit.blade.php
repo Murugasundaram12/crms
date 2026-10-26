@@ -20,7 +20,7 @@
 
         @include('partials.alerts')
 
-        <form action="{{ route('preorders.update', $preorder->id) }}" method="POST">
+        <form action="{{ route('preorders.update', $preorder->id) }}" method="POST" novalidate>
             @csrf
             @method('PUT')
 
@@ -32,7 +32,8 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label">Material / Tool <span class="text-danger">*</span></label>
-                            <select name="tool_material_id" id="tool_material_id" class="form-select @error('tool_material_id') is-invalid @enderror" required>
+                            <select name="tool_material_id" id="tool_material_id" class="form-select @error('tool_material_id') is-invalid @enderror"
+                                @error('tool_material_id') aria-describedby="edit_tool_material_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Material / Tool</option>
                                 @foreach($toolsMaterials as $item)
                                     <option value="{{ $item->id }}" data-unit="{{ $item->unit }}" data-rate="{{ $item->opening_rate }}" @selected((string) old('tool_material_id', $preorder->tool_material_id) === (string) $item->id)>
@@ -40,12 +41,15 @@
                                     </option>
                                 @endforeach
                             </select>
-                            @error('tool_material_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            @error('tool_material_id')
+                                <div class="invalid-feedback d-block" id="edit_tool_material_id_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-6">
                             <label class="form-label">Vendor</label>
-                            <select name="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror">
+                            <select name="vendor_id" id="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror"
+                                @error('vendor_id') aria-describedby="edit_vendor_id_error" aria-invalid="true" @enderror>
                                 <option value="">Select Vendor (Optional)</option>
                                 @foreach($vendors as $vendor)
                                     <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', $preorder->vendor_id) === (string) $vendor->id)>
@@ -53,18 +57,24 @@
                                     </option>
                                 @endforeach
                             </select>
-                            @error('vendor_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            @error('vendor_id')
+                                <div class="invalid-feedback d-block" id="edit_vendor_id_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Quantity <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01" name="quantity" id="quantity" class="form-control @error('quantity') is-invalid @enderror" value="{{ old('quantity', $preorder->quantity) }}" required>
-                            @error('quantity')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            <input type="number" step="0.01" min="0.01" name="quantity" id="quantity" class="form-control @error('quantity') is-invalid @enderror" value="{{ old('quantity', $preorder->quantity) }}"
+                                @error('quantity') aria-describedby="edit_quantity_error" aria-invalid="true" @enderror required>
+                            @error('quantity')
+                                <div class="invalid-feedback d-block" id="edit_quantity_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Unit <span class="text-danger">*</span></label>
-                            <select name="unit" id="unit" class="form-select @error('unit') is-invalid @enderror" required>
+                            <select name="unit" id="unit" class="form-select @error('unit') is-invalid @enderror"
+                                @error('unit') aria-describedby="edit_unit_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Unit</option>
                                 @foreach($units as $unit)
                                     <option value="{{ $unit->code }}" @selected((string) old('unit', $preorder->unit) === (string) $unit->code)>
@@ -72,13 +82,18 @@
                                     </option>
                                 @endforeach
                             </select>
-                            @error('unit')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            @error('unit')
+                                <div class="invalid-feedback d-block" id="edit_unit_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Expected Unit Rate (Rs.) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0" name="expected_rate" id="expected_rate" class="form-control @error('expected_rate') is-invalid @enderror" value="{{ old('expected_rate', $preorder->expected_rate) }}" required>
-                            @error('expected_rate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            <input type="number" step="0.01" min="0" name="expected_rate" id="expected_rate" class="form-control @error('expected_rate') is-invalid @enderror" value="{{ old('expected_rate', $preorder->expected_rate) }}"
+                                @error('expected_rate') aria-describedby="edit_expected_rate_error" aria-invalid="true" @enderror required>
+                            @error('expected_rate')
+                                <div class="invalid-feedback d-block" id="edit_expected_rate_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
@@ -88,7 +103,11 @@
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">GST % (Optional)</label>
-                            <input type="number" step="0.01" min="0" max="100" name="gst_percent" id="gst_percent" class="form-control" value="{{ old('gst_percent', $preorder->gst_percent) }}">
+                            <input type="number" step="0.01" min="0" max="100" name="gst_percent" id="gst_percent" class="form-control @error('gst_percent') is-invalid @enderror" value="{{ old('gst_percent', $preorder->gst_percent) }}"
+                                @error('gst_percent') aria-describedby="edit_gst_percent_error" aria-invalid="true" @enderror>
+                            @error('gst_percent')
+                                <div class="invalid-feedback d-block" id="edit_gst_percent_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
@@ -98,34 +117,54 @@
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Preorder Date <span class="text-danger">*</span></label>
-                            <input type="date" name="preorder_date" class="form-control" value="{{ old('preorder_date', optional($preorder->preorder_date)->format('Y-m-d')) }}" required>
+                            <input type="date" name="preorder_date" id="preorder_date" class="form-control @error('preorder_date') is-invalid @enderror" value="{{ old('preorder_date', optional($preorder->preorder_date)->format('Y-m-d')) }}"
+                                @error('preorder_date') aria-describedby="edit_preorder_date_error" aria-invalid="true" @enderror required>
+                            @error('preorder_date')
+                                <div class="invalid-feedback d-block" id="edit_preorder_date_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Required Date</label>
-                            <input type="date" name="required_date" class="form-control" value="{{ old('required_date', optional($preorder->required_date)->format('Y-m-d')) }}">
+                            <input type="date" name="required_date" id="required_date" class="form-control @error('required_date') is-invalid @enderror" value="{{ old('required_date', optional($preorder->required_date)->format('Y-m-d')) }}"
+                                @error('required_date') aria-describedby="edit_required_date_error" aria-invalid="true" @enderror>
+                            @error('required_date')
+                                <div class="invalid-feedback d-block" id="edit_required_date_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label class="form-label">Expected Delivery Date</label>
-                            <input type="date" name="expected_delivery_date" class="form-control" value="{{ old('expected_delivery_date', optional($preorder->expected_delivery_date)->format('Y-m-d')) }}">
+                            <input type="date" name="expected_delivery_date" id="expected_delivery_date" class="form-control @error('expected_delivery_date') is-invalid @enderror" value="{{ old('expected_delivery_date', optional($preorder->expected_delivery_date)->format('Y-m-d')) }}"
+                                @error('expected_delivery_date') aria-describedby="edit_expected_delivery_date_error" aria-invalid="true" @enderror>
+                            @error('expected_delivery_date')
+                                <div class="invalid-feedback d-block" id="edit_expected_delivery_date_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <div class="col-12 col-md-12">
                             <label class="form-label">Payment Method Master</label>
-                            <select name="payment_method_id" class="form-select">
+                            <select name="payment_method_id" id="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror"
+                                @error('payment_method_id') aria-describedby="edit_payment_method_id_error" aria-invalid="true" @enderror>
                                 <option value="">Select Payment Method</option>
                                 @foreach($paymentMethods as $pm)
                                     <option value="{{ $pm->id }}" @selected((string) old('payment_method_id', $preorder->payment_method_id) === (string) $pm->id)>{{ $pm->name }}</option>
                                 @endforeach
                             </select>
+                            @error('payment_method_id')
+                                <div class="invalid-feedback d-block" id="edit_payment_method_id_error">{{ $message }}</div>
+                            @enderror
                         </div>
 
                         <input type="hidden" name="status" value="{{ old('status', $preorder->status) }}">
 
                         <div class="col-12">
                             <label class="form-label">Notes / Terms</label>
-                            <textarea name="notes" class="form-control" rows="3">{{ old('notes', $preorder->notes) }}</textarea>
+                            <textarea name="notes" id="notes" class="form-control @error('notes') is-invalid @enderror" rows="3"
+                                @error('notes') aria-describedby="edit_notes_error" aria-invalid="true" @enderror>{{ old('notes', $preorder->notes) }}</textarea>
+                            @error('notes')
+                                <div class="invalid-feedback d-block" id="edit_notes_error">{{ $message }}</div>
+                            @enderror
                         </div>
                     </div>
                 </div>

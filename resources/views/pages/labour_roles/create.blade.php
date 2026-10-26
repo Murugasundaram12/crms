@@ -19,7 +19,7 @@
         <a href="{{ route('labour_roles.index') }}" class="btn btn-outline-light shadow-sm">Back to Labour Roles</a>
     </div>
 
-    <form action="{{ route('labour_roles.store') }}" method="POST" class="row g-4">
+    <form action="{{ route('labour_roles.store') }}" method="POST" class="row g-4" novalidate>
         @csrf
 
         <div class="col-xl-8">
@@ -33,9 +33,9 @@
                         <div class="col-md-6">
                             <label class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}" required>
+                                value="{{ old('name') }}" @error('name') aria-describedby="name_error" aria-invalid="true" @enderror required>
                             @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="name_error">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -43,9 +43,9 @@
                             <label class="form-label">Salary <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" name="salary"
                                 class="form-control @error('salary') is-invalid @enderror" value="{{ old('salary') }}"
-                                required>
+                                @error('salary') aria-describedby="salary_error" aria-invalid="true" @enderror required>
                             @error('salary')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="salary_error">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -54,22 +54,22 @@
                             <div class="d-flex align-items-center gap-4 flex-wrap">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="salary_type" id="salary_type_daily"
-                                        value="daily" @checked(old('salary_type') === 'daily') required>
+                                        value="daily" @checked(old('salary_type') === 'daily') @error('salary_type') aria-describedby="salary_type_error" aria-invalid="true" @enderror required>
                                     <label class="form-check-label" for="salary_type_daily">Daily</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="salary_type" id="salary_type_weekly"
-                                        value="weekly" @checked(old('salary_type') === 'weekly') required>
+                                        value="weekly" @checked(old('salary_type') === 'weekly') @error('salary_type') aria-describedby="salary_type_error" aria-invalid="true" @enderror required>
                                     <label class="form-check-label" for="salary_type_weekly">Weekly</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="salary_type" id="salary_type_monthly"
-                                        value="monthly" @checked(old('salary_type') === 'monthly') required>
+                                        value="monthly" @checked(old('salary_type') === 'monthly') @error('salary_type') aria-describedby="salary_type_error" aria-invalid="true" @enderror required>
                                     <label class="form-check-label" for="salary_type_monthly">Monthly</label>
                                 </div>
                             </div>
                             @error('salary_type')
-                                <div class="text-danger small mt-2">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="salary_type_error">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>

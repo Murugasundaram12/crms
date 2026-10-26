@@ -54,7 +54,7 @@
 
             <!-- Purchase Conversion Form -->
             <div class="col-12 col-lg-8">
-                <form action="{{ route('preorders.convert', $preorder->id) }}" method="POST">
+                <form action="{{ route('preorders.convert', $preorder->id) }}" method="POST" novalidate>
                     @csrf
 
                     <div class="card border-0 shadow-sm mb-4">
@@ -65,7 +65,7 @@
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Vendor <span class="text-danger">*</span></label>
-                                    <select name="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" required>
+                                    <select name="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" @error('vendor_id') aria-describedby="vendor_id_error" aria-invalid="true" @enderror required>
                                         <option value="">Select Vendor</option>
                                         @foreach($vendors as $vendor)
                                             <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', $preorder->vendor_id) === (string) $vendor->id)>
@@ -73,31 +73,42 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    @error('vendor_id')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                    @error('vendor_id')
+                                        <div class="invalid-feedback d-block" id="vendor_id_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Purchase / Receipt Date <span class="text-danger">*</span></label>
-                                    <input type="date" name="transferred_at" class="form-control" value="{{ old('transferred_at', now()->toDateString()) }}" required>
+                                    <input type="date" name="transferred_at" class="form-control @error('transferred_at') is-invalid @enderror" value="{{ old('transferred_at', now()->toDateString()) }}" @error('transferred_at') aria-describedby="transferred_at_error" aria-invalid="true" @enderror required>
+                                    @error('transferred_at')
+                                        <div class="invalid-feedback d-block" id="transferred_at_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Purchased / Received Quantity <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" min="0.01" max="{{ $preorder->remainingQuantity() }}" name="quantity" id="quantity" class="form-control @error('quantity') is-invalid @enderror" value="{{ old('quantity', $preorder->remainingQuantity()) }}" required>
+                                    <input type="number" step="0.01" min="0.01" max="{{ $preorder->remainingQuantity() }}" name="quantity" id="quantity" class="form-control @error('quantity') is-invalid @enderror" value="{{ old('quantity', $preorder->remainingQuantity()) }}" @error('quantity') aria-describedby="quantity_error" aria-invalid="true" @enderror required>
                                     <small class="text-muted">Max available: {{ number_format($preorder->remainingQuantity(), 2) }} {{ $preorder->unit }}</small>
-                                    @error('quantity')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                    @error('quantity')
+                                        <div class="invalid-feedback d-block" id="quantity_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Unit Rate (Rs.) <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" min="0" name="rate" id="rate" class="form-control @error('rate') is-invalid @enderror" value="{{ old('rate', $preorder->expected_rate) }}" required>
-                                    @error('rate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                    <input type="number" step="0.01" min="0" name="rate" id="rate" class="form-control @error('rate') is-invalid @enderror" value="{{ old('rate', $preorder->expected_rate) }}" @error('rate') aria-describedby="rate_error" aria-invalid="true" @enderror required>
+                                    @error('rate')
+                                        <div class="invalid-feedback d-block" id="rate_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Total Purchase Amount (Rs.) <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" min="0.01" name="purchase_amount" id="purchase_amount" class="form-control @error('purchase_amount') is-invalid @enderror" value="{{ old('purchase_amount', number_format($defaultPurchaseAmount, 2, '.', '')) }}" required>
-                                    @error('purchase_amount')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                    <input type="number" step="0.01" min="0.01" name="purchase_amount" id="purchase_amount" class="form-control @error('purchase_amount') is-invalid @enderror" value="{{ old('purchase_amount', number_format($defaultPurchaseAmount, 2, '.', '')) }}" @error('purchase_amount') aria-describedby="purchase_amount_error" aria-invalid="true" @enderror required>
+                                    @error('purchase_amount')
+                                        <div class="invalid-feedback d-block" id="purchase_amount_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
@@ -107,23 +118,32 @@
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Additional Payment Paid Now (Rs.)</label>
-                                    <input type="number" step="0.01" min="0" name="purchase_paid_amount" id="purchase_paid_amount" class="form-control" value="{{ old('purchase_paid_amount', number_format($defaultDueNow, 2, '.', '')) }}">
+                                    <input type="number" step="0.01" min="0" name="purchase_paid_amount" id="purchase_paid_amount" class="form-control @error('purchase_paid_amount') is-invalid @enderror" value="{{ old('purchase_paid_amount', number_format($defaultDueNow, 2, '.', '')) }}" @error('purchase_paid_amount') aria-describedby="purchase_paid_amount_error" aria-invalid="true" @enderror>
                                     <small class="text-muted">Required after advance: Rs. <span id="due_now">{{ number_format($defaultDueNow, 2) }}</span></small>
+                                    @error('purchase_paid_amount')
+                                        <div class="invalid-feedback d-block" id="purchase_paid_amount_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Payment Method Master <span class="text-muted small">(required if pay now &gt; 0)</span></label>
-                                    <select name="payment_method_id" class="form-select">
+                                    <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="payment_method_id_error" aria-invalid="true" @enderror>
                                         <option value="">Select Payment Method</option>
                                         @foreach($paymentMethods as $pm)
                                             <option value="{{ $pm->id }}" @selected((string) old('payment_method_id', $preorder->payment_method_id) === (string) $pm->id)>{{ $pm->name }}</option>
                                         @endforeach
                                     </select>
+                                    @error('payment_method_id')
+                                        <div class="invalid-feedback d-block" id="payment_method_id_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
 
                                 <div class="col-12">
                                     <label class="form-label">Notes / Remarks</label>
-                                    <textarea name="notes" class="form-control" rows="3" placeholder="Purchase invoice number, quality check notes">{{ old('notes') }}</textarea>
+                                    <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="3" placeholder="Purchase invoice number, quality check notes" @error('notes') aria-describedby="notes_error" aria-invalid="true" @enderror>{{ old('notes') }}</textarea>
+                                    @error('notes')
+                                        <div class="invalid-feedback d-block" id="notes_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                         </div>

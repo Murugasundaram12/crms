@@ -10,7 +10,7 @@
         <a href="{{ route('tools-material-assignments.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
     </div>
 
-    <form method="POST" action="{{ route('tools-material-assignments.update', $assignment) }}">
+    <form method="POST" action="{{ route('tools-material-assignments.update', $assignment) }}" novalidate>
         @csrf
         @method('PUT')
         @include('pages.tool_material_assignments.form', [

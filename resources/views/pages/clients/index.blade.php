@@ -162,34 +162,67 @@
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
             </div>
             <div class="offcanvas-body">
-                <form action="{{ route('clients.store') }}" method="POST" class="row g-3">
+                <form action="{{ route('clients.store') }}" method="POST" class="row g-3" novalidate>
                     @csrf
-                    <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
-                            class="form-control" value="{{ old('name') }}" required></div>
-                    <div class="col-12"><label class="form-label">Company</label><input type="text" name="company_name"
-                            class="form-control" value="{{ old('company_name') }}"></div>
-                    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
-                            class="form-control" value="{{ old('email') }}"></div>
-                    <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                            class="form-control" value="{{ old('phone') }}" required></div>
-                    <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
-                            class="form-control" value="{{ old('address') }}"></div>
-                    <div class="col-md-4"><label class="form-label">City</label><input type="text" name="city"
-                            class="form-control" value="{{ old('city') }}"></div>
-                    <div class="col-md-4"><label class="form-label">State</label><input type="text" name="state"
-                            class="form-control" value="{{ old('state') }}"></div>
-                    <div class="col-md-4"><label class="form-label">Country</label><input type="text" name="country"
-                            value="{{ old('country', 'India') }}" class="form-control"></div>
-                    <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
-<option value="enquiry">Enquiry</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select></div>
-                    <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" class="form-control"
-                            rows="4"></textarea></div>
-                    <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                            data-bs-dismiss="offcanvas">Cancel</button><button type="submit" class="btn btn-primary">Save
-                            Client</button></div>
+                    <input type="hidden" name="_modal_target" value="#offcanvas_add">
+                    <div class="col-12">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" @error('name') aria-describedby="client_name_error" aria-invalid="true" @enderror required>
+                        @error('name')<div class="invalid-feedback d-block" id="client_name_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Company</label>
+                        <input type="text" name="company_name" class="form-control @error('company_name') is-invalid @enderror" value="{{ old('company_name') }}" @error('company_name') aria-describedby="client_company_name_error" aria-invalid="true" @enderror>
+                        @error('company_name')<div class="invalid-feedback d-block" id="client_company_name_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" @error('email') aria-describedby="client_email_error" aria-invalid="true" @enderror>
+                        @error('email')<div class="invalid-feedback d-block" id="client_email_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Phone <span class="text-danger">*</span></label>
+                        <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" value="{{ old('phone') }}" @error('phone') aria-describedby="client_phone_error" aria-invalid="true" @enderror required>
+                        @error('phone')<div class="invalid-feedback d-block" id="client_phone_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Address</label>
+                        <input type="text" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}" @error('address') aria-describedby="client_address_error" aria-invalid="true" @enderror>
+                        @error('address')<div class="invalid-feedback d-block" id="client_address_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">City</label>
+                        <input type="text" name="city" class="form-control @error('city') is-invalid @enderror" value="{{ old('city') }}" @error('city') aria-describedby="client_city_error" aria-invalid="true" @enderror>
+                        @error('city')<div class="invalid-feedback d-block" id="client_city_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">State</label>
+                        <input type="text" name="state" class="form-control @error('state') is-invalid @enderror" value="{{ old('state') }}" @error('state') aria-describedby="client_state_error" aria-invalid="true" @enderror>
+                        @error('state')<div class="invalid-feedback d-block" id="client_state_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Country</label>
+                        <input type="text" name="country" value="{{ old('country', 'India') }}" class="form-control @error('country') is-invalid @enderror" @error('country') aria-describedby="client_country_error" aria-invalid="true" @enderror>
+                        @error('country')<div class="invalid-feedback d-block" id="client_country_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Status <span class="text-danger">*</span></label>
+                        <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="client_status_error" aria-invalid="true" @enderror>
+                            <option value="enquiry" @selected(old('status') === 'enquiry')>Enquiry</option>
+                            <option value="active" @selected(old('status', 'active') === 'active')>Active</option>
+                            <option value="inactive" @selected(old('status') === 'inactive')>Inactive</option>
+                        </select>
+                        @error('status')<div class="invalid-feedback d-block" id="client_status_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="4" @error('notes') aria-describedby="client_notes_error" aria-invalid="true" @enderror>{{ old('notes') }}</textarea>
+                        @error('notes')<div class="invalid-feedback d-block" id="client_notes_error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Client</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -201,40 +234,72 @@
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content border-0 shadow">
                     <div class="modal-header">
-                        <h5 class="modal-title">Edit Client</h5><button type="button" class="btn-close"
-                            data-bs-dismiss="modal"></button>
+                        <h5 class="modal-title">Edit Client</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('clients.update', $client) }}" method="POST" class="row g-3">
+                        <form action="{{ route('clients.update', $client) }}" method="POST" class="row g-3" novalidate>
                             @csrf
                             @method('PUT')
-                            <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
-                                    class="form-control" value="{{ $client->name }}" required></div>
-                            <div class="col-12"><label class="form-label">Company</label><input type="text" name="company_name"
-                                    class="form-control" value="{{ $client->company_name }}"></div>
-                            <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
-                                    class="form-control" value="{{ $client->email }}"></div>
-                            <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                                    class="form-control" value="{{ old('phone', $client->phone) }}" required></div>
-                            <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
-                                    class="form-control" value="{{ $client->address }}"></div>
-                            <div class="col-md-4"><label class="form-label">City</label><input type="text" name="city"
-                                    class="form-control" value="{{ $client->city }}"></div>
-                            <div class="col-md-4"><label class="form-label">State</label><input type="text" name="state"
-                                    class="form-control" value="{{ $client->state }}"></div>
-                            <div class="col-md-4"><label class="form-label">Country</label><input type="text" name="country"
-                                    class="form-control" value="{{ $client->country }}"></div>
-                            <div class="col-12"><label class="form-label">Status</label><select name="status"
-                                    class="form-select">
-<option value="enquiry" @selected($client->status === 'enquiry')>Enquiry</option>
-                                    <option value="active" @selected($client->status === 'active')>Active</option>
-                                    <option value="inactive" @selected($client->status === 'inactive')>Inactive</option>
-                                </select></div>
-                            <div class="col-12"><label class="form-label">Notes</label><textarea name="notes"
-                                    class="form-control" rows="4">{{ $client->notes }}</textarea></div>
-                            <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                                    data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Update
-                                    Client</button></div>
+                            <input type="hidden" name="_modal_target" value="#edit_client_{{ $client->id }}">
+                            <div class="col-12">
+                                <label class="form-label">Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $client->name) }}" @error('name') aria-describedby="edit_client_{{ $client->id }}_name_error" aria-invalid="true" @enderror required>
+                                @error('name')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_name_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Company</label>
+                                <input type="text" name="company_name" class="form-control @error('company_name') is-invalid @enderror" value="{{ old('company_name', $client->company_name) }}" @error('company_name') aria-describedby="edit_client_{{ $client->id }}_company_name_error" aria-invalid="true" @enderror>
+                                @error('company_name')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_company_name_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $client->email) }}" @error('email') aria-describedby="edit_client_{{ $client->id }}_email_error" aria-invalid="true" @enderror>
+                                @error('email')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_email_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone <span class="text-danger">*</span></label>
+                                <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" value="{{ old('phone', $client->phone) }}" @error('phone') aria-describedby="edit_client_{{ $client->id }}_phone_error" aria-invalid="true" @enderror required>
+                                @error('phone')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_phone_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Address</label>
+                                <input type="text" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address', $client->address) }}" @error('address') aria-describedby="edit_client_{{ $client->id }}_address_error" aria-invalid="true" @enderror>
+                                @error('address')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_address_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">City</label>
+                                <input type="text" name="city" class="form-control @error('city') is-invalid @enderror" value="{{ old('city', $client->city) }}" @error('city') aria-describedby="edit_client_{{ $client->id }}_city_error" aria-invalid="true" @enderror>
+                                @error('city')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_city_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">State</label>
+                                <input type="text" name="state" class="form-control @error('state') is-invalid @enderror" value="{{ old('state', $client->state) }}" @error('state') aria-describedby="edit_client_{{ $client->id }}_state_error" aria-invalid="true" @enderror>
+                                @error('state')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_state_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Country</label>
+                                <input type="text" name="country" class="form-control @error('country') is-invalid @enderror" value="{{ old('country', $client->country) }}" @error('country') aria-describedby="edit_client_{{ $client->id }}_country_error" aria-invalid="true" @enderror>
+                                @error('country')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_country_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Status <span class="text-danger">*</span></label>
+                                <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="edit_client_{{ $client->id }}_status_error" aria-invalid="true" @enderror>
+                                    <option value="enquiry" @selected(old('status', $client->status) === 'enquiry')>Enquiry</option>
+                                    <option value="active" @selected(old('status', $client->status) === 'active')>Active</option>
+                                    <option value="inactive" @selected(old('status', $client->status) === 'inactive')>Inactive</option>
+                                </select>
+                                @error('status')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_status_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notes</label>
+                                <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="4" @error('notes') aria-describedby="edit_client_{{ $client->id }}_notes_error" aria-invalid="true" @enderror>{{ old('notes', $client->notes) }}</textarea>
+                                @error('notes')<div class="invalid-feedback d-block" id="edit_client_{{ $client->id }}_notes_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12 d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Update Client</button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -249,10 +314,12 @@
                 <div class="modal-content border-0 shadow">
                     <div class="modal-header"><h5 class="modal-title">Import Clients</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                     <div class="modal-body">
-                        <form action="{{ route('clients.import') }}" method="POST" enctype="multipart/form-data">
+                        <form action="{{ route('clients.import') }}" method="POST" enctype="multipart/form-data" novalidate>
                             @csrf
-                            <label class="form-label">Excel / CSV file</label>
-                            <input class="form-control mb-2" type="file" name="file" accept=".xlsx,.xls,.csv" required>
+                            <input type="hidden" name="_modal_target" value="#clientImportModal">
+                            <label class="form-label">Excel / CSV file <span class="text-danger">*</span></label>
+                            <input class="form-control mb-2 @error('file') is-invalid @enderror" type="file" name="file" accept=".xlsx,.xls,.csv" @error('file') aria-describedby="client_import_file_error" aria-invalid="true" @enderror required>
+                            @error('file')<div class="invalid-feedback d-block mb-2" id="client_import_file_error">{{ $message }}</div>@enderror
                             <div class="form-text mb-3">Required columns: Name, Phone and Status. Empty status defaults to Active.</div>
                             <a href="{{ route('clients.import.sample') }}" class="btn btn-link px-0">Download sample Excel</a>
                             <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Import</button></div>
@@ -262,4 +329,20 @@
             </div>
         </div>
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection

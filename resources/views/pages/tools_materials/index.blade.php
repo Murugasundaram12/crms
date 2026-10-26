@@ -181,7 +181,7 @@
                                                 </a>
                                             @endcan
                                             @can('tools-materials-delete')
-                                                <form action="{{ route('preorders.destroy', $po) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline">
+                                                <form action="{{ route('preorders.destroy', $po) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline" novalidate>
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -351,7 +351,7 @@
                                                 </a>
                                             @endif
                                             @if(auth()->user()->hasPermission('tools-materials-delete'))
-                                                <form action="{{ route('tools-material-assignments.destroy', $assignment) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this issue transaction?');" class="d-inline">
+                                                <form action="{{ route('tools-material-assignments.destroy', $assignment) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this issue transaction?');" class="d-inline" novalidate>
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

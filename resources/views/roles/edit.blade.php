@@ -32,7 +32,7 @@
         <a href="{{ route('roles.index') }}" class="btn btn-outline-light shadow-sm">Back to Roles</a>
     </div>
 
-    <form action="{{ route('roles.update', $role) }}" method="POST" id="roleForm" class="row g-4">
+    <form action="{{ route('roles.update', $role) }}" method="POST" id="roleForm" class="row g-4" novalidate>
         @csrf
         @method('PUT')
 
@@ -46,18 +46,18 @@
                     <div class="mb-3">
                         <label class="form-label">Role Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control @error('name') is-invalid @enderror" name="name"
-                            value="{{ old('name', $role->name) }}" required>
+                            value="{{ old('name', $role->name) }}" @error('name') aria-describedby="role_name_error" aria-invalid="true" @enderror required>
                         @error('name')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="role_name_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Description</label>
                         <textarea class="form-control @error('description') is-invalid @enderror" rows="5" name="description"
-                            placeholder="Explain what this role can access">{{ old('description', $role->description) }}</textarea>
+                            placeholder="Explain what this role can access" @error('description') aria-describedby="role_description_error" aria-invalid="true" @enderror>{{ old('description', $role->description) }}</textarea>
                         @error('description')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="role_description_error">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -76,6 +76,12 @@
                     <p class="text-muted fs-13 mb-0">Fine-tune what {{ $role->name }} can access.</p>
                 </div>
                 <div class="card-body">
+                    @error('permissions')
+                        <div class="alert alert-danger mb-3">{{ $message }}</div>
+                    @enderror
+                    @error('permissions.*')
+                        <div class="alert alert-danger mb-3">{{ $message }}</div>
+                    @enderror
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border rounded-3 bg-light px-3 py-2 mb-3">
                         <div>
                             <h6 class="mb-0">Quick Select</h6>

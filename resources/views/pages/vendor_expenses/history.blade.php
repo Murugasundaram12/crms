@@ -188,9 +188,11 @@
 
     <div class="modal fade" id="vendorExpenseDeleteModal" tabindex="-1" aria-labelledby="vendorExpenseDeleteModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <form method="POST" action="{{ route('vendor-expenses.delete-record') }}" class="modal-content border-0 shadow">
+            <form method="POST" action="{{ route('vendor-expenses.delete-record') }}" class="modal-content border-0 shadow" novalidate>
                 @csrf
-                <input type="hidden" name="id" id="vendorExpenseDeleteId">
+                <input type="hidden" name="_modal_target" value="#vendorExpenseDeleteModal">
+                <input type="hidden" name="id" id="vendorExpenseDeleteId" value="{{ old('id') }}">
+                @error('id')<div class="invalid-feedback d-block" id="vendor_expense_delete_id_error">{{ $message }}</div>@enderror
 
                 <div class="modal-header bg-light">
                     <div>
@@ -213,8 +215,9 @@
 
                     <div class="mb-0">
                         <label for="vendorExpenseDeleteReason" class="form-label">Reason</label>
-                        <input type="text" name="delete_reason" id="vendorExpenseDeleteReason" class="form-control"
-                            value="Deleted from list" placeholder="Enter reason" required>
+                        <input type="text" name="delete_reason" id="vendorExpenseDeleteReason" class="form-control @error('delete_reason') is-invalid @enderror"
+                            value="{{ old('delete_reason', 'Deleted from list') }}" placeholder="Enter reason" @error('delete_reason') aria-describedby="vendor_expense_delete_reason_error" aria-invalid="true" @enderror required>
+                        @error('delete_reason')<div class="invalid-feedback d-block" id="vendor_expense_delete_reason_error">{{ $message }}</div>@enderror
                     </div>
                 </div>
 
@@ -234,11 +237,12 @@
         @php($modalTitle = $modalTransaction ? 'Edit Vendor Expense' : 'Add Vendor Expense')
         <div class="modal fade" id="vendorExpenseModal" tabindex="-1" aria-labelledby="vendorExpenseModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-                <form method="POST" action="{{ $modalAction }}" class="modal-content border-0 shadow">
+                <form method="POST" action="{{ $modalAction }}" class="modal-content border-0 shadow" novalidate>
                     @csrf
                     @if($modalTransaction)
                         @method('PUT')
                     @endif
+                    <input type="hidden" name="_modal_target" value="#vendorExpenseModal">
 
                     <div class="modal-header bg-light">
                         <div>
@@ -251,62 +255,64 @@
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label">Vendor</label>
-                                <select name="vendor_id" class="form-select" required>
+                                <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                                <select name="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" @error('vendor_id') aria-describedby="ve_modal_vendor_id_error" aria-invalid="true" @enderror required>
                                     <option value="">Select vendor</option>
                                     @foreach($vendors as $vendor)
                                         <option value="{{ $vendor->id }}" @selected((int) old('vendor_id', $modalTransaction?->vendor_id) === (int) $vendor->id)>{{ $vendor->name }}</option>
                                     @endforeach
                                 </select>
-                                @error('vendor_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                                @error('vendor_id')<div class="invalid-feedback d-block" id="ve_modal_vendor_id_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
                                 <label class="form-label">Main Category</label>
-                                <select name="main_category_id" class="form-select">
+                                <select name="main_category_id" class="form-select @error('main_category_id') is-invalid @enderror" @error('main_category_id') aria-describedby="ve_modal_main_category_id_error" aria-invalid="true" @enderror>
                                     <option value="">Select main category</option>
                                     @foreach($mainCategories as $mainCategory)
                                         <option value="{{ $mainCategory->id }}" @selected((int) old('main_category_id', $modalTransaction?->main_category_id) === (int) $mainCategory->id)>{{ $mainCategory->name }}</option>
                                     @endforeach
                                 </select>
+                                @error('main_category_id')<div class="invalid-feedback d-block" id="ve_modal_main_category_id_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select" required>
+                                <label class="form-label">Category <span class="text-danger">*</span></label>
+                                <select name="category_id" class="form-select @error('category_id') is-invalid @enderror" @error('category_id') aria-describedby="ve_modal_category_id_error" aria-invalid="true" @enderror required>
                                     <option value="">Select category</option>
                                     @foreach($categories as $category)
                                         <option value="{{ $category->id }}" @selected((int) old('category_id', $modalTransaction?->category_id) === (int) $category->id)>{{ $category->name }}</option>
                                     @endforeach
                                 </select>
-                                @error('category_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                                @error('category_id')<div class="invalid-feedback d-block" id="ve_modal_category_id_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
                                 <label class="form-label">Project Name</label>
-                                <select name="project_id" class="form-select">
+                                <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="ve_modal_project_id_error" aria-invalid="true" @enderror>
                                     <option value="">Select project</option>
                                     @foreach($projects as $project)
                                         <option value="{{ $project->id }}" @selected((int) old('project_id', $modalTransaction?->project_id) === (int) $project->id)>{{ $project->name }}</option>
                                     @endforeach
                                 </select>
+                                @error('project_id')<div class="invalid-feedback d-block" id="ve_modal_project_id_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Amount</label>
-                                <input type="number" name="amount" class="form-control" min="0" required value="{{ old('amount', $modalTransaction?->amount) }}">
-                                @error('amount')<div class="text-danger small">{{ $message }}</div>@enderror
+                                <label class="form-label">Amount <span class="text-danger">*</span></label>
+                                <input type="number" name="amount" class="form-control @error('amount') is-invalid @enderror" min="0" required value="{{ old('amount', $modalTransaction?->amount) }}" @error('amount') aria-describedby="ve_modal_amount_error" aria-invalid="true" @enderror>
+                                @error('amount')<div class="invalid-feedback d-block" id="ve_modal_amount_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Paid Amount</label>
-                                <input type="number" name="paid_amount" class="form-control" min="0" required value="{{ old('paid_amount', $modalTransaction?->paid_amt ?? 0) }}">
-                                @error('paid_amount')<div class="text-danger small">{{ $message }}</div>@enderror
+                                <label class="form-label">Paid Amount <span class="text-danger">*</span></label>
+                                <input type="number" name="paid_amount" class="form-control @error('paid_amount') is-invalid @enderror" min="0" required value="{{ old('paid_amount', $modalTransaction?->paid_amt ?? 0) }}" @error('paid_amount') aria-describedby="ve_modal_paid_amount_error" aria-invalid="true" @enderror>
+                                @error('paid_amount')<div class="invalid-feedback d-block" id="ve_modal_paid_amount_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
                                 <label class="form-label">Payment Method</label>
-                                <select name="payment_method_id" class="form-select">
+                                <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="ve_modal_payment_method_id_error" aria-invalid="true" @enderror>
                                     <option value="">Select Payment Method</option>
                                     @foreach($paymentMethods as $paymentMethod)
                                         <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id', $modalTransaction?->payment_method_id) === (string) $paymentMethod->id)>
@@ -314,22 +320,25 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                @error('payment_method_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                                @error('payment_method_id')<div class="invalid-feedback d-block" id="ve_modal_payment_method_id_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Paid Date</label>
-                                <input type="date" name="current_date" class="form-control" value="{{ old('current_date', optional($modalTransaction?->current_date)->format('Y-m-d') ?? now()->toDateString()) }}">
+                                <label class="form-label">Paid Date <span class="text-danger">*</span></label>
+                                <input type="date" name="current_date" class="form-control @error('current_date') is-invalid @enderror" value="{{ old('current_date', optional($modalTransaction?->current_date)->format('Y-m-d') ?? now()->toDateString()) }}" @error('current_date') aria-describedby="ve_modal_current_date_error" aria-invalid="true" @enderror>
+                                @error('current_date')<div class="invalid-feedback d-block" id="ve_modal_current_date_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-md-4">
                                 <label class="form-label">Image</label>
-                                <input type="text" name="image" class="form-control" maxlength="250" value="{{ old('image', $modalTransaction?->image) }}">
+                                <input type="text" name="image" class="form-control @error('image') is-invalid @enderror" maxlength="250" value="{{ old('image', $modalTransaction?->image) }}" @error('image') aria-describedby="ve_modal_image_error" aria-invalid="true" @enderror>
+                                @error('image')<div class="invalid-feedback d-block" id="ve_modal_image_error">{{ $message }}</div>@enderror
                             </div>
 
                             <div class="col-12">
                                 <label class="form-label">Description</label>
-                                <textarea name="description" class="form-control" rows="3">{{ old('description', $modalTransaction?->description) }}</textarea>
+                                <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="3" @error('description') aria-describedby="ve_modal_description_error" aria-invalid="true" @enderror>{{ old('description', $modalTransaction?->description) }}</textarea>
+                                @error('description')<div class="invalid-feedback d-block" id="ve_modal_description_error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
@@ -373,4 +382,16 @@
             });
         </script>
     @endpush
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el && window.bootstrap) {
+                    (new bootstrap.Modal(el)).show();
+                }
+            });
+        </script>
+    @endif
 @endsection

@@ -34,7 +34,7 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <form action="{{ route('employee-salaries.update', $employeeSalary) }}" method="POST" id="salaryForm">
+            <form action="{{ route('employee-salaries.update', $employeeSalary) }}" method="POST" id="salaryForm" novalidate>
                 @csrf
                 @method('PUT')
 
@@ -54,24 +54,36 @@
                 <input type="hidden" name="attendance_deduction" id="field_attendance_deduction" value="{{ old('attendance_deduction', $employeeSalary->attendance_deduction) }}">
                 <input type="hidden" name="net_salary" id="field_net_salary" value="{{ old('net_salary', $employeeSalary->net_salary) }}">
 
+                @if($errors->hasAny(['gross_salary', 'half_day_deduction', 'unpaid_leave_deduction', 'absent_deduction', 'attendance_deduction', 'net_salary']))
+                    <div class="alert alert-danger mb-3">
+                        <ul class="mb-0">
+                            @foreach(['gross_salary', 'half_day_deduction', 'unpaid_leave_deduction', 'absent_deduction', 'attendance_deduction', 'net_salary'] as $fld)
+                                @error($fld)
+                                    <li>{{ $message }}</li>
+                                @enderror
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 <div class="row g-3">
                     <div class="col-12 col-md-5">
                         <label class="form-label required">Employee</label>
-                        <select name="user_id" id="user_id_select" class="form-select @error('user_id') is-invalid @enderror" required>
+                        <select name="user_id" id="user_id_select" class="form-select @error('user_id') is-invalid @enderror" @error('user_id') aria-describedby="user_id_error" aria-invalid="true" @enderror required>
                             @foreach ($employeeUsers as $user)
                                 <option value="{{ $user->id }}" @selected(old('user_id', $employeeSalary->user_id) == $user->id)>{{ $user->name }} ({{ $user->email }})</option>
                             @endforeach
                         </select>
                         @error('user_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="user_id_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12 col-md-4">
                         <label class="form-label required">Salary Period / Month</label>
-                        <input type="text" name="salary_period" id="salary_period_input" class="form-control @error('salary_period') is-invalid @enderror" value="{{ old('salary_period', $employeeSalary->salary_period) }}" required>
+                        <input type="text" name="salary_period" id="salary_period_input" class="form-control @error('salary_period') is-invalid @enderror" value="{{ old('salary_period', $employeeSalary->salary_period) }}" @error('salary_period') aria-describedby="salary_period_error" aria-invalid="true" @enderror required>
                         @error('salary_period')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="salary_period_error">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -140,17 +152,17 @@
 
                     <div class="col-12 col-md-4">
                         <label class="form-label required">Salary Amount (Net Payable)</label>
-                        <input type="number" step="0.01" name="salary_amount" id="salary_amount" class="form-control @error('salary_amount') is-invalid @enderror" value="{{ old('salary_amount', $employeeSalary->salary_amount ?: $employeeSalary->salary) }}" required min="0">
+                        <input type="number" step="0.01" name="salary_amount" id="salary_amount" class="form-control @error('salary_amount') is-invalid @enderror" value="{{ old('salary_amount', $employeeSalary->salary_amount ?: $employeeSalary->salary) }}" @error('salary_amount') aria-describedby="salary_amount_error" aria-invalid="true" @enderror required min="0">
                         @error('salary_amount')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="salary_amount_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12 col-md-4">
                         <label class="form-label required">Paid Amount</label>
-                        <input type="number" step="0.01" name="paid_amount" id="paid_amount" class="form-control @error('paid_amount') is-invalid @enderror" value="{{ old('paid_amount', $employeeSalary->paid_amount) }}" required min="0">
+                        <input type="number" step="0.01" name="paid_amount" id="paid_amount" class="form-control @error('paid_amount') is-invalid @enderror" value="{{ old('paid_amount', $employeeSalary->paid_amount) }}" @error('paid_amount') aria-describedby="paid_amount_error" aria-invalid="true" @enderror required min="0">
                         @error('paid_amount')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="paid_amount_error">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -161,30 +173,30 @@
 
                     <div class="col-12 col-md-6">
                         <label class="form-label required">Payment Date</label>
-                        <input type="date" name="payment_date" class="form-control @error('payment_date') is-invalid @enderror" value="{{ old('payment_date', $employeeSalary->payment_date?->format('Y-m-d') ?: $employeeSalary->created_at?->format('Y-m-d')) }}" required>
+                        <input type="date" name="payment_date" class="form-control @error('payment_date') is-invalid @enderror" value="{{ old('payment_date', $employeeSalary->payment_date?->format('Y-m-d') ?: $employeeSalary->created_at?->format('Y-m-d')) }}" @error('payment_date') aria-describedby="payment_date_error" aria-invalid="true" @enderror required>
                         @error('payment_date')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="payment_date_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12 col-md-6">
                         <label class="form-label">Payment Method</label>
-                        <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror">
+                        <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="payment_method_id_error" aria-invalid="true" @enderror>
                             <option value="">Select Payment Method</option>
                             @foreach ($paymentMethods as $pm)
                                 <option value="{{ $pm->id }}" @selected(old('payment_method_id', $employeeSalary->payment_method_id) == $pm->id)>{{ $pm->name }}</option>
                             @endforeach
                         </select>
                         @error('payment_method_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="payment_method_id_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12">
                         <label class="form-label">Notes</label>
-                        <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="3">{{ old('notes', $employeeSalary->notes) }}</textarea>
+                        <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="3" @error('notes') aria-describedby="notes_error" aria-invalid="true" @enderror>{{ old('notes', $employeeSalary->notes) }}</textarea>
                         @error('notes')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="notes_error">{{ $message }}</div>
                         @enderror
                     </div>
 

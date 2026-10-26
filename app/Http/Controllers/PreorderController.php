@@ -94,18 +94,29 @@ class PreorderController extends Controller
             ->paginate($this->validatedPageSize($request, 'paginate', 10))
             ->withQueryString();
 
-        // Dashboard KPI Metrics
-        $allPreorders = Preorder::query()->get();
+        // Dashboard KPI Metrics: Database-side status counts aggregation
+        $statusCounts = Preorder::query()
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
         $metrics = [
-            'total' => $allPreorders->count(),
-            'pending_approval' => $allPreorders->whereIn('status', [Preorder::STATUS_DRAFT, Preorder::STATUS_PENDING_APPROVAL])->count(),
-            'approved' => $allPreorders->where('status', Preorder::STATUS_APPROVED)->count(),
-            'ordered' => $allPreorders->where('status', Preorder::STATUS_ORDERED)->count(),
-            'partially_delivered' => $allPreorders->where('status', Preorder::STATUS_PARTIALLY_DELIVERED)->count(),
-            'delivered' => $allPreorders->where('status', Preorder::STATUS_DELIVERED)->count(),
-            'cancelled' => $allPreorders->where('status', Preorder::STATUS_CANCELLED)->count(),
-            'pending_deliveries' => $allPreorders->whereIn('status', [Preorder::STATUS_APPROVED, Preorder::STATUS_ORDERED, Preorder::STATUS_PARTIALLY_DELIVERED])->count(),
-            'low_stock_materials' => ToolMaterial::query()->where('active_status', true)->get()->filter(fn($tm) => $tm->is_low_stock)->count(),
+            'total' => (int) array_sum($statusCounts),
+            'pending_approval' => (int) (($statusCounts[Preorder::STATUS_DRAFT] ?? 0) + ($statusCounts[Preorder::STATUS_PENDING_APPROVAL] ?? 0)),
+            'approved' => (int) ($statusCounts[Preorder::STATUS_APPROVED] ?? 0),
+            'ordered' => (int) ($statusCounts[Preorder::STATUS_ORDERED] ?? 0),
+            'partially_delivered' => (int) ($statusCounts[Preorder::STATUS_PARTIALLY_DELIVERED] ?? 0),
+            'delivered' => (int) ($statusCounts[Preorder::STATUS_DELIVERED] ?? 0),
+            'cancelled' => (int) ($statusCounts[Preorder::STATUS_CANCELLED] ?? 0),
+            'pending_deliveries' => (int) (($statusCounts[Preorder::STATUS_APPROVED] ?? 0) + ($statusCounts[Preorder::STATUS_ORDERED] ?? 0) + ($statusCounts[Preorder::STATUS_PARTIALLY_DELIVERED] ?? 0)),
+            'low_stock_materials' => ToolMaterial::query()
+                ->where('active_status', true)
+                ->where('reorder_level', '>', 0)
+                ->with('assignments')
+                ->get()
+                ->filter(fn($tm) => $tm->is_low_stock)
+                ->count(),
         ];
 
         return view('pages.preorders.index', [

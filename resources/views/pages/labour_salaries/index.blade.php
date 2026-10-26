@@ -103,8 +103,9 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No labour salary records found.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No labour salary records found.</td>
                             </tr>
+
                         @endforelse
                     </tbody>
                 </table>

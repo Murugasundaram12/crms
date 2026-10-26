@@ -167,17 +167,25 @@
                                 <td class="text-end text-danger fw-semibold">Rs. {{ number_format((float) $expense->unpaid_amt, 2) }}</td>
                                 <td class="text-end text-info fw-semibold">Rs. {{ number_format((float) ($expense->labour?->advance_amt ?? 0), 2) }}</td>
                                 <td>
-                                    <form method="POST" action="{{ route('labour-expenses.advance-store') }}" class="d-flex gap-2">
+                                    <form method="POST" action="{{ route('labour-expenses.advance-store') }}" class="d-flex flex-column gap-1" novalidate>
                                         @csrf
                                         <input type="hidden" name="entry_type" value="settle">
                                         <input type="hidden" name="labour_id" value="{{ $expense->labour_id }}">
                                         <input type="hidden" name="labour_expense_transaction_id" value="{{ $expense->id }}">
-                                        <input type="number" name="amount" class="form-control form-control-sm" min="1"
-                                            max="{{ $settleMax }}"
-                                            value="{{ $settleMax > 0 ? $settleMax : '' }}" @disabled($settleMax <= 0) required>
-                                        <button type="submit" class="btn btn-sm btn-primary" @disabled($settleMax <= 0)>
-                                            <i class="ti ti-check me-1"></i>Settle
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <input type="number" name="amount" class="form-control form-control-sm @if(old('labour_expense_transaction_id') == $expense->id) @error('amount') is-invalid @enderror @endif" min="1"
+                                                max="{{ $settleMax }}"
+                                                value="{{ old('labour_expense_transaction_id') == $expense->id ? old('amount', $settleMax > 0 ? $settleMax : '') : ($settleMax > 0 ? $settleMax : '') }}" @disabled($settleMax <= 0) required
+                                                @if(old('labour_expense_transaction_id') == $expense->id) @error('amount') aria-describedby="settle_amount_{{ $expense->id }}_error" aria-invalid="true" @enderror @endif>
+                                            <button type="submit" class="btn btn-sm btn-primary text-nowrap" @disabled($settleMax <= 0)>
+                                                <i class="ti ti-check me-1"></i>Settle
+                                            </button>
+                                        </div>
+                                        @if(old('labour_expense_transaction_id') == $expense->id)
+                                            @error('amount')
+                                                <div class="invalid-feedback d-block" id="settle_amount_{{ $expense->id }}_error">{{ $message }}</div>
+                                            @enderror
+                                        @endif
                                     </form>
                                     @if($settleMax <= 0)
                                         <small class="text-muted">No wallet balance</small>
@@ -242,8 +250,9 @@
 
     <div class="modal fade" id="walletCreditModal" tabindex="-1" aria-labelledby="walletCreditModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <form method="POST" action="{{ route('labour-expenses.advance-store') }}" class="modal-content border-0 shadow">
+            <form method="POST" action="{{ route('labour-expenses.advance-store') }}" class="modal-content border-0 shadow" novalidate>
                 @csrf
+                <input type="hidden" name="_modal_target" value="#walletCreditModal">
                 <input type="hidden" name="entry_type" value="credit">
                 <div class="modal-header bg-light">
                     <h5 class="modal-title" id="walletCreditModalLabel">Add Wallet Amount</h5>
@@ -251,24 +260,26 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Labour</label>
-                        <select name="labour_id" class="form-select" required>
+                        <label class="form-label">Labour <span class="text-danger">*</span></label>
+                        <select name="labour_id" class="form-select @error('labour_id') is-invalid @enderror" @error('labour_id') aria-describedby="credit_labour_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select labour</option>
                             @foreach($labours as $labour)
-                                <option value="{{ $labour->id }}" @selected((string) request('labour_id') === (string) $labour->id)>
+                                <option value="{{ $labour->id }}" @selected((string) old('labour_id', request('labour_id')) === (string) $labour->id)>
                                     {{ $labour->name }}
                                 </option>
                             @endforeach
                         </select>
+                        @error('labour_id')<div class="invalid-feedback d-block" id="credit_labour_id_error">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Amount</label>
-                        <input type="number" name="amount" class="form-control" min="1" step="0.01" required>
+                        <label class="form-label">Amount <span class="text-danger">*</span></label>
+                        <input type="number" name="amount" class="form-control @error('amount') is-invalid @enderror" min="1" step="0.01" value="{{ old('amount') }}" @error('amount') aria-describedby="credit_amount_error" aria-invalid="true" @enderror required>
+                        @error('amount')<div class="invalid-feedback d-block" id="credit_amount_error">{{ $message }}</div>@enderror
                         <small class="text-muted"><i class="ti ti-info-circle"></i> Amount will be debited from your company wallet and added to labour advance balance.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                        <select name="payment_method_id" class="form-select" required>
+                        <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="credit_payment_method_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select payment method</option>
                             @foreach($paymentMethods as $paymentMethod)
                                 <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id') === (string) $paymentMethod->id)>
@@ -276,10 +287,12 @@
                                 </option>
                             @endforeach
                         </select>
+                        @error('payment_method_id')<div class="invalid-feedback d-block" id="credit_payment_method_id_error">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-0">
                         <label class="form-label">Notes</label>
-                        <input type="text" name="notes" class="form-control" placeholder="Advance paid to labour">
+                        <input type="text" name="notes" class="form-control @error('notes') is-invalid @enderror" value="{{ old('notes') }}" placeholder="Advance paid to labour" @error('notes') aria-describedby="credit_notes_error" aria-invalid="true" @enderror>
+                        @error('notes')<div class="invalid-feedback d-block" id="credit_notes_error">{{ $message }}</div>@enderror
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -294,8 +307,9 @@
 
     <div class="modal fade" id="walletReverseModal" tabindex="-1" aria-labelledby="walletReverseModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
-            <form method="POST" action="{{ route('labour-expenses.advance-reverse') }}" class="modal-content border-0 shadow" id="reverseWalletForm">
+            <form method="POST" action="{{ route('labour-expenses.advance-reverse') }}" class="modal-content border-0 shadow" id="reverseWalletForm" novalidate>
                 @csrf
+                <input type="hidden" name="_modal_target" value="#walletReverseModal">
                 <div class="modal-header bg-light">
                     <h5 class="modal-title" id="walletReverseModalLabel">
                         <i class="ti ti-arrow-back-up me-1 text-danger"></i>Reverse Labour Wallet Amount
@@ -305,14 +319,15 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Select Labour <span class="text-danger">*</span></label>
-                        <select name="labour_id" id="reverse_labour_id" class="form-select" required>
+                        <select name="labour_id" id="reverse_labour_id" class="form-select @error('labour_id') is-invalid @enderror" @error('labour_id') aria-describedby="reverse_labour_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select labour</option>
                             @foreach($labours as $labour)
-                                <option value="{{ $labour->id }}" @selected((string) request('labour_id') === (string) $labour->id) data-balance="{{ (float) $labour->advance_amt }}">
+                                <option value="{{ $labour->id }}" @selected((string) old('labour_id', request('labour_id')) === (string) $labour->id) data-balance="{{ (float) $labour->advance_amt }}">
                                     {{ $labour->name }} (Wallet: Rs. {{ number_format((float) $labour->advance_amt, 2) }})
                                 </option>
                             @endforeach
                         </select>
+                        @error('labour_id')<div class="invalid-feedback d-block" id="reverse_labour_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <!-- Contributor Table Section -->
@@ -338,10 +353,11 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Contributor Employee <span class="text-danger">*</span></label>
-                        <select name="employee_id" id="reverse_employee_id" class="form-select" required disabled>
+                        <select name="employee_id" id="reverse_employee_id" class="form-select @error('employee_id') is-invalid @enderror" @error('employee_id') aria-describedby="reverse_employee_id_error" aria-invalid="true" @enderror required disabled>
                             <option value="">Select Labour First</option>
                         </select>
                         <small class="text-muted" id="employeeHelpText">Showing only employees with eligible remaining contribution.</small>
+                        @error('employee_id')<div class="invalid-feedback d-block" id="reverse_employee_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <!-- Available to Reverse Box -->
@@ -363,26 +379,29 @@
                             <label class="form-label fw-semibold">Reverse Amount <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">Rs.</span>
-                                <input type="number" name="amount" id="reverse_amount" class="form-control" min="0.01" step="0.01" required disabled placeholder="0.00">
+                                <input type="number" name="amount" id="reverse_amount" class="form-control @error('amount') is-invalid @enderror" min="0.01" step="0.01" required disabled placeholder="0.00" value="{{ old('amount') }}" @error('amount') aria-describedby="reverse_amount_error" aria-invalid="true" @enderror>
                             </div>
                             <small class="text-danger d-none" id="amountValidationMsg"></small>
+                            @error('amount')<div class="invalid-feedback d-block" id="reverse_amount_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
-                            <select name="payment_method_id" id="reverse_payment_method_id" class="form-select" required>
+                            <select name="payment_method_id" id="reverse_payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="reverse_payment_method_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select payment method</option>
                                 @foreach($paymentMethods as $paymentMethod)
-                                    <option value="{{ $paymentMethod->id }}">
+                                    <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id') === (string) $paymentMethod->id)>
                                         {{ $paymentMethod->name }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('payment_method_id')<div class="invalid-feedback d-block" id="reverse_payment_method_id_error">{{ $message }}</div>@enderror
                         </div>
                     </div>
 
                     <div class="mb-0">
                         <label class="form-label">Notes</label>
-                        <input type="text" name="notes" class="form-control" placeholder="Optional notes for reversal">
+                        <input type="text" name="notes" class="form-control @error('notes') is-invalid @enderror" value="{{ old('notes') }}" placeholder="Optional notes for reversal" @error('notes') aria-describedby="reverse_notes_error" aria-invalid="true" @enderror>
+                        @error('notes')<div class="invalid-feedback d-block" id="reverse_notes_error">{{ $message }}</div>@enderror
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -558,6 +577,14 @@
             if (labourSelect.value) {
                 labourSelect.dispatchEvent(new Event('change'));
             }
+
+            @if ($errors->any() && old('_modal_target'))
+                var target = @json(old('_modal_target'));
+                var modalEl = document.querySelector(target);
+                if (modalEl && window.bootstrap) {
+                    (new bootstrap.Modal(modalEl)).show();
+                }
+            @endif
         });
     </script>
 @endpush

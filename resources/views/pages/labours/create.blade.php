@@ -19,7 +19,7 @@
         <a href="{{ route('labours.index') }}" class="btn btn-outline-light shadow-sm">Back to Labours</a>
     </div>
 
-    <form action="{{ route('labours.store') }}" method="POST" enctype="multipart/form-data" class="row g-4">
+    <form action="{{ route('labours.store') }}" method="POST" enctype="multipart/form-data" class="row g-4" novalidate>
         @csrf
 
         <div class="col-xl-8">
@@ -33,18 +33,18 @@
                         <div class="col-md-6">
                             <label class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}" required>
+                                value="{{ old('name') }}" @error('name') aria-describedby="name_error" aria-invalid="true" @enderror required>
                             @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="name_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Job Title</label>
                             <input type="text" name="job_title" class="form-control @error('job_title') is-invalid @enderror"
-                                value="{{ old('job_title') }}">
+                                value="{{ old('job_title') }}" @error('job_title') aria-describedby="job_title_error" aria-invalid="true" @enderror>
                             @error('job_title')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="job_title_error">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -52,16 +52,16 @@
                             <label class="form-label">Phone Number <span class="text-danger">*</span></label>
                             <input type="text" name="phone_number"
                                 class="form-control @error('phone_number') is-invalid @enderror"
-                                value="{{ old('phone_number') }}" required>
+                                value="{{ old('phone_number') }}" @error('phone_number') aria-describedby="phone_number_error" aria-invalid="true" @enderror required>
                             @error('phone_number')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="phone_number_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Labour Role <span class="text-danger">*</span></label>
                             <select name="labour_role_id" id="labour_role_id"
-                                class="form-select @error('labour_role_id') is-invalid @enderror" required>
+                                class="form-select @error('labour_role_id') is-invalid @enderror" @error('labour_role_id') aria-describedby="labour_role_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Labour Role</option>
                                 @foreach ($labourRoles as $labourRole)
                                     <option value="{{ $labourRole->id }}" data-salary="{{ $labourRole->salary }}"
@@ -71,7 +71,7 @@
                                 @endforeach
                             </select>
                             @error('labour_role_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="labour_role_id_error">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -80,22 +80,22 @@
                             <div class="d-flex align-items-center gap-4 flex-wrap">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="gender" id="gender_male"
-                                        value="male" @checked(old('gender') === 'male') required>
+                                        value="male" @checked(old('gender') === 'male') @error('gender') aria-describedby="gender_error" aria-invalid="true" @enderror required>
                                     <label class="form-check-label" for="gender_male">Male</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="gender" id="gender_female"
-                                        value="female" @checked(old('gender') === 'female') required>
+                                        value="female" @checked(old('gender') === 'female') @error('gender') aria-describedby="gender_error" aria-invalid="true" @enderror required>
                                     <label class="form-check-label" for="gender_female">Female</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="gender" id="gender_other"
-                                        value="other" @checked(old('gender') === 'other') required>
+                                        value="other" @checked(old('gender') === 'other') @error('gender') aria-describedby="gender_error" aria-invalid="true" @enderror required>
                                     <label class="form-check-label" for="gender_other">Other</label>
                                 </div>
                             </div>
                             @error('gender')
-                                <div class="text-danger small mt-2">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="gender_error">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -103,18 +103,18 @@
                             <label class="form-label">Salary</label>
                             <input type="number" step="0.01" name="salary" id="salary"
                                 class="form-control @error('salary') is-invalid @enderror"
-                                value="{{ old('salary') }}" min="0" required>
+                                value="{{ old('salary') }}" min="0" @error('salary') aria-describedby="salary_error" aria-invalid="true" @enderror required>
                             @error('salary')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="salary_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="col-12">
                             <label class="form-label">Government Photo</label>
                             <input type="file" name="government_photo"
-                                class="form-control @error('government_photo') is-invalid @enderror" accept="image/*">
+                                class="form-control @error('government_photo') is-invalid @enderror" accept="image/*" @error('government_photo') aria-describedby="government_photo_error" aria-invalid="true" @enderror>
                             @error('government_photo')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="government_photo_error">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>

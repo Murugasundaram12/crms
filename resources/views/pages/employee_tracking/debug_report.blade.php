@@ -31,7 +31,7 @@
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
-            <form id="trackingDebugForm" class="row g-3 align-items-end m-0">
+            <form id="trackingDebugForm" method="GET" action="{{ route('tracking.debug-report') }}" class="row g-3 align-items-end m-0" novalidate>
                 <div class="col-12 col-md-4">
                     <label class="form-label" for="debugDate">Date</label>
                     <input type="date" id="debugDate" class="form-control" value="{{ request('date', now()->toDateString()) }}">

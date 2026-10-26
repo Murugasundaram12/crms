@@ -44,8 +44,14 @@ if ($database === null || $database === '') {
     $fail('DB_DATABASE is missing.');
 }
 
-if ($database === 'admin_crms') {
-    $fail('the production database name is not permitted.');
+$protectedDatabases = ['admin_crms', 'crms'];
+
+if (in_array(strtolower($database), $protectedDatabases, true)) {
+    $fail("the protected database '{$database}' is not permitted.");
+}
+
+if ($approvedDatabase !== null && in_array(strtolower($approvedDatabase), $protectedDatabases, true)) {
+    $fail("the protected database '{$approvedDatabase}' cannot be approved for tests.");
 }
 
 if ($approvedConnection === null || $approvedConnection !== $connection) {
@@ -67,6 +73,8 @@ if ($connection === 'sqlite') {
 } elseif ($connection === 'mysql') {
     $host = $readEnvironment('DB_HOST');
     $approvedHost = $readEnvironment('CRMS_TEST_APPROVED_HOST');
+    $port = $readEnvironment('DB_PORT');
+    $approvedPort = $readEnvironment('CRMS_TEST_APPROVED_PORT');
     $databaseUrl = $readEnvironment('DB_URL');
     $username = $readEnvironment('DB_USERNAME');
     $password = $readEnvironment('DB_PASSWORD');
@@ -77,6 +85,12 @@ if ($connection === 'sqlite') {
 
     if ($approvedHost === null || $approvedHost !== $host) {
         $fail('the effective MySQL host is not explicitly approved.');
+    }
+
+    if ($port !== null && $port !== '') {
+        if ($approvedPort === null || $approvedPort !== $port) {
+            $fail('the effective MySQL port is not explicitly approved.');
+        }
     }
 
     if ($databaseUrl !== null && $databaseUrl !== '') {

@@ -19,7 +19,7 @@
         <a href="{{ route('quotations.list') }}" class="btn btn-outline-light shadow-sm">Back to Quotations</a>
     </div>
 
-    <form action="{{ route('quotations.store') }}" method="POST">
+    <form action="{{ route('quotations.store') }}" method="POST" novalidate>
         @csrf
         @include('pages.quotations._form')
     </form>

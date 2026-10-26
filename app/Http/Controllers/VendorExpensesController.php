@@ -10,6 +10,7 @@ use App\Models\MainCategory;
 use App\Models\PaymentMethod;
 use App\Models\Project;
 use App\Models\Vendor;
+use App\Models\Wallet;
 use App\Services\CrmBalanceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -284,20 +285,81 @@ class VendorExpensesController extends Controller
 
         DB::transaction(function () use ($validated) {
             $expense = Expense::query()->whereNotNull('vendor_id')->findOrFail((int) $validated['id']);
+            $vendorId = (int) $expense->vendor_id;
+            $vendor = Vendor::query()->lockForUpdate()->find($vendorId);
+            $balanceService = app(CrmBalanceService::class);
 
-            if ((float) $expense->extra_amt > 0) {
-                app(CrmBalanceService::class)->adjustVendorAdvance((int) $expense->vendor_id, -round((float) $expense->extra_amt, 2));
+            // 1. Determine advance applied and actual wallet debit for this expense prior to any new entries
+            $appliedAdvance = (float) AdvanceHistory::query()
+                ->where('labour_expense_transaction_id', $expense->id)
+                ->where('vendor_id', $vendorId)
+                ->where('entry_type', 'withdraw')
+                ->sum('amount');
+            $appliedAdvance = round($appliedAdvance, 2);
+
+            $walletDebited = (float) Wallet::query()
+                ->where('source_type', 'vendor_expense')
+                ->where('source_id', $expense->id)
+                ->where('transfer_type', 1)
+                ->sum('amount');
+            $walletDebited = round($walletDebited, 2);
+
+            // 2. Reversal of extra advance credited on creation
+            $extraAmount = round((float) ($expense->extra_amt ?? 0), 2);
+            if ($extraAmount > 0 && $vendor) {
+                $balanceService->adjustVendorAdvance($vendorId, -$extraAmount);
+                AdvanceHistory::create($this->filterColumns('advance_history', [
+                    'vendor_id' => $vendorId,
+                    'labour_expense_transaction_id' => $expense->id,
+                    'amount' => $extraAmount,
+                    'entry_type' => 'withdraw',
+                    'notes' => 'Vendor extra advance reversed on deleted vendor expense #' . $expense->id,
+                    'user_id' => Auth::id(),
+                    'current_date' => now()->toDateString(),
+                    'current_time' => now()->format('H:i:s'),
+                ]));
             }
 
-            app(CrmBalanceService::class)->replaceUserWalletDebit(
-                (int) $expense->user_id,
-                round((float) $expense->paid_amt, 2),
-                null,
-                0,
-                'Deleted vendor expense refund',
-                'vendor_expense',
-                (int) $expense->id
-            );
+            if ($appliedAdvance > 0) {
+                $advanceToRestore = $appliedAdvance;
+                $cashToRefund = $walletDebited > 0 ? $walletDebited : round(max(0, (float) $expense->paid_amt - $advanceToRestore), 2);
+            } else {
+                if ($walletDebited > 0 && $walletDebited < (float) $expense->paid_amt) {
+                    $advanceToRestore = round((float) $expense->paid_amt - $walletDebited, 2);
+                    $cashToRefund = $walletDebited;
+                } else {
+                    $advanceToRestore = 0.0;
+                    $cashToRefund = round((float) $expense->paid_amt, 2);
+                }
+            }
+
+            // 3. Restore applied advance to vendor
+            if ($advanceToRestore > 0 && $vendor) {
+                $balanceService->adjustVendorAdvance($vendorId, $advanceToRestore);
+                AdvanceHistory::create($this->filterColumns('advance_history', [
+                    'vendor_id' => $vendorId,
+                    'labour_expense_transaction_id' => $expense->id,
+                    'amount' => $advanceToRestore,
+                    'entry_type' => 'credit',
+                    'notes' => 'Restored vendor advance from deleted vendor expense #' . $expense->id,
+                    'user_id' => Auth::id(),
+                    'current_date' => now()->toDateString(),
+                    'current_time' => now()->format('H:i:s'),
+                ]));
+            }
+
+            // 4. Refund actual cash debited to the user who paid
+            if ($cashToRefund > 0) {
+                $balanceService->replaceUserWalletDebit(
+                    (int) $expense->user_id,
+                    $cashToRefund,
+                    null,
+                    0,
+                    'Deleted vendor expense refund',
+                    'vendor_expense',
+                    (int) $expense->id
+                );
+            }
 
             $expense->reason = $validated['delete_reason'];
             $expense->editedBy = Auth::id();

@@ -449,87 +449,101 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form action="{{ route('projects.update', $project) }}" method="POST" class="row g-3">
+                    <form action="{{ route('projects.update', $project) }}" method="POST" class="row g-3" novalidate>
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="_modal_target" value="#edit_project_detail">
                         <input type="hidden" name="client_id" value="{{ $project->client_id }}">
                         <div class="col-md-6">
-                            <label class="form-label">Project Code</label>
-                            <input type="text" name="project_code" class="form-control" value="{{ $project->project_code }}"
-                                required>
+                            <label class="form-label">Project Code <span class="text-danger">*</span></label>
+                            <input type="text" name="project_code" class="form-control @error('project_code') is-invalid @enderror" value="{{ old('project_code', $project->project_code) }}"
+                                @error('project_code') aria-describedby="detail_prj_project_code_error" aria-invalid="true" @enderror required>
+                            @error('project_code')<div class="invalid-feedback d-block" id="detail_prj_project_code_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Project Name</label>
-                            <input type="text" name="name" class="form-control" value="{{ $project->name }}" required>
+                            <label class="form-label">Project Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $project->name) }}" @error('name') aria-describedby="detail_prj_name_error" aria-invalid="true" @enderror required>
+                            @error('name')<div class="invalid-feedback d-block" id="detail_prj_name_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Manager</label>
-                            <select name="manager_id" class="form-select">
+                            <select name="manager_id" class="form-select @error('manager_id') is-invalid @enderror" @error('manager_id') aria-describedby="detail_prj_manager_id_error" aria-invalid="true" @enderror>
                                 <option value="">Select</option>
                                 @foreach ($availableEmployees as $employee)
-                                    <option value="{{ $employee->id }}" @selected($employee->id === $project->manager_id)>
+                                    <option value="{{ $employee->id }}" @selected(old('manager_id', $project->manager_id) == $employee->id)>
                                         {{ $employee->name }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('manager_id')<div class="invalid-feedback d-block" id="detail_prj_manager_id_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Status</label>
-                            <select name="status" class="form-select">
+                            <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="detail_prj_status_error" aria-invalid="true" @enderror>
                                 @foreach (['planning', 'active', 'on_hold', 'completed', 'cancelled'] as $status)
-                                    <option value="{{ $status }}" @selected($status === $project->status)>
+                                    <option value="{{ $status }}" @selected(old('status', $project->status) === $status)>
                                         {{ ucfirst(str_replace('_', ' ', $status)) }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('status')<div class="invalid-feedback d-block" id="detail_prj_status_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Priority</label>
-                            <select name="priority" class="form-select">
+                            <select name="priority" class="form-select @error('priority') is-invalid @enderror" @error('priority') aria-describedby="detail_prj_priority_error" aria-invalid="true" @enderror>
                                 @foreach (['low', 'medium', 'high'] as $priority)
-                                    <option value="{{ $priority }}" @selected($priority === $project->priority)>
+                                    <option value="{{ $priority }}" @selected(old('priority', $project->priority) === $priority)>
                                         {{ ucfirst($priority) }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('priority')<div class="invalid-feedback d-block" id="detail_prj_priority_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Type</label>
-                            <input type="text" name="type" class="form-control" value="{{ $project->type }}">
+                            <label class="form-label">Type <span class="text-danger">*</span></label>
+                            <input type="text" name="type" class="form-control @error('type') is-invalid @enderror" value="{{ old('type', $project->type) }}" @error('type') aria-describedby="detail_prj_type_error" aria-invalid="true" @enderror required>
+                            @error('type')<div class="invalid-feedback d-block" id="detail_prj_type_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Progress</label>
-                            <input type="number" name="progress" class="form-control" min="0" max="100"
-                                value="{{ $project->progress }}">
+                            <input type="number" name="progress" class="form-control @error('progress') is-invalid @enderror" min="0" max="100"
+                                value="{{ old('progress', $project->progress) }}" @error('progress') aria-describedby="detail_prj_progress_error" aria-invalid="true" @enderror>
+                            @error('progress')<div class="invalid-feedback d-block" id="detail_prj_progress_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Budget</label>
-                            <input type="number" step="0.01" name="budget" class="form-control"
-                                value="{{ $project->budget }}">
+                            <input type="number" step="0.01" name="budget" class="form-control @error('budget') is-invalid @enderror"
+                                value="{{ old('budget', $project->budget) }}" @error('budget') aria-describedby="detail_prj_budget_error" aria-invalid="true" @enderror>
+                            @error('budget')<div class="invalid-feedback d-block" id="detail_prj_budget_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Spent</label>
-                            <input type="number" step="0.01" name="spent" class="form-control"
-                                value="{{ $project->spent }}">
+                            <input type="number" step="0.01" name="spent" class="form-control @error('spent') is-invalid @enderror"
+                                value="{{ old('spent', $project->spent) }}" @error('spent') aria-describedby="detail_prj_spent_error" aria-invalid="true" @enderror>
+                            @error('spent')<div class="invalid-feedback d-block" id="detail_prj_spent_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Start Date</label>
-                            <input type="date" name="start_date" class="form-control"
-                                value="{{ optional($project->start_date)->format('Y-m-d') }}">
+                            <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror"
+                                value="{{ old('start_date', optional($project->start_date)->format('Y-m-d')) }}" @error('start_date') aria-describedby="detail_prj_start_date_error" aria-invalid="true" @enderror>
+                            @error('start_date')<div class="invalid-feedback d-block" id="detail_prj_start_date_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">End Date</label>
-                            <input type="date" name="end_date" class="form-control"
-                                value="{{ optional($project->end_date)->format('Y-m-d') }}">
+                            <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror"
+                                value="{{ old('end_date', optional($project->end_date)->format('Y-m-d')) }}" @error('end_date') aria-describedby="detail_prj_end_date_error" aria-invalid="true" @enderror>
+                            @error('end_date')<div class="invalid-feedback d-block" id="detail_prj_end_date_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-12">
                             <label class="form-label">Location</label>
-                            <input type="text" name="location" class="form-control" value="{{ $project->location }}">
+                            <input type="text" name="location" class="form-control @error('location') is-invalid @enderror" value="{{ old('location', $project->location) }}" @error('location') aria-describedby="detail_prj_location_error" aria-invalid="true" @enderror>
+                            @error('location')<div class="invalid-feedback d-block" id="detail_prj_location_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-12">
                             <label class="form-label">Description</label>
-                            <textarea name="description" class="form-control"
-                                rows="4">{{ $project->description }}</textarea>
+                            <textarea name="description" class="form-control @error('description') is-invalid @enderror"
+                                rows="4" @error('description') aria-describedby="detail_prj_description_error" aria-invalid="true" @enderror>{{ old('description', $project->description) }}</textarea>
+                            @error('description')<div class="invalid-feedback d-block" id="detail_prj_description_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-12 d-flex justify-content-end gap-2">
                             <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -540,6 +554,22 @@
             </div>
         </div>
     </div>
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection
 
 @push('styles')

@@ -6,6 +6,60 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 define('LARAVEL_START', microtime(true));
 
+// -----------------------------------------------------------------------------
+// HouseFix360 CRM — Fail-Closed Migration Safety Guard (Pre-Bootstrap)
+// Blocks direct execution of schema/data-changing Artisan commands.
+// All migrations must be executed through tests/run-safe-migrate.php.
+// -----------------------------------------------------------------------------
+(static function (array $argv): void {
+    $rawArgs = array_slice($argv, 1);
+    if (empty($rawArgs)) {
+        return;
+    }
+
+    // Never block explicit help commands
+    if (in_array('--help', $rawArgs, true) || in_array('-h', $rawArgs, true)) {
+        return;
+    }
+    if (isset($rawArgs[0]) && strtolower($rawArgs[0]) === 'help') {
+        return;
+    }
+
+    $isMigrationCommand = false;
+    $detectedCommand = '';
+
+    foreach ($rawArgs as $arg) {
+        $lower = strtolower(trim($arg));
+
+        if (
+            $lower === 'migrate'
+            || str_starts_with($lower, 'migrate:')
+            || $lower === 'db:wipe'
+            || str_starts_with($lower, 'db:wipe:')
+            || $lower === 'db:seed'
+            || str_starts_with($lower, 'db:seed:')
+        ) {
+            $isMigrationCommand = true;
+            $detectedCommand = $lower;
+            break;
+        }
+    }
+
+    if (! $isMigrationCommand) {
+        return;
+    }
+
+    // Direct invocation through artisan is unconditionally blocked.
+    // All migrations must be executed through the approved safe runner: tests/run-safe-migrate.php
+    fwrite(STDERR, PHP_EOL . '=====================================================================' . PHP_EOL);
+    fwrite(STDERR, "CRMS SAFETY GUARD: Direct Artisan execution of '{$detectedCommand}' is blocked." . PHP_EOL);
+    fwrite(STDERR, 'Artisan migration and database mutation commands cannot be run directly.' . PHP_EOL);
+    fwrite(STDERR, 'To run migrations safely against staging, use the approved safe runner:' . PHP_EOL);
+    fwrite(STDERR, '  php tests/run-safe-migrate.php ' . implode(' ', $rawArgs) . PHP_EOL);
+    fwrite(STDERR, '=====================================================================' . PHP_EOL . PHP_EOL);
+    exit(1);
+})($_SERVER['argv'] ?? $argv ?? []);
+
 // Register the Composer autoloader...
 require __DIR__.'/vendor/autoload.php';
 

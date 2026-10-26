@@ -9,7 +9,7 @@
                 <div class="row">
                     <div class="col-md-10 mx-auto">
                         <form action="{{ route('password.update') }}" method="POST"
-                            class="vh-100 d-flex justify-content-between flex-column p-4 pb-0">
+                            class="vh-100 d-flex justify-content-between flex-column p-4 pb-0" novalidate>
                             @csrf
                             <input type="hidden" name="token" value="{{ $token }}">
                             <div class="text-center mb-4 auth-logo">
@@ -24,9 +24,9 @@
                                     <label class="form-label">Email Address</label>
                                     <div class="input-group input-group-flat">
                                         <input type="email" class="form-control @error('email') is-invalid @enderror"
-                                            name="email" value="{{ old('email', $email) }}" required autofocus>
+                                            name="email" value="{{ old('email', $email) }}" @error('email') aria-describedby="reset_email_error" aria-invalid="true" @enderror required autofocus>
                                         @error('email')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="reset_email_error">{{ $message }}</div>
                                         @enderror
                                         <span class="input-group-text">
                                             <i class="ti ti-mail"></i>
@@ -38,9 +38,9 @@
                                     <div class="input-group input-group-flat pass-group">
                                         <input type="password"
                                             class="form-control pass-input @error('password') is-invalid @enderror"
-                                            name="password" required>
+                                            name="password" @error('password') aria-describedby="reset_password_error" aria-invalid="true" @enderror required>
                                         @error('password')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="reset_password_error">{{ $message }}</div>
                                         @enderror
                                         <button class="input-group-text toggle-password" type="button"
                                             aria-label="Show password">
@@ -51,8 +51,11 @@
                                 <div class="mb-3">
                                     <label class="form-label">Confirm Password</label>
                                     <div class="input-group input-group-flat pass-group">
-                                        <input type="password" class="form-control pass-input"
-                                            name="password_confirmation" required>
+                                        <input type="password" class="form-control pass-input @error('password_confirmation') is-invalid @enderror"
+                                            name="password_confirmation" @error('password_confirmation') aria-describedby="reset_password_confirmation_error" aria-invalid="true" @enderror required>
+                                        @error('password_confirmation')
+                                            <div class="invalid-feedback d-block" id="reset_password_confirmation_error">{{ $message }}</div>
+                                        @enderror
                                         <button class="input-group-text toggle-password" type="button"
                                             aria-label="Show password">
                                             <i class="ti ti-eye-off"></i>

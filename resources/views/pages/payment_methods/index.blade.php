@@ -25,7 +25,7 @@
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom">
-            <form action="{{ route('payment-methods.index') }}" method="GET" class="row g-3 align-items-end m-0">
+            <form action="{{ route('payment-methods.index') }}" method="GET" class="row g-3 align-items-end m-0" novalidate>
                 <div class="col-12 col-lg-5">
                     <label class="form-label">Search</label>
                     <div class="input-icon input-icon-start position-relative">
@@ -75,7 +75,7 @@
                                 <td>{{ $pm->type ?: 'General' }}</td>
                                 <td>{{ $pm->sort_order }}</td>
                                 <td>
-                                    <form action="{{ route('payment-methods.toggle', $pm) }}" method="POST" class="d-inline">
+                                    <form action="{{ route('payment-methods.toggle', $pm) }}" method="POST" class="d-inline" novalidate>
                                         @csrf
                                         <button type="submit" class="border-0 bg-transparent p-0" title="Click to toggle status">
                                             <span class="badge {{ $pm->active_status ? 'badge-soft-success' : 'badge-soft-danger' }}">
@@ -92,7 +92,7 @@
                                             </a>
                                         @endif
                                         @if(auth()->user()->hasPermission('payment-methods-delete'))
-                                            <form action="{{ route('payment-methods.destroy', $pm) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this payment method?');" class="d-inline">
+                                            <form action="{{ route('payment-methods.destroy', $pm) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this payment method?');" class="d-inline" novalidate>
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

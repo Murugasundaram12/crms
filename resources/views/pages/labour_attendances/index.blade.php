@@ -131,10 +131,13 @@
                             <span class="badge bg-soft-primary text-primary ms-2">{{ $eligibleLabours->count() }} Labour(s) Assigned</span>
                         </h6>
                     </div>
-                    <form method="POST" action="{{ route('labour-attendances.bulk-store') }}">
+                    <form method="POST" action="{{ route('labour-attendances.bulk-store') }}" novalidate>
                         @csrf
                         <input type="hidden" name="project_id" value="{{ $selectedProjectId }}">
                         <input type="hidden" name="attendance_date" value="{{ $selectedDate }}">
+                        @error('project_id')<div class="alert alert-danger py-2 mb-2" id="project_id_error">{{ $message }}</div>@enderror
+                        @error('attendance_date')<div class="alert alert-danger py-2 mb-2" id="attendance_date_error">{{ $message }}</div>@enderror
+                        @error('attendances')<div class="alert alert-danger py-2 mb-2" id="attendances_error">{{ $message }}</div>@enderror
                         <div class="table-responsive">
                             <table class="table table-bordered table-nowrap align-middle mb-3">
                                 <thead class="table-light">
@@ -147,7 +150,7 @@
                                 <tbody>
                                     @foreach($eligibleLabours as $index => $labour)
                                         @php($existingRecord = $existingAttendances->get($labour->id))
-                                        @php($currentStatus = $existingRecord ? $existingRecord->status : 'off')
+                                        @php($currentStatus = old("attendances.{$index}.status", $existingRecord ? $existingRecord->status : 'off'))
                                         @php($isLocked = in_array($labour->id, $paidLabourIds))
                                         <tr>
                                             <td>
@@ -164,6 +167,9 @@
                                                         <span class="badge bg-soft-secondary text-secondary"><i class="ti ti-lock me-1"></i> Salary Paid</span>
                                                     @endif
                                                 </div>
+                                                @error("attendances.{$index}.labour_id")
+                                                    <div class="invalid-feedback d-block text-danger small mt-1" id="attendances_{{ $index }}_labour_id_error">{{ $message }}</div>
+                                                @enderror
                                             </td>
                                             <td>
                                                 @if($isLocked)
@@ -180,10 +186,16 @@
                                                         <input type="radio" class="btn-check" name="attendances[{{ $index }}][status]" id="status_absent_{{ $labour->id }}" value="absent" @checked($currentStatus === 'absent')>
                                                         <label class="btn btn-outline-danger" for="status_absent_{{ $labour->id }}"><i class="ti ti-x me-1"></i> Absent</label>
                                                     </div>
+                                                    @error("attendances.{$index}.status")
+                                                        <div class="invalid-feedback d-block text-danger small mt-1" id="attendances_{{ $index }}_status_error">{{ $message }}</div>
+                                                    @enderror
                                                 @endif
                                             </td>
                                             <td>
-                                                <input type="text" name="attendances[{{ $index }}][notes]" class="form-control form-control-sm" placeholder="Optional notes" value="{{ $existingRecord?->notes }}" @disabled($isLocked)>
+                                                <input type="text" name="attendances[{{ $index }}][notes]" class="form-control form-control-sm @error("attendances.{$index}.notes") is-invalid @enderror" placeholder="Optional notes" value="{{ old("attendances.{$index}.notes", $existingRecord?->notes) }}" @disabled($isLocked) @error("attendances.{$index}.notes") aria-describedby="attendances_{{ $index }}_notes_error" aria-invalid="true" @enderror>
+                                                @error("attendances.{$index}.notes")
+                                                    <div class="invalid-feedback d-block" id="attendances_{{ $index }}_notes_error">{{ $message }}</div>
+                                                @enderror
                                             </td>
                                         </tr>
                                     @endforeach
@@ -256,7 +268,7 @@
                                 <td>{{ $record->employee?->name ?? 'System' }}</td>
                                 <td>{{ $record->notes ?? '-' }}</td>
                                 <td class="text-end">
-                                    <form method="POST" action="{{ route('labour-attendances.destroy', $record) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                    <form method="POST" action="{{ route('labour-attendances.destroy', $record) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this attendance record?');" novalidate>
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Attendance">

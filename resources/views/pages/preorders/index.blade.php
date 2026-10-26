@@ -87,7 +87,7 @@
                 <h6 class="card-title mb-0"><i class="ti ti-filter me-1"></i> Advanced Search & Filters</h6>
             </div>
             <div class="card-body">
-                <form action="{{ route('preorders.index') }}" method="GET" class="row g-3">
+                <form action="{{ route('preorders.index') }}" method="GET" class="row g-3" novalidate>
                     <div class="col-12 col-md-3">
                         <label class="form-label">Search</label>
                         <input type="text" name="q" class="form-control" placeholder="Ref No, Notes, Material, Vendor" value="{{ request('q') }}">
@@ -241,7 +241,7 @@
                                                 @endcan
                                             @endif
                                             @can('tools-materials-delete')
-                                                <form action="{{ route('preorders.destroy', $preorder->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline">
+                                                <form action="{{ route('preorders.destroy', $preorder->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this preorder?');" class="d-inline" novalidate>
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

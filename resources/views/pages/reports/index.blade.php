@@ -107,9 +107,11 @@
 
     @php
         $user = auth()->user();
-        $isSuperAdmin = $user && (method_exists($user, 'assignedRoles')
-            ? $user->assignedRoles()->contains('name', 'Super Admin')
-            : (($user->role ?? '') === 'Super Admin'));
+        $isSuperAdmin = $user && (method_exists($user, 'isSuperAdmin')
+            ? $user->isSuperAdmin()
+            : (method_exists($user, 'assignedRoles')
+                ? $user->assignedRoles()->contains('name', 'Super Admin')
+                : (($user->role ?? '') === 'Super Admin')));
 
         $title = match ($type) {
             'office' => 'Office Report',
@@ -269,7 +271,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="14" class="text-center py-5">
+                                <td colspan="{{ $isSuperAdmin ? 14 : 13 }}" class="text-center py-5">
                                     <span class="avatar avatar-lg bg-light text-muted mb-2">
                                         <i class="ti ti-file-search fs-24"></i>
                                     </span>

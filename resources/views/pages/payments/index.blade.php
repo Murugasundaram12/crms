@@ -181,30 +181,34 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('payments.store') }}" method="POST" class="row g-3">
+            <form action="{{ route('payments.store') }}" method="POST" class="row g-3" novalidate>
                 @csrf
+                <input type="hidden" name="_modal_target" value="#offcanvas_add">
                 <div class="col-12">
                     <label class="form-label">Client <span class="text-danger">*</span></label>
-                    <select id="client_id" name="client_id" class="form-select" required>
+                    <select id="client_id" name="client_id" class="form-select @error('client_id') is-invalid @enderror" @error('client_id') aria-describedby="client_id_error" aria-invalid="true" @enderror required>
                         <option value="">Select Client</option>
                         @foreach ($clients as $client)
-                            <option value="{{ $client->id }}">
+                            <option value="{{ $client->id }}" @selected(old('client_id') == $client->id)>
                                 {{ $client->name }}
                             </option>
                         @endforeach
                     </select>
+                    @error('client_id')<div class="invalid-feedback d-block" id="client_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Project <span class="text-danger">*</span></label>
-                    <select id="project_id" name="project_id" class="form-select" required>
+                    <select id="project_id" name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="project_id_error" aria-invalid="true" @enderror required>
                         <option value="">Select Project</option>
                     </select>
+                    @error('project_id')<div class="invalid-feedback d-block" id="project_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Quotation <span class="text-danger">*</span></label>
-                    <select id="quotation_id" name="quotation_id" class="form-select" required>
+                    <select id="quotation_id" name="quotation_id" class="form-select @error('quotation_id') is-invalid @enderror" @error('quotation_id') aria-describedby="quotation_id_error" aria-invalid="true" @enderror required>
                         <option value="">Select Quotation</option>
                     </select>
+                    @error('quotation_id')<div class="invalid-feedback d-block" id="quotation_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Total Amount</label>
@@ -212,53 +216,60 @@
                 </div>
                 <input type="hidden" id="remaining_amount" class="payment-remaining-amount">
                 <div class="col-md-6">
-                    <label class="form-label">Status</label>
-                    <select name="status" id="status" class="form-select" required>
+                    <label class="form-label">Status <span class="text-danger">*</span></label>
+                    <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="status_error" aria-invalid="true" @enderror required>
                         <option value="">Select Status</option>
-                        <option value="pending">Pending</option>
-                        <option value="partial">Partial</option>
-                        <option value="paid">Paid</option>
-                        <option value="overdue">Overdue</option>
+                        <option value="pending" @selected(old('status') === 'pending')>Pending</option>
+                        <option value="partial" @selected(old('status') === 'partial')>Partial</option>
+                        <option value="paid" @selected(old('status', 'paid') === 'paid')>Paid</option>
+                        <option value="overdue" @selected(old('status') === 'overdue')>Overdue</option>
                     </select>
+                    @error('status')<div class="invalid-feedback d-block" id="status_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Stage <span class="text-danger">*</span></label>
-                    <select name="stage_id" class="form-select" required>
+                    <select name="stage_id" id="stage_id" class="form-select @error('stage_id') is-invalid @enderror" @error('stage_id') aria-describedby="stage_id_error" aria-invalid="true" @enderror required>
                         <option value="">Select Stage</option>
                         @foreach ($stages as $stage)
-                            <option value="{{ $stage->id }}">
+                            <option value="{{ $stage->id }}" @selected(old('stage_id') == $stage->id)>
                                 {{ $stage->name }}
                             </option>
                         @endforeach
                     </select>
+                    @error('stage_id')<div class="invalid-feedback d-block" id="stage_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Amount <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" id="amount" name="amount" class="form-control" min="0.01" required readonly>
-                    <div class="invalid-feedback payment-amount-error">Amount cannot exceed remaining quotation amount.</div>
+                    <input type="number" step="0.01" id="amount" name="amount" class="form-control @error('amount') is-invalid @enderror" value="{{ old('amount') }}" min="0.01" @error('amount') aria-describedby="amount_error" aria-invalid="true" @enderror required readonly>
+                    @error('amount')<div class="invalid-feedback d-block" id="amount_error">{{ $message }}</div>@enderror
+                    <div class="invalid-feedback payment-amount-error" id="payment_amount_max_error">Amount cannot exceed remaining quotation amount.</div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                    <select name="payment_method_id" class="form-select payment-method-select" required>
+                    <select name="payment_method_id" id="payment_method_id" class="form-select payment-method-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="payment_method_id_error" aria-invalid="true" @enderror required>
                         <option value="">Select Payment Method</option>
                         @foreach ($paymentMethods as $paymentMethod)
-                            <option value="{{ $paymentMethod->id }}" data-code="{{ strtolower($paymentMethod->code ?? '') }}" data-name="{{ strtolower($paymentMethod->name) }}">
+                            <option value="{{ $paymentMethod->id }}" data-code="{{ strtolower($paymentMethod->code ?? '') }}" data-name="{{ strtolower($paymentMethod->name) }}" @selected(old('payment_method_id') == $paymentMethod->id)>
                                 {{ $paymentMethod->name }}
                             </option>
                         @endforeach
                     </select>
+                    @error('payment_method_id')<div class="invalid-feedback d-block" id="payment_method_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Paid At</label>
-                    <input type="datetime-local" name="paid_at" class="form-control" value="{{ now()->format('Y-m-d\TH:i') }}">
+                    <input type="datetime-local" id="paid_at" name="paid_at" class="form-control @error('paid_at') is-invalid @enderror" value="{{ old('paid_at', now()->format('Y-m-d\TH:i')) }}" @error('paid_at') aria-describedby="paid_at_error" aria-invalid="true" @enderror>
+                    @error('paid_at')<div class="invalid-feedback d-block" id="paid_at_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6 transaction-id-field d-none">
                     <label class="form-label">Transaction ID</label>
-                    <input type="text" name="transaction_id" class="form-control">
+                    <input type="text" id="transaction_id" name="transaction_id" class="form-control @error('transaction_id') is-invalid @enderror" value="{{ old('transaction_id') }}" @error('transaction_id') aria-describedby="transaction_id_error" aria-invalid="true" @enderror>
+                    @error('transaction_id')<div class="invalid-feedback d-block" id="transaction_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Notes</label>
-                    <textarea name="notes" class="form-control" rows="4"></textarea>
+                    <textarea name="notes" id="notes" class="form-control @error('notes') is-invalid @enderror" rows="4" @error('notes') aria-describedby="notes_error" aria-invalid="true" @enderror>{{ old('notes') }}</textarea>
+                    @error('notes')<div class="invalid-feedback d-block" id="notes_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12 d-flex justify-content-end gap-2">
                     <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
@@ -279,33 +290,36 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('payments.update', $payment) }}" method="POST" class="row g-3">
+                        <form action="{{ route('payments.update', $payment) }}" method="POST" class="row g-3" novalidate>
                             @csrf
                             @method('PUT')
+                            <input type="hidden" name="_modal_target" value="#edit_payment_{{ $payment->id }}">
                             <div class="col-12">
                                 <label class="form-label">Client <span class="text-danger">*</span></label>
-                                <select id="edit_client_id_{{ $payment->id }}" name="client_id" class="form-select" required>
+                                <select id="edit_client_id_{{ $payment->id }}" name="client_id" class="form-select @error('client_id') is-invalid @enderror" @error('client_id') aria-describedby="edit_client_id_{{ $payment->id }}_error" aria-invalid="true" @enderror required>
                                     <option value="">Select Client</option>
                                     @foreach ($clients as $client)
-                                        <option value="{{ $client->id }}" @selected($client->id === $payment->client_id)>
+                                        <option value="{{ $client->id }}" @selected(old('client_id', $payment->client_id) == $client->id)>
                                             {{ $client->name }}
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('client_id')<div class="invalid-feedback d-block" id="edit_client_id_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Project <span class="text-danger">*</span></label>
-                                <select id="edit_project_id_{{ $payment->id }}" name="project_id" class="form-select"
-                                    data-selected="{{ $payment->project_id }}" required>
+                                <select id="edit_project_id_{{ $payment->id }}" name="project_id" class="form-select @error('project_id') is-invalid @enderror"
+                                    data-selected="{{ old('project_id', $payment->project_id) }}" @error('project_id') aria-describedby="edit_project_id_{{ $payment->id }}_error" aria-invalid="true" @enderror required>
                                     <option value="{{ $payment->project_id }}" selected>
                                         {{ $payment->project?->name ?? 'Selected Project' }}
                                     </option>
                                 </select>
+                                @error('project_id')<div class="invalid-feedback d-block" id="edit_project_id_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Quotation <span class="text-danger">*</span></label>
-                                <select id="edit_quotation_id_{{ $payment->id }}" name="quotation_id" class="form-select"
-                                    data-selected="{{ $payment->quotation_id }}" required>
+                                <select id="edit_quotation_id_{{ $payment->id }}" name="quotation_id" class="form-select @error('quotation_id') is-invalid @enderror"
+                                    data-selected="{{ old('quotation_id', $payment->quotation_id) }}" @error('quotation_id') aria-describedby="edit_quotation_id_{{ $payment->id }}_error" aria-invalid="true" @enderror required>
                                     <option value="{{ $payment->quotation_id }}"
                                         data-total="{{ (float) ($payment->quotation?->total_amount ?? 0) > 0 ? $payment->quotation?->total_amount : ($payment->quotation?->amount ?? 0) }}"
                                         data-remaining="{{ $payment->remaining_amount_for_edit ?? ($payment->quotation?->total_amount ?? $payment->quotation?->amount ?? 0) }}"
@@ -313,6 +327,7 @@
                                         {{ $payment->quotation?->quotation_number ?? 'Selected Quotation' }}
                                     </option>
                                 </select>
+                                @error('quotation_id')<div class="invalid-feedback d-block" id="edit_quotation_id_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Total Amount</label>
@@ -324,24 +339,26 @@
                             <input type="hidden" id="edit_remaining_amount_{{ $payment->id }}" class="payment-remaining-amount">
                             <div class="col-12">
                                 <label class="form-label">Stage <span class="text-danger">*</span></label>
-                                <select name="stage_id" class="form-select" required>
+                                <select name="stage_id" id="edit_stage_id_{{ $payment->id }}" class="form-select @error('stage_id') is-invalid @enderror" @error('stage_id') aria-describedby="edit_stage_id_{{ $payment->id }}_error" aria-invalid="true" @enderror required>
                                     <option value="">Select Stage</option>
                                     @foreach ($stages as $stage)
-                                        <option value="{{ $stage->id }}" @selected($stage->id == $payment->stage_id)>
+                                        <option value="{{ $stage->id }}" @selected(old('stage_id', $payment->stage_id) == $stage->id)>
                                             {{ $stage->name }}
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('stage_id')<div class="invalid-feedback d-block" id="edit_stage_id_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Amount</label>
-                                <input type="number" step="0.01" name="amount" class="form-control" min="0.01"
-                                    value="{{ $payment->amount }}" required>
+                                <label class="form-label">Amount <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" id="edit_amount_{{ $payment->id }}" name="amount" class="form-control @error('amount') is-invalid @enderror" min="0.01"
+                                    value="{{ old('amount', $payment->amount) }}" @error('amount') aria-describedby="edit_amount_{{ $payment->id }}_error" aria-invalid="true" @enderror required>
+                                @error('amount')<div class="invalid-feedback d-block" id="edit_amount_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                                 <div class="invalid-feedback payment-amount-error">Amount cannot exceed remaining quotation amount.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                                <select name="payment_method_id" class="form-select payment-method-select" required>
+                                <select name="payment_method_id" id="edit_pm_{{ $payment->id }}" class="form-select payment-method-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="edit_pm_{{ $payment->id }}_error" aria-invalid="true" @enderror required>
                                     <option value="">Select Payment Method</option>
                                     @foreach ($paymentMethods as $paymentMethod)
                                         <option value="{{ $paymentMethod->id }}" data-code="{{ strtolower($paymentMethod->code ?? '') }}" data-name="{{ strtolower($paymentMethod->name) }}" @selected((string) old('payment_method_id', $payment->payment_method_id) === (string) $paymentMethod->id)>
@@ -349,29 +366,34 @@
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('payment_method_id')<div class="invalid-feedback d-block" id="edit_pm_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Paid At</label>
-                                <input type="datetime-local" name="paid_at" class="form-control"
-                                    value="{{ optional($payment->payment_date)->format('Y-m-d\TH:i') }}">
+                                <input type="datetime-local" id="edit_paid_at_{{ $payment->id }}" name="paid_at" class="form-control @error('paid_at') is-invalid @enderror"
+                                    value="{{ old('paid_at', optional($payment->payment_date)->format('Y-m-d\TH:i')) }}" @error('paid_at') aria-describedby="edit_paid_at_{{ $payment->id }}_error" aria-invalid="true" @enderror>
+                                @error('paid_at')<div class="invalid-feedback d-block" id="edit_paid_at_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6 transaction-id-field {{ $payment->method === 'bank_transfer' ? '' : 'd-none' }}">
                                 <label class="form-label">Transaction ID</label>
-                                <input type="text" name="transaction_id" class="form-control"
-                                    value="{{ $payment->transaction_id }}">
+                                <input type="text" id="edit_txn_{{ $payment->id }}" name="transaction_id" class="form-control @error('transaction_id') is-invalid @enderror"
+                                    value="{{ old('transaction_id', $payment->transaction_id) }}" @error('transaction_id') aria-describedby="edit_txn_{{ $payment->id }}_error" aria-invalid="true" @enderror>
+                                @error('transaction_id')<div class="invalid-feedback d-block" id="edit_txn_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Status</label>
-                                <select name="status" class="form-select">
+                                <select name="status" id="edit_status_{{ $payment->id }}" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="edit_status_{{ $payment->id }}_error" aria-invalid="true" @enderror>
                                     @foreach (['pending', 'paid', 'overdue', 'partial'] as $status)
-                                        <option value="{{ $status }}" @selected($status === $payment->status)>{{ ucfirst($status) }}
+                                        <option value="{{ $status }}" @selected(old('status', $payment->status) === $status)>{{ ucfirst($status) }}
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('status')<div class="invalid-feedback d-block" id="edit_status_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Notes</label>
-                                <textarea name="notes" class="form-control" rows="4">{{ $payment->notes }}</textarea>
+                                <textarea name="notes" id="edit_notes_{{ $payment->id }}" class="form-control @error('notes') is-invalid @enderror" rows="4" @error('notes') aria-describedby="edit_notes_{{ $payment->id }}_error" aria-invalid="true" @enderror>{{ old('notes', $payment->notes) }}</textarea>
+                                @error('notes')<div class="invalid-feedback d-block" id="edit_notes_{{ $payment->id }}_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12 d-flex justify-content-end gap-2">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -384,6 +406,22 @@
         </div>
     @endforeach
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection
 
 @push('scripts')
@@ -439,12 +477,13 @@
                 validatePaymentAmount($amount);
             }
 
-            function loadProjects(clientId, projectSelector, selectedProjectId) {
+            function loadProjects(clientId, projectSelector, selectedProjectId, onLoaded) {
                 var $project = $(projectSelector);
                 $project.empty().append('<option value="">Loading...</option>').prop('disabled', true);
 
                 if (!clientId) {
                     $project.empty().append('<option value="">Select Project</option>').prop('disabled', false);
+                    if (typeof onLoaded === 'function') onLoaded();
                     return;
                 }
 
@@ -456,17 +495,20 @@
                         $project.append(`<option value="${project.id}" ${selected}>${project.name}</option>`);
                     });
                     $project.prop('disabled', false).trigger('change');
+                    if (typeof onLoaded === 'function') onLoaded();
                 }).fail(function () {
                     $project.empty().append('<option value="">Error loading projects</option>').prop('disabled', false);
+                    if (typeof onLoaded === 'function') onLoaded();
                 });
             }
 
-            function loadQuotations(projectId, quotationSelector, selectedQuotationId) {
+            function loadQuotations(projectId, quotationSelector, selectedQuotationId, onLoaded) {
                 var $quotation = $(quotationSelector);
                 $quotation.empty().append('<option value="">Loading...</option>').prop('disabled', true);
 
                 if (!projectId) {
                     $quotation.empty().append('<option value="">Select Quotation</option>').prop('disabled', false);
+                    if (typeof onLoaded === 'function') onLoaded();
                     return;
                 }
 
@@ -483,8 +525,10 @@
                     });
 
                     $quotation.prop('disabled', false).trigger('change');
+                    if (typeof onLoaded === 'function') onLoaded();
                 }).fail(function () {
                     $quotation.empty().append('<option value="">Error loading quotations</option>').prop('disabled', false);
+                    if (typeof onLoaded === 'function') onLoaded();
                 });
             }
 
@@ -506,15 +550,28 @@
                 loadQuotations(projectId, '#quotation_id', null);
             });
 
+            // Restore projects and quotations on page load if old inputs exist (e.g., validation redirect)
+            var initialClientId = $('#client_id').val();
+            var oldProjectId = @json(old('project_id'));
+            var oldQuotationId = @json(old('quotation_id'));
+            if (initialClientId) {
+                loadProjects(initialClientId, '#project_id', oldProjectId, function() {
+                    if (oldProjectId) {
+                        loadQuotations(oldProjectId, '#quotation_id', oldQuotationId);
+                    }
+                });
+            }
+
             @foreach ($payments as $payment)
                 $('#edit_payment_{{ $payment->id }}').on('shown.bs.modal', function () {
                     var clientId = $('#edit_client_id_{{ $payment->id }}').val();
                     var selectedProjectId = $('#edit_project_id_{{ $payment->id }}').data('selected');
                     var selectedQuotationId = $('#edit_quotation_id_{{ $payment->id }}').data('selected');
-                    loadProjects(clientId, '#edit_project_id_{{ $payment->id }}', selectedProjectId);
-                    if (selectedProjectId) {
-                        loadQuotations(selectedProjectId, '#edit_quotation_id_{{ $payment->id }}', selectedQuotationId);
-                    }
+                    loadProjects(clientId, '#edit_project_id_{{ $payment->id }}', selectedProjectId, function() {
+                        if (selectedProjectId) {
+                            loadQuotations(selectedProjectId, '#edit_quotation_id_{{ $payment->id }}', selectedQuotationId);
+                        }
+                    });
                 });
 
                 $('#edit_client_id_{{ $payment->id }}').on('change', function () {

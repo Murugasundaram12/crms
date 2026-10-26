@@ -34,32 +34,37 @@
 
 <style>
     .navbar-wallet-trigger {
-        position: relative;
-        overflow: visible;
+        width: auto !important;
+        height: 38px;
+        padding: 0 12px !important;
+        display: inline-flex !important;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+        border-radius: 6px;
     }
 
     .navbar-wallet-trigger .wallet-balance {
-        display: none;
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        z-index: 1060;
-        min-width: 96px;
-        padding: 6px 10px;
-        border: 1px solid #dbe3ea;
-        border-radius: 6px;
-        background: #fff;
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+        display: inline-flex;
+        align-items: center;
+        font-size: 13.5px;
+        font-weight: 700;
         white-space: nowrap;
-        justify-content: center;
     }
 
-    .navbar-wallet-trigger:hover .wallet-balance,
-    .navbar-wallet-trigger:focus .wallet-balance,
-    .navbar-wallet-trigger.show-balance .wallet-balance {
-        display: inline-flex;
+    .navbar-wallet-trigger .wallet-balance.text-success {
+        color: #0d9488 !important;
+    }
+
+    .navbar-wallet-trigger .wallet-balance.text-danger {
+        color: #e11d48 !important;
+    }
+
+    .navbar-wallet-trigger:hover .wallet-balance {
+        color: #ffffff !important;
     }
 </style>
+
 
 <header class="navbar-header">
     <div class="page-container topbar-menu d-flex align-items-center justify-content-between w-100">
@@ -124,7 +129,7 @@
                             title="Current Wallet Balance">
                             <i class="ti ti-wallet"></i>
                             <span class="wallet-balance fw-semibold {{ $walletBalanceClass }}">
-                                {{ number_format($walletBalance, 2) }}
+                                ₹{{ number_format($walletBalance, 2) }}
                             </span>
                         </a>
                     @else
@@ -134,7 +139,7 @@
                             aria-label="Current Wallet Balance">
                             <i class="ti ti-wallet"></i>
                             <span class="wallet-balance fw-semibold {{ $walletBalanceClass }}">
-                                {{ number_format($walletBalance, 2) }}
+                                ₹{{ number_format($walletBalance, 2) }}
                             </span>
                         </button>
                     @endif
@@ -257,7 +262,7 @@
                     @endif
 
                     <div class="pt-2 mt-2 border-top">
-                        <form method="POST" action="{{ route('logout') }}">
+                        <form method="POST" action="{{ route('logout') }}" novalidate>
                             @csrf
                             <button type="submit" class="dropdown-item text-danger border-0 bg-transparent w-100 text-start">
                                 <i class="ti ti-logout me-1 fs-17 align-middle"></i>

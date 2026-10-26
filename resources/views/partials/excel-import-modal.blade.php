@@ -6,15 +6,26 @@
 <div class="modal fade" id="excelImportModal_{{ $module }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow">
         <div class="modal-header"><h5 class="modal-title">Import {{ $importTitle }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body"><form action="{{ $action }}" method="POST" enctype="multipart/form-data">
+        <div class="modal-body"><form action="{{ $action }}" method="POST" enctype="multipart/form-data" novalidate>
             @csrf
-            <label class="form-label">Excel / CSV file</label><input class="form-control mb-2" type="file" name="file" accept=".xlsx,.xls,.csv" required>
+            <input type="hidden" name="_modal_target" value="#excelImportModal_{{ $module }}">
+            <label class="form-label">Excel / CSV file <span class="text-danger">*</span></label>
+            <input class="form-control mb-2 @error('file') is-invalid @enderror" type="file" name="file" accept=".xlsx,.xls,.csv" @error('file') aria-describedby="excel_import_{{ $module }}_file_error" aria-invalid="true" @enderror required>
+            @error('file')<div class="invalid-feedback d-block mb-2" id="excel_import_{{ $module }}_file_error">{{ $message }}</div>@enderror
             <div class="form-text mb-3">Invalid rows are skipped and reported with their row number and reason.</div>
             <a href="{{ $sampleUrl }}" class="btn btn-link px-0">Download sample Excel</a>
-            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Import</button></div>
+            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit">Import</button></div>
         </form></div>
     </div></div>
 </div>
+@if ($errors->any() && old('_modal_target') === '#excelImportModal_'.$module)
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var el = document.getElementById('excelImportModal_{{ $module }}');
+            if (el && window.bootstrap) (new bootstrap.Modal(el)).show();
+        });
+    </script>
+@endif
 @if ($importResult)
     <div class="alert alert-{{ ($importResult['failed'] ?? 0) ? 'warning' : 'success' }} border-0 shadow-sm mt-3">
         <div class="fw-semibold mb-1">{{ $importTitle }} import {{ str_replace('_', ' ', $importResult['status']) }}</div>

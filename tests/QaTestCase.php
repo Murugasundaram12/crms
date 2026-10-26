@@ -36,9 +36,9 @@ abstract class QaTestCase extends BaseTestCase
         $defaultConn = config('database.default');
         $dbName = config("database.connections.{$defaultConn}.database");
 
-        if ($defaultConn === 'mysql' && $dbName === 'admin_crms') {
+        if ($defaultConn === 'mysql' && in_array(strtolower((string) $dbName), ['admin_crms', 'crms'], true)) {
             throw new \RuntimeException(
-                'CRITICAL SAFETY VIOLATION: Automated tests are blocked from running against the live production database (admin_crms)!'
+                "CRITICAL SAFETY VIOLATION: Automated tests are blocked from running against the protected database ({$dbName})!"
             );
         }
     }

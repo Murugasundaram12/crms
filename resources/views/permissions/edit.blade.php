@@ -22,7 +22,7 @@
                     <h5 class="card-title mb-0">Edit Permission Details</h5>
                 </div>
                 <div class="card-body">
-                    <form action="{{ route('permissions.update', $permission) }}" method="POST">
+                    <form action="{{ route('permissions.update', $permission) }}" method="POST" novalidate>
                         @csrf
                         @method('PUT')
                         <div class="row g-4">
@@ -30,9 +30,9 @@
                                 <div class="form-group">
                                     <label class="col-form-label">Name <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control @error('name') is-invalid @enderror" name="name"
-                                        value="{{ old('name', $permission->name) }}" required>
+                                        value="{{ old('name', $permission->name) }}" @error('name') aria-describedby="permission_name_error" aria-invalid="true" @enderror required>
                                     @error('name')
-                                        <div class="invalid-feedback">{{ $message }}</div>
+                                        <div class="invalid-feedback d-block" id="permission_name_error">{{ $message }}</div>
                                     @enderror
                                 </div>
                             </div>
@@ -42,13 +42,13 @@
                                     <label class="col-form-label">Key <span class="text-danger">*</span></label>
                                     <div class="position-relative">
                                         <input type="text" class="form-control @error('key') is-invalid @enderror"
-                                            name="key" value="{{ old('key', $permission->key) }}" required>
+                                            name="key" value="{{ old('key', $permission->key) }}" @error('key') aria-describedby="permission_key_error" aria-invalid="true" @enderror required>
                                         <span class="position-absolute end-0 top-50 translate-middle-y pe-3 text-muted">
                                             <i class="ti ti-key"></i>
                                         </span>
                                     </div>
                                     @error('key')
-                                        <div class="invalid-feedback">{{ $message }}</div>
+                                        <div class="invalid-feedback d-block" id="permission_key_error">{{ $message }}</div>
                                     @enderror
                                 </div>
                             </div>

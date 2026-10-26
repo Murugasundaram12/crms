@@ -10,8 +10,22 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        $this->assertNotProtectedDatabase();
+
         if (config('database.default') === 'sqlite' && ! \Illuminate\Support\Facades\Schema::hasTable('roles')) {
             $this->ensureBasicTestSchema();
+        }
+    }
+
+    protected function assertNotProtectedDatabase(): void
+    {
+        $defaultConn = config('database.default');
+        $dbName = config("database.connections.{$defaultConn}.database");
+
+        if ($defaultConn === 'mysql' && in_array(strtolower((string) $dbName), ['admin_crms', 'crms'], true)) {
+            throw new \RuntimeException(
+                "CRITICAL SAFETY VIOLATION: Automated tests are blocked from running against the protected database ({$dbName})!"
+            );
         }
     }
 
@@ -78,9 +92,19 @@ abstract class TestCase extends BaseTestCase
                 $table->string('name');
                 $table->string('email')->unique();
                 $table->timestamp('email_verified_at')->nullable();
+                $table->string('phone')->nullable();
+                $table->string('designation')->nullable();
+                $table->string('address')->nullable();
+                $table->date('hire_date')->nullable();
+                $table->decimal('hourly_rate', 12, 2)->nullable();
+                $table->string('avatar')->nullable();
                 $table->string('role')->nullable();
+                $table->string('salary_name')->nullable();
+                $table->decimal('salary_amount', 14, 2)->nullable()->default(0);
+                $table->string('salary_type')->nullable();
                 $table->decimal('wallet', 14, 2)->default(0);
                 $table->string('status')->default('active');
+                $table->boolean('is_employee')->default(false);
                 $table->string('password')->default('password');
                 $table->rememberToken();
                 $table->timestamps();
@@ -99,13 +123,22 @@ abstract class TestCase extends BaseTestCase
         if (! $schema->hasTable('employees')) {
             $schema->create('employees', function (\Illuminate\Database\Schema\Blueprint $table) {
                 $table->id();
+                $table->foreignId('user_id')->nullable();
                 $table->string('name');
                 $table->string('email')->nullable();
                 $table->string('phone')->nullable();
-                $table->decimal('wallet', 14, 2)->default(0);
                 $table->string('designation')->nullable();
                 $table->string('role')->nullable();
+                $table->string('address')->nullable();
+                $table->decimal('hourly_rate', 12, 2)->default(0);
+                $table->date('hire_date')->nullable();
                 $table->string('status')->default('active');
+                $table->string('avatar')->nullable();
+                $table->string('salary_name')->nullable();
+                $table->decimal('salary_amount', 14, 2)->nullable()->default(0);
+                $table->string('salary_type')->nullable();
+                $table->string('password')->nullable();
+                $table->decimal('wallet', 14, 2)->default(0);
                 $table->timestamps();
             });
         }

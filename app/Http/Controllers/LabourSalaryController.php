@@ -379,36 +379,42 @@ class LabourSalaryController extends Controller
     public function destroy(LabourSalary $labourSalary): RedirectResponse
     {
         DB::transaction(function () use ($labourSalary): void {
-            $paidAmount = (float) $labourSalary->paid_amount;
-            $advanceAdjusted = (float) $labourSalary->advance_adjusted;
+            $salary = LabourSalary::query()->lockForUpdate()->findOrFail($labourSalary->id);
+            $paidAmount = round((float) $salary->paid_amount, 2);
+            $advanceAdjusted = round((float) $salary->advance_adjusted, 2);
             $balanceService = app(CrmBalanceService::class);
+            $payerId = $salary->paid_by ?? Wallet::query()
+                ->where('source_type', 'labour_salary')
+                ->where('source_id', $salary->id)
+                ->where('transfer_type', 1)
+                ->value('user_id');
 
-            if ($paidAmount > 0 && $labourSalary->paid_by) {
-                $balanceService->creditUserWallet((int) $labourSalary->paid_by, $paidAmount, 'Refund deleted Labour Salary #' . $labourSalary->id);
+            if ($paidAmount > 0 && $payerId) {
+                $balanceService->creditUserWallet((int) $payerId, $paidAmount, 'Refund deleted Labour Salary #' . $salary->id);
             }
 
-            if ($advanceAdjusted > 0 && $labourSalary->labour_id) {
+            if ($advanceAdjusted > 0 && $salary->labour_id) {
                 // Revert advance balance
-                $balanceService->adjustLabourAdvance((int) $labourSalary->labour_id, $advanceAdjusted);
+                $balanceService->adjustLabourAdvance((int) $salary->labour_id, $advanceAdjusted);
 
                 AdvanceHistory::query()
-                    ->where('labour_salary_id', $labourSalary->id)
+                    ->where('labour_salary_id', $salary->id)
                     ->delete();
             }
 
             Wallet::query()
                 ->where('source_type', 'labour_salary')
-                ->where('source_id', $labourSalary->id)
+                ->where('source_id', $salary->id)
                 ->delete();
 
             if (Schema::hasTable('expenses')) {
                 Expense::query()
                     ->where('source_type', 'labour_salary')
-                    ->where('source_id', $labourSalary->id)
+                    ->where('source_id', $salary->id)
                     ->delete();
             }
 
-            $labourSalary->delete();
+            $salary->delete();
         });
 
         return redirect()->route('labour-salaries.index')->with('success', 'Labour salary deleted and balances restored successfully.');

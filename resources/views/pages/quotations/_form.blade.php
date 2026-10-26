@@ -72,7 +72,8 @@
                     <div class="col-12">
                         <label class="form-label">Client <span class="text-danger">*</span></label>
                         <select id="quotation-client-select" name="client_id"
-                            class="form-select @error('client_id') is-invalid @enderror" required>
+                            class="form-select @error('client_id') is-invalid @enderror"
+                            @error('client_id') aria-describedby="client_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select Client</option>
                             @foreach($clients as $client)
                                 <option value="{{ $client->id }}" @selected($selectedClientId == $client->id)>
@@ -80,7 +81,7 @@
                             @endforeach
                         </select>
                         @error('client_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="client_id_error">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -88,41 +89,45 @@
                         <label class="form-label">Project Name</label>
                         <select id="quotation-project-select" name="project_id"
                             class="form-select @error('project_id') is-invalid @enderror"
+                            @error('project_id') aria-describedby="project_id_error" aria-invalid="true" @enderror
                             data-selected-project="{{ $selectedProjectId }}">
                             <option value="">Select Project</option>
                         </select>
                         @error('project_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="project_id_error">{{ $message }}</div>
                         @enderror
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Quotation Create Date <span class="text-danger">*</span></label>
-                        <input type="date" name="quotation_date"
+                        <input type="date" name="quotation_date" id="quotation_date"
                             class="form-control @error('quotation_date') is-invalid @enderror"
                             value="{{ old('quotation_date', optional($quotation->quotation_date ?? now())->format('Y-m-d')) }}"
+                            @error('quotation_date') aria-describedby="quotation_date_error" aria-invalid="true" @enderror
                             required>
                         @error('quotation_date')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="quotation_date_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label">Quote Validity (Days)</label>
-                        <input type="number" name="validity_days"
+                        <input type="number" name="validity_days" id="validity_days"
                             class="form-control @error('validity_days') is-invalid @enderror"
-                            value="{{ old('validity_days', $quotation->validity_days ?? 30) }}" min="1" max="365">
+                            value="{{ old('validity_days', $quotation->validity_days ?? 30) }}" min="1" max="365"
+                            @error('validity_days') aria-describedby="validity_days_error" aria-invalid="true" @enderror>
                         @error('validity_days')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="validity_days_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12">
                         <label class="form-label">Quotation Title <span class="text-danger">*</span></label>
-                        <input type="text" name="quotation_title"
+                        <input type="text" name="quotation_title" id="quotation_title"
                             class="form-control @error('quotation_title') is-invalid @enderror"
-                            value="{{ old('quotation_title', $quotation->quotation_title ?? '') }}" required>
+                            value="{{ old('quotation_title', $quotation->quotation_title ?? '') }}"
+                            @error('quotation_title') aria-describedby="quotation_title_error" aria-invalid="true" @enderror required>
                         @error('quotation_title')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="quotation_title_error">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -131,9 +136,10 @@
                         <input type="text" id="quotation-client-name" name="client_name"
                             class="form-control @error('client_name') is-invalid @enderror"
                             value="{{ old('client_name', $quotation->client_name ?? optional($currentClient)->name) }}"
+                            @error('client_name') aria-describedby="client_name_error" aria-invalid="true" @enderror
                             required>
                         @error('client_name')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="client_name_error">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -159,57 +165,60 @@
                         <label class="form-label">Client Address <span class="text-danger">*</span></label>
                         <textarea id="quotation-client-address" name="client_address"
                             class="form-control @error('client_address') is-invalid @enderror" rows="3"
+                            @error('client_address') aria-describedby="client_address_error" aria-invalid="true" @enderror
                             required>{{ $currentAddress }}</textarea>
                         @error('client_address')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="client_address_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label">Work Start Date</label>
-                        <input type="date" name="start_date"
+                        <input type="date" name="start_date" id="start_date"
                             class="form-control @error('start_date') is-invalid @enderror"
-                            value="{{ old('start_date', optional($quotation->start_date ?? null)->format('Y-m-d')) }}">
+                            value="{{ old('start_date', optional($quotation->start_date ?? null)->format('Y-m-d')) }}"
+                            @error('start_date') aria-describedby="start_date_error" aria-invalid="true" @enderror>
                         @error('start_date')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="start_date_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label">Work Duration (Days)</label>
-                        <input type="number" name="duration_days"
+                        <input type="number" name="duration_days" id="duration_days"
                             class="form-control @error('duration_days') is-invalid @enderror"
-                            value="{{ old('duration_days', $quotation->duration_days ?? 1) }}" min="1">
+                            value="{{ old('duration_days', $quotation->duration_days ?? 1) }}" min="1"
+                            @error('duration_days') aria-describedby="duration_days_error" aria-invalid="true" @enderror>
                         @error('duration_days')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="duration_days_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12">
                         <label class="form-label">Proposal Content</label>
-                        <textarea name="proposal_content"
+                        <textarea name="proposal_content" id="proposal_content"
                             class="form-control @error('proposal_content') is-invalid @enderror"
-                            rows="4">{{ old('proposal_content', $quotation->proposal_content ?? '') }}</textarea>
+                            rows="4" @error('proposal_content') aria-describedby="proposal_content_error" aria-invalid="true" @enderror>{{ old('proposal_content', $quotation->proposal_content ?? '') }}</textarea>
                         @error('proposal_content')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="proposal_content_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12">
                         <label class="form-label">Notes</label>
-                        <textarea name="notes" class="form-control @error('notes') is-invalid @enderror"
-                            rows="4">{{ old('notes', $quotation->notes ?? '') }}</textarea>
+                        <textarea name="notes" id="notes" class="form-control @error('notes') is-invalid @enderror"
+                            rows="4" @error('notes') aria-describedby="notes_error" aria-invalid="true" @enderror>{{ old('notes', $quotation->notes ?? '') }}</textarea>
                         @error('notes')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="notes_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12">
                         <label class="form-label">Terms & Conditions</label>
-                        <textarea name="terms" class="form-control @error('terms') is-invalid @enderror"
-                            rows="6" placeholder="Enter one term per line">{{ $currentTerms }}</textarea>
+                        <textarea name="terms" id="terms" class="form-control @error('terms') is-invalid @enderror"
+                            rows="6" placeholder="Enter one term per line" @error('terms') aria-describedby="terms_error" aria-invalid="true" @enderror>{{ $currentTerms }}</textarea>
                         @error('terms')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="terms_error">{{ $message }}</div>
                         @enderror
                     </div>
                 </div>

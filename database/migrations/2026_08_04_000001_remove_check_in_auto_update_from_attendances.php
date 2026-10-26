@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (! Schema::hasTable('attendances') || ! Schema::hasColumn('attendances', 'check_in_at')) {
             return;
         }
@@ -25,6 +29,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (! Schema::hasTable('attendances') || ! Schema::hasColumn('attendances', 'check_in_at')) {
             return;
         }

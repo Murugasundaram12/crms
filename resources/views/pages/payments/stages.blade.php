@@ -116,17 +116,18 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('payment-stages.store') }}" method="POST" class="row g-3">
+            <form action="{{ route('payment-stages.store') }}" method="POST" class="row g-3" novalidate>
                 @csrf
+                <input type="hidden" name="_modal_target" value="#offcanvas_add">
                 <div class="col-12">
-
-                    <label class="form-label">Name</label>
-                    <input type="text" name="name" class="form-control" required>
-
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" @error('name') aria-describedby="stage_name_error" aria-invalid="true" @enderror required>
+                    @error('name')<div class="invalid-feedback d-block" id="stage_name_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Notes</label>
-                    <textarea name="notes" class="form-control" rows="3"></textarea>
+                    <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="3" @error('notes') aria-describedby="stage_notes_error" aria-invalid="true" @enderror>{{ old('notes') }}</textarea>
+                    @error('notes')<div class="invalid-feedback d-block" id="stage_notes_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12 d-flex justify-content-end gap-2">
                     <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
@@ -148,16 +149,15 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('payment-stages.update', $stage) }}" method="POST" class="row g-3">
+                        <form action="{{ route('payment-stages.update', $stage) }}" method="POST" class="row g-3" novalidate>
                             @csrf
                             @method('PUT')
-
+                            <input type="hidden" name="_modal_target" value="#edit_stage_{{ $stage->id }}">
                             <div class="col-12">
-                                <label class="form-label">Name</label>
-                                <input type="text" name="name" class="form-control" value="{{ $stage->name }}">
+                                <label class="form-label">Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $stage->name) }}" @error('name') aria-describedby="edit_stage_{{ $stage->id }}_name_error" aria-invalid="true" @enderror required>
+                                @error('name')<div class="invalid-feedback d-block" id="edit_stage_{{ $stage->id }}_name_error">{{ $message }}</div>@enderror
                             </div>
-
-                            <!-- Similar fields -->
                             <div class="col-12 d-flex justify-content-end gap-2">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                                 <button type="submit" class="btn btn-primary">Update</button>
@@ -169,4 +169,20 @@
         </div>
     @endforeach
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection

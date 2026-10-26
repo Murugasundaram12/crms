@@ -23,46 +23,49 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <form action="{{ route('payment-methods.store') }}" method="POST">
+            <form action="{{ route('payment-methods.store') }}" method="POST" novalidate>
                 @csrf
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label class="form-label required">Payment Method Name</label>
-                        <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" placeholder="e.g. HDFC Bank" required>
+                        <input type="text" name="name" id="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" placeholder="e.g. HDFC Bank" @error('name') aria-describedby="name_error" aria-invalid="true" @enderror required>
                         @error('name')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="name_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12 col-md-6">
                         <label class="form-label">Code (Optional)</label>
-                        <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code') }}" placeholder="e.g. HDFC">
+                        <input type="text" name="code" id="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code') }}" placeholder="e.g. HDFC" @error('code') aria-describedby="code_error" aria-invalid="true" @enderror>
                         @error('code')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="code_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12 col-md-6">
                         <label class="form-label">Type (Optional)</label>
-                        <input type="text" name="type" class="form-control @error('type') is-invalid @enderror" value="{{ old('type') }}" placeholder="e.g. Bank / Digital Wallet">
+                        <input type="text" name="type" id="type" class="form-control @error('type') is-invalid @enderror" value="{{ old('type') }}" placeholder="e.g. Bank / Digital Wallet" @error('type') aria-describedby="type_error" aria-invalid="true" @enderror>
                         @error('type')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="type_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12 col-md-6">
                         <label class="form-label">Sort Order</label>
-                        <input type="number" name="sort_order" class="form-control @error('sort_order') is-invalid @enderror" value="{{ old('sort_order', 0) }}" min="0">
+                        <input type="number" name="sort_order" id="sort_order" class="form-control @error('sort_order') is-invalid @enderror" value="{{ old('sort_order', 0) }}" min="0" @error('sort_order') aria-describedby="sort_order_error" aria-invalid="true" @enderror>
                         @error('sort_order')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block" id="sort_order_error">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-12">
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="active_status" id="active_status" value="1" {{ old('active_status', '1') == '1' ? 'checked' : '' }}>
+                            <input class="form-check-input @error('active_status') is-invalid @enderror" type="checkbox" name="active_status" id="active_status" value="1" {{ old('active_status', '1') == '1' ? 'checked' : '' }} @error('active_status') aria-describedby="active_status_error" aria-invalid="true" @enderror>
                             <label class="form-check-label fw-semibold" for="active_status">Active Status</label>
                         </div>
+                        @error('active_status')
+                            <div class="invalid-feedback d-block" id="active_status_error">{{ $message }}</div>
+                        @enderror
                     </div>
 
                     <div class="col-12 mt-4">

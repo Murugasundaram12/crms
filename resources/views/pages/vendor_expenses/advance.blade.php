@@ -73,8 +73,9 @@
     @can('expenses-edit')
         <div class="modal fade" id="vendorAdvanceCreditModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
-                <form method="POST" action="{{ route('vendor-expenses.advance-store') }}" class="modal-content border-0 shadow">
+                <form method="POST" action="{{ route('vendor-expenses.advance-store') }}" class="modal-content border-0 shadow" novalidate>
                     @csrf
+                    <input type="hidden" name="_modal_target" value="#vendorAdvanceCreditModal">
                     <input type="hidden" name="entry_type" value="credit">
                     <div class="modal-header bg-light">
                         <h5 class="modal-title">Add Vendor Advance</h5>
@@ -82,23 +83,26 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Vendor</label>
-                            <select name="vendor_id" class="form-select" required>
+                            <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" @error('vendor_id') aria-describedby="credit_vendor_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select vendor</option>
                                 @foreach($vendors as $vendor)
-                                    <option value="{{ $vendor->id }}" @selected((string) request('vendor_id') === (string) $vendor->id)>
+                                    <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', request('vendor_id')) === (string) $vendor->id)>
                                         {{ $vendor->name }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('vendor_id')<div class="invalid-feedback d-block" id="credit_vendor_id_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Amount</label>
-                            <input type="number" name="amount" class="form-control" min="1" required>
+                            <label class="form-label">Amount <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" class="form-control @error('amount') is-invalid @enderror" min="1" step="0.01" value="{{ old('amount') }}" @error('amount') aria-describedby="credit_vendor_amount_error" aria-invalid="true" @enderror required>
+                            @error('amount')<div class="invalid-feedback d-block" id="credit_vendor_amount_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-0">
                             <label class="form-label">Notes</label>
-                            <input type="text" name="notes" class="form-control" placeholder="Advance paid to vendor">
+                            <input type="text" name="notes" class="form-control @error('notes') is-invalid @enderror" value="{{ old('notes') }}" placeholder="Advance paid to vendor" @error('notes') aria-describedby="credit_vendor_notes_error" aria-invalid="true" @enderror>
+                            @error('notes')<div class="invalid-feedback d-block" id="credit_vendor_notes_error">{{ $message }}</div>@enderror
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -113,8 +117,9 @@
 
         <div class="modal fade" id="vendorAdvanceWithdrawModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
-                <form method="POST" action="{{ route('vendor-expenses.advance-store') }}" class="modal-content border-0 shadow">
+                <form method="POST" action="{{ route('vendor-expenses.advance-store') }}" class="modal-content border-0 shadow" novalidate>
                     @csrf
+                    <input type="hidden" name="_modal_target" value="#vendorAdvanceWithdrawModal">
                     <input type="hidden" name="entry_type" value="withdraw">
                     <div class="modal-header bg-light">
                         <h5 class="modal-title">Withdraw Vendor Advance</h5>
@@ -122,23 +127,26 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Vendor</label>
-                            <select name="vendor_id" class="form-select" required>
+                            <label class="form-label">Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" @error('vendor_id') aria-describedby="withdraw_vendor_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select vendor</option>
                                 @foreach($vendors as $vendor)
-                                    <option value="{{ $vendor->id }}" @selected((string) request('vendor_id') === (string) $vendor->id)>
+                                    <option value="{{ $vendor->id }}" @selected((string) old('vendor_id', request('vendor_id')) === (string) $vendor->id)>
                                         {{ $vendor->name }} - Rs. {{ number_format((float) $vendor->advance_amt, 2) }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('vendor_id')<div class="invalid-feedback d-block" id="withdraw_vendor_id_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Amount</label>
-                            <input type="number" name="amount" class="form-control" min="1" required>
+                            <label class="form-label">Amount <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" class="form-control @error('amount') is-invalid @enderror" min="1" step="0.01" value="{{ old('amount') }}" @error('amount') aria-describedby="withdraw_vendor_amount_error" aria-invalid="true" @enderror required>
+                            @error('amount')<div class="invalid-feedback d-block" id="withdraw_vendor_amount_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-0">
                             <label class="form-label">Notes</label>
-                            <input type="text" name="notes" class="form-control" placeholder="Advance returned or corrected">
+                            <input type="text" name="notes" class="form-control @error('notes') is-invalid @enderror" value="{{ old('notes') }}" placeholder="Advance returned or corrected" @error('notes') aria-describedby="withdraw_vendor_notes_error" aria-invalid="true" @enderror>
+                            @error('notes')<div class="invalid-feedback d-block" id="withdraw_vendor_notes_error">{{ $message }}</div>@enderror
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -151,4 +159,16 @@
             </div>
         </div>
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el && window.bootstrap) {
+                    (new bootstrap.Modal(el)).show();
+                }
+            });
+        </script>
+    @endif
 @endsection

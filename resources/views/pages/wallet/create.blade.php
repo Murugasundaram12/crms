@@ -20,7 +20,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('wallet.store') }}" id="walletForm">
+    <form method="POST" action="{{ route('wallet.store') }}" id="walletForm" novalidate>
         @csrf
         <input type="hidden" id="wallet-balance" value="{{ $walletBalance }}">
         <input type="hidden" id="wallet-user-id" value="{{ auth()->id() }}">
@@ -30,7 +30,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Member Name</label>
-                        <select name="user_id" id="walletUserId" class="form-select">
+                        <select name="user_id" id="walletUserId" class="form-select @error('user_id') is-invalid @enderror" @error('user_id') aria-describedby="wallet_user_id_error" aria-invalid="true" @enderror>
                             <option value="" data-wallet="{{ $walletBalance }}">Current User</option>
                             @foreach($users as $user)
                                 <option value="{{ $user->id }}" data-wallet="{{ $user->wallet }}" @selected((string) old('user_id') === (string) $user->id)>
@@ -38,76 +38,86 @@
                                 </option>
                             @endforeach
                         </select>
+                        @error('user_id')<div class="invalid-feedback d-block" id="wallet_user_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Client Name</label>
-                        <select name="client_id" id="clientId" class="form-select" required>
+                        <label class="form-label">Client Name <span class="text-danger">*</span></label>
+                        <select name="client_id" id="clientId" class="form-select @error('client_id') is-invalid @enderror" @error('client_id') aria-describedby="wallet_client_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select Client</option>
                             @foreach($clients as $client)
                                 <option value="{{ $client->id }}" @selected((string) old('client_id') === (string) $client->id)>{{ $client->name }}</option>
                             @endforeach
                         </select>
+                        @error('client_id')<div class="invalid-feedback d-block" id="wallet_client_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Project Name</label>
-                        <select name="project_id" id="projectId" class="form-select" required>
+                        <label class="form-label">Project Name <span class="text-danger">*</span></label>
+                        <select name="project_id" id="projectId" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="wallet_project_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select Project</option>
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" data-client-id="{{ $project->client_id }}" @selected((string) old('project_id') === (string) $project->id)>{{ $project->name }}</option>
                             @endforeach
                         </select>
+                        @error('project_id')<div class="invalid-feedback d-block" id="wallet_project_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">Amount</label>
-                        <input type="number" step="1" min="1" name="amount" id="walletAmount" class="form-control" value="{{ old('amount') }}" required>
+                        <label class="form-label">Amount <span class="text-danger">*</span></label>
+                        <input type="number" step="1" min="1" name="amount" id="walletAmount" class="form-control @error('amount') is-invalid @enderror" value="{{ old('amount') }}" @error('amount') aria-describedby="wallet_amount_error" aria-invalid="true" @enderror required>
+                        @error('amount')<div class="invalid-feedback d-block" id="wallet_amount_error">{{ $message }}</div>@enderror
                         <div class="text-danger small mt-1 d-none" id="walletAmountError">Amount is insufficient</div>
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">Payment Mode</label>
-                        <select name="payment_method_id" class="form-select" required>
+                        <label class="form-label">Payment Mode <span class="text-danger">*</span></label>
+                        <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="wallet_payment_method_id_error" aria-invalid="true" @enderror required>
                             <option value="">Select Payment Mode</option>
                             @foreach($paymentMethods as $pm)
                                 <option value="{{ $pm->id }}" @selected((string) old('payment_method_id') === (string) $pm->id)>{{ $pm->name }}</option>
                             @endforeach
                         </select>
+                        @error('payment_method_id')<div class="invalid-feedback d-block" id="wallet_payment_method_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">Type</label>
-                        <select name="transfer_type" id="transferType" class="form-select" required>
+                        <label class="form-label">Type <span class="text-danger">*</span></label>
+                        <select name="transfer_type" id="transferType" class="form-select @error('transfer_type') is-invalid @enderror" @error('transfer_type') aria-describedby="wallet_transfer_type_error" aria-invalid="true" @enderror required>
                             <option value="">Select Type</option>
                             <option value="0" @selected(old('transfer_type') === '0')>Add / Credited</option>
                             <option value="1" @selected(old('transfer_type') === '1')>Subtract / Debited</option>
                         </select>
+                        @error('transfer_type')<div class="invalid-feedback d-block" id="wallet_transfer_type_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">Date</label>
-                        <input type="date" name="current_date" class="form-control" value="{{ old('current_date', now()->toDateString()) }}" required>
+                        <label class="form-label">Date <span class="text-danger">*</span></label>
+                        <input type="date" name="current_date" class="form-control @error('current_date') is-invalid @enderror" value="{{ old('current_date', now()->toDateString()) }}" @error('current_date') aria-describedby="wallet_current_date_error" aria-invalid="true" @enderror required>
+                        @error('current_date')<div class="invalid-feedback d-block" id="wallet_current_date_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label">Time</label>
-                        <input type="time" name="time" class="form-control" value="{{ old('time', now()->format('H:i')) }}">
+                        <input type="time" name="time" class="form-control @error('time') is-invalid @enderror" value="{{ old('time', now()->format('H:i')) }}" @error('time') aria-describedby="wallet_time_error" aria-invalid="true" @enderror>
+                        @error('time')<div class="invalid-feedback d-block" id="wallet_time_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-4">
                         <label class="form-label">Stage</label>
-                        <select name="stage_id" class="form-select">
+                        <select name="stage_id" class="form-select @error('stage_id') is-invalid @enderror" @error('stage_id') aria-describedby="wallet_stage_id_error" aria-invalid="true" @enderror>
                             <option value="">Select Stage</option>
                             @foreach($stages as $stage)
                                 <option value="{{ $stage->id }}" @selected((string) old('stage_id') === (string) $stage->id)>{{ $stage->name }}</option>
                             @endforeach
                         </select>
+                        @error('stage_id')<div class="invalid-feedback d-block" id="wallet_stage_id_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-12">
                         <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="3">{{ old('description') }}</textarea>
+                        <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="3" @error('description') aria-describedby="wallet_description_error" aria-invalid="true" @enderror>{{ old('description') }}</textarea>
+                        @error('description')<div class="invalid-feedback d-block" id="wallet_description_error">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-12 d-flex justify-content-between align-items-center">

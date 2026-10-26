@@ -19,7 +19,7 @@
         <a href="{{ route('categories.index') }}" class="btn btn-outline-light shadow-sm">Back to Categories</a>
     </div>
 
-    <form action="{{ route('categories.store') }}" method="POST" class="row g-4">
+    <form action="{{ route('categories.store') }}" method="POST" class="row g-4" novalidate>
         @csrf
 
         <div class="col-xl-8">
@@ -33,14 +33,14 @@
                         <div class="col-md-12">
                             <label class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}" required>
+                                value="{{ old('name') }}" @error('name') aria-describedby="category_name_error" aria-invalid="true" @enderror required>
                             @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="category_name_error">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-12">
                             <label class="form-label">Main Category</label>
-                            <select name="main_category_id" class="form-select @error('main_category_id') is-invalid @enderror">
+                            <select name="main_category_id" class="form-select @error('main_category_id') is-invalid @enderror" @error('main_category_id') aria-describedby="category_main_category_id_error" aria-invalid="true" @enderror>
                                 <option value="">No Main Category</option>
                                 @foreach($mainCategories as $main)
                                     <option value="{{ $main->id }}" @selected(old('main_category_id') == $main->id)>
@@ -49,7 +49,7 @@
                                 @endforeach
                             </select>
                             @error('main_category_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="category_main_category_id_error">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>

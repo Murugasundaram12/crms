@@ -29,7 +29,7 @@
         </div>
     </div>
 
-    <form action="{{ route('quotations.update', $quotation->id) }}" method="POST">
+    <form action="{{ route('quotations.update', $quotation->id) }}" method="POST" novalidate>
         @csrf
         @include('pages.quotations._form')
     </form>

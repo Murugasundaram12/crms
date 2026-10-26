@@ -139,7 +139,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10">
+                                <td colspan="9">
                                     <div class="quotation-empty-state text-center py-5">
                                         <span class="avatar avatar-xl bg-soft-primary text-primary mb-3">
                                             <i class="ti ti-file-invoice fs-28"></i>

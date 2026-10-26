@@ -148,63 +148,89 @@
     @can('employees-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">Add User</h5><button type="button" class="btn-close"
-                data-bs-dismiss="offcanvas"></button>
+            <h5 class="offcanvas-title">Add User</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('employees.store') }}" method="POST" class="row g-3" enctype="multipart/form-data">
+            <form action="{{ route('employees.store') }}" method="POST" class="row g-3" enctype="multipart/form-data" novalidate>
                 @csrf
-                <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
-                        class="form-control" required></div>
-                <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
-                        class="form-control" required></div>
-                <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                        class="form-control"></div>
-                <div class="col-md-6"><label class="form-label">Designation</label><input type="text" name="designation"
-                        class="form-control"></div>
-                <div class="col-md-6"><label class="form-label">Hourly Rate</label><input type="number" step="0.01"
-                        name="hourly_rate" class="form-control"></div>
+                <input type="hidden" name="_modal_target" value="#offcanvas_add">
+                <div class="col-12">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" @error('name') aria-describedby="employee_name_error" aria-invalid="true" @enderror required>
+                    @error('name')<div class="invalid-feedback d-block" id="employee_name_error">{{ $message }}</div>@enderror
+                </div>
                 <div class="col-md-6">
-                    <label class="form-label">Role</label>
-                    <select name="role" class="form-select" required>
+                    <label class="form-label">Email <span class="text-danger">*</span></label>
+                    <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" @error('email') aria-describedby="employee_email_error" aria-invalid="true" @enderror required>
+                    @error('email')<div class="invalid-feedback d-block" id="employee_email_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Phone</label>
+                    <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" value="{{ old('phone') }}" @error('phone') aria-describedby="employee_phone_error" aria-invalid="true" @enderror>
+                    @error('phone')<div class="invalid-feedback d-block" id="employee_phone_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Designation</label>
+                    <input type="text" name="designation" class="form-control @error('designation') is-invalid @enderror" value="{{ old('designation') }}" @error('designation') aria-describedby="employee_designation_error" aria-invalid="true" @enderror>
+                    @error('designation')<div class="invalid-feedback d-block" id="employee_designation_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Hourly Rate</label>
+                    <input type="number" step="0.01" name="hourly_rate" class="form-control @error('hourly_rate') is-invalid @enderror" value="{{ old('hourly_rate') }}" @error('hourly_rate') aria-describedby="employee_hourly_rate_error" aria-invalid="true" @enderror>
+                    @error('hourly_rate')<div class="invalid-feedback d-block" id="employee_hourly_rate_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Role <span class="text-danger">*</span></label>
+                    <select name="role" class="form-select @error('role') is-invalid @enderror" @error('role') aria-describedby="employee_role_error" aria-invalid="true" @enderror required>
                         <option value="">-- Select Role --</option>
                         @foreach($roles as $role)
-                            <option value="{{ $role->name }}">
+                            <option value="{{ $role->name }}" @selected(old('role') === $role->name)>
                                 {{ $role->name }}
                             </option>
                         @endforeach
                     </select>
+                    @error('role')<div class="invalid-feedback d-block" id="employee_role_error">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-6"><label class="form-label">Password</label><input type="password" name="password"
-                        class="form-control" required></div>
-                <div class="col-md-6"><label class="form-label">Confirm Password</label><input type="password"
-                        name="password_confirmation" class="form-control" required></div>
+                <div class="col-md-6">
+                    <label class="form-label">Password <span class="text-danger">*</span></label>
+                    <input type="password" name="password" class="form-control @error('password') is-invalid @enderror" @error('password') aria-describedby="employee_password_error" aria-invalid="true" @enderror required>
+                    @error('password')<div class="invalid-feedback d-block" id="employee_password_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                    <input type="password" name="password_confirmation" class="form-control @error('password_confirmation') is-invalid @enderror" @error('password_confirmation') aria-describedby="employee_password_confirmation_error" aria-invalid="true" @enderror required>
+                    @error('password_confirmation')<div class="invalid-feedback d-block" id="employee_password_confirmation_error">{{ $message }}</div>@enderror
+                </div>
                 <div class="col-md-6">
                     <label class="form-label">Hire Date <span class="text-danger">*</span></label>
-                    <input type="date" name="hire_date" class="form-control @error('hire_date') is-invalid @enderror" value="{{ old('hire_date') }}" required>
-                    @error('hire_date')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                    @enderror
+                    <input type="date" name="hire_date" class="form-control @error('hire_date') is-invalid @enderror" value="{{ old('hire_date') }}" @error('hire_date') aria-describedby="employee_hire_date_error" aria-invalid="true" @enderror required>
+                    @error('hire_date')<div class="invalid-feedback d-block" id="employee_hire_date_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Address <span class="text-danger">*</span></label>
-                    <input type="text" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}" required>
-                    @error('address')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                    @enderror
+                    <input type="text" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}" @error('address') aria-describedby="employee_address_error" aria-invalid="true" @enderror required>
+                    @error('address')<div class="invalid-feedback d-block" id="employee_address_error">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
-                        class="form-control"></div>
-                <div class="col-12"><label class="form-label">Status</label><select name="status" class="form-select">
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select></div>
+                <div class="col-12">
+                    <label class="form-label">Avatar</label>
+                    <input type="file" name="avatar" class="form-control @error('avatar') is-invalid @enderror" @error('avatar') aria-describedby="employee_avatar_error" aria-invalid="true" @enderror>
+                    @error('avatar')<div class="invalid-feedback d-block" id="employee_avatar_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="employee_status_error" aria-invalid="true" @enderror>
+                        <option value="active" @selected(old('status', 'active') === 'active')>Active</option>
+                        <option value="inactive" @selected(old('status') === 'inactive')>Inactive</option>
+                    </select>
+                    @error('status')<div class="invalid-feedback d-block" id="employee_status_error">{{ $message }}</div>@enderror
+                </div>
                 @if($permissionGroups->isNotEmpty())
                     <div class="col-12">
                         <label class="form-label">Extra User Permissions <span class="text-danger">*</span></label>
                         <p class="text-muted fs-13 mb-2">Additional permissions for this user only. Role permissions still apply. (At least one required)</p>
                         @error('direct_permissions')
-                            <div class="text-danger small mb-2">{{ $message }}</div>
+                            <div class="invalid-feedback d-block mb-2" id="employee_direct_permissions_error">{{ $message }}</div>
                         @enderror
                         <div class="border rounded p-3 @error('direct_permissions') border-danger @enderror" style="max-height: 260px; overflow:auto;">
                             <div class="row g-3">
@@ -227,9 +253,10 @@
                         </div>
                     </div>
                 @endif
-                <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                        data-bs-dismiss="offcanvas">Cancel</button><button type="submit" class="btn btn-primary">Save
-                        User</button></div>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save User</button>
+                </div>
             </form>
         </div>
     </div>
@@ -241,51 +268,84 @@
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content border-0 shadow">
                     <div class="modal-header">
-                        <h5 class="modal-title">Edit User</h5><button type="button" class="btn-close"
-                            data-bs-dismiss="modal"></button>
+                        <h5 class="modal-title">Edit User</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('employees.update', $employee) }}" method="POST" class="row g-3" enctype="multipart/form-data">
+                        <form action="{{ route('employees.update', $employee) }}" method="POST" class="row g-3" enctype="multipart/form-data" novalidate>
                             @csrf
                             @method('PUT')
-                            <div class="col-12"><label class="form-label">Name</label><input type="text" name="name"
-                                    class="form-control" value="{{ $employee->name }}" required></div>
-                            <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email"
-                                    class="form-control" value="{{ $employee->email }}" required></div>
-                            <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone"
-                                    class="form-control" value="{{ $employee->phone }}"></div>
-                            <div class="col-md-6"><label class="form-label">Designation</label><input type="text"
-                                    name="designation" class="form-control" value="{{ $employee->designation }}"></div>
-                            <div class="col-md-6"><label class="form-label">Hourly Rate</label><input type="number" step="0.01"
-                                    name="hourly_rate" class="form-control" value="{{ $employee->hourly_rate }}"></div>
+                            <input type="hidden" name="_modal_target" value="#edit_employee_{{ $employee->id }}">
+                            <div class="col-12">
+                                <label class="form-label">Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $employee->name) }}" @error('name') aria-describedby="edit_employee_{{ $employee->id }}_name_error" aria-invalid="true" @enderror required>
+                                @error('name')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_name_error">{{ $message }}</div>@enderror
+                            </div>
                             <div class="col-md-6">
-                                <label class="form-label">Role</label>
-                                <select name="role" class="form-select" required>
+                                <label class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $employee->email) }}" @error('email') aria-describedby="edit_employee_{{ $employee->id }}_email_error" aria-invalid="true" @enderror required>
+                                @error('email')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_email_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone</label>
+                                <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" value="{{ old('phone', $employee->phone) }}" @error('phone') aria-describedby="edit_employee_{{ $employee->id }}_phone_error" aria-invalid="true" @enderror>
+                                @error('phone')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_phone_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Designation</label>
+                                <input type="text" name="designation" class="form-control @error('designation') is-invalid @enderror" value="{{ old('designation', $employee->designation) }}" @error('designation') aria-describedby="edit_employee_{{ $employee->id }}_designation_error" aria-invalid="true" @enderror>
+                                @error('designation')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_designation_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Hourly Rate</label>
+                                <input type="number" step="0.01" name="hourly_rate" class="form-control @error('hourly_rate') is-invalid @enderror" value="{{ old('hourly_rate', $employee->hourly_rate) }}" @error('hourly_rate') aria-describedby="edit_employee_{{ $employee->id }}_hourly_rate_error" aria-invalid="true" @enderror>
+                                @error('hourly_rate')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_hourly_rate_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Role <span class="text-danger">*</span></label>
+                                <select name="role" class="form-select @error('role') is-invalid @enderror" @error('role') aria-describedby="edit_employee_{{ $employee->id }}_role_error" aria-invalid="true" @enderror required>
                                     <option value="">-- Select Role --</option>
-
                                     @foreach($roles as $role)
-                                        <option value="{{ $role->name }}" @selected($selectedRole == $role->name)>
+                                        <option value="{{ $role->name }}" @selected(old('role', $selectedRole) == $role->name)>
                                             {{ $role->name }}
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('role')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_role_error">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-6"><label class="form-label">Password</label><input type="password"
-                                    name="password" class="form-control" placeholder="Leave blank to keep current password">
+                            <div class="col-md-6">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="Leave blank to keep current password" @error('password') aria-describedby="edit_employee_{{ $employee->id }}_password_error" aria-invalid="true" @enderror>
+                                @error('password')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_password_error">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-6"><label class="form-label">Confirm Password</label><input type="password"
-                                    name="password_confirmation" class="form-control"></div>
-                            <div class="col-md-6"><label class="form-label">Hire Date</label><input type="date" name="hire_date"
-                                    class="form-control" value="{{ optional($employee->hire_date)->format('Y-m-d') }}"></div>
-                            <div class="col-12"><label class="form-label">Address</label><input type="text" name="address"
-                                    class="form-control" value="{{ $employee->address }}"></div>
-                            <div class="col-12"><label class="form-label">Avatar</label><input type="file" name="avatar"
-                                    class="form-control"></div>
-                            <div class="col-12"><label class="form-label">Status</label><select name="status"
-                                    class="form-select">
-                                    <option value="active" @selected($employee->status === 'active')>Active</option>
-                                    <option value="inactive" @selected($employee->status === 'inactive')>Inactive</option>
-                                </select></div>
+                            <div class="col-md-6">
+                                <label class="form-label">Confirm Password</label>
+                                <input type="password" name="password_confirmation" class="form-control @error('password_confirmation') is-invalid @enderror" @error('password_confirmation') aria-describedby="edit_employee_{{ $employee->id }}_password_confirmation_error" aria-invalid="true" @enderror>
+                                @error('password_confirmation')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_password_confirmation_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Hire Date <span class="text-danger">*</span></label>
+                                <input type="date" name="hire_date" class="form-control @error('hire_date') is-invalid @enderror" value="{{ old('hire_date', optional($employee->hire_date)->format('Y-m-d')) }}" @error('hire_date') aria-describedby="edit_employee_{{ $employee->id }}_hire_date_error" aria-invalid="true" @enderror>
+                                @error('hire_date')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_hire_date_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Address <span class="text-danger">*</span></label>
+                                <input type="text" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address', $employee->address) }}" @error('address') aria-describedby="edit_employee_{{ $employee->id }}_address_error" aria-invalid="true" @enderror>
+                                @error('address')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_address_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Avatar</label>
+                                <input type="file" name="avatar" class="form-control @error('avatar') is-invalid @enderror" @error('avatar') aria-describedby="edit_employee_{{ $employee->id }}_avatar_error" aria-invalid="true" @enderror>
+                                @error('avatar')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_avatar_error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Status</label>
+                                <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="edit_employee_{{ $employee->id }}_status_error" aria-invalid="true" @enderror>
+                                    <option value="active" @selected(old('status', $employee->status) === 'active')>Active</option>
+                                    <option value="inactive" @selected(old('status', $employee->status) === 'inactive')>Inactive</option>
+                                </select>
+                                @error('status')<div class="invalid-feedback d-block" id="edit_employee_{{ $employee->id }}_status_error">{{ $message }}</div>@enderror
+                            </div>
                             @if($permissionGroups->isNotEmpty())
                                 @php
                                     $rolePermissionIds = $employee->roles
@@ -298,7 +358,10 @@
                                 <div class="col-12">
                                     <label class="form-label">Permissions</label>
                                     <p class="text-muted fs-13 mb-2">Role permissions are already selected. Extra user permissions can be changed here.</p>
-                                    <div class="border rounded p-3" style="max-height: 260px; overflow:auto;">
+                                    @error('direct_permissions')
+                                        <div class="invalid-feedback d-block mb-2">{{ $message }}</div>
+                                    @enderror
+                                    <div class="border rounded p-3 @error('direct_permissions') border-danger @enderror" style="max-height: 260px; overflow:auto;">
                                         <div class="row g-3">
                                             @foreach($permissionGroups as $module => $modulePermissions)
                                                 <div class="col-12 col-md-6">
@@ -330,9 +393,10 @@
                                     </div>
                                 </div>
                             @endif
-                            <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                                    data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Update
-                                    User</button></div>
+                            <div class="col-12 d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Update User</button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -340,6 +404,22 @@
         </div>
     @endforeach
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection
 
 @push('scripts')

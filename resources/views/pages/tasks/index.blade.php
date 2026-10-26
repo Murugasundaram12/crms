@@ -205,60 +205,104 @@
     @can('tasks-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">Add New Task</h5><button type="button" class="btn-close"
-                data-bs-dismiss="offcanvas"></button>
+            <h5 class="offcanvas-title">Add New Task</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('tasks.store') }}" method="POST" class="row g-3">
+            <form action="{{ route('tasks.store') }}" method="POST" class="row g-3" novalidate>
                 @csrf
-                <div class="col-12"><label class="form-label">Task Title</label><input type="text" name="title"
-                        class="form-control" required></div>
-                <div class="col-12"><label class="form-label">Project</label><select name="project_id" class="form-select"
-                        required>
-                        <option value="">Select</option>@foreach ($projects as $project)<option value="{{ $project->id }}">
-                        {{ $project->name }}</option>@endforeach
-                    </select></div>
-                <div class="col-12"><label class="form-label">Assigned Employee</label><select name="employee_id"
-                        class="form-select">
-                        <option value="">Select</option>@foreach ($employees as $employee)<option
-                        value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach
-                    </select></div>
-                <div class="col-md-6"><label class="form-label">Task Type</label><select name="type" class="form-select"
-                        required>
+                <input type="hidden" name="_modal_target" value="#offcanvas_add">
+                <div class="col-12">
+                    <label class="form-label">Task Title <span class="text-danger">*</span></label>
+                    <input type="text" name="title" class="form-control @error('title') is-invalid @enderror" value="{{ old('title') }}" @error('title') aria-describedby="create_task_title_error" aria-invalid="true" @enderror required>
+                    @error('title')<div class="invalid-feedback d-block" id="create_task_title_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Project <span class="text-danger">*</span></label>
+                    <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="create_task_project_id_error" aria-invalid="true" @enderror required>
+                        <option value="">Select</option>
+                        @foreach ($projects as $project)
+                            <option value="{{ $project->id }}" @selected(old('project_id') == $project->id)>{{ $project->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('project_id')<div class="invalid-feedback d-block" id="create_task_project_id_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Assigned Employee</label>
+                    <select name="employee_id" class="form-select @error('employee_id') is-invalid @enderror" @error('employee_id') aria-describedby="create_task_employee_id_error" aria-invalid="true" @enderror>
+                        <option value="">Select</option>
+                        @foreach ($employees as $employee)
+                            <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>{{ $employee->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('employee_id')<div class="invalid-feedback d-block" id="create_task_employee_id_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Task Type <span class="text-danger">*</span></label>
+                    <select name="type" class="form-select @error('type') is-invalid @enderror" @error('type') aria-describedby="create_task_type_error" aria-invalid="true" @enderror required>
                         @foreach ($taskTypes as $value => $label)
                             <option value="{{ $value }}" @selected($value === old('type', 'general'))>{{ $label }}</option>
                         @endforeach
-                    </select></div>
-                <div class="col-md-6"><label class="form-label">Priority</label><select name="priority" class="form-select">
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                    </select></div>
-                <div class="col-md-6"><label class="form-label">Status</label><select name="status" class="form-select">
-                        <option value="pending">Pending</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="blocked">Blocked</option>
-                    </select></div>
-                <div class="col-md-6"><label class="form-label">Due Date</label><input type="date" name="due_date"
-                        class="form-control"></div>
-                <div class="col-md-6"><label class="form-label">Estimated Hours</label><input type="number" step="0.01"
-                        name="estimated_hours" class="form-control" value="0"></div>
-                <div class="col-md-6"><label class="form-label">Logged Hours</label><input type="number" step="0.01"
-                        name="logged_hours" class="form-control" value="0"></div>
-                <div class="col-12"><label class="form-label">Description</label><textarea name="description"
-                        class="form-control" rows="4"></textarea></div>
-                <div class="col-12">
-                    <div class="form-check"><input class="form-check-input" type="checkbox" name="is_important" value="1"
-                            id="important"><label class="form-check-label" for="important">Mark as important</label></div>
+                    </select>
+                    @error('type')<div class="invalid-feedback d-block" id="create_task_type_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Priority</label>
+                    <select name="priority" class="form-select @error('priority') is-invalid @enderror" @error('priority') aria-describedby="create_task_priority_error" aria-invalid="true" @enderror>
+                        <option value="low" @selected(old('priority') === 'low')>Low</option>
+                        <option value="medium" @selected(old('priority', 'medium') === 'medium')>Medium</option>
+                        <option value="high" @selected(old('priority') === 'high')>High</option>
+                    </select>
+                    @error('priority')<div class="invalid-feedback d-block" id="create_task_priority_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="create_task_status_error" aria-invalid="true" @enderror>
+                        <option value="pending" @selected(old('status', 'pending') === 'pending')>Pending</option>
+                        <option value="in_progress" @selected(old('status') === 'in_progress')>In Progress</option>
+                        <option value="completed" @selected(old('status') === 'completed')>Completed</option>
+                        <option value="blocked" @selected(old('status') === 'blocked')>Blocked</option>
+                    </select>
+                    @error('status')<div class="invalid-feedback d-block" id="create_task_status_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" name="due_date" class="form-control @error('due_date') is-invalid @enderror" value="{{ old('due_date') }}" @error('due_date') aria-describedby="create_task_due_date_error" aria-invalid="true" @enderror>
+                    @error('due_date')<div class="invalid-feedback d-block" id="create_task_due_date_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Estimated Hours</label>
+                    <input type="number" step="0.01" name="estimated_hours" class="form-control @error('estimated_hours') is-invalid @enderror" value="{{ old('estimated_hours', 0) }}" @error('estimated_hours') aria-describedby="create_task_estimated_hours_error" aria-invalid="true" @enderror>
+                    @error('estimated_hours')<div class="invalid-feedback d-block" id="create_task_estimated_hours_error">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Logged Hours</label>
+                    <input type="number" step="0.01" name="logged_hours" class="form-control @error('logged_hours') is-invalid @enderror" value="{{ old('logged_hours', 0) }}" @error('logged_hours') aria-describedby="create_task_logged_hours_error" aria-invalid="true" @enderror>
+                    @error('logged_hours')<div class="invalid-feedback d-block" id="create_task_logged_hours_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
-                    <div class="form-check"><input class="form-check-input" type="checkbox" name="auto_repeat" value="1"
-                            id="auto_repeat"><label class="form-check-label" for="auto_repeat">Enable auto-repeat for daily/weekly tasks</label></div>
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="4" @error('description') aria-describedby="create_task_description_error" aria-invalid="true" @enderror>{{ old('description') }}</textarea>
+                    @error('description')<div class="invalid-feedback d-block" id="create_task_description_error">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                        data-bs-dismiss="offcanvas">Cancel</button><button type="submit" class="btn btn-primary">Save
-                        Task</button></div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input @error('is_important') is-invalid @enderror" type="checkbox" name="is_important" value="1" id="important" @checked(old('is_important')) @error('is_important') aria-describedby="create_task_is_important_error" aria-invalid="true" @enderror>
+                        <label class="form-check-label" for="important">Mark as important</label>
+                        @error('is_important')<div class="invalid-feedback d-block" id="create_task_is_important_error">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input @error('auto_repeat') is-invalid @enderror" type="checkbox" name="auto_repeat" value="1" id="auto_repeat" @checked(old('auto_repeat')) @error('auto_repeat') aria-describedby="create_task_auto_repeat_error" aria-invalid="true" @enderror>
+                        <label class="form-check-label" for="auto_repeat">Enable auto-repeat for daily/weekly tasks</label>
+                        @error('auto_repeat')<div class="invalid-feedback d-block" id="create_task_auto_repeat_error">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Task</button>
+                </div>
             </form>
         </div>
     </div>
@@ -271,61 +315,117 @@
                 <div class="modal-dialog modal-lg modal-dialog-centered">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Edit Task</h5><button type="button" class="btn-close"
-                                data-bs-dismiss="modal"></button>
+                            <h5 class="modal-title">Edit Task</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <form action="{{ route('tasks.update', $task) }}" method="POST" class="row g-3">
+                            <form action="{{ route('tasks.update', $task) }}" method="POST" class="row g-3" novalidate>
                                 @csrf
                                 @method('PUT')
-                                <div class="col-12"><label class="form-label">Task Title</label><input type="text" name="title"
-                                        class="form-control" value="{{ $task->title }}" required></div>
-                                <div class="col-12"><label class="form-label">Project</label><select name="project_id"
-                                        class="form-select" required>@foreach ($projects as $project)<option
-                                            value="{{ $project->id }}" @selected($project->id === $task->project_id)>
-                                        {{ $project->name }}</option>@endforeach</select></div>
-                                <div class="col-12"><label class="form-label">Assigned Employee</label><select name="employee_id"
-                                        class="form-select">
-                                        <option value="">Select</option>@foreach ($employees as $employee)<option
-                                            value="{{ $employee->id }}" @selected($employee->id === $task->employee_id)>
-                                        {{ $employee->name }}</option>@endforeach
-                                    </select></div>
-                                <div class="col-md-6"><label class="form-label">Task Type</label><select name="type"
-                                        class="form-select" required>
-                                        @foreach ($taskTypes as $value => $label)
-                                            <option value="{{ $value }}" @selected($value === $task->type)>{{ $label }}</option>
+                                <input type="hidden" name="_modal_target" value="#edit_task_{{ $task->id }}">
+                                <div class="col-12">
+                                    <label class="form-label">Task Title <span class="text-danger">*</span></label>
+                                    <input type="text" name="title" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', $task->title) }}" @error('title') aria-describedby="edit_task_{{ $task->id }}_title_error" aria-invalid="true" @enderror required>
+                                    @error('title')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_title_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Project <span class="text-danger">*</span></label>
+                                    <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="edit_task_{{ $task->id }}_project_id_error" aria-invalid="true" @enderror required>
+                                        @foreach ($projects as $project)
+                                            <option value="{{ $project->id }}" @selected(old('project_id', $task->project_id) == $project->id)>
+                                                {{ $project->name }}
+                                            </option>
                                         @endforeach
-                                    </select></div>
-                                <div class="col-md-6"><label class="form-label">Priority</label><select name="priority"
-                                        class="form-select">@foreach (['low', 'medium', 'high'] as $priority)<option
-                                            value="{{ $priority }}" @selected($priority === $task->priority)>{{ ucfirst($priority) }}
-                                        </option>@endforeach</select></div>
-                                <div class="col-md-6"><label class="form-label">Status</label><select name="status"
-                                        class="form-select">@foreach (['pending', 'in_progress', 'completed', 'blocked'] as $status)
-                                            <option value="{{ $status }}" @selected($status === $task->status)>
-                                        {{ ucfirst(str_replace('_', ' ', $status)) }}</option>@endforeach</select></div>
-                                <div class="col-md-6"><label class="form-label">Due Date</label><input type="date" name="due_date"
-                                        class="form-control" value="{{ optional($task->due_date)->format('Y-m-d') }}"></div>
-                                <div class="col-md-6"><label class="form-label">Estimated Hours</label><input type="number"
-                                        step="0.01" name="estimated_hours" class="form-control"
-                                        value="{{ $task->estimated_hours }}"></div>
-                                <div class="col-md-6"><label class="form-label">Logged Hours</label><input type="number" step="0.01"
-                                        name="logged_hours" class="form-control" value="{{ $task->logged_hours }}"></div>
-                                <div class="col-12"><label class="form-label">Description</label><textarea name="description"
-                                        class="form-control" rows="4">{{ $task->description }}</textarea></div>
-                                <div class="col-12">
-                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="is_important"
-                                            value="1" id="important_{{ $task->id }}" @checked($task->is_important)><label
-                                            class="form-check-label" for="important_{{ $task->id }}">Mark as important</label></div>
+                                    </select>
+                                    @error('project_id')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_project_id_error">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="col-12">
-                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="auto_repeat"
-                                            value="1" id="auto_repeat_{{ $task->id }}" @checked($task->auto_repeat && in_array($task->type, ['daily', 'weekly'], true))><label
-                                            class="form-check-label" for="auto_repeat_{{ $task->id }}">Enable auto-repeat for daily/weekly tasks</label></div>
+                                    <label class="form-label">Assigned Employee</label>
+                                    <select name="employee_id" class="form-select @error('employee_id') is-invalid @enderror" @error('employee_id') aria-describedby="edit_task_{{ $task->id }}_employee_id_error" aria-invalid="true" @enderror>
+                                        <option value="">Select</option>
+                                        @foreach ($employees as $employee)
+                                            <option value="{{ $employee->id }}" @selected(old('employee_id', $task->employee_id) == $employee->id)>
+                                                {{ $employee->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('employee_id')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_employee_id_error">{{ $message }}</div>@enderror
                                 </div>
-                                <div class="col-12 d-flex justify-content-end gap-2"><button type="button" class="btn btn-light"
-                                        data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Update
-                                        Task</button></div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Task Type <span class="text-danger">*</span></label>
+                                    <select name="type" class="form-select @error('type') is-invalid @enderror" @error('type') aria-describedby="edit_task_{{ $task->id }}_type_error" aria-invalid="true" @enderror required>
+                                        @foreach ($taskTypes as $value => $label)
+                                            <option value="{{ $value }}" @selected($value === old('type', $task->type))>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('type')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_type_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Priority</label>
+                                    <select name="priority" class="form-select @error('priority') is-invalid @enderror" @error('priority') aria-describedby="edit_task_{{ $task->id }}_priority_error" aria-invalid="true" @enderror>
+                                        @foreach (['low', 'medium', 'high'] as $priority)
+                                            <option value="{{ $priority }}" @selected(old('priority', $task->priority) === $priority)>
+                                                {{ ucfirst($priority) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('priority')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_priority_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Status</label>
+                                    <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="edit_task_{{ $task->id }}_status_error" aria-invalid="true" @enderror>
+                                        @foreach (['pending', 'in_progress', 'completed', 'blocked'] as $status)
+                                            <option value="{{ $status }}" @selected(old('status', $task->status) === $status)>
+                                                {{ ucfirst(str_replace('_', ' ', $status)) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('status')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_status_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Due Date</label>
+                                    <input type="date" name="due_date" class="form-control @error('due_date') is-invalid @enderror"
+                                        value="{{ old('due_date', optional($task->due_date)->format('Y-m-d')) }}" @error('due_date') aria-describedby="edit_task_{{ $task->id }}_due_date_error" aria-invalid="true" @enderror>
+                                    @error('due_date')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_due_date_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Estimated Hours</label>
+                                    <input type="number" step="0.01" name="estimated_hours" class="form-control @error('estimated_hours') is-invalid @enderror"
+                                        value="{{ old('estimated_hours', $task->estimated_hours) }}" @error('estimated_hours') aria-describedby="edit_task_{{ $task->id }}_estimated_hours_error" aria-invalid="true" @enderror>
+                                    @error('estimated_hours')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_estimated_hours_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Logged Hours</label>
+                                    <input type="number" step="0.01" name="logged_hours" class="form-control @error('logged_hours') is-invalid @enderror"
+                                        value="{{ old('logged_hours', $task->logged_hours) }}" @error('logged_hours') aria-describedby="edit_task_{{ $task->id }}_logged_hours_error" aria-invalid="true" @enderror>
+                                    @error('logged_hours')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_logged_hours_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Description</label>
+                                    <textarea name="description" class="form-control @error('description') is-invalid @enderror"
+                                        rows="4" @error('description') aria-describedby="edit_task_{{ $task->id }}_description_error" aria-invalid="true" @enderror>{{ old('description', $task->description) }}</textarea>
+                                    @error('description')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_description_error">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input @error('is_important') is-invalid @enderror" type="checkbox" name="is_important"
+                                            value="1" id="important_{{ $task->id }}" @checked(old('is_important', $task->is_important)) @error('is_important') aria-describedby="edit_task_{{ $task->id }}_is_important_error" aria-invalid="true" @enderror>
+                                        <label class="form-check-label" for="important_{{ $task->id }}">Mark as important</label>
+                                        @error('is_important')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_is_important_error">{{ $message }}</div>@enderror
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input @error('auto_repeat') is-invalid @enderror" type="checkbox" name="auto_repeat"
+                                            value="1" id="auto_repeat_{{ $task->id }}" @checked(old('auto_repeat', $task->auto_repeat && in_array($task->type, ['daily', 'weekly'], true))) @error('auto_repeat') aria-describedby="edit_task_{{ $task->id }}_auto_repeat_error" aria-invalid="true" @enderror>
+                                        <label class="form-check-label" for="auto_repeat_{{ $task->id }}">Enable auto-repeat for daily/weekly tasks</label>
+                                        @error('auto_repeat')<div class="invalid-feedback d-block" id="edit_task_{{ $task->id }}_auto_repeat_error">{{ $message }}</div>@enderror
+                                    </div>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary">Update Task</button>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -334,4 +434,20 @@
         @endforeach
     @endforeach
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection

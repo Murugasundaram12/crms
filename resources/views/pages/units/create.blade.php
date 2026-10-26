@@ -19,7 +19,7 @@
         <a href="{{ route('units.index') }}" class="btn btn-outline-light shadow-sm">Back to Units</a>
     </div>
 
-    <form action="{{ route('units.store') }}" method="POST" class="row g-4">
+    <form action="{{ route('units.store') }}" method="POST" class="row g-4" novalidate>
         @csrf
         <div class="col-xl-8">
             <div class="card border-0 shadow-sm">
@@ -31,27 +31,28 @@
                         <div class="col-md-6">
                             <label class="form-label">Unit Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}" placeholder="Square Feet" required>
-                            @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                value="{{ old('name') }}" placeholder="Square Feet" @error('name') aria-describedby="name_error" aria-invalid="true" @enderror required>
+                            @error('name')<div class="invalid-feedback d-block" id="name_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Code <span class="text-danger">*</span></label>
                             <input type="text" name="code" class="form-control @error('code') is-invalid @enderror"
-                                value="{{ old('code') }}" placeholder="sft" required>
-                            @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                value="{{ old('code') }}" placeholder="sft" @error('code') aria-describedby="code_error" aria-invalid="true" @enderror required>
+                            @error('code')<div class="invalid-feedback d-block" id="code_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-12">
                             <label class="form-label">Description</label>
                             <input type="text" name="description" class="form-control @error('description') is-invalid @enderror"
-                                value="{{ old('description') }}">
-                            @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                value="{{ old('description') }}" @error('description') aria-describedby="description_error" aria-invalid="true" @enderror>
+                            @error('description')<div class="invalid-feedback d-block" id="description_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-12">
                             <label class="d-flex align-items-center gap-2 mb-0">
                                 <input type="hidden" name="active_status" value="0">
-                                <input type="checkbox" name="active_status" value="1" @checked(old('active_status', true))>
+                                <input type="checkbox" name="active_status" class="form-check-input @error('active_status') is-invalid @enderror" value="1" @checked(old('active_status', true)) @error('active_status') aria-describedby="active_status_error" aria-invalid="true" @enderror>
                                 Active
                             </label>
+                            @error('active_status')<div class="invalid-feedback d-block" id="active_status_error">{{ $message }}</div>@enderror
                         </div>
                     </div>
                     <div class="d-flex justify-content-end gap-2 mt-4">

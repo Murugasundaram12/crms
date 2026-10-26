@@ -120,7 +120,7 @@
                         </div>
                     </div>
 
-                    <form action="{{ route('excel.import') }}" method="POST" enctype="multipart/form-data" class="p-4">
+                    <form action="{{ route('excel.import') }}" method="POST" enctype="multipart/form-data" class="p-4" novalidate>
                         @csrf
 
                         <label class="form-label fw-semibold" for="expenseImportFile">Import File</label>
@@ -131,6 +131,7 @@
                                 id="expenseImportFile"
                                 class="import-file-input @error('file') is-invalid @enderror"
                                 accept=".xlsx,.xls,.csv"
+                                @error('file') aria-describedby="expense_import_file_error" aria-invalid="true" @enderror
                                 required
                             >
                             <div class="text-center px-3">
@@ -145,7 +146,7 @@
                             </div>
                         </div>
                         @error('file')
-                            <div class="invalid-feedback d-block mb-3">{{ $message }}</div>
+                            <div class="invalid-feedback d-block mb-3" id="expense_import_file_error">{{ $message }}</div>
                         @enderror
 
                         <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">

@@ -128,17 +128,24 @@ class EmployeeSalaryController extends Controller
     public function destroy(EmployeeSalary $employeeSalary): RedirectResponse
     {
         DB::transaction(function () use ($employeeSalary): void {
-            $paidAmount = (float) $employeeSalary->paid_amount;
-            if ($paidAmount > 0 && $employeeSalary->paid_by) {
-                app(CrmBalanceService::class)->creditUserWallet($employeeSalary->paid_by, $paidAmount, 'Refund deleted Employee Salary #' . $employeeSalary->id);
+            $salary = EmployeeSalary::query()->lockForUpdate()->findOrFail($employeeSalary->id);
+            $paidAmount = round((float) $salary->paid_amount, 2);
+            $payerId = $salary->paid_by ?? Wallet::query()
+                ->where('source_type', 'employee_salary')
+                ->where('source_id', $salary->id)
+                ->where('transfer_type', 1)
+                ->value('user_id');
+
+            if ($paidAmount > 0 && $payerId) {
+                app(CrmBalanceService::class)->creditUserWallet((int) $payerId, $paidAmount, 'Refund deleted Employee Salary #' . $salary->id);
             }
 
             Wallet::query()
                 ->where('source_type', 'employee_salary')
-                ->where('source_id', $employeeSalary->id)
+                ->where('source_id', $salary->id)
                 ->delete();
 
-            $employeeSalary->delete();
+            $salary->delete();
         });
 
         return redirect()->route('employee-salaries.index')->with('success', 'Employee salary deleted and payer wallet refunded successfully.');

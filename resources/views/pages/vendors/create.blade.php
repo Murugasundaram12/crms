@@ -19,7 +19,7 @@
         <a href="{{ route('vendors.index') }}" class="btn btn-outline-light shadow-sm">Back to Vendors</a>
     </div>
 
-    <form action="{{ route('vendors.store') }}" method="POST" class="row g-4">
+    <form action="{{ route('vendors.store') }}" method="POST" class="row g-4" novalidate>
         @csrf
 
         <div class="col-xl-8">
@@ -33,27 +33,27 @@
                         <div class="col-md-6">
                             <label class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}" required>
+                                value="{{ old('name') }}" @error('name') aria-describedby="vendor_name_error" aria-invalid="true" @enderror required>
                             @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="vendor_name_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Phone</label>
                             <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror"
-                                value="{{ old('phone') }}">
+                                value="{{ old('phone') }}" @error('phone') aria-describedby="vendor_phone_error" aria-invalid="true" @enderror>
                             @error('phone')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="vendor_phone_error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">Address</label>
                             <textarea name="address" class="form-control @error('address') is-invalid @enderror"
-                                rows="3">{{ old('address') }}</textarea>
+                                rows="3" @error('address') aria-describedby="vendor_address_error" aria-invalid="true" @enderror>{{ old('address') }}</textarea>
                             @error('address')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="vendor_address_error">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -61,9 +61,9 @@
                             <label class="form-label">Advance Amount</label>
                             <input type="number" step="0.01" name="advance_amount"
                                 class="form-control @error('advance_amount') is-invalid @enderror"
-                                value="{{ old('advance_amount', 0) }}">
+                                value="{{ old('advance_amount', 0) }}" @error('advance_amount') aria-describedby="vendor_advance_amount_error" aria-invalid="true" @enderror>
                             @error('advance_amount')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="vendor_advance_amount_error">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>

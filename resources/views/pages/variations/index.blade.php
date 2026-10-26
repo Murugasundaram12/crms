@@ -179,58 +179,64 @@
         </div>
     </div>
 
-    <!-- Offcanvas Add and Edit Modals similar to payment-stages, omitted for brevity -->
     <!-- Offcanvas Add -->
     @can('variations-create')
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas_add">
         <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">Add Variation</h5><button type="button" class="btn-close"
-                data-bs-dismiss="offcanvas"></button>
+            <h5 class="offcanvas-title">Add Variation</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-            <form action="{{ route('variations.store') }}" method="POST" class="row g-3">
+            <form action="{{ route('variations.store') }}" method="POST" class="row g-3" novalidate>
                 @csrf
+                <input type="hidden" name="_modal_target" value="#offcanvas_add">
                 <div class="col-12">
-                    <label class="form-label">Project</label>
-                    <select name="project_id" class="form-select" required>
-                        <option value="">Select</option>
+                    <label class="form-label">Project <span class="text-danger">*</span></label>
+                    <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="variation_project_id_error" aria-invalid="true" @enderror required>
+                        <option value="">Select Project</option>
                         @foreach ($projects as $project)
                             <option value="{{ $project->id }}" @selected((string) old('project_id', request('project_id')) === (string) $project->id)>{{ $project->name }}</option>
                         @endforeach
                     </select>
+                    @error('project_id')<div class="invalid-feedback d-block" id="variation_project_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Type</label>
-                    <select name="type" class="form-select" required>
-                        <option value="">Select</option>
+                    <label class="form-label">Type <span class="text-danger">*</span></label>
+                    <select name="type" class="form-select @error('type') is-invalid @enderror" @error('type') aria-describedby="variation_type_error" aria-invalid="true" @enderror required>
+                        <option value="">Select Type</option>
                         <option value="additional" @selected(old('type') === 'additional')>Additional</option>
                         <option value="deduction" @selected(old('type') === 'deduction')>Deduction</option>
                     </select>
+                    @error('type')<div class="invalid-feedback d-block" id="variation_type_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Description</label>
-                    <textarea name="description" class="form-control" rows="3" required>{{ old('description') }}</textarea>
+                    <label class="form-label">Description <span class="text-danger">*</span></label>
+                    <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="3" @error('description') aria-describedby="variation_description_error" aria-invalid="true" @enderror required>{{ old('description') }}</textarea>
+                    @error('description')<div class="invalid-feedback d-block" id="variation_description_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Amount</label>
-                    <input type="number" step="0.01" name="amount" class="form-control" min="0" value="{{ old('amount') }}" required>
+                    <label class="form-label">Amount <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" name="amount" class="form-control @error('amount') is-invalid @enderror" min="0" value="{{ old('amount') }}" @error('amount') aria-describedby="variation_amount_error" aria-invalid="true" @enderror required>
+                    @error('amount')<div class="invalid-feedback d-block" id="variation_amount_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Date</label>
-                    <input type="date" name="date" class="form-control" value="{{ old('date', now()->toDateString()) }}" required>
+                    <label class="form-label">Date <span class="text-danger">*</span></label>
+                    <input type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', now()->toDateString()) }}" @error('date') aria-describedby="variation_date_error" aria-invalid="true" @enderror required>
+                    @error('date')<div class="invalid-feedback d-block" id="variation_date_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Approved By</label>
-                    <select name="approved_by" class="form-select">
+                    <select name="approved_by" class="form-select @error('approved_by') is-invalid @enderror" @error('approved_by') aria-describedby="variation_approved_by_error" aria-invalid="true" @enderror>
                         <option value="">Select Employee</option>
                         @foreach ($employees as $employee)
                             <option value="{{ $employee->id }}" @selected((string) old('approved_by') === (string) $employee->id)>{{ $employee->name }}</option>
                         @endforeach
                     </select>
+                    @error('approved_by')<div class="invalid-feedback d-block" id="variation_approved_by_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Payment Method</label>
-                    <select name="payment_method_id" class="form-select">
+                    <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="variation_payment_method_id_error" aria-invalid="true" @enderror>
                         <option value="">Select Payment Method</option>
                         @foreach ($paymentMethods as $paymentMethod)
                             <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id') === (string) $paymentMethod->id)>
@@ -238,14 +244,16 @@
                             </option>
                         @endforeach
                     </select>
+                    @error('payment_method_id')<div class="invalid-feedback d-block" id="variation_payment_method_id_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
+                    <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="variation_status_error" aria-invalid="true" @enderror>
                         <option value="pending" @selected(old('status', 'pending') === 'pending')>Pending</option>
                         <option value="approved" @selected(old('status') === 'approved')>Approved</option>
                         <option value="rejected" @selected(old('status') === 'rejected')>Rejected</option>
                     </select>
+                    @error('status')<div class="invalid-feedback d-block" id="variation_status_error">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12 d-flex justify-content-end gap-2">
                     <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
@@ -267,53 +275,60 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form action="{{ route('variations.update', $variation) }}" method="POST" class="row g-3">
+                        <form action="{{ route('variations.update', $variation) }}" method="POST" class="row g-3" novalidate>
                             @csrf
                             @method('PUT')
+                            <input type="hidden" name="_modal_target" value="#edit_variation_{{ $variation->id }}">
                             <div class="col-12">
-                                <label class="form-label">Project</label>
-                                <select name="project_id" class="form-select">
+                                <label class="form-label">Project <span class="text-danger">*</span></label>
+                                <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="edit_variation_{{ $variation->id }}_project_id_error" aria-invalid="true" @enderror required>
                                     @foreach ($projects as $project)
-                                        <option value="{{ $project->id }}" @selected($variation->project_id === $project->id)>
+                                        <option value="{{ $project->id }}" @selected(old('project_id', $variation->project_id) == $project->id)>
                                             {{ $project->name }}</option>
                                     @endforeach
                                 </select>
+                                @error('project_id')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_project_id_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Type</label>
-                                <select name="type" class="form-select">
-                                    <option value="additional" @selected($variation->type === 'additional')>Additional</option>
-                                    <option value="deduction" @selected($variation->type === 'deduction')>Deduction</option>
+                                <label class="form-label">Type <span class="text-danger">*</span></label>
+                                <select name="type" class="form-select @error('type') is-invalid @enderror" @error('type') aria-describedby="edit_variation_{{ $variation->id }}_type_error" aria-invalid="true" @enderror required>
+                                    <option value="additional" @selected(old('type', $variation->type) === 'additional')>Additional</option>
+                                    <option value="deduction" @selected(old('type', $variation->type) === 'deduction')>Deduction</option>
                                 </select>
+                                @error('type')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_type_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Description</label>
-                                <textarea name="description" class="form-control"
-                                    rows="3">{{ $variation->description }}</textarea>
+                                <label class="form-label">Description <span class="text-danger">*</span></label>
+                                <textarea name="description" class="form-control @error('description') is-invalid @enderror"
+                                    rows="3" @error('description') aria-describedby="edit_variation_{{ $variation->id }}_description_error" aria-invalid="true" @enderror required>{{ old('description', $variation->description) }}</textarea>
+                                @error('description')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_description_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Amount</label>
-                                <input type="number" step="0.01" name="amount" class="form-control"
-                                    value="{{ $variation->amount }}">
+                                <label class="form-label">Amount <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" name="amount" class="form-control @error('amount') is-invalid @enderror" min="0"
+                                    value="{{ old('amount', $variation->amount) }}" @error('amount') aria-describedby="edit_variation_{{ $variation->id }}_amount_error" aria-invalid="true" @enderror required>
+                                @error('amount')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_amount_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Date</label>
-                                <input type="date" name="date" class="form-control"
-                                    value="{{ optional($variation->date)->format('Y-m-d') }}">
+                                <label class="form-label">Date <span class="text-danger">*</span></label>
+                                <input type="date" name="date" class="form-control @error('date') is-invalid @enderror"
+                                    value="{{ old('date', optional($variation->date)->format('Y-m-d')) }}" @error('date') aria-describedby="edit_variation_{{ $variation->id }}_date_error" aria-invalid="true" @enderror required>
+                                @error('date')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_date_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Approved By</label>
-                                <select name="approved_by" class="form-select">
-                                    <option value="">Select</option>
+                                <select name="approved_by" class="form-select @error('approved_by') is-invalid @enderror" @error('approved_by') aria-describedby="edit_variation_{{ $variation->id }}_approved_by_error" aria-invalid="true" @enderror>
+                                    <option value="">Select Employee</option>
                                     @foreach ($employees as $employee)
-                                        <option value="{{ $employee->id }}" @selected($variation->approved_by === $employee->id)>
+                                        <option value="{{ $employee->id }}" @selected(old('approved_by', $variation->approved_by) == $employee->id)>
                                             {{ $employee->name }}</option>
                                     @endforeach
                                 </select>
+                                @error('approved_by')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_approved_by_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Payment Method</label>
-                                <select name="payment_method_id" class="form-select">
+                                <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" @error('payment_method_id') aria-describedby="edit_variation_{{ $variation->id }}_payment_method_id_error" aria-invalid="true" @enderror>
                                     <option value="">Select Payment Method</option>
                                     @foreach ($paymentMethods as $paymentMethod)
                                         <option value="{{ $paymentMethod->id }}" @selected((string) old('payment_method_id', $variation->payment_method_id) === (string) $paymentMethod->id)>
@@ -321,14 +336,16 @@
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('payment_method_id')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_payment_method_id_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Status</label>
-                                <select name="status" class="form-select">
-                                    <option value="pending" @selected($variation->status === 'pending')>Pending</option>
-                                    <option value="approved" @selected($variation->status === 'approved')>Approved</option>
-                                    <option value="rejected" @selected($variation->status === 'rejected')>Rejected</option>
+                                <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="edit_variation_{{ $variation->id }}_status_error" aria-invalid="true" @enderror>
+                                    <option value="pending" @selected(old('status', $variation->status) === 'pending')>Pending</option>
+                                    <option value="approved" @selected(old('status', $variation->status) === 'approved')>Approved</option>
+                                    <option value="rejected" @selected(old('status', $variation->status) === 'rejected')>Rejected</option>
                                 </select>
+                                @error('status')<div class="invalid-feedback d-block" id="edit_variation_{{ $variation->id }}_status_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12 d-flex justify-content-end gap-2">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -341,4 +358,20 @@
         </div>
     @endforeach
     @endcan
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection

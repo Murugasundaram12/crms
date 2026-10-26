@@ -119,7 +119,7 @@
                                             </a>
                                         @endif
                                         @if(auth()->user()?->hasPermission('labour-assignments-delete'))
-                                            <form action="{{ route('labour_assignments.destroy', $assignment) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this assignment?');">
+                                            <form action="{{ route('labour_assignments.destroy', $assignment) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this assignment?');" novalidate>
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Delete Assignment">
@@ -149,8 +149,9 @@
     <!-- Create Modal -->
     <div class="modal fade" id="createAssignmentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-            <form action="{{ route('labour_assignments.store') }}" method="POST">
+            <form action="{{ route('labour_assignments.store') }}" method="POST" novalidate>
                 @csrf
+                <input type="hidden" name="_modal_target" value="#createAssignmentModal">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">New Labour Site Assignment</h5>
@@ -158,44 +159,50 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label required">Labour</label>
-                            <select name="labour_id" class="form-select" required>
+                            <label class="form-label">Labour <span class="text-danger">*</span></label>
+                            <select name="labour_id" class="form-select @error('labour_id') is-invalid @enderror" @error('labour_id') aria-describedby="assignment_labour_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Labour</option>
                                 @foreach($labours as $l)
-                                    <option value="{{ $l->id }}">{{ $l->name }}</option>
+                                    <option value="{{ $l->id }}" @selected(old('labour_id') == $l->id)>{{ $l->name }}</option>
                                 @endforeach
                             </select>
+                            @error('labour_id')<div class="invalid-feedback d-block" id="assignment_labour_id_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-3">
-                            <label class="form-label required">Project / Site</label>
-                            <select name="project_id" class="form-select" required>
+                            <label class="form-label">Project / Site <span class="text-danger">*</span></label>
+                            <select name="project_id" class="form-select @error('project_id') is-invalid @enderror" @error('project_id') aria-describedby="assignment_project_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Site</option>
                                 @foreach($projects as $p)
-                                    <option value="{{ $p->id }}">{{ $p->name }}</option>
+                                    <option value="{{ $p->id }}" @selected(old('project_id') == $p->id)>{{ $p->name }}</option>
                                 @endforeach
                             </select>
+                            @error('project_id')<div class="invalid-feedback d-block" id="assignment_project_id_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label required">Start Date</label>
-                                <input type="date" name="start_date" class="form-control" value="{{ now()->toDateString() }}" required>
+                                <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                                <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" value="{{ old('start_date', now()->toDateString()) }}" @error('start_date') aria-describedby="assignment_start_date_error" aria-invalid="true" @enderror required>
+                                @error('start_date')<div class="invalid-feedback d-block" id="assignment_start_date_error">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label required">End Date</label>
-                                <input type="date" name="end_date" class="form-control" value="{{ now()->addDays(6)->toDateString() }}" required>
+                                <label class="form-label">End Date <span class="text-danger">*</span></label>
+                                <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" value="{{ old('end_date', now()->addDays(6)->toDateString()) }}" @error('end_date') aria-describedby="assignment_end_date_error" aria-invalid="true" @enderror required>
+                                @error('end_date')<div class="invalid-feedback d-block" id="assignment_end_date_error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label required">Status</label>
-                            <select name="status" class="form-select" required>
-                                <option value="active" selected>Active</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
+                            <label class="form-label">Status <span class="text-danger">*</span></label>
+                            <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="assignment_status_error" aria-invalid="true" @enderror required>
+                                <option value="active" @selected(old('status', 'active') === 'active')>Active</option>
+                                <option value="completed" @selected(old('status') === 'completed')>Completed</option>
+                                <option value="cancelled" @selected(old('status') === 'cancelled')>Cancelled</option>
                             </select>
+                            @error('status')<div class="invalid-feedback d-block" id="assignment_status_error">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Notes</label>
-                            <textarea name="notes" class="form-control" rows="2"></textarea>
+                            <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="2" @error('notes') aria-describedby="assignment_notes_error" aria-invalid="true" @enderror>{{ old('notes') }}</textarea>
+                            @error('notes')<div class="invalid-feedback d-block" id="assignment_notes_error">{{ $message }}</div>@enderror
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -206,4 +213,20 @@
             </form>
         </div>
     </div>
+
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        (new bootstrap.Modal(el)).show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        (new bootstrap.Offcanvas(el)).show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection

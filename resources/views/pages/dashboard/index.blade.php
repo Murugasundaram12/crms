@@ -75,12 +75,12 @@
                             <a href="{{ route('attendance.index') }}" class="btn btn-outline-light">Attendance List</a>
                         @endif
                         @if(!$todayAttendance)
-                            <form action="{{ route('attendance.check-in') }}" method="POST">
+                            <form action="{{ route('attendance.check-in') }}" method="POST" novalidate>
                                 @csrf
                                 <button type="submit" class="btn btn-success">Check In</button>
                             </form>
                         @elseif(!$todayAttendance->check_out_at)
-                            <form action="{{ route('attendance.check-out') }}" method="POST">
+                            <form action="{{ route('attendance.check-out') }}" method="POST" novalidate>
                                 @csrf
                                 <button type="submit" class="btn btn-warning">Check Out</button>
                             </form>

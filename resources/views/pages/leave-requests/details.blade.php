@@ -97,19 +97,25 @@
                     @if($leaveRequest->status === 'pending' && auth()->user()?->hasPermission('leave-requests-edit'))
                         <hr>
                         <h5 class="mb-3">Approve / Reject</h5>
-                        <form method="POST" action="{{ route('leaveRequests.action', $leaveRequest) }}">
+                        <form method="POST" action="{{ route('leaveRequests.action', $leaveRequest) }}" novalidate>
                             @csrf
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">Action</label>
-                                    <select name="status" class="form-control">
-                                        <option value="approved">Approve</option>
-                                        <option value="rejected">Reject</option>
+                                    <label class="form-label">Action <span class="text-danger">*</span></label>
+                                    <select name="status" class="form-select @error('status') is-invalid @enderror" @error('status') aria-describedby="leave_action_status_error" aria-invalid="true" @enderror required>
+                                        <option value="approved" {{ old('status') == 'approved' ? 'selected' : '' }}>Approve</option>
+                                        <option value="rejected" {{ old('status') == 'rejected' ? 'selected' : '' }}>Reject</option>
                                     </select>
+                                    @error('status')
+                                        <div class="invalid-feedback d-block" id="leave_action_status_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Approver Remarks</label>
-                                    <input type="text" name="approverRemarks" class="form-control" placeholder="Remarks" />
+                                    <input type="text" name="approverRemarks" class="form-control @error('approverRemarks') is-invalid @enderror" placeholder="Remarks" value="{{ old('approverRemarks') }}" @error('approverRemarks') aria-describedby="leave_action_approver_remarks_error" aria-invalid="true" @enderror />
+                                    @error('approverRemarks')
+                                        <div class="invalid-feedback d-block" id="leave_action_approver_remarks_error">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                             <div class="mt-3">

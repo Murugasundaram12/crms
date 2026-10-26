@@ -75,17 +75,21 @@
                     <h5 class="modal-title">Assign Categories to Main Category</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="assignCategoryForm" method="POST" action="{{ route('categories.assign') }}">
+                <form id="assignCategoryForm" method="POST" action="{{ route('categories.assign') }}" novalidate>
                     @csrf
+                    <input type="hidden" name="_modal_target" value="#assignCategoryModal">
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Main Category <span class="text-danger">*</span></label>
-                            <select name="main_category_id" id="modalMainCategory" class="form-select" required>
+                            <select name="main_category_id" id="modalMainCategory" class="form-select @error('main_category_id') is-invalid @enderror" @error('main_category_id') aria-describedby="assign_main_category_id_error" aria-invalid="true" @enderror required>
                                 <option value="">Select Main Category</option>
                                 @foreach($mainCategories as $mainCategory)
-                                    <option value="{{ $mainCategory->id }}">{{ $mainCategory->name }}</option>
+                                    <option value="{{ $mainCategory->id }}" {{ old('main_category_id') == $mainCategory->id ? 'selected' : '' }}>{{ $mainCategory->name }}</option>
                                 @endforeach
                             </select>
+                            @error('main_category_id')
+                                <div class="invalid-feedback d-block" id="assign_main_category_id_error">{{ $message }}</div>
+                            @enderror
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Categories <span class="text-danger">*</span></label>
@@ -110,6 +114,12 @@
                                     </div>
                                 </div>
                             </div>
+                            @error('category_ids')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            @error('category_ids.*')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
                             <div class="form-text mt-2">Checked = Assign to main category. Unchecked = Remove from main
                                 category.</div>
                         </div>
@@ -177,6 +187,23 @@
         @endif
     </div>
 
+    @if ($errors->any() && old('_modal_target'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var target = @json(old('_modal_target'));
+                var el = document.querySelector(target);
+                if (el) {
+                    if (el.classList.contains('modal')) {
+                        var m = new bootstrap.Modal(el);
+                        m.show();
+                    } else if (el.classList.contains('offcanvas')) {
+                        var o = new bootstrap.Offcanvas(el);
+                        o.show();
+                    }
+                }
+            });
+        </script>
+    @endif
 @endsection
 
 @push('scripts')

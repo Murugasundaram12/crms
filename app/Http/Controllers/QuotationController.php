@@ -95,11 +95,8 @@ class QuotationController extends Controller
         $validated = $request->validated();
         $quotationData = $this->buildQuotationPayload($validated);
 
-        // Auto-generate unique quotation number
-        $nextId = Quotation::max('id') ?? 0; // safe increment
-        $quotationData['quotation_number'] = sprintf('QTN-%04d', $nextId + 1);
-
         $quotation = DB::transaction(function () use ($quotationData, $validated) {
+            $quotationData['quotation_number'] = $this->generateNextQuotationNumber();
             $quotation = Quotation::create($quotationData);
             $this->syncItems($quotation, $validated['items']);
             $this->syncTerms($quotation, $validated['terms'] ?? null);
@@ -393,5 +390,28 @@ class QuotationController extends Controller
     private function quotationColumnExists(string $column): bool
     {
         return in_array($column, $this->getQuotationColumns(), true);
+    }
+
+    private function generateNextQuotationNumber(): string
+    {
+        $latestQuotation = Quotation::query()
+            ->whereNotNull('quotation_number')
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->value('quotation_number');
+
+        $maxNumber = 0;
+        if (is_string($latestQuotation) && preg_match('/^QTN-(\d+)$/i', $latestQuotation, $matches)) {
+            $maxNumber = (int) $matches[1];
+        }
+
+        $maxId = (int) (Quotation::query()->max('id') ?? 0);
+        $candidateNumber = max($maxNumber, $maxId) + 1;
+
+        while (Quotation::query()->where('quotation_number', sprintf('QTN-%04d', $candidateNumber))->exists()) {
+            $candidateNumber++;
+        }
+
+        return sprintf('QTN-%04d', $candidateNumber);
     }
 }

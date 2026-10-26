@@ -516,9 +516,9 @@ class PaymentController extends Controller
         }
 
         $referenceId = (int) $payment->id;
-        $userId = (int) Auth::id();
 
         if ($amount > 0) {
+            $userId = (int) Auth::id();
             $alreadyCredited = Wallet::query()
                 ->where('source_type', 'payment')
                 ->where('source_id', $referenceId)
@@ -539,10 +539,63 @@ class PaymentController extends Controller
                 ->exists();
 
             if (! $alreadyRolledBack) {
-                $balanceService->debitUserWallet($userId, abs($amount), 'Payment income rollback debit', 'payment', $referenceId);
-                $this->recordWalletHistory($payment, $userId, abs($amount), 1, 'Payment income rollback debit', 'payment_rollback');
+                $recipientUserId = $this->resolveOriginalRecipientUserId($payment);
+                $balanceService->debitUserWallet($recipientUserId, abs($amount), 'Payment income rollback debit', 'payment', $referenceId);
+                $this->recordWalletHistory($payment, $recipientUserId, abs($amount), 1, 'Payment income rollback debit', 'payment_rollback');
             }
         }
+    }
+
+    private function resolveOriginalRecipientUserId(Payment $payment): int
+    {
+        $referenceId = (int) $payment->id;
+
+        if (! Schema::hasTable('wallet')) {
+            $fallback = (int) Auth::id();
+            if ($fallback <= 0) {
+                throw ValidationException::withMessages([
+                    'payment' => "Cannot rollback payment #{$payment->id}: missing ledger linkage.",
+                ]);
+            }
+            return $fallback;
+        }
+
+        $credits = Wallet::query()
+            ->where('source_type', 'payment')
+            ->where('source_id', $referenceId)
+            ->where('transfer_type', 0)
+            ->orderBy('id')
+            ->get();
+
+        if ($credits->isEmpty()) {
+            throw ValidationException::withMessages([
+                'payment' => "Cannot rollback payment #{$payment->id}: missing ledger linkage.",
+            ]);
+        }
+
+        $rollbacks = Wallet::query()
+            ->where('source_type', 'payment_rollback')
+            ->where('source_id', $referenceId)
+            ->where('transfer_type', 1)
+            ->orderBy('id')
+            ->get();
+
+        // If rollbacks count matches or exceeds credits, payment was already rolled back
+        if ($rollbacks->count() >= $credits->count()) {
+            return (int) $credits->last()->user_id;
+        }
+
+        // Active un-rolled-back credits
+        $unrolledCredits = $credits->slice($rollbacks->count());
+        $distinctUsers = $unrolledCredits->pluck('user_id')->unique();
+
+        if ($distinctUsers->count() > 1) {
+            throw ValidationException::withMessages([
+                'payment' => "Cannot rollback payment #{$payment->id}: ambiguous wallet ledger linkage.",
+            ]);
+        }
+
+        return (int) $distinctUsers->first();
     }
 
     private function quotationAmount(?Quotation $quotation): float

@@ -9,7 +9,7 @@
                 <div class="row">
                     <div class="col-md-10 mx-auto">
                         <form action="{{ route('password.email') }}" method="POST"
-                            class="vh-100 d-flex justify-content-between flex-column p-4 pb-0">
+                            class="vh-100 d-flex justify-content-between flex-column p-4 pb-0" novalidate>
                             @csrf
                             <div class="text-center mb-4 auth-logo">
                                 <img src="{{ asset('assets/img/logo.svg') }}" class="img-fluid" alt="Logo">
@@ -26,9 +26,9 @@
                                     <label class="form-label">Email Address</label>
                                     <div class="input-group input-group-flat">
                                         <input type="email" class="form-control @error('email') is-invalid @enderror"
-                                            name="email" value="{{ old('email') }}" required autofocus>
+                                            name="email" value="{{ old('email') }}" @error('email') aria-describedby="forgot_email_error" aria-invalid="true" @enderror required autofocus>
                                         @error('email')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="forgot_email_error">{{ $message }}</div>
                                         @enderror
                                         <span class="input-group-text">
                                             <i class="ti ti-mail"></i>

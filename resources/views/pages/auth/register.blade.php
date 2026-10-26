@@ -11,7 +11,7 @@
                 <div class="row">
                     <div class="col-md-10 mx-auto">
                         <form action="{{ route('register') }}" method="POST"
-                            class="vh-100 d-flex justify-content-between flex-column p-4 pb-0">
+                            class="vh-100 d-flex justify-content-between flex-column p-4 pb-0" novalidate>
                             @csrf
                             <div class="text-center mb-4 auth-logo">
                                 <img src="{{ asset('assets/img/logo.svg') }}" class="img-fluid" alt="Logo">
@@ -24,18 +24,18 @@
                                 <div class="mb-3">
                                     <label class="form-label">Full Name</label>
                                     <input type="text" class="form-control @error('name') is-invalid @enderror" name="name"
-                                        value="{{ old('name') }}" required>
+                                        value="{{ old('name') }}" @error('name') aria-describedby="register_name_error" aria-invalid="true" @enderror required>
                                     @error('name')
-                                        <div class="invalid-feedback">{{ $message }}</div>
+                                        <div class="invalid-feedback d-block" id="register_name_error">{{ $message }}</div>
                                     @enderror
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Email Address</label>
                                     <div class="input-group input-group-flat">
                                         <input type="email" class="form-control @error('email') is-invalid @enderror"
-                                            name="email" value="{{ old('email') }}" required>
+                                            name="email" value="{{ old('email') }}" @error('email') aria-describedby="register_email_error" aria-invalid="true" @enderror required>
                                         @error('email')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="register_email_error">{{ $message }}</div>
                                         @enderror
                                         <span class="input-group-text">
                                             <i class="ti ti-mail"></i>
@@ -47,9 +47,9 @@
                                     <div class="input-group input-group-flat pass-group">
                                         <input type="password"
                                             class="form-control pass-input @error('password') is-invalid @enderror"
-                                            name="password" required>
+                                            name="password" @error('password') aria-describedby="register_password_error" aria-invalid="true" @enderror required>
                                         @error('password')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="register_password_error">{{ $message }}</div>
                                         @enderror
                                         <span class="input-group-text toggle-password">
                                             <i class="ti ti-eye-off"></i>
@@ -61,9 +61,9 @@
                                     <div class="input-group input-group-flat pass-group">
                                         <input type="password"
                                             class="form-control pass-input @error('password_confirmation') is-invalid @enderror"
-                                            name="password_confirmation" required>
+                                            name="password_confirmation" @error('password_confirmation') aria-describedby="register_password_confirmation_error" aria-invalid="true" @enderror required>
                                         @error('password_confirmation')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <div class="invalid-feedback d-block" id="register_password_confirmation_error">{{ $message }}</div>
                                         @enderror
                                         <span class="input-group-text toggle-password-confirm">
                                             <i class="ti ti-eye-off"></i>

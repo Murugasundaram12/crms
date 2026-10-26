@@ -22,15 +22,15 @@
                 <h5 class="card-title mb-0">Permission Details</h5>
             </div>
             <div class="card-body">
-                <form action="{{ route('permissions.store') }}" method="POST">
+                <form action="{{ route('permissions.store') }}" method="POST" novalidate>
                     @csrf
                     <div class="row g-4">
                         <div class="col-lg-12">
                             <div class="form-group">
                                 <label class="col-form-label">Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}" required>
+                                <input type="text" class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}" @error('name') aria-describedby="permission_name_error" aria-invalid="true" @enderror required>
                                 @error('name')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+                                    <div class="invalid-feedback d-block" id="permission_name_error">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
@@ -39,13 +39,13 @@
                             <div class="form-group">
                                 <label class="col-form-label">Key <span class="text-danger">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" class="form-control @error('key') is-invalid @enderror" name="key" value="{{ old('key') }}" required placeholder="e.g., user.create">
+                                    <input type="text" class="form-control @error('key') is-invalid @enderror" name="key" value="{{ old('key') }}" @error('key') aria-describedby="permission_key_error" aria-invalid="true" @enderror required placeholder="e.g., user.create">
                                     <span class="position-absolute end-0 top-50 translate-middle-y pe-3 text-muted">
                                         <i class="ti ti-key"></i>
                                     </span>
                                 </div>
                                 @error('key')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+                                    <div class="invalid-feedback d-block" id="permission_key_error">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>

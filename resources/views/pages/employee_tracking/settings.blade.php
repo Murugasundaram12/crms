@@ -21,7 +21,7 @@
         </a>
     </div>
 
-    <form action="{{ route('tracking.settings.update') }}" method="POST">
+    <form action="{{ route('tracking.settings.update') }}" method="POST" novalidate>
         @csrf
         @method('PUT')
 
@@ -47,46 +47,46 @@
                                         @if(is_bool($settings[$key] ?? null))
                                             <input type="hidden" name="{{ $key }}" value="0">
                                             <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="{{ $key }}" name="{{ $key }}" value="1" @checked((bool) $value)>
+                                                <input class="form-check-input @error($key) is-invalid @enderror" type="checkbox" role="switch" id="{{ $key }}" name="{{ $key }}" value="1" @checked((bool) $value) @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror>
                                                 <label class="form-check-label fw-semibold" for="{{ $key }}">{{ $label }}</label>
                                             </div>
-                                            @error($key)<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback d-block" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @elseif(in_array($key, ['location_update_interval_type'], true))
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
-                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror">
+                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror" @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror>
                                                 <option value="seconds" @selected($value === 'seconds')>Seconds</option>
                                                 <option value="minutes" @selected($value === 'minutes')>Minutes</option>
                                             </select>
-                                            @error($key)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @elseif(in_array($key, ['offline_check_time_type'], true))
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
-                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror">
+                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror" @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror>
                                                 <option value="seconds" @selected($value === 'seconds')>Seconds</option>
                                                 <option value="minutes" @selected($value === 'minutes')>Minutes</option>
                                                 <option value="hours" @selected($value === 'hours')>Hours</option>
                                             </select>
-                                            @error($key)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @elseif($key === 'map_provider')
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
-                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror">
+                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror" @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror>
                                                 <option value="google" @selected($value === 'google')>Google</option>
                                                 <option value="leaflet" @selected($value === 'leaflet')>Leaflet</option>
                                             </select>
-                                            @error($key)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @elseif($key === 'distance_unit')
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
-                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror">
+                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror" @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror>
                                                 <option value="km" @selected($value === 'km')>KM</option>
                                                 <option value="miles" @selected($value === 'miles')>Miles</option>
                                             </select>
-                                            @error($key)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @elseif($key === 'default_route_mode')
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
-                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror">
+                                            <select id="{{ $key }}" name="{{ $key }}" class="form-select @error($key) is-invalid @enderror" @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror>
                                                 <option value="actual" @selected($value === 'actual')>Actual GPS Route</option>
                                                 <option value="road" @selected($value === 'road')>Estimated Road Route</option>
                                             </select>
-                                            @error($key)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @else
                                             <label class="form-label" for="{{ $key }}">{{ $label }}</label>
                                             <input
@@ -96,8 +96,9 @@
                                                 name="{{ $key }}"
                                                 class="form-control @error($key) is-invalid @enderror"
                                                 value="{{ $value }}"
+                                                @error($key) aria-describedby="{{ $key }}_error" aria-invalid="true" @enderror
                                             >
-                                            @error($key)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                            @error($key)<div class="invalid-feedback" id="{{ $key }}_error">{{ $message }}</div>@enderror
                                         @endif
                                     </div>
                                 @endforeach

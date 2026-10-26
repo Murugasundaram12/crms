@@ -19,7 +19,7 @@
         <a href="{{ route('main_categories.index') }}" class="btn btn-outline-light shadow-sm">Back to Main Categories</a>
     </div>
 
-    <form action="{{ route('main_categories.store') }}" method="POST" class="row g-4">
+    <form action="{{ route('main_categories.store') }}" method="POST" class="row g-4" novalidate>
         @csrf
 
         <div class="col-xl-8">
@@ -33,20 +33,17 @@
                         <div class="col-md-6">
                             <label class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}" required>
+                                value="{{ old('name') }}" @error('name') aria-describedby="main_category_name_error" aria-invalid="true" @enderror required>
                             @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block" id="main_category_name_error">{{ $message }}</div>
                             @enderror
                         </div>
-
                     </div>
-                    </xai:function_call name="edit_file">
-                    <parameter name="path">
 
-                        <div class="d-flex justify-content-end gap-2 mt-4">
-                            <button type="reset" class="btn btn-light">Reset</button>
-                            <button type="submit" class="btn btn-primary">Submit</button>
-                        </div>
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="reset" class="btn btn-light">Reset</button>
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </div>
                 </div>
             </div>
         </div>
