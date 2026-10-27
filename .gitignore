@@ -44,3 +44,17 @@ Thumbs.db
 
 # Quarantine / Suspicious files
 demo/vendor/vendor/fakerphp/faker/src/Faker/Provider/is_IS/aAAOBkFTVL.php
+
+# Disposable Browser QA test artifacts
+/storage/testing/*.sqlite*
+/storage/testing/*.pid
+/storage/testing/logs/*.log
+/storage/testing/sessions/*
+!/storage/testing/sessions/.gitkeep
+/storage/testing/uploads/*
+!/storage/testing/uploads/.gitkeep
+/storage/testing/public/*
+!/storage/testing/public/.gitkeep
+/storage/testing/cache/*
+!/storage/testing/cache/.gitkeep
+

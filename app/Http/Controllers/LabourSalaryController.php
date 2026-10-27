@@ -440,17 +440,30 @@ class LabourSalaryController extends Controller
         $totalPaid = round($cashPaid + $advanceAdj, 2);
         $unpaidAmt = round(max(0, $salaryAmount - $totalPaid), 2);
 
-        $expense = Expense::query()
+        $existingExpenses = Expense::withTrashed()
             ->where('source_type', 'labour_salary')
             ->where('source_id', $labourSalary->id)
-            ->first();
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->get();
 
         // Advance adjustment settles an existing liability; it is not a new
         // cash outflow. Keep the expense ledger aligned with the wallet debit
         // and remove stale rows when the salary was fully settled by advance.
         if ($salaryAmount <= 0 || $cashPaid <= 0) {
-            $expense?->delete();
+            Expense::query()
+                ->where('source_type', 'labour_salary')
+                ->where('source_id', $labourSalary->id)
+                ->delete();
             return;
+        }
+
+        // Prefer an existing active record; if none exists, reuse/restore the latest trashed record
+        $targetExpense = $existingExpenses->firstWhere('deleted_at', null);
+
+        if (! $targetExpense && $existingExpenses->isNotEmpty()) {
+            $targetExpense = $existingExpenses->first();
+            $targetExpense->restore();
         }
 
         $category = Category::query()
@@ -485,7 +498,7 @@ class LabourSalaryController extends Controller
 
         $projectId = $this->resolveSalaryProjectId($labourSalary);
 
-        $effectivePayerId = $payerId ?? $expense?->user_id ?? $editorId;
+        $effectivePayerId = $payerId ?? $targetExpense?->user_id ?? $editorId;
 
         $payload = [
             'user_id' => $effectivePayerId,
@@ -506,8 +519,8 @@ class LabourSalaryController extends Controller
             'source_id' => $labourSalary->id,
         ];
 
-        if ($expense) {
-            $expense->update($payload + ['editedBy' => $editorId ?? $payerId]);
+        if ($targetExpense) {
+            $targetExpense->update($payload + ['editedBy' => $editorId ?? $payerId]);
         } else {
             Expense::create($payload);
         }

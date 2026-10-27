@@ -258,10 +258,17 @@ class EmployeeTimelineBuilder
 
         $this->flushSegment($segments, $currentSegment, $settings);
 
+        $polylinePoints = collect($segments)->pluck('points')->flatten(1)->values();
+        if ($polylinePoints->isEmpty() && $items->isNotEmpty()) {
+            $polylinePoints = $items->filter(fn ($item) => ! empty($item['latitude']) && ! empty($item['longitude']))
+                ->map(fn ($item) => ['lat' => (float) $item['latitude'], 'lng' => (float) $item['longitude']])
+                ->values();
+        }
+
         return [
             'items' => $items->values(),
             'polylineSegments' => $segments,
-            'polylinePoints' => collect($segments)->pluck('points')->flatten(1)->values(),
+            'polylinePoints' => $polylinePoints,
             'directionsSegments' => $this->directionsSegments($segments),
             'routeBlocks' => $this->routeBlocks($segments),
             'totalKM' => round((float) collect($segments)->sum('distance_km'), 2),
@@ -467,7 +474,7 @@ class EmployeeTimelineBuilder
             return;
         }
 
-        if (count($segment['unsimplified_points']) >= 2) {
+        if (count($segment['unsimplified_points']) >= 1) {
             $lastPoint = $segment['unsimplified_points'][count($segment['unsimplified_points']) - 1];
             $segment['end_type'] = $lastPoint['type'] ?? null;
             $segment['distance_km'] = round($this->pointsDistanceKm($segment['unsimplified_points']), 2);

@@ -99,6 +99,28 @@
             font-size: 12px;
             font-weight: 600;
         }
+
+        @media print {
+            .sidebar, .header, .report-toolbar, .report-tabs, .pagination, .btn, #reportTableSearchWrapper, .report-chip, .no-print {
+                display: none !important;
+            }
+            .main-wrapper, .page-wrapper, .content, .report-shell, .report-card {
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                width: 100% !important;
+            }
+            .table-responsive {
+                overflow: visible !important;
+            }
+            .report-table {
+                font-size: 10px !important;
+            }
+            .report-table th, .report-table td {
+                padding: 4px 6px !important;
+            }
+        }
     </style>
 @endpush
 
@@ -148,17 +170,27 @@
             <form method="GET" action="{{ route('reports.index') }}" class="row g-3 align-items-end">
                 <input type="hidden" name="type" value="{{ $type }}">
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3">
                     <label class="form-label">From</label>
                     <input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}">
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3">
                     <label class="form-label">To</label>
                     <input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-3 d-flex gap-2">
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <label class="form-label">Project</label>
+                    <select name="project_id" class="form-select">
+                        <option value="">All Projects</option>
+                        @foreach($projects ?? [] as $proj)
+                            <option value="{{ $proj->id }}" @selected(($filters['project_id'] ?? '') == $proj->id)>{{ $proj->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100 shadow-sm">
                         <i class="ti ti-filter me-1"></i>Filter
                     </button>
@@ -169,51 +201,81 @@
             </form>
         </div>
 
+        @php
+            $hasIncome = $isSuperAdmin && isset($summary['income']);
+            $colClass = $hasIncome ? 'col-6 col-md-4 col-xl-2' : 'col-md-6 col-xl-3';
+            $netBalance = $hasIncome ? ((float) ($summary['income'] ?? 0) - (float) ($summary['paid'] ?? 0)) : 0;
+        @endphp
+
         <div class="row g-3 mb-4">
-            <div class="col-md-6 col-xl-3">
+            <div class="{{ $colClass }}">
                 <div class="report-stat h-100">
-                    <div class="d-flex justify-content-between gap-3">
+                    <div class="d-flex justify-content-between gap-2">
                         <div>
-                            <p class="mb-1 text-muted">Entries</p>
-                            <h5 class="mb-0">{{ number_format((int) ($summary['count'] ?? 0)) }}</h5>
+                            <p class="mb-1 text-muted fs-12">Entries</p>
+                            <h5 class="mb-0 fs-16">{{ number_format((int) ($summary['count'] ?? 0)) }}</h5>
                         </div>
                         <span class="report-stat-icon bg-primary-transparent text-primary"><i class="ti ti-list-details"></i></span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-xl-3">
+            <div class="{{ $colClass }}">
                 <div class="report-stat h-100">
-                    <div class="d-flex justify-content-between gap-3">
+                    <div class="d-flex justify-content-between gap-2">
                         <div>
-                            <p class="mb-1 text-muted">Amount</p>
-                            <h5 class="mb-0">Rs {{ number_format((float) ($summary['total_amount'] ?? 0), 2) }}</h5>
+                            <p class="mb-1 text-muted fs-12">Total Expenses</p>
+                            <h5 class="mb-0 fs-16 text-warning">Rs {{ number_format((float) ($summary['total_amount'] ?? 0), 2) }}</h5>
                         </div>
                         <span class="report-stat-icon bg-warning-transparent text-warning"><i class="ti ti-receipt-rupee"></i></span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-xl-3">
+            <div class="{{ $colClass }}">
                 <div class="report-stat h-100">
-                    <div class="d-flex justify-content-between gap-3">
+                    <div class="d-flex justify-content-between gap-2">
                         <div>
-                            <p class="mb-1 text-muted">Paid</p>
-                            <h5 class="mb-0 text-success">Rs {{ number_format((float) ($summary['paid'] ?? 0), 2) }}</h5>
+                            <p class="mb-1 text-muted fs-12">Expenses Paid</p>
+                            <h5 class="mb-0 fs-16 text-success">Rs {{ number_format((float) ($summary['paid'] ?? 0), 2) }}</h5>
                         </div>
                         <span class="report-stat-icon bg-success-transparent text-success"><i class="ti ti-circle-check"></i></span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-xl-3">
+            <div class="{{ $colClass }}">
                 <div class="report-stat h-100">
-                    <div class="d-flex justify-content-between gap-3">
+                    <div class="d-flex justify-content-between gap-2">
                         <div>
-                            <p class="mb-1 text-muted">Unpaid</p>
-                            <h5 class="mb-0 text-danger">Rs {{ number_format((float) ($summary['unpaid'] ?? 0), 2) }}</h5>
+                            <p class="mb-1 text-muted fs-12">Expenses Unpaid</p>
+                            <h5 class="mb-0 fs-16 text-danger">Rs {{ number_format((float) ($summary['unpaid'] ?? 0), 2) }}</h5>
                         </div>
                         <span class="report-stat-icon bg-danger-transparent text-danger"><i class="ti ti-alert-circle"></i></span>
                     </div>
                 </div>
             </div>
+            @if($hasIncome)
+                <div class="{{ $colClass }}">
+                    <div class="report-stat h-100">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div>
+                                <p class="mb-1 text-muted fs-12">Income Received</p>
+                                <h5 class="mb-0 fs-16 text-info">Rs {{ number_format((float) ($summary['income'] ?? 0), 2) }}</h5>
+                            </div>
+                            <span class="report-stat-icon bg-info-transparent text-info"><i class="ti ti-wallet"></i></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="{{ $colClass }}">
+                    <div class="report-stat h-100">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div>
+                                <p class="mb-1 text-muted fs-12">Net Balance</p>
+                                <h5 class="mb-0 fs-16 {{ $netBalance >= 0 ? 'text-success' : 'text-danger' }}">Rs {{ number_format($netBalance, 2) }}</h5>
+                            </div>
+                            <span class="report-stat-icon {{ $netBalance >= 0 ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger' }}"><i class="ti {{ $netBalance >= 0 ? 'ti-trending-up' : 'ti-trending-down' }}"></i></span>
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="report-card">
@@ -222,10 +284,22 @@
                     <h5 class="mb-1">{{ $title }} List</h5>
                     <p class="text-muted mb-0 fs-13">Showing {{ $records->firstItem() ?? 0 }} to {{ $records->lastItem() ?? 0 }} of {{ number_format($records->total()) }} entries</p>
                 </div>
-                <span class="report-chip">
-                    <i class="ti ti-calendar-stats me-1"></i>
-                    {{ filled($filters['date_from'] ?? null) || filled($filters['date_to'] ?? null) ? 'Filtered' : 'All dates' }}
-                </span>
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="reportTableSearchWrapper">
+                    <div class="input-group input-group-sm" style="width: 200px;">
+                        <span class="input-group-text bg-white border-end-0"><i class="ti ti-search text-muted"></i></span>
+                        <input type="text" id="reportTableSearchInput" class="form-control border-start-0" placeholder="Filter rows...">
+                    </div>
+                    <span class="report-chip no-print">
+                        <i class="ti ti-calendar-stats me-1"></i>
+                        {{ filled($filters['date_from'] ?? null) || filled($filters['date_to'] ?? null) || filled($filters['project_id'] ?? null) ? 'Filtered' : 'All records' }}
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()" title="Print Report">
+                        <i class="ti ti-printer me-1"></i>Print
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success no-print" id="exportReportCsvBtn" title="Export CSV">
+                        <i class="ti ti-file-spreadsheet me-1"></i>Export CSV
+                    </button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-nowrap align-middle mb-0 report-table">
@@ -296,3 +370,62 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Live table row filter
+            const searchInput = document.getElementById('reportTableSearchInput');
+            const table = document.querySelector('.report-table');
+            if (searchInput && table) {
+                const tbody = table.querySelector('tbody');
+                const rows = tbody.querySelectorAll('tr');
+
+                searchInput.addEventListener('input', function () {
+                    const query = this.value.trim().toLowerCase();
+                    rows.forEach(function (row) {
+                        if (row.cells.length <= 1) return;
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(query) ? '' : 'none';
+                    });
+                });
+            }
+
+            // CSV Export
+            const exportBtn = document.getElementById('exportReportCsvBtn');
+            if (exportBtn && table) {
+                exportBtn.addEventListener('click', function () {
+                    let csv = [];
+                    const rows = table.querySelectorAll('tr');
+
+                    rows.forEach(function (row) {
+                        if (row.style.display === 'none' || row.cells.length <= 1) return;
+                        let rowData = [];
+                        const cols = row.querySelectorAll('th, td');
+                        cols.forEach(function (col) {
+                            let text = col.innerText.replace(/(\r\n|\n|\r)/gm, ' ').trim();
+                            text = text.replace(/"/g, '""');
+                            rowData.push('"' + text + '"');
+                        });
+                        csv.push(rowData.join(','));
+                    });
+
+                    if (csv.length <= 1) {
+                        alert('No data available to export.');
+                        return;
+                    }
+
+                    const csvContent = '\uFEFF' + csv.join('\r\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', 'Report_{{ $type }}_' + new Date().toISOString().slice(0, 10) + '.csv');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+        });
+    </script>
+@endpush

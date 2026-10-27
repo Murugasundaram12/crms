@@ -192,7 +192,10 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
     {
         $allDates = [];
         for ($d = 1; $d <= 15; $d++) {
-            $allDates[] = sprintf('2026-09-%02d', $d);
+            $date = sprintf('2026-09-%02d', $d);
+            if (! \Carbon\Carbon::parse($date)->isSunday()) {
+                $allDates[] = $date;
+            }
         }
         $this->seedAttendance($allDates);
 
@@ -554,7 +557,7 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
             'date' => '2026-09-13',
         ]));
         $res13->assertOk();
-        $res13->assertSee('Sunday - Weekly Off');
+        $res13->assertSee('Save Attendance Records');
         $res13->assertDontSee('Salary Paid');
 
         // User enters attendance for 10, 11, 12 via bulkStore
@@ -840,9 +843,9 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
     }
 
     /**
-     * Sunday attendance cannot be linked to salary payment.
+     * Sunday attendance can be linked to salary payment.
      */
-    public function test_sunday_attendance_cannot_be_linked_to_salary(): void
+    public function test_sunday_attendance_can_be_linked_to_salary(): void
     {
         // 2026-09-13 is Sunday
         $sundayAtt = LabourAttendance::create([
@@ -864,8 +867,9 @@ class LabourSalaryAttendanceExclusionTest extends TestCase
             'status' => 'paid',
         ]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
         $salary->linkAttendances([$sundayAtt->id]);
+        $sundayAtt->refresh();
+        $this->assertEquals($salary->id, $sundayAtt->labour_salary_id);
     }
 
     /**

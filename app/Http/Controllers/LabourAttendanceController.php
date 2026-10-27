@@ -355,6 +355,7 @@ class LabourAttendanceController extends Controller
             return static::isAttendancePaid($att);
         });
 
+
         $presentDays = $attendances->where('status', 'present')->count();
         $halfDays = $attendances->where('status', 'half_day')->count();
         $absentDays = $attendances->where('status', 'absent')->count();

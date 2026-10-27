@@ -25,6 +25,16 @@ class LabourAssignment extends Model
         'end_date' => 'date',
     ];
 
+    public function setStartDateAttribute($value): void
+    {
+        $this->attributes['start_date'] = $value ? \Carbon\Carbon::parse($value)->toDateString() : null;
+    }
+
+    public function setEndDateAttribute($value): void
+    {
+        $this->attributes['end_date'] = $value ? \Carbon\Carbon::parse($value)->toDateString() : null;
+    }
+
     public function labour(): BelongsTo
     {
         return $this->belongsTo(Labour::class);

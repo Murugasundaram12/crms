@@ -32,6 +32,7 @@ class ToolMaterialFlowTest extends TestCase
 
         foreach (
             [
+                'units',
                 'tool_material_assignments',
                 'tools_materials',
                 'vendors',
@@ -47,6 +48,31 @@ class ToolMaterialFlowTest extends TestCase
         ) {
             Schema::dropIfExists($table);
         }
+
+        Schema::create('units', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name', 100);
+            $table->string('code', 50)->unique();
+            $table->string('description')->nullable();
+            $table->boolean('active_status')->default(true);
+            $table->timestamps();
+        });
+
+        $now = now();
+        DB::table('units')->insert([
+            ['name' => 'Square Feet', 'code' => 'sft', 'description' => 'Area measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cubic Feet', 'code' => 'cft', 'description' => 'Volume measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Numbers', 'code' => 'Nos', 'description' => 'Count measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Pieces', 'code' => 'pcs', 'description' => 'Piece count', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Square Meter', 'code' => 'Sqm', 'description' => 'Area measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cubic Meter', 'code' => 'Cum', 'description' => 'Volume measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Meter', 'code' => 'm', 'description' => 'Length measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Feet', 'code' => 'ft', 'description' => 'Length measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Kilogram', 'code' => 'kg', 'description' => 'Weight measurement', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Bag', 'code' => 'bag', 'description' => 'Bag count', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Bag', 'code' => 'Bag', 'description' => 'Bag count', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'CFT', 'code' => 'CFT', 'description' => 'CFT count', 'active_status' => true, 'created_at' => $now, 'updated_at' => $now],
+        ]);
 
         Schema::create('users', function (Blueprint $table): void {
             $table->id();
@@ -158,10 +184,12 @@ class ToolMaterialFlowTest extends TestCase
             $table->string('reference_no')->nullable()->unique();
             $table->string('status', 30)->default('draft');
             $table->foreignId('tool_material_id');
+            $table->foreignId('preorder_id')->nullable();
             $table->foreignId('from_project_id')->nullable();
             $table->foreignId('to_project_id')->nullable();
             $table->foreignId('vendor_id')->nullable();
             $table->foreignId('handled_by')->nullable();
+            $table->foreignId('payment_method_id')->nullable();
             $table->string('transfer_type', 50);
             $table->string('transaction_type', 50);
             $table->string('source_type', 50)->nullable();
@@ -170,6 +198,7 @@ class ToolMaterialFlowTest extends TestCase
             $table->string('unit', 50)->default('Nos');
             $table->decimal('rate', 12, 2)->default(0);
             $table->decimal('amount', 12, 2)->default(0);
+            $table->decimal('advance_amount', 12, 2)->default(0);
             $table->string('receiver_name')->nullable();
             $table->string('vehicle_no')->nullable();
             $table->string('purpose')->nullable();

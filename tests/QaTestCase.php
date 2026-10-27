@@ -179,13 +179,18 @@ abstract class QaTestCase extends TestCase
         if (! Schema::hasTable('payments')) {
             Schema::create('payments', function (Blueprint $table): void {
                 $table->id();
+                $table->string('payment_code')->nullable();
                 $table->foreignId('client_id')->nullable();
                 $table->foreignId('project_id')->nullable();
                 $table->foreignId('quotation_id')->nullable();
                 $table->foreignId('stage_id')->nullable();
                 $table->foreignId('payment_method_id')->nullable();
                 $table->decimal('amount', 14, 2)->default(0);
+                $table->string('method')->default('cash');
                 $table->string('status')->default('paid');
+                $table->date('payment_date')->nullable();
+                $table->timestamp('paid_at')->nullable();
+                $table->text('notes')->nullable();
                 $table->timestamps();
             });
         }

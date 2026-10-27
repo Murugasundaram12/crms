@@ -31,6 +31,12 @@ class ReportController extends Controller
             default => $this->reportService->siteReport($filters),
         };
 
-        return view('pages.reports.index', array_merge($data, ['type' => $type, 'filters' => $filters]));
+        $projects = \App\Models\Project::query()->orderBy('name')->get(['id', 'name']);
+
+        return view('pages.reports.index', array_merge($data, [
+            'type' => $type,
+            'filters' => $filters,
+            'projects' => $projects,
+        ]));
     }
 }

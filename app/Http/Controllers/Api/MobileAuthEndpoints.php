@@ -92,7 +92,9 @@ trait MobileAuthEndpoints
         }
 
         $device = null;
-        $credentials['device_id'] = $credentials['device_id'] ?: $this->fallbackDeviceIdForLogin($user, $request);
+        if ($this->isLegacyDeviceId($credentials['device_id'] ?? null) || empty($credentials['device_id'])) {
+            $credentials['device_id'] = $this->fallbackDeviceIdForLogin($user, $request);
+        }
 
         $hasEmployeeDevicesTable = Schema::hasTable('employee_devices');
         $otherUserDevice = $hasEmployeeDevicesTable
@@ -200,10 +202,15 @@ trait MobileAuthEndpoints
     {
         $existingDevice = EmployeeDevice::query()
             ->where('employee_id', $user->id)
-            ->latest('last_seen_at')
-            ->first();
+            ->where('device_id', 'not like', 'legacy-%')
+            ->latest('id')
+            ->first()
+            ?: EmployeeDevice::query()
+                ->where('employee_id', $user->id)
+                ->latest('id')
+                ->first();
 
-        if ($existingDevice) {
+        if ($existingDevice && filled($existingDevice->device_id)) {
             return (string) $existingDevice->device_id;
         }
 

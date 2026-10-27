@@ -416,14 +416,27 @@ class MobileApiController extends Controller
 
     protected function validateWalletData(Request $request): array
     {
+        $paymentMethodRule = function ($attribute, $value, $fail) {
+            if (blank($value)) {
+                return;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasTable('payment_methods') && \App\Models\PaymentMethod::query()->where('id', $value)->exists()) {
+                return;
+            }
+            if (in_array((int) $value, [1, 2, 3, 4], true)) {
+                return;
+            }
+            $fail('The selected ' . str_replace('_', ' ', $attribute) . ' is invalid.');
+        };
+
         $validated = $request->validate([
             'employee_id' => ['nullable', 'integer'],
             'user_id' => ['nullable', 'exists:users,id'],
             'client_id' => ['required', 'exists:clients,id'],
             'project_id' => ['required', 'exists:projects,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
-            'payment_method_id' => ['required_without:payment_mode', 'nullable', 'exists:payment_methods,id'],
-            'payment_mode' => ['required_without:payment_method_id', 'nullable', 'exists:payment_methods,id'],
+            'payment_method_id' => ['required_without:payment_mode', 'nullable', $paymentMethodRule],
+            'payment_mode' => ['required_without:payment_method_id', 'nullable', $paymentMethodRule],
             'transfer_type' => ['required', 'integer', 'in:0,1'],
             'stage_id' => ['nullable', 'exists:payment_stages,id'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -703,9 +716,11 @@ class MobileApiController extends Controller
             return;
         }
 
-        MobileApiToken::query()
-            ->where('token_hash', hash('sha256', $plainToken))
-            ->update(['device_id' => $deviceId]);
+        if (Schema::hasColumn('mobile_api_tokens', 'device_id')) {
+            MobileApiToken::query()
+                ->where('token_hash', hash('sha256', $plainToken))
+                ->update(['device_id' => $deviceId]);
+        }
 
         $request->attributes->set('mobile_device_id', $deviceId);
     }
@@ -745,10 +760,7 @@ class MobileApiController extends Controller
         if (!$attendance) {
             $active = $this->activeAttendance($userId);
             if ($active) {
-                $checkInTime = Carbon::parse($active->check_in_at);
-                if ($recordedAt->gte($checkInTime->subMinutes(5))) {
-                    $attendance = $active;
-                }
+                $attendance = $active;
             }
         }
 
@@ -780,7 +792,7 @@ class MobileApiController extends Controller
         return $request;
     }
 
-    protected function upsertDeviceStatus(int $userId, array $payload): EmployeeDevice
+    protected function upsertDeviceStatus(int $userId, array $payload, bool $includeCoordinates = true): EmployeeDevice
     {
         $deviceId = $payload['device_id'] ?? 'default';
         $deviceValues = [
@@ -790,20 +802,36 @@ class MobileApiController extends Controller
             'board' => $payload['board'] ?? null,
             'sdk_version' => $payload['sdk_version'] ?? null,
             'model' => $payload['model'] ?? null,
-            'latitude' => $payload['latitude'],
-            'longitude' => $payload['longitude'],
-            'accuracy' => $payload['accuracy'] ?? null,
-            'speed' => $payload['speed'] ?? null,
-            'bearing' => $payload['bearing'] ?? null,
-            'activity' => $payload['activity'] ?? null,
-            'is_gps_on' => $payload['is_gps_on'],
+            'is_gps_on' => $payload['is_gps_on'] ?? true,
             'is_wifi_on' => $payload['is_wifi_on'] ?? false,
-            'is_mock_location' => $payload['is_mock_location'],
+            'is_mock_location' => $payload['is_mock_location'] ?? false,
             'signal_strength' => $payload['signal_strength'] ?? null,
             'last_seen_at' => isset($payload['recorded_at']) ? Carbon::parse($payload['recorded_at']) : now(),
         ];
+        if ($includeCoordinates) {
+            $deviceValues['latitude'] = $payload['latitude'];
+            $deviceValues['longitude'] = $payload['longitude'];
+            $deviceValues['accuracy'] = $payload['accuracy'] ?? null;
+            $deviceValues['speed'] = $payload['speed'] ?? null;
+            $deviceValues['bearing'] = $payload['bearing'] ?? null;
+            $deviceValues['activity'] = $payload['activity'] ?? null;
+        }
         if (($payload['battery_percentage'] ?? null) !== null) {
             $deviceValues['battery_percentage'] = $payload['battery_percentage'];
+        }
+
+        if (! $this->isLegacyDeviceId($deviceId)) {
+            $legacyDevice = EmployeeDevice::query()
+                ->where('employee_id', $userId)
+                ->where('device_id', 'like', 'legacy-%')
+                ->first();
+            if ($legacyDevice) {
+                $legacyDevice->update($this->availableEmployeeDeviceAttributes([
+                    ...$deviceValues,
+                    'device_id' => $deviceId,
+                ]));
+                return $legacyDevice->refresh();
+            }
         }
 
         return EmployeeDevice::query()->updateOrCreate(
@@ -850,9 +878,19 @@ class MobileApiController extends Controller
         ];
     }
 
+    protected function trackingValidationOverrides(): array
+    {
+        return [
+            'gps_max_accuracy_metres' => (float) $this->settingValue('gps_max_accuracy_metres', $this->settingValue('max_accuracy_meters', 50)),
+            'gps_min_distance_metres' => (float) $this->settingValue('gps_min_distance_metres', $this->settingValue('minimum_distance_meters', 8)),
+            'mock_location_allowed' => (bool) $this->settingValue('mock_location_allowed', false),
+        ];
+    }
+
     protected function latestValidTrackingPoints(int $userId, ?string $deviceId = null, int $limit = 2)
     {
         $validator = app(GpsTrackingValidationService::class);
+        $overrides = $this->trackingValidationOverrides();
 
         return LocationTracking::query()
             ->where('employee_id', $userId)
@@ -861,7 +899,7 @@ class MobileApiController extends Controller
             ->latest('id')
             ->limit(50)
             ->get()
-            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking))
+            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking, $overrides))
             ->take($limit)
             ->values();
     }
@@ -869,6 +907,7 @@ class MobileApiController extends Controller
     protected function latestValidTrackingPointsBefore(int $userId, ?string $deviceId = null, int $limit = 2, Carbon|string|null $recordedAt = null)
     {
         $validator = app(GpsTrackingValidationService::class);
+        $overrides = $this->trackingValidationOverrides();
         $recordedAt = $recordedAt ? Carbon::parse($recordedAt) : now();
 
         return LocationTracking::query()
@@ -885,7 +924,7 @@ class MobileApiController extends Controller
             ->latest('id')
             ->limit(50)
             ->get()
-            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking))
+            ->filter(fn (LocationTracking $tracking) => $validator->hasStandaloneQuality($tracking, $overrides))
             ->take($limit)
             ->values();
     }
@@ -921,11 +960,6 @@ class MobileApiController extends Controller
             $deviceId = $validated['device_id'] ?? 'default';
             $duplicate = $this->duplicateTrackingPoint($user->id, $deviceId, $validated);
             if ($duplicate) {
-                $validator = app(GpsTrackingValidationService::class);
-                if ($validator->hasStandaloneQuality($validated)) {
-                    $this->upsertDeviceStatus($user->id, $validated);
-                }
-
                 return [
                     $duplicate->refresh(),
                     false,
@@ -944,12 +978,13 @@ class MobileApiController extends Controller
             );
             $lastTracking = $previousTrackings->get(0);
             $previousPreviousTracking = $previousTrackings->get(1);
+            $overrides = $this->trackingValidationOverrides();
             $validator = app(GpsTrackingValidationService::class);
             $gpsValidation = $validator
-                ->validate($validated, $lastTracking, $previousPreviousTracking);
+                ->validate($validated, $lastTracking, $previousPreviousTracking, $overrides);
 
-            if ($validator->hasStandaloneQuality($validated)) {
-                $this->upsertDeviceStatus($user->id, $validated);
+            if ($validator->hasStandaloneQuality($validated, $overrides)) {
+                $this->upsertDeviceStatus($user->id, $validated, (bool) ($gpsValidation['accepted'] ?? false));
             }
 
             if (! $gpsValidation['accepted']) {
@@ -1128,11 +1163,15 @@ class MobileApiController extends Controller
 
     protected function publicAppSettingsPayload(): array
     {
+        $trackingSettings = $this->trackingSettingsPayload();
+
         return [
             'app_version' => $this->settingValue('app_version', '1.0.0'),
             'minimum_supported_version' => $this->settingValue('minimum_supported_version', '1.0.0'),
             'force_update' => $this->settingValue('force_update', false),
             'privacy_policy_url' => $this->settingValue('privacy_policy_url', ''),
+            'tracking_interval_seconds' => $trackingSettings['trackingIntervalSeconds'],
+            'tracking_settings' => $trackingSettings,
             'server_time' => now()->toISOString(),
             'timezone' => config('app.timezone'),
         ];
@@ -1189,15 +1228,7 @@ class MobileApiController extends Controller
 
     protected function publicModuleSettingsPayload(): array
     {
-        return [
-            'modules' => [
-                'tasks' => $this->settingValue('tasks_enabled', true),
-                'expenses' => $this->settingValue('expenses_enabled', true),
-                'inventory' => $this->settingValue('inventory_enabled', true),
-                'wallet' => $this->settingValue('wallet_enabled', true),
-                'leave_requests' => $this->settingValue('leave_requests_enabled', true),
-            ],
-        ];
+        return $this->moduleSettingsPayload();
     }
 
     protected function mapSettingsPayload(): array

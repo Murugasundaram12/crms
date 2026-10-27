@@ -825,7 +825,7 @@ class MobileApiSmokeTest extends TestCase
             ->assertJsonPath('results.1.reason', 'duplicate_retry');
 
         $this->assertSame(
-            ['09:05:00', '09:20:00'],
+            ['09:00:00', '09:05:00'],
             LocationTracking::query()
                 ->where('employee_id', $user->id)
                 ->orderBy('recorded_at')

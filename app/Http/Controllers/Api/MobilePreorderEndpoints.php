@@ -164,10 +164,24 @@ trait MobilePreorderEndpoints
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'unit_id' => ['nullable', Rule::exists('units', 'id')->where('active_status', true)],
-            'unit' => ['nullable', Rule::exists('units', 'code')->where('active_status', true)],
+            'unit' => ['nullable', $this->unitExistsRule(true)],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'advance_amount' => ['nullable', 'numeric', 'min:0'],
+            'advance_amount' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                function ($attribute, $value, $fail) use ($request) {
+                    $qty = (float) $request->input('quantity', 0);
+                    $rate = (float) $request->input('expected_rate', 0);
+                    $gstPercent = (float) $request->input('gst_percent', 0);
+                    $estimated = $qty * $rate;
+                    $total = $estimated + ($estimated * ($gstPercent / 100));
+                    if ((float) $value > $total) {
+                        $fail('Advance amount cannot exceed total amount (Rs. ' . number_format($total, 2) . ').');
+                    }
+                }
+            ],
             'required_date' => ['nullable', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],
             'preorder_date' => ['nullable', 'date'],
@@ -246,7 +260,7 @@ trait MobilePreorderEndpoints
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'unit_id' => ['nullable', 'exists:units,id'],
-            'unit' => ['nullable', Rule::exists('units', 'code')],
+            'unit' => ['nullable', $this->unitExistsRule(false)],
             'expected_rate' => ['required', 'numeric', 'min:0'],
             'gst_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'required_date' => ['nullable', 'date'],
@@ -313,7 +327,7 @@ trait MobilePreorderEndpoints
             'success' => true,
             'message' => 'Preorder updated successfully.',
             'data' => $this->preorderPayload($preorder->fresh(['toolMaterial', 'vendor', 'paymentMethod', 'creator'])),
-        ]);
+        ], 200, [], JSON_PRESERVE_ZERO_FRACTION);
     }
 
     public function approvePreorder(Request $request, Preorder $preorder)
@@ -551,6 +565,34 @@ trait MobilePreorderEndpoints
         ];
     }
 
+    private function unitExistsRule(bool $activeOnly = true): \Closure
+    {
+        return function ($attribute, $value, $fail) use ($activeOnly) {
+            if ($value === null || $value === '') {
+                return;
+            }
+            if (! Schema::hasTable('units')) {
+                return;
+            }
+            $raw = trim((string) $value);
+            $single = rtrim($raw, 'sS');
+            $query = Unit::query();
+            if ($activeOnly) {
+                $query->active();
+            }
+            $exists = $query->where(function ($q) use ($raw, $single) {
+                $q->whereRaw('LOWER(code) = ?', [strtolower($raw)])
+                  ->orWhereRaw('LOWER(code) = ?', [strtolower($single)])
+                  ->orWhereRaw('LOWER(name) = ?', [strtolower($raw)])
+                  ->orWhereRaw('LOWER(name) = ?', [strtolower($single)]);
+            })->exists();
+
+            if (! $exists) {
+                $fail('The selected unit is invalid.');
+            }
+        };
+    }
+
     private function resolvePreorderUnitCode(array $validated, ToolMaterial $material, bool $activeOnly = true): string
     {
         if (! empty($validated['unit_id'])) {
@@ -560,6 +602,25 @@ trait MobilePreorderEndpoints
             }
 
             return $query->value('code') ?: ($material->unit ?? 'Nos');
+        }
+
+        if (! empty($validated['unit']) && Schema::hasTable('units')) {
+            $raw = trim((string) $validated['unit']);
+            $single = rtrim($raw, 'sS');
+            $query = Unit::query();
+            if ($activeOnly) {
+                $query->active();
+            }
+            $code = $query->where(function ($q) use ($raw, $single) {
+                $q->whereRaw('LOWER(code) = ?', [strtolower($raw)])
+                  ->orWhereRaw('LOWER(code) = ?', [strtolower($single)])
+                  ->orWhereRaw('LOWER(name) = ?', [strtolower($raw)])
+                  ->orWhereRaw('LOWER(name) = ?', [strtolower($single)]);
+            })->value('code');
+
+            if ($code) {
+                return $code;
+            }
         }
 
         return $validated['unit'] ?? $material->unit ?? 'Nos';

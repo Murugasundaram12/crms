@@ -217,6 +217,26 @@ class GpsTrackingValidationService
             ]);
         }
 
+        if (($currentPoint['type'] ?? null) === 'checked_out') {
+            $previousPoint = $this->pointData($previous);
+            return $this->accepted([
+                'distance_metres' => $this->distanceMetres(
+                    (float) $previousPoint['latitude'],
+                    (float) $previousPoint['longitude'],
+                    (float) $currentPoint['latitude'],
+                    (float) $currentPoint['longitude']
+                ),
+                'time_difference_seconds' => max(0, $this->timeDifferenceSeconds(
+                    $previousPoint['recorded_at'],
+                    $currentPoint['recorded_at']
+                )),
+                'speed_mps' => null,
+                'speed_kmph' => null,
+                'bearing' => null,
+                'bearing_difference' => null,
+            ]);
+        }
+
         /*
         |--------------------------------------------------------------------------
         | 7. Previous point data extraction
@@ -414,7 +434,15 @@ class GpsTrackingValidationService
             'bearing_difference' => $bearingDifference,
         ];
 
+        $minStationaryDistance = (float) (
+            $settings['gps_min_distance_metres']
+            ?? self::DEFAULT_STATIONARY_DISTANCE_METRES
+        );
+
         $evalSpeed = $speedMps;
+        if ($currentPoint['speed'] !== null && (float) $currentPoint['speed'] >= self::DEFAULT_STATIONARY_SPEED_MPS) {
+            $evalSpeed = max($speedMps, (float) $currentPoint['speed']);
+        }
         $accuracy = (float) $currentPoint['accuracy'];
 
         /*
@@ -426,14 +454,16 @@ class GpsTrackingValidationService
         |
         */
 
-        $minStationaryDistance = (float) (
-            $settings['gps_min_distance_metres']
-            ?? self::DEFAULT_STATIONARY_DISTANCE_METRES
-        );
-
-        if ($evalSpeed < self::DEFAULT_STATIONARY_SPEED_MPS || $distanceMetres < $minStationaryDistance) {
+        if ($evalSpeed < self::DEFAULT_STATIONARY_SPEED_MPS) {
             return $this->rejected(
                 'speed_below_threshold',
+                $metrics
+            );
+        }
+
+        if ($distanceMetres < $minStationaryDistance) {
+            return $this->rejected(
+                ($minStationaryDistance <= 5.0 && $timeDifferenceSeconds < 10) ? 'speed_below_threshold' : 'distance_below_threshold',
                 $metrics
             );
         }

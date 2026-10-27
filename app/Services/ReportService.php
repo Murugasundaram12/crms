@@ -26,9 +26,9 @@ class ReportService
 
         $this->applyDateFilters($query, $filters, 'current_date');
 
-        $records = $query->paginate(self::PER_PAGE)->withQueryString();
-
         $summary = $this->buildExpenseQuerySummary($query, $filters);
+
+        $records = $query->paginate(self::PER_PAGE)->withQueryString();
 
         return [
             'records' => $this->mapExpenseRows($records),
@@ -64,10 +64,7 @@ class ReportService
 
     private function buildMergedPaginator(array $filters, bool $includeProjectExpenses): array
     {
-        $reportQuery = DB::query()->fromSub(
-            $this->mergedReportUnion($filters, $includeProjectExpenses),
-            'report_rows'
-        );
+        $reportQuery = $this->buildMergedReportQuery($filters, $includeProjectExpenses);
 
         $summary = $this->buildMergedSummary($filters, $includeProjectExpenses);
 
@@ -104,6 +101,13 @@ class ReportService
             $expenseQuery->whereNull('project_id');
         }
 
+        if (Schema::hasColumn('expenses', 'source_type')) {
+            $expenseQuery->where(function ($q) {
+                $q->whereNull('expenses.source_type')
+                    ->orWhere('expenses.source_type', '!=', 'labour_salary');
+            });
+        }
+
         $this->applyQueryDateFilters($expenseQuery, $filters, 'current_date');
 
         if (! empty($filters['project_id'])) {
@@ -132,13 +136,14 @@ class ReportService
         $salaryPaidExpression = $salaryHasPaidColumn && $salaryStatusColumn
             ? "CASE WHEN employee_salaries.{$salaryStatusColumn} IN ('paid', 'partial') THEN COALESCE(employee_salaries.{$salaryPaidColumn}, 0) ELSE 0 END"
             : ($salaryHasPaidColumn ? "COALESCE(employee_salaries.{$salaryPaidColumn}, 0)" : '0');
+        $salaryDiff = "(COALESCE(employee_salaries.{$salaryAmountColumn}, 0) - "
+            . ($salaryHasPaidColumn ? "COALESCE(employee_salaries.{$salaryPaidColumn}, 0)" : '0')
+            . ')';
         $salaryUnpaidExpression = $salaryRemainingColumn
             ? ($salaryStatusColumn
                 ? "CASE WHEN employee_salaries.{$salaryStatusColumn} IN ('pending', 'partial') THEN COALESCE(employee_salaries.{$salaryRemainingColumn}, 0) ELSE 0 END"
                 : "COALESCE(employee_salaries.{$salaryRemainingColumn}, 0)")
-            : "GREATEST(COALESCE(employee_salaries.{$salaryAmountColumn}, 0) - "
-                . ($salaryHasPaidColumn ? "COALESCE(employee_salaries.{$salaryPaidColumn}, 0)" : '0')
-                . ', 0)';
+            : "CASE WHEN {$salaryDiff} > 0 THEN {$salaryDiff} ELSE 0 END";
         $salaryTotals = (clone $salaryQuery)
             ->selectRaw('COUNT(*) as count')
             ->selectRaw("COALESCE(SUM(employee_salaries.{$salaryAmountColumn}), 0) as total_amount")
@@ -146,20 +151,40 @@ class ReportService
             ->selectRaw("COALESCE(SUM({$salaryUnpaidExpression}), 0) as remaining_amount")
             ->first();
 
+        $hasExpenseSource = Schema::hasColumn('expenses', 'source_type') && Schema::hasColumn('expenses', 'source_id');
         $labourSalaryQuery = DB::table('labour_salaries');
-        $this->applyQueryDateFilters($labourSalaryQuery, $filters, 'payment_date');
+
+        if ($hasExpenseSource) {
+            $salaryExpensesQuery = $this->deduplicatedSalaryExpensesQuery();
+            $labourSalaryQuery->leftJoinSub($salaryExpensesQuery, 'salary_expenses', function ($join) {
+                $join->on('salary_expenses.source_id', '=', 'labour_salaries.id');
+            });
+        }
+
+        $this->applyQueryDateFilters($labourSalaryQuery, $filters, 'labour_salaries.payment_date');
+
+        if ($hasExpenseSource) {
+            if (! $includeProjectExpenses) {
+                $labourSalaryQuery->whereNull('salary_expenses.project_id');
+            } elseif (! empty($filters['project_id'])) {
+                $labourSalaryQuery->where('salary_expenses.project_id', $filters['project_id']);
+            }
+        } elseif (! empty($filters['project_id'])) {
+            $labourSalaryQuery->whereRaw('1 = 0');
+        }
+
         $labourTotals = (clone $labourSalaryQuery)
             ->selectRaw('COUNT(*) as count')
-            ->selectRaw('COALESCE(SUM(salary_amount), 0) as total_amount')
-            ->selectRaw("COALESCE(SUM(CASE WHEN status IN ('paid', 'partial') THEN paid_amount ELSE 0 END), 0) as paid_amount")
-            ->selectRaw("COALESCE(SUM(CASE WHEN status IN ('pending', 'partial') THEN remaining_amount ELSE 0 END), 0) as remaining_amount")
+            ->selectRaw('COALESCE(SUM(labour_salaries.salary_amount), 0) as total_amount')
+            ->selectRaw("COALESCE(SUM(CASE WHEN labour_salaries.status IN ('paid', 'partial') THEN labour_salaries.paid_amount ELSE 0 END), 0) as paid_amount")
+            ->selectRaw("COALESCE(SUM(CASE WHEN labour_salaries.status IN ('pending', 'partial') THEN labour_salaries.remaining_amount ELSE 0 END), 0) as remaining_amount")
             ->first();
 
         $salaryAmount = (float) ($salaryTotals->total_amount ?? 0);
         $salaryPaidAmount = (float) ($salaryTotals->paid_amount ?? 0);
         $labourAmount = (float) ($labourTotals->total_amount ?? 0);
         $labourPaidAmount = (float) ($labourTotals->paid_amount ?? 0);
-        $incomeQuery = Payment::query()->where('status', 'paid');
+        $incomeQuery = Payment::query()->whereIn('status', ['paid', 'partial']);
         $this->applyDateFilters($incomeQuery, $filters, 'payment_date');
 
         if (! empty($filters['project_id'])) {
@@ -179,7 +204,24 @@ class ReportService
         ];
     }
 
-    private function mergedReportUnion(array $filters, bool $includeProjectExpenses): QueryBuilder
+    private function buildMergedReportQuery(array $filters, bool $includeProjectExpenses): QueryBuilder
+    {
+        [$expenseQuery, $employeeSalaryQuery, $labourQuery] = $this->mergedReportQueries($filters, $includeProjectExpenses);
+
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $sql = $expenseQuery->toSql() . ' UNION ALL ' . $employeeSalaryQuery->toSql() . ' UNION ALL ' . $labourQuery->toSql();
+            $bindings = array_merge($expenseQuery->getBindings(), $employeeSalaryQuery->getBindings(), $labourQuery->getBindings());
+
+            return DB::query()->fromRaw("({$sql}) as report_rows", $bindings);
+        }
+
+        return DB::query()->fromSub(
+            $expenseQuery->unionAll($employeeSalaryQuery)->unionAll($labourQuery),
+            'report_rows'
+        );
+    }
+
+    private function mergedReportQueries(array $filters, bool $includeProjectExpenses): array
     {
         $expenseQuery = DB::table('expenses')
             ->leftJoin('projects', 'projects.id', '=', 'expenses.project_id')
@@ -199,9 +241,9 @@ class ReportService
                 DB::raw("COALESCE(labours.name, '-') as labour"),
                 DB::raw("COALESCE(vendors.name, '-') as vendor"),
                 DB::raw('NULL as income'),
-                DB::raw('CAST(COALESCE(expenses.amount, 0) AS DECIMAL(15,2)) as amount'),
-                DB::raw('CAST(COALESCE(expenses.paid_amt, 0) AS DECIMAL(15,2)) as paid'),
-                DB::raw('CAST(COALESCE(expenses.unpaid_amt, 0) AS DECIMAL(15,2)) as unpaid'),
+                DB::raw('COALESCE(expenses.amount, 0) as amount'),
+                DB::raw('COALESCE(expenses.paid_amt, 0) as paid'),
+                DB::raw('COALESCE(expenses.unpaid_amt, 0) as unpaid'),
                 DB::raw("COALESCE(expenses.description, '-') as description"),
                 DB::raw("COALESCE(payment_methods.name, '-') as payment_mode"),
                 DB::raw("COALESCE(entry_users.name, 'System') as entry_name"),
@@ -211,6 +253,13 @@ class ReportService
 
         if (! $includeProjectExpenses) {
             $expenseQuery->whereNull('expenses.project_id');
+        }
+
+        if (Schema::hasColumn('expenses', 'source_type')) {
+            $expenseQuery->where(function ($q) {
+                $q->whereNull('expenses.source_type')
+                    ->orWhere('expenses.source_type', '!=', 'labour_salary');
+            });
         }
 
         $this->applyQueryDateFilters($expenseQuery, $filters, 'expenses.current_date');
@@ -227,26 +276,27 @@ class ReportService
         $salaryPaidExpression = $salaryHasPaidColumn && $salaryStatusColumn
             ? "CASE WHEN employee_salaries.{$salaryStatusColumn} IN ('paid', 'partial') THEN COALESCE(employee_salaries.{$salaryPaidColumn}, 0) ELSE 0 END"
             : ($salaryHasPaidColumn ? "COALESCE(employee_salaries.{$salaryPaidColumn}, 0)" : '0');
+        $salaryDiff = "(COALESCE(employee_salaries.{$salaryAmountColumn}, 0) - "
+            . ($salaryHasPaidColumn ? "COALESCE(employee_salaries.{$salaryPaidColumn}, 0)" : '0')
+            . ')';
         $salaryUnpaidExpression = $salaryRemainingColumn
             ? ($salaryStatusColumn
                 ? "CASE WHEN employee_salaries.{$salaryStatusColumn} IN ('pending', 'partial') THEN COALESCE(employee_salaries.{$salaryRemainingColumn}, 0) ELSE 0 END"
                 : "COALESCE(employee_salaries.{$salaryRemainingColumn}, 0)")
-            : "GREATEST(COALESCE(employee_salaries.{$salaryAmountColumn}, 0) - "
-                . ($salaryHasPaidColumn ? "COALESCE(employee_salaries.{$salaryPaidColumn}, 0)" : '0')
-                . ', 0)';
+            : "CASE WHEN {$salaryDiff} > 0 THEN {$salaryDiff} ELSE 0 END";
 
         $employeeSalaryQuery = DB::table('employee_salaries')
             ->select([
                 DB::raw('DATE(employee_salaries.created_at) as date'),
                 DB::raw("'-' as project_name"),
                 DB::raw("'Salary' as main_category"),
-                DB::raw("CONCAT(UPPER(LEFT(COALESCE(employee_salaries.salary_type, ''), 1)), SUBSTRING(COALESCE(employee_salaries.salary_type, ''), 2), ' Salary') as sub_category"),
+                DB::raw("COALESCE(employee_salaries.salary_type, '') as sub_category"),
                 DB::raw("'-' as labour"),
                 DB::raw("'-' as vendor"),
                 DB::raw('NULL as income'),
-                DB::raw("CAST(COALESCE(employee_salaries.{$salaryAmountColumn}, 0) AS DECIMAL(15,2)) as amount"),
-                DB::raw("CAST({$salaryPaidExpression} AS DECIMAL(15,2)) as paid"),
-                DB::raw("CAST({$salaryUnpaidExpression} AS DECIMAL(15,2)) as unpaid"),
+                DB::raw("COALESCE(employee_salaries.{$salaryAmountColumn}, 0) as amount"),
+                DB::raw("{$salaryPaidExpression} as paid"),
+                DB::raw("{$salaryUnpaidExpression} as unpaid"),
                 DB::raw("'Employee salary entry' as description"),
                 DB::raw("'-' as payment_mode"),
                 DB::raw("'System' as entry_name"),
@@ -260,31 +310,50 @@ class ReportService
             $employeeSalaryQuery->whereRaw('1 = 0');
         }
 
+        $hasExpenseSource = Schema::hasColumn('expenses', 'source_type') && Schema::hasColumn('expenses', 'source_id');
         $labourQuery = DB::table('labour_salaries')
-            ->join('labours', 'labours.id', '=', 'labour_salaries.labour_id')
-            ->select([
-                DB::raw('DATE(labour_salaries.payment_date) as date'),
-                DB::raw("'-' as project_name"),
-                DB::raw("'Labour' as main_category"),
-                DB::raw("COALESCE(NULLIF(labours.job_title, ''), 'Labour') as sub_category"),
-                DB::raw('labours.name as labour'),
-                DB::raw("'-' as vendor"),
-                DB::raw('NULL as income'),
-                DB::raw('CAST(COALESCE(labour_salaries.salary_amount, 0) AS DECIMAL(15,2)) as amount'),
-                DB::raw("CAST(CASE WHEN labour_salaries.status IN ('paid', 'partial') THEN COALESCE(labour_salaries.paid_amount, 0) ELSE 0 END AS DECIMAL(15,2)) as paid"),
-                DB::raw("CAST(CASE WHEN labour_salaries.status IN ('pending', 'partial') THEN COALESCE(labour_salaries.remaining_amount, 0) ELSE 0 END AS DECIMAL(15,2)) as unpaid"),
-                DB::raw("'Labour salary entry' as description"),
-                DB::raw("'-' as payment_mode"),
-                DB::raw("'System' as entry_name"),
-                DB::raw("'System' as edit_name"),
-                DB::raw('labour_salaries.payment_date as sort_date'),
-            ]);
+            ->join('labours', 'labours.id', '=', 'labour_salaries.labour_id');
+
+        if ($hasExpenseSource) {
+            $salaryExpensesQuery = $this->deduplicatedSalaryExpensesQuery();
+            $labourQuery->leftJoinSub($salaryExpensesQuery, 'salary_expenses', function ($join) {
+                $join->on('salary_expenses.source_id', '=', 'labour_salaries.id');
+            })->leftJoin('projects as salary_projects', 'salary_projects.id', '=', 'salary_expenses.project_id');
+        }
+
+        $projectNameRaw = $hasExpenseSource ? "COALESCE(salary_projects.name, '-') as project_name" : "'-' as project_name";
+
+        $labourQuery->select([
+            DB::raw('DATE(labour_salaries.payment_date) as date'),
+            DB::raw($projectNameRaw),
+            DB::raw("'Labour' as main_category"),
+            DB::raw("COALESCE(NULLIF(labours.job_title, ''), 'Labour') as sub_category"),
+            DB::raw('labours.name as labour'),
+            DB::raw("'-' as vendor"),
+            DB::raw('NULL as income'),
+            DB::raw('COALESCE(labour_salaries.salary_amount, 0) as amount'),
+            DB::raw("CASE WHEN labour_salaries.status IN ('paid', 'partial') THEN COALESCE(labour_salaries.paid_amount, 0) ELSE 0 END as paid"),
+            DB::raw("CASE WHEN labour_salaries.status IN ('pending', 'partial') THEN COALESCE(labour_salaries.remaining_amount, 0) ELSE 0 END as unpaid"),
+            DB::raw("'Labour salary entry' as description"),
+            DB::raw("'-' as payment_mode"),
+            DB::raw("'System' as entry_name"),
+            DB::raw("'System' as edit_name"),
+            DB::raw('labour_salaries.payment_date as sort_date'),
+        ]);
 
         $this->applyQueryDateFilters($labourQuery, $filters, 'labour_salaries.payment_date');
 
-        return $expenseQuery
-            ->unionAll($employeeSalaryQuery)
-            ->unionAll($labourQuery);
+        if ($hasExpenseSource) {
+            if (! $includeProjectExpenses) {
+                $labourQuery->whereNull('salary_expenses.project_id');
+            } elseif (! empty($filters['project_id'])) {
+                $labourQuery->where('salary_expenses.project_id', $filters['project_id']);
+            }
+        } elseif (! empty($filters['project_id'])) {
+            $labourQuery->whereRaw('1 = 0');
+        }
+
+        return [$expenseQuery, $employeeSalaryQuery, $labourQuery];
     }
 
     private function applyQueryDateFilters(QueryBuilder $query, array $filters, string $dateColumn): void
@@ -300,11 +369,16 @@ class ReportService
 
     private function databaseReportRowToArray(object $row): array
     {
+        $subCat = $row->sub_category ?? '-';
+        if ($subCat !== '-' && ($row->main_category ?? '') === 'Salary') {
+            $subCat = str_ends_with(strtolower($subCat), 'salary') ? ucfirst($subCat) : (ucfirst($subCat) . ' Salary');
+        }
+
         return [
             'date' => $row->date ?? '-',
             'project_name' => $row->project_name ?? '-',
             'main_category' => $row->main_category ?? '-',
-            'sub_category' => $row->sub_category ?? '-',
+            'sub_category' => $subCat,
             'labour' => $row->labour ?? '-',
             'vendor' => $row->vendor ?? '-',
             'income' => $row->income,
@@ -336,6 +410,8 @@ class ReportService
     private function buildExpenseQuerySummary(Builder $query, array $filters): array
     {
         $totals = (clone $query)->reorder()
+            ->offset(null)
+            ->limit(null)
             ->selectRaw('COUNT(*) as count')
             ->selectRaw('COALESCE(SUM(amount), 0) as total_amount')
             ->selectRaw('COALESCE(SUM(paid_amt), 0) as paid')
@@ -343,7 +419,7 @@ class ReportService
             ->toBase()
             ->first();
 
-        $incomeQuery = Payment::query()->where('status', 'paid');
+        $incomeQuery = Payment::query()->whereIn('status', ['paid', 'partial']);
         $this->applyDateFilters($incomeQuery, $filters, 'payment_date');
 
         return [
@@ -394,5 +470,26 @@ class ReportService
         }
 
         return [$category, '-'];
+    }
+
+    /**
+     * Build a grouped derived query returning at most one active expense per salary.
+     * Deterministically selects the latest active expense by MAX(id) to avoid
+     * Cartesian duplicate rows while properly preserving nullable project attribution.
+     */
+    private function deduplicatedSalaryExpensesQuery(): QueryBuilder
+    {
+        $latestExpenseIds = DB::table('expenses')
+            ->select('source_id', DB::raw('MAX(id) as max_id'))
+            ->where('source_type', 'labour_salary')
+            ->whereNull('deleted_at')
+            ->whereNotNull('source_id')
+            ->groupBy('source_id');
+
+        return DB::table('expenses as dedup_e')
+            ->joinSub($latestExpenseIds, 'latest_salary_exp', function ($join) {
+                $join->on('dedup_e.id', '=', 'latest_salary_exp.max_id');
+            })
+            ->select(['dedup_e.source_id', 'dedup_e.project_id']);
     }
 }

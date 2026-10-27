@@ -378,20 +378,24 @@ trait MobileTaskWalletEndpoints
             $description = $validated['description'] ?? null;
             $transferType = (int) $validated['transfer_type'];
 
-            $wallet = Wallet::query()->create([
+            $hasPaymentMethodCol = Schema::hasColumn('wallet', 'payment_method_id');
+            $walletData = [
                 'user_id' => $targetUser->id,
                 'client_id' => $validated['client_id'],
                 'project_id' => $validated['project_id'],
                 'amount' => $amount,
                 'payment_mode' => $validated['payment_mode'],
-                'payment_method_id' => $validated['payment_method_id'],
                 'transfer_type' => $transferType,
                 'stage_id' => $validated['stage_id'] ?? null,
                 'description' => $description,
                 'current_date' => $dateTime,
                 'active_status' => 1,
                 'delete_status' => 0,
-            ]);
+            ];
+            if ($hasPaymentMethodCol && ! empty($validated['payment_method_id'])) {
+                $walletData['payment_method_id'] = $validated['payment_method_id'];
+            }
+            $wallet = Wallet::query()->create($walletData);
 
             $balanceService = app(CrmBalanceService::class);
             $counterWallet = null;
@@ -402,20 +406,23 @@ trait MobileTaskWalletEndpoints
 
                 if ((int) $targetUser->id !== (int) $actor->id) {
                     $balanceService->adjustUserWallet((int) $actor->id, -$amount);
-                    $counterWallet = Wallet::query()->create([
+                    $counterData = [
                         'user_id' => $actor->id,
                         'client_id' => $validated['client_id'],
                         'project_id' => $validated['project_id'],
                         'amount' => $amount,
                         'payment_mode' => $validated['payment_mode'],
-                        'payment_method_id' => $validated['payment_method_id'],
                         'transfer_type' => 1,
                         'stage_id' => $validated['stage_id'] ?? null,
                         'description' => $description,
                         'current_date' => $dateTime,
                         'active_status' => 1,
                         'delete_status' => 0,
-                    ]);
+                    ];
+                    if ($hasPaymentMethodCol && ! empty($validated['payment_method_id'])) {
+                        $counterData['payment_method_id'] = $validated['payment_method_id'];
+                    }
+                    $counterWallet = Wallet::query()->create($counterData);
                 }
 
                 return [$wallet, $counterWallet];
@@ -426,20 +433,23 @@ trait MobileTaskWalletEndpoints
 
             if ((int) $targetUser->id !== (int) $actor->id) {
                 $balanceService->adjustUserWallet((int) $actor->id, $amount);
-                $counterWallet = Wallet::query()->create([
+                $counterData = [
                     'user_id' => $actor->id,
                     'client_id' => $validated['client_id'],
                     'project_id' => $validated['project_id'],
                     'amount' => $amount,
                     'payment_mode' => $validated['payment_mode'],
-                    'payment_method_id' => $validated['payment_method_id'],
                     'transfer_type' => 0,
                     'stage_id' => $validated['stage_id'] ?? null,
                     'description' => $description,
                     'current_date' => $dateTime,
                     'active_status' => 1,
                     'delete_status' => 0,
-                ]);
+                ];
+                if ($hasPaymentMethodCol && ! empty($validated['payment_method_id'])) {
+                    $counterData['payment_method_id'] = $validated['payment_method_id'];
+                }
+                $counterWallet = Wallet::query()->create($counterData);
             }
 
             return [$wallet, $counterWallet];
