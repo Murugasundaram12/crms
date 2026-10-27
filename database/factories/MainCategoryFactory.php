@@ -16,7 +16,7 @@ class MainCategoryFactory extends Factory
     {
         return [
             'name' => strtoupper(fake()->unique()->word()),
-            'status' => 1,
+            'status' => 'active',
         ];
     }
 }

@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
-abstract class QaTestCase extends BaseTestCase
+abstract class QaTestCase extends TestCase
 {
     use DatabaseTransactions;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -24,6 +25,7 @@ abstract class QaTestCase extends BaseTestCase
 
         // If running in sqlite testing environment, ensure tables exist
         if (config('database.default') === 'sqlite') {
+            $this->ensureBasicTestSchema();
             $this->setupSqliteTestSchema();
         }
     }

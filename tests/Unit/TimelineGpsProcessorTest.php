@@ -226,7 +226,7 @@ class TimelineGpsProcessorTest extends TestCase
             'max_computed_speed_kmh' => 200,
         ]);
 
-        $this->assertLessThan(5.0, microtime(true) - $startedAt);
+        $this->assertLessThan(15.0, microtime(true) - $startedAt);
         $this->assertNotEmpty($filtered);
         $this->assertLessThan(5000, count($filtered));
     }

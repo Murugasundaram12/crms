@@ -8,6 +8,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Streamline your business with our advanced CRM template.">
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     <link rel="shortcut icon" href="{{ asset('assets/img/favicon.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('assets/img/apple-icon.png') }}">
 
@@ -30,6 +32,11 @@
     <script src="{{ asset('assets/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('assets/js/script.js') }}"></script>
     @include('partials.form-ux-guards')
+    @php($crmValidatorJsVersion = max(
+        file_exists(public_path('assets/js/crm-ajax-form-validator.js')) ? filemtime(public_path('assets/js/crm-ajax-form-validator.js')) : 0,
+        file_exists(base_path('assets/js/crm-ajax-form-validator.js')) ? filemtime(base_path('assets/js/crm-ajax-form-validator.js')) : 0
+    ))
+    <script src="{{ asset('assets/js/crm-ajax-form-validator.js') }}?v={{ $crmValidatorJsVersion }}"></script>
 
     @stack('scripts')
 </body>

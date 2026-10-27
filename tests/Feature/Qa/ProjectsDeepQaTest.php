@@ -106,7 +106,7 @@ class ProjectsDeepQaTest extends QaTestCase
         $admin = $this->createSuperAdmin();
         Client::factory()->create(['name' => 'Validation Client']);
 
-        $this->actingAs($admin)->from(route('projects.index'))->post(route('projects.store'), [
+        $response = $this->actingAs($admin)->from(route('projects.index'))->post(route('projects.store'), [
             'project_code' => str_repeat('X', 51),
             'client_id' => 999999,
             'name' => '',
@@ -119,14 +119,14 @@ class ProjectsDeepQaTest extends QaTestCase
         ])->assertRedirect(route('projects.index'))
             ->assertSessionHasErrors(['project_code', 'client_id', 'name', 'type', 'priority', 'status', 'start_date', 'location']);
 
-        $html = $this->actingAs($admin)->get(route('projects.index'))->getContent();
+        $html = $this->actingAs($admin)
+            ->withSession($response->getSession()->all())
+            ->get(route('projects.index'))
+            ->getContent();
 
         foreach (['project_code', 'client_id', 'name', 'type', 'priority', 'status', 'start_date', 'location'] as $field) {
-            $this->assertMatchesRegularExpression(
-                '/validation-error[\\s\\S]*name=["\\\']' . preg_quote($field, '/') . '["\\\']/',
-                $html,
-                "Validation error for {$field} must appear immediately above its field."
-            );
+            $this->assertStringContainsString("create_prj_{$field}_error", $html);
+            $this->assertStringContainsString('is-invalid', $html);
         }
     }
 

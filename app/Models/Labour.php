@@ -30,6 +30,18 @@ class Labour extends Model
         'advance_amt' => 'decimal:2',
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (Labour $labour): void {
+            if ($labour->isDirty('labour_role_id') && ! $labour->isDirty('salary') && $labour->labour_role_id) {
+                $role = LabourRole::find($labour->labour_role_id);
+                if ($role && (float) $role->salary > 0) {
+                    $labour->salary = $role->salary;
+                }
+            }
+        });
+    }
+
     public function labourRole(): BelongsTo
     {
         return $this->belongsTo(LabourRole::class);

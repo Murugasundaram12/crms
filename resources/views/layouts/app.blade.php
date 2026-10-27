@@ -52,6 +52,11 @@
     <script src="{{ asset('assets/js/script.js') }}"></script>
     <script src="{{ asset('assets/js/laravel-active-menu.js') }}"></script>
     @include('partials.form-ux-guards')
+    @php($crmValidatorJsVersion = max(
+        file_exists(public_path('assets/js/crm-ajax-form-validator.js')) ? filemtime(public_path('assets/js/crm-ajax-form-validator.js')) : 0,
+        file_exists(base_path('assets/js/crm-ajax-form-validator.js')) ? filemtime(base_path('assets/js/crm-ajax-form-validator.js')) : 0
+    ))
+    <script src="{{ asset('assets/js/crm-ajax-form-validator.js') }}?v={{ $crmValidatorJsVersion }}"></script>
     @auth
     <script>
         window.crmPermissionContext = @json($permissionUiContext ?? ['userPermissions' => [], 'permissionRoutes' => []]);

@@ -127,7 +127,10 @@ class BusinessWorkflowIntegrationQaTest extends QaTestCase
         $method = PaymentMethod::factory()->create(['name' => 'QA Payroll Method ' . Str::upper(Str::random(8))]);
 
         $this->actingAs($employee)->post(route('attendance.check-in'))->assertRedirect(route('dashboard'));
-        $this->assertDatabaseHas('attendances', ['user_id' => $employee->id, 'attendance_date' => now()->toDateString()]);
+        $this->assertDatabaseHas('attendances', ['user_id' => $employee->id]);
+        $record = Attendance::query()->where('user_id', $employee->id)->first();
+        $this->assertNotNull($record);
+        $this->assertEquals(now()->toDateString(), $record->attendance_date->toDateString());
         $this->actingAs($employee)->post(route('attendance.check-in'))->assertRedirect(route('dashboard'))
             ->assertSessionHas('error');
 

@@ -11,65 +11,6 @@ use Tests\QaTestCase;
 
 class AuthorizationMatrixQaTest extends QaTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (config('database.default') === 'sqlite') {
-            Schema::dropIfExists('user_roles');
-            Schema::dropIfExists('model_has_permissions');
-            Schema::dropIfExists('role_permission');
-            Schema::dropIfExists('permissions');
-            Schema::dropIfExists('roles');
-            Schema::dropIfExists('users');
-
-            Schema::create('users', function (Blueprint $table): void {
-                $table->id();
-                $table->string('name');
-                $table->string('email')->unique();
-                $table->string('role')->nullable();
-                $table->string('status')->default('active');
-                $table->string('password');
-                $table->rememberToken();
-                $table->timestamps();
-            });
-
-            Schema::create('roles', function (Blueprint $table): void {
-                $table->id();
-                $table->string('name')->unique();
-                $table->text('description')->nullable();
-                $table->timestamps();
-            });
-
-            Schema::create('permissions', function (Blueprint $table): void {
-                $table->id();
-                $table->string('name');
-                $table->string('key')->unique();
-                $table->timestamps();
-            });
-
-            Schema::create('role_permission', function (Blueprint $table): void {
-                $table->id();
-                $table->foreignId('role_id');
-                $table->foreignId('permission_id');
-                $table->timestamps();
-            });
-
-            Schema::create('user_roles', function (Blueprint $table): void {
-                $table->id();
-                $table->foreignId('user_id');
-                $table->foreignId('role_id');
-                $table->timestamps();
-            });
-
-            Schema::create('model_has_permissions', function (Blueprint $table): void {
-                $table->unsignedBigInteger('permission_id');
-                $table->string('model_type');
-                $table->unsignedBigInteger('model_id');
-                $table->primary(['permission_id', 'model_id', 'model_type']);
-            });
-        }
-    }
 
     /**
      * Test: Super Admin can access all protected module list pages.

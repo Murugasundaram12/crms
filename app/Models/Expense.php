@@ -14,6 +14,7 @@ class Expense extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'expense_code',
         'amount',
         'main_category_id',
         'category_id',
@@ -34,6 +35,15 @@ class Expense extends Model
         'source_type',
         'source_id',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Expense $expense): void {
+            if (empty($expense->expense_code) && \Illuminate\Support\Facades\Schema::hasColumn('expenses', 'expense_code')) {
+                $expense->expense_code = 'EXP-' . now()->format('YmdHis') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4));
+            }
+        });
+    }
 
     protected $casts = [
         'amount' => 'decimal:2',

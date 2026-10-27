@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\EnsureSingleWebSession::class,
+            \App\Http\Middleware\HandleAjaxFormResponse::class,
         ]);
 
         $middleware->alias([

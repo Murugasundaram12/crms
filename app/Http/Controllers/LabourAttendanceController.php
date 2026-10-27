@@ -364,7 +364,7 @@ class LabourAttendanceController extends Controller
         // rate. Role salary is only used to prefill a new labour's salary.
         $role = $labour->labourRole;
         $salaryType = strtolower((string) ($role?->salary_type ?? 'monthly'));
-        $baseRate = (float) ($labour->salary ?? 0);
+        $baseRate = (float) (($labour->salary ?? 0) > 0 ? $labour->salary : ($role?->salary ?? 0));
 
         if ($salaryType === 'daily') {
             $dailyRate = $baseRate;
