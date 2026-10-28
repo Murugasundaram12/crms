@@ -27,10 +27,10 @@ $approvedDbFile = $testingDir . DIRECTORY_SEPARATOR . 'browser_qa.sqlite';
 // =============================================================================
 // Helper: Windows Path Canonicalization
 // =============================================================================
-if (! function_exists('crmsCanonicalizePath')) {
+if (!function_exists('crmsCanonicalizePath')) {
     function crmsCanonicalizePath(string $path): string
     {
-        if ($path === '' || ! file_exists($path)) {
+        if ($path === '' || !file_exists($path)) {
             return '';
         }
 
@@ -43,7 +43,7 @@ if (! function_exists('crmsCanonicalizePath')) {
 // =============================================================================
 // Step 0: Early Pre-Flight File Existence & Integrity Check
 // =============================================================================
-if (! file_exists($approvedDbFile) || filesize($approvedDbFile) === 0) {
+if (!file_exists($approvedDbFile) || filesize($approvedDbFile) === 0) {
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode([
@@ -82,10 +82,45 @@ $_SERVER['DB_DATABASE'] = $approvedDbFile;
 // =============================================================================
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $uriPath = urldecode((string) parse_url($requestUri, PHP_URL_PATH));
-$publicAssetFile = $workspaceRoot . DIRECTORY_SEPARATOR . 'public' . str_replace('/', DIRECTORY_SEPARATOR, $uriPath);
+$publicRoot = $workspaceRoot . DIRECTORY_SEPARATOR . 'public';
+$publicAssetFile = $publicRoot . str_replace('/', DIRECTORY_SEPARATOR, $uriPath);
+$canonicalPublicRoot = crmsCanonicalizePath($publicRoot);
+$canonicalAssetFile = ($uriPath !== '/' && $uriPath !== '') ? crmsCanonicalizePath($publicAssetFile) : '';
+$allowedStaticExtensions = [
+    'css',
+    'js',
+    'mjs',
+    'map',
+    'json',
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'svg',
+    'ico',
+    'webp',
+    'avif',
+    'woff',
+    'woff2',
+    'ttf',
+    'eot',
+    'otf',
+    'txt',
+    'webmanifest',
+];
 
-if ($uriPath !== '/' && file_exists($publicAssetFile) && ! is_dir($publicAssetFile)) {
-    return false; // Handled directly by PHP built-in web server
+if (
+    $canonicalPublicRoot !== ''
+    && $canonicalAssetFile !== ''
+    && str_starts_with($canonicalAssetFile, $canonicalPublicRoot . '\\')
+    && !is_dir($canonicalAssetFile)
+    && !is_link($publicAssetFile)
+    && basename($canonicalAssetFile) !== 'index.php'
+) {
+    $assetExtension = strtolower((string) pathinfo($canonicalAssetFile, PATHINFO_EXTENSION));
+    if ($assetExtension !== 'php' && in_array($assetExtension, $allowedStaticExtensions, true)) {
+        return false; // Safe non-PHP static asset handled directly by PHP built-in web server
+    }
 }
 
 // =============================================================================

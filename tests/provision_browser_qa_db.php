@@ -263,39 +263,112 @@ $assertDatabaseIdentity();
 // =============================================================================
 provisionInfo('Seeding system roles and permissions...');
 
-$roles = ['Super Admin', 'Admin', 'Employee', 'Worker'];
-foreach ($roles as $roleName) {
-    \Illuminate\Support\Facades\DB::table('roles')->updateOrInsert(
-        ['name' => $roleName],
-        ['created_at' => now(), 'updated_at' => now()]
-    );
-}
+$filterColumns = static function (string $table, array $attributes): array {
+    $columns = \Illuminate\Support\Facades\Schema::getColumnListing($table);
+    if ($columns === []) {
+        return $attributes;
+    }
 
-$permissions = [
-    ['name' => 'View Dashboard', 'key' => 'dashboard.view'],
-    ['name' => 'View Projects', 'key' => 'projects.view'],
-    ['name' => 'Manage Projects', 'key' => 'projects.manage'],
-    ['name' => 'View Reports', 'key' => 'reports.view'],
-    ['name' => 'Manage Expenses', 'key' => 'expenses.manage'],
-    ['name' => 'Manage Salaries', 'key' => 'salaries.manage'],
+    return array_intersect_key($attributes, array_flip($columns));
+};
+
+$roles = [
+    'Super Admin' => 'Full system access',
+    'Manager' => 'Operational access across core modules',
+    'Admin' => 'Administrative access',
+    'Employee' => 'Basic project access',
+    'Worker' => 'Site worker access',
 ];
 
-foreach ($permissions as $perm) {
-    \Illuminate\Support\Facades\DB::table('permissions')->updateOrInsert(
-        ['key' => $perm['key']],
-        ['name' => $perm['name'], 'created_at' => now(), 'updated_at' => now()]
+foreach ($roles as $roleName => $roleDescription) {
+    \Illuminate\Support\Facades\DB::table('roles')->updateOrInsert(
+        ['name' => $roleName],
+        $filterColumns('roles', [
+            'description' => $roleDescription,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])
     );
 }
 
-// Assign all permissions to Super Admin role
+$permissionModules = [
+    'roles' => 'Roles',
+    'permissions' => 'Permissions',
+    'clients' => 'Clients',
+    'projects' => 'Projects',
+    'employees' => 'Employees',
+    'tasks' => 'Tasks',
+    'tools-materials' => 'Tools & Materials',
+    'payments' => 'Payments',
+    'payment-stages' => 'Payment Stages',
+    'payment-methods' => 'Payment Methods',
+    'variations' => 'Variations',
+    'labour-roles' => 'Labour Roles',
+    'labours' => 'Labours',
+    'labour-assignments' => 'Labour Assignments',
+    'labour-salaries' => 'Labour Salaries',
+    'quotations' => 'Quotations',
+    'leave-requests' => 'Leave Requests',
+    'vendors' => 'Vendors',
+    'main-categories' => 'Main Categories',
+    'categories' => 'Categories',
+    'units' => 'Units',
+    'employees-salary' => 'Employee Salary',
+    'attendance' => 'Attendance',
+    'reports' => 'Reports',
+    'expense-reports' => 'Expense Reports',
+    'expenses' => 'Expenses',
+    'transfers' => 'Transfers',
+];
+
+$permissionActions = [
+    'list' => 'List',
+    'create' => 'Create',
+    'edit' => 'Edit',
+    'delete' => 'Delete',
+];
+
+foreach ($permissionModules as $moduleKey => $moduleLabel) {
+    foreach ($permissionActions as $actionKey => $actionLabel) {
+        $permKey = "{$moduleKey}-{$actionKey}";
+        $permName = "{$actionLabel} {$moduleLabel}";
+
+        \Illuminate\Support\Facades\DB::table('permissions')->updateOrInsert(
+            ['key' => $permKey],
+            $filterColumns('permissions', [
+                'name' => $permName,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])
+        );
+    }
+}
+
+// Assign all permissions to Super Admin role and 'projects-list' to Employee role
 $superAdminRoleId = \Illuminate\Support\Facades\DB::table('roles')->where('name', 'Super Admin')->value('id');
+$employeeRoleId = \Illuminate\Support\Facades\DB::table('roles')->where('name', 'Employee')->value('id');
 $allPermIds = \Illuminate\Support\Facades\DB::table('permissions')->pluck('id');
 
-foreach ($allPermIds as $permId) {
-    \Illuminate\Support\Facades\DB::table('role_permission')->updateOrInsert(
-        ['role_id' => $superAdminRoleId, 'permission_id' => $permId],
-        ['created_at' => now(), 'updated_at' => now()]
-    );
+if (\Illuminate\Support\Facades\Schema::hasTable('role_permission')) {
+    $rolePermTimestamps = $filterColumns('role_permission', [
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    foreach ($allPermIds as $permId) {
+        \Illuminate\Support\Facades\DB::table('role_permission')->updateOrInsert(
+            ['role_id' => $superAdminRoleId, 'permission_id' => $permId],
+            $rolePermTimestamps
+        );
+    }
+
+    $projectsListPermId = \Illuminate\Support\Facades\DB::table('permissions')->where('key', 'projects-list')->value('id');
+    if ($employeeRoleId && $projectsListPermId) {
+        \Illuminate\Support\Facades\DB::table('role_permission')->updateOrInsert(
+            ['role_id' => $employeeRoleId, 'permission_id' => $projectsListPermId],
+            $rolePermTimestamps
+        );
+    }
 }
 
 // Re-verify connection identity
@@ -310,34 +383,64 @@ $hashedPassword = \Illuminate\Support\Facades\Hash::make('password');
 
 \Illuminate\Support\Facades\DB::table('users')->updateOrInsert(
     ['email' => 'qa.admin@housefix.test'],
-    [
+    $filterColumns('users', [
         'name' => 'QA Super Administrator',
+        'phone' => '9000000001',
+        'designation' => 'Administrator',
         'role' => 'Super Admin',
+        'status' => 'active',
+        'is_employee' => false,
         'password' => $hashedPassword,
         'email_verified_at' => now(),
         'created_at' => now(),
         'updated_at' => now(),
-    ]
+    ])
 );
 
 $adminUserId = \Illuminate\Support\Facades\DB::table('users')->where('email', 'qa.admin@housefix.test')->value('id');
 
-\Illuminate\Support\Facades\DB::table('role_user')->updateOrInsert(
-    ['user_id' => $adminUserId, 'role_id' => $superAdminRoleId],
-    ['created_at' => now(), 'updated_at' => now()]
-);
-
 \Illuminate\Support\Facades\DB::table('users')->updateOrInsert(
     ['email' => 'qa.worker@housefix.test'],
-    [
+    $filterColumns('users', [
         'name' => 'QA Site Worker',
+        'phone' => '9000000002',
+        'designation' => 'Site Employee',
         'role' => 'Employee',
+        'status' => 'active',
+        'is_employee' => true,
         'password' => $hashedPassword,
         'email_verified_at' => now(),
         'created_at' => now(),
         'updated_at' => now(),
-    ]
+    ])
 );
+
+$workerUserId = \Illuminate\Support\Facades\DB::table('users')->where('email', 'qa.worker@housefix.test')->value('id');
+
+$userRolePivotTable = \Illuminate\Support\Facades\Schema::hasTable('user_roles')
+    ? 'user_roles'
+    : (\Illuminate\Support\Facades\Schema::hasTable('role_user') ? 'role_user' : null);
+
+if ($userRolePivotTable !== null) {
+    $userRoleTimestamps = $filterColumns($userRolePivotTable, [
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    if ($adminUserId && $superAdminRoleId) {
+        \Illuminate\Support\Facades\DB::table($userRolePivotTable)->updateOrInsert(
+            ['user_id' => $adminUserId, 'role_id' => $superAdminRoleId],
+            $userRoleTimestamps
+        );
+    }
+
+    if ($workerUserId && $employeeRoleId) {
+        \Illuminate\Support\Facades\DB::table($userRolePivotTable)->updateOrInsert(
+            ['user_id' => $workerUserId, 'role_id' => $employeeRoleId],
+            $userRoleTimestamps
+        );
+    }
+}
 
 // Re-verify connection identity
 $assertDatabaseIdentity();
@@ -348,26 +451,67 @@ $assertDatabaseIdentity();
 provisionInfo('Seeding synthetic test master data...');
 
 if (\Illuminate\Support\Facades\Schema::hasTable('payment_methods')) {
-    $methods = ['Cash', 'Bank Transfer', 'UPI', 'Cheque'];
+    $methods = [
+        ['name' => 'Cash', 'code' => 'CASH', 'type' => 'cash', 'sort_order' => 1],
+        ['name' => 'Bank Transfer', 'code' => 'BANK_TRANSFER', 'type' => 'bank', 'sort_order' => 2],
+        ['name' => 'UPI', 'code' => 'UPI', 'type' => 'upi', 'sort_order' => 3],
+        ['name' => 'Cheque', 'code' => 'CHEQUE', 'type' => 'cheque', 'sort_order' => 4],
+    ];
     foreach ($methods as $method) {
         \Illuminate\Support\Facades\DB::table('payment_methods')->updateOrInsert(
-            ['name' => $method],
-            ['status' => 'active', 'created_at' => now(), 'updated_at' => now()]
+            ['name' => $method['name']],
+            $filterColumns('payment_methods', [
+                'code' => $method['code'],
+                'type' => $method['type'],
+                'active_status' => true,
+                'status' => 'active',
+                'sort_order' => $method['sort_order'],
+                'created_by' => $adminUserId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])
         );
     }
+}
+
+$qaClientId = null;
+if (\Illuminate\Support\Facades\Schema::hasTable('clients')) {
+    \Illuminate\Support\Facades\DB::table('clients')->updateOrInsert(
+        ['name' => 'Test Client QA'],
+        $filterColumns('clients', [
+            'company_name' => 'HouseFix QA Holdings',
+            'email' => 'qa.client@housefix.test',
+            'phone' => '9876543210',
+            'address' => '100 QA Test Avenue',
+            'city' => 'Chennai',
+            'state' => 'Tamil Nadu',
+            'country' => 'India',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])
+    );
+    $qaClientId = \Illuminate\Support\Facades\DB::table('clients')->where('name', 'Test Client QA')->value('id');
 }
 
 if (\Illuminate\Support\Facades\Schema::hasTable('projects')) {
     \Illuminate\Support\Facades\DB::table('projects')->updateOrInsert(
         ['name' => 'Alpha Site QA Project'],
-        [
-            'client_name' => 'Test Client QA',
-            'client_phone' => '9876543210',
-            'status' => 'in_progress',
+        $filterColumns('projects', [
+            'project_code' => 'PRJ-QA-001',
+            'client_id' => $qaClientId,
+            'description' => 'Synthetic QA project for isolated browser verification',
+            'type' => 'Residential',
+            'priority' => 'medium',
+            'status' => 'active',
+            'progress' => 0,
             'start_date' => now()->subDays(30)->toDateString(),
+            'end_date' => now()->addDays(60)->toDateString(),
+            'advance_amt' => 0,
+            'profit' => 0,
             'created_at' => now(),
             'updated_at' => now(),
-        ]
+        ])
     );
 }
 
