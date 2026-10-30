@@ -217,6 +217,7 @@
         });
     </script>
 
+    @include('partials.toast')
     @stack('scripts')
     <script src="{{ asset('assets/js/custom-alerts.js') }}"></script>
 </body>

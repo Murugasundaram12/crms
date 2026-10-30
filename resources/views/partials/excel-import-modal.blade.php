@@ -27,9 +27,16 @@
     </script>
 @endif
 @if ($importResult)
-    <div class="alert alert-{{ ($importResult['failed'] ?? 0) ? 'warning' : 'success' }} border-0 shadow-sm mt-3">
-        <div class="fw-semibold mb-1">{{ $importTitle }} import {{ str_replace('_', ' ', $importResult['status']) }}</div>
-        <div>Imported: {{ $importResult['imported'] }} &nbsp; Updated: {{ $importResult['updated'] }} &nbsp; Skipped: {{ $importResult['skipped'] }} &nbsp; Failed: {{ $importResult['failed'] }}</div>
-        @if (!empty($importResult['errors']))<details class="mt-2"><summary>Show row issues</summary><ul class="mb-0 mt-2">@foreach ($importResult['errors'] as $error)<li>Row {{ $error['row'] ?? '-' }}: {{ $error['message'] }}</li>@endforeach</ul></details>@endif
-    </div>
+    @if (!empty($importResult['failed']) || !empty($importResult['errors']))
+        <div class="alert alert-warning border-0 shadow-sm mt-3">
+            <div class="fw-semibold mb-1">{{ $importTitle }} import {{ str_replace('_', ' ', $importResult['status']) }}</div>
+            <div>Imported: {{ $importResult['imported'] }} &nbsp; Updated: {{ $importResult['updated'] }} &nbsp; Skipped: {{ $importResult['skipped'] }} &nbsp; Failed: {{ $importResult['failed'] }}</div>
+            @if (!empty($importResult['errors']))<details class="mt-2"><summary>Show row issues</summary><ul class="mb-0 mt-2">@foreach ($importResult['errors'] as $error)<li>Row {{ $error['row'] ?? '-' }}: {{ $error['message'] }}</li>@endforeach</ul></details>@endif
+        </div>
+    @else
+        <script>
+            window.__crmQueuedToasts = window.__crmQueuedToasts || [];
+            window.__crmQueuedToasts.push(@json(($importTitle ?? 'Excel') . ' import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0)));
+        </script>
+    @endif
 @endif

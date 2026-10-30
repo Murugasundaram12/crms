@@ -111,6 +111,14 @@
             const alertContainer = document.getElementById('statusAlertContainer');
 
             function showStatusAlert(type, message) {
+                if (type === 'success' && typeof window.showToast === 'function') {
+                    if (alertContainer) {
+                        alertContainer.innerHTML = '';
+                    }
+                    window.showToast(message, 'success');
+                    return;
+                }
+
                 if (!alertContainer) {
                     return;
                 }

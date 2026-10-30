@@ -19,9 +19,6 @@
                                     <h3 class="mb-2">Reset Password</h3>
                                     <p class="mb-0">Enter your email address and we will send a password reset link.</p>
                                 </div>
-                                @if (session('status'))
-                                    <div class="alert alert-success">{{ session('status') }}</div>
-                                @endif
                                 <div class="mb-3">
                                     <label class="form-label">Email Address</label>
                                     <div class="input-group input-group-flat">

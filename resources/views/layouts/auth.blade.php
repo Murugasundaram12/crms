@@ -38,6 +38,7 @@
     ))
     <script src="{{ asset('assets/js/crm-ajax-form-validator.js') }}?v={{ $crmValidatorJsVersion }}"></script>
 
+    @include('partials.toast')
     @stack('scripts')
 </body>
 

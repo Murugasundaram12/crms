@@ -469,7 +469,21 @@
                     window.location.href = data.redirect;
                 } else if (response.redirected && response.url) {
                     window.location.href = response.url;
+                } else if (data && data.message && (data.stay || form.hasAttribute('data-ajax-stay'))) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message, 'success');
+                    }
                 } else {
+                    if (data && data.message) {
+                        try {
+                            sessionStorage.setItem('crm_pending_toast', JSON.stringify({
+                                message: String(data.message),
+                                type: 'success'
+                            }));
+                        } catch (e) {
+                            // Ignore storage access errors
+                        }
+                    }
                     window.location.reload();
                 }
                 return;
