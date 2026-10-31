@@ -57,14 +57,14 @@
         align-items: center;
         font-size: 13.5px;
         font-weight: 700;
-        color: #ffffff !important;
+        color: #0d5fd7 !important;
         white-space: nowrap;
     }
 
     .wallet-container:hover .member-infoooo,
     .navbar-wallet-trigger:hover .wallet-balance {
         display: inline-block;
-        color: #ffffff !important;
+        color: #0d5fd7 !important;
     }
 </style>
 
@@ -131,7 +131,7 @@
                             onmouseover="showWallet()"
                             onmouseleave="closeWallet()">
                             <i class="ti ti-wallet" onmouseover="showWallet()" onmouseleave="closeWallet()"></i>
-                            <b id="wallet-info" class="wallet-balance member-infoooo" style="display: none; color: white;">{{ $currentUser?->wallet ?? '0.00' }}</b>
+                            <b id="wallet-info" class="wallet-balance member-infoooo" style="display: none;">{{ $currentUser?->wallet ?? '0.00' }}</b>
                         </a>
                     @else
                         <button type="button"
@@ -141,7 +141,7 @@
                             onmouseover="showWallet()"
                             onmouseleave="closeWallet()">
                             <i class="ti ti-wallet" onmouseover="showWallet()" onmouseleave="closeWallet()"></i>
-                            <b id="wallet-info" class="wallet-balance member-infoooo" style="display: none; color: white;">{{ $currentUser?->wallet ?? '0.00' }}</b>
+                            <b id="wallet-info" class="wallet-balance member-infoooo" style="display: none;">{{ $currentUser?->wallet ?? '0.00' }}</b>
                         </button>
                     @endif
                 </div>
