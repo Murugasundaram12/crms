@@ -34,33 +34,36 @@
 
 <style>
     .navbar-wallet-trigger {
-        width: auto !important;
+        width: 38px;
         height: 38px;
-        padding: 0 12px !important;
+        padding: 5px;
         display: inline-flex !important;
         align-items: center;
+        justify-content: center;
         gap: 6px;
         text-decoration: none;
-        border-radius: 6px;
+        border-radius: 5px;
+        transition: all 0.2s ease;
+    }
+
+    .navbar-wallet-trigger:hover,
+    .wallet-container:hover .navbar-wallet-trigger {
+        width: auto !important;
+        padding: 0 12px !important;
     }
 
     .navbar-wallet-trigger .wallet-balance {
-        display: inline-flex;
+        display: none;
         align-items: center;
         font-size: 13.5px;
         font-weight: 700;
+        color: #ffffff !important;
         white-space: nowrap;
     }
 
-    .navbar-wallet-trigger .wallet-balance.text-success {
-        color: #0d9488 !important;
-    }
-
-    .navbar-wallet-trigger .wallet-balance.text-danger {
-        color: #e11d48 !important;
-    }
-
+    .wallet-container:hover .member-infoooo,
     .navbar-wallet-trigger:hover .wallet-balance {
+        display: inline-block;
         color: #ffffff !important;
     }
 </style>
@@ -118,32 +121,45 @@
                 </div>
             @endif
 
-            @php($walletBalance = (float) ($currentUser?->wallet ?? 0))
-            @php($walletBalanceClass = $walletBalance > 0 ? 'text-success' : 'text-danger')
             <div class="header-item d-flex">
-                <div class="dropdown me-2">
+                <div class="dropdown me-2 wallet-container">
                     @if($currentUser?->hasPermission('transfers-create'))
                         <a href="{{ route('wallet.create') }}"
                             class="btn topbar-link topbar-teal-link navbar-wallet-trigger d-inline-flex align-items-center gap-1"
                             id="wallet-click"
-                            title="Current Wallet Balance">
-                            <i class="ti ti-wallet"></i>
-                            <span class="wallet-balance fw-semibold {{ $walletBalanceClass }}">
-                                ₹{{ number_format($walletBalance, 2) }}
-                            </span>
+                            title="Current Wallet Balance"
+                            onmouseover="showWallet()"
+                            onmouseleave="closeWallet()">
+                            <i class="ti ti-wallet" onmouseover="showWallet()" onmouseleave="closeWallet()"></i>
+                            <b id="wallet-info" class="wallet-balance member-infoooo" style="display: none; color: white;">{{ $currentUser?->wallet ?? '0.00' }}</b>
                         </a>
                     @else
                         <button type="button"
                             class="btn topbar-link topbar-teal-link navbar-wallet-trigger d-inline-flex align-items-center gap-1"
                             title="Current Wallet Balance"
-                            aria-label="Current Wallet Balance">
-                            <i class="ti ti-wallet"></i>
-                            <span class="wallet-balance fw-semibold {{ $walletBalanceClass }}">
-                                ₹{{ number_format($walletBalance, 2) }}
-                            </span>
+                            aria-label="Current Wallet Balance"
+                            onmouseover="showWallet()"
+                            onmouseleave="closeWallet()">
+                            <i class="ti ti-wallet" onmouseover="showWallet()" onmouseleave="closeWallet()"></i>
+                            <b id="wallet-info" class="wallet-balance member-infoooo" style="display: none; color: white;">{{ $currentUser?->wallet ?? '0.00' }}</b>
                         </button>
                     @endif
                 </div>
+                <script>
+                    function showWallet() {
+                        var walletInfo = document.getElementById('wallet-info');
+                        if (walletInfo) {
+                            walletInfo.style.display = 'inline-block';
+                        }
+                    }
+
+                    function closeWallet() {
+                        var walletInfo = document.getElementById('wallet-info');
+                        if (walletInfo) {
+                            walletInfo.style.display = 'none';
+                        }
+                    }
+                </script>
             </div>
 
             @php($canOpenExpenseQuickActions = $currentUser && ($currentUser->hasPermission('expenses-list') || $currentUser->hasPermission('expenses-create')))
