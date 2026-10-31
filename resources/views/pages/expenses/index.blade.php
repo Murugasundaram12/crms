@@ -18,9 +18,12 @@
                 @endif
             </div>
         @else
+            @php
+                $expenseToastMsg = 'Expense import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0);
+            @endphp
             <script>
                 window.__crmQueuedToasts = window.__crmQueuedToasts || [];
-                window.__crmQueuedToasts.push(@json('Expense import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0)));
+                window.__crmQueuedToasts.push(@json($expenseToastMsg));
             </script>
         @endif
     @endif
