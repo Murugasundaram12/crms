@@ -34,9 +34,12 @@
             @if (!empty($importResult['errors']))<details class="mt-2"><summary>Show row issues</summary><ul class="mb-0 mt-2">@foreach ($importResult['errors'] as $error)<li>Row {{ $error['row'] ?? '-' }}: {{ $error['message'] }}</li>@endforeach</ul></details>@endif
         </div>
     @else
+        @php
+            $toastMsg = ($importTitle ?? 'Excel') . ' import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0);
+        @endphp
         <script>
             window.__crmQueuedToasts = window.__crmQueuedToasts || [];
-            window.__crmQueuedToasts.push(@json(($importTitle ?? 'Excel') . ' import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0)));
+            window.__crmQueuedToasts.push(@json($toastMsg));
         </script>
     @endif
 @endif

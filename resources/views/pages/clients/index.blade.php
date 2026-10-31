@@ -6,7 +6,9 @@
 @include('partials.alerts')
 
 @if (session('client_import_result'))
-@php($importResult = session('client_import_result'))
+@php
+    $importResult = session('client_import_result');
+@endphp
 @if (!empty($importResult['failed']) || !empty($importResult['errors']))
     <div class="alert alert-warning border-0 shadow-sm">
         <div class="fw-semibold mb-1">Client import {{ str_replace('_', ' ', $importResult['status']) }}</div>
@@ -22,9 +24,12 @@
         @endif
     </div>
 @else
+    @php
+        $clientToastMsg = 'Client import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0);
+    @endphp
     <script>
         window.__crmQueuedToasts = window.__crmQueuedToasts || [];
-        window.__crmQueuedToasts.push(@json('Client import ' . str_replace('_', ' ', $importResult['status'] ?? 'completed') . ' — Imported: ' . ($importResult['imported'] ?? 0) . ', Updated: ' . ($importResult['updated'] ?? 0) . ', Skipped: ' . ($importResult['skipped'] ?? 0) . ', Failed: ' . ($importResult['failed'] ?? 0)));
+        window.__crmQueuedToasts.push(@json($clientToastMsg));
     </script>
 @endif
 @endif
